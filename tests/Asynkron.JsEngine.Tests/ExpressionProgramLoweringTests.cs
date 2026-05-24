@@ -1433,6 +1433,30 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ScriptAssignment_SimpleTopLevelBinaryHelperCall_IsInlinedBeforeExpressionProgramLowering()
+    {
+        var plan = await GetScriptPlan("""
+            function add(a, b) {
+                return a + b;
+            }
+
+            let result = 0;
+            result = add(result, 2);
+            result;
+            """);
+
+        var instruction = Assert.Single(
+            plan.Instructions.OfType<AssignmentSlotInstruction>(),
+            assignment => assignment.TargetSymbol.Name == "result");
+        Assert.NotNull(instruction.ValueProgram);
+        AssertProgramContains<BinaryExpressionOp>(
+            instruction.ValueProgram,
+            op => op.Operator == BinaryOperator.Add);
+        Assert.Empty(instruction.ValueProgram.Value.GetOps(ExpressionOpKind.LoadIdentifierCallTarget));
+        Assert.Empty(instruction.ValueProgram.Value.GetOps(ExpressionOpKind.Call));
+    }
+
+    [Fact]
     public async Task WithResolvedIdentifierCall_UsesWithObjectAsReceiver()
     {
         var result = await _engine.Evaluate("""

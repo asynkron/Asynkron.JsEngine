@@ -46,7 +46,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
                 return a + b;
             }
 
-            add(20, 22);
+            const callable = add;
+            callable(20, 22);
             """);
 
         Assert.Equal(42d, result);
@@ -77,7 +78,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
                 return a + b;
             }
 
-            String(add(box, 22)) + ":" + String(hits);
+            const callable = add;
+            String(callable(box, 22)) + ":" + String(hits);
             """);
 
         Assert.Equal("42:1", result);

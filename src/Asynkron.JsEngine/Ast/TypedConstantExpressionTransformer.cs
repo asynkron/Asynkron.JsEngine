@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -14,19 +15,34 @@ namespace Asynkron.JsEngine.Ast;
 /// </summary>
 public sealed class TypedConstantExpressionTransformer
 {
+    private static readonly ImmutableDictionary<Symbol, SimpleBinaryFunctionInlineCandidate> EmptyInlineCandidates =
+        ImmutableDictionary<Symbol, SimpleBinaryFunctionInlineCandidate>.Empty
+            .WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
+
+    private ImmutableDictionary<Symbol, SimpleBinaryFunctionInlineCandidate>? _inlineCandidates;
+
     /// <summary>
     ///     Traverses the program and folds any constant expressions it encounters.
     ///     The original <see cref="ProgramNode" /> is returned when no changes were made.
     /// </summary>
     public ProgramNode Transform(ProgramNode program)
     {
-        var body = TransformImmutableArray(program.Body, TransformStatement, out var changed);
-        if (!changed)
+        var previousInlineCandidates = _inlineCandidates;
+        _inlineCandidates = BuildProgramInlineCandidates(program);
+        try
         {
-            return program;
-        }
+            var body = TransformImmutableArray(program.Body, TransformStatement, out var changed);
+            if (!changed)
+            {
+                return program;
+            }
 
-        return program with { Body = body };
+            return program with { Body = body };
+        }
+        finally
+        {
+            _inlineCandidates = previousInlineCandidates;
+        }
     }
 
     private StatementNode TransformStatement(StatementNode statement)
@@ -323,15 +339,24 @@ public sealed class TypedConstantExpressionTransformer
 
     private FunctionExpression TransformFunctionExpression(FunctionExpression expression)
     {
-        var parameters =
-            TransformImmutableArray(expression.Parameters, TransformFunctionParameter, out var changedParameters);
-        var body = TransformBlock(expression.Body);
-        if (!changedParameters && ReferenceEquals(body, expression.Body))
+        var previousInlineCandidates = _inlineCandidates;
+        _inlineCandidates = null;
+        try
         {
-            return expression;
-        }
+            var parameters =
+                TransformImmutableArray(expression.Parameters, TransformFunctionParameter, out var changedParameters);
+            var body = TransformBlock(expression.Body);
+            if (!changedParameters && ReferenceEquals(body, expression.Body))
+            {
+                return expression;
+            }
 
-        return expression with { Parameters = parameters, Body = body };
+            return expression with { Parameters = parameters, Body = body };
+        }
+        finally
+        {
+            _inlineCandidates = previousInlineCandidates;
+        }
     }
 
     private FunctionParameter TransformFunctionParameter(FunctionParameter parameter)
@@ -513,6 +538,11 @@ public sealed class TypedConstantExpressionTransformer
         var callee = TransformExpression(expression.Callee);
         var arguments = TransformImmutableArray(expression.Arguments, TransformCallArgument, out var changed);
 
+        if (TryInlineSimpleBinaryFunctionCall(expression, callee, arguments, out var inlined))
+        {
+            return inlined;
+        }
+
         if (ReferenceEquals(callee, expression.Callee) && !changed)
         {
             return expression;
@@ -525,6 +555,32 @@ public sealed class TypedConstantExpressionTransformer
     {
         var expression = TransformExpression(argument.Expression);
         return ReferenceEquals(expression, argument.Expression) ? argument : argument with { Expression = expression };
+    }
+
+    private bool TryInlineSimpleBinaryFunctionCall(
+        CallExpression originalCall,
+        ExpressionNode callee,
+        ImmutableArray<CallArgument> arguments,
+        out ExpressionNode inlined)
+    {
+        inlined = originalCall;
+        if (_inlineCandidates is not { IsEmpty: false } candidates ||
+            originalCall.IsOptional ||
+            callee is not IdentifierExpression identifier ||
+            arguments.Length != 2 ||
+            arguments[0].IsSpread ||
+            arguments[1].IsSpread ||
+            !candidates.TryGetValue(identifier.Name, out var candidate))
+        {
+            return false;
+        }
+
+        inlined = new BinaryExpression(
+            originalCall.Source,
+            candidate.Operator,
+            arguments[0].Expression,
+            arguments[1].Expression);
+        return true;
     }
 
     private ExpressionNode TransformNew(NewExpression expression)
@@ -698,6 +754,90 @@ public sealed class TypedConstantExpressionTransformer
     {
         var inner = TransformExpression(expression.Expression);
         return ReferenceEquals(inner, expression.Expression) ? expression : expression with { Expression = inner };
+    }
+
+    private static ImmutableDictionary<Symbol, SimpleBinaryFunctionInlineCandidate>? BuildProgramInlineCandidates(
+        ProgramNode program)
+    {
+        if (!program.Body.Any(static statement => statement is FunctionDeclaration))
+        {
+            return null;
+        }
+
+        var syntheticProgramBlock = new BlockStatement(program.Source, program.Body, program.IsStrict);
+        if (DynamicScopeDetector.ContainsWithOrDirectEval(syntheticProgramBlock))
+        {
+            return null;
+        }
+
+        ImmutableDictionary<Symbol, SimpleBinaryFunctionInlineCandidate>.Builder? builder = null;
+        foreach (var statement in program.Body)
+        {
+            if (statement is not FunctionDeclaration declaration ||
+                !TryCreateSimpleBinaryFunctionInlineCandidate(declaration, out var candidate) ||
+                SimpleBinaryFunctionInlineDisqualifier.ContainsDisqualifier(program, declaration))
+            {
+                continue;
+            }
+
+            builder ??= EmptyInlineCandidates.ToBuilder();
+            builder[declaration.Name] = candidate;
+        }
+
+        return builder?.Count > 0 ? builder.ToImmutable() : null;
+    }
+
+    private static bool TryCreateSimpleBinaryFunctionInlineCandidate(
+        FunctionDeclaration declaration,
+        out SimpleBinaryFunctionInlineCandidate candidate)
+    {
+        candidate = default;
+        var function = declaration.Function;
+        if (function.IsAsync ||
+            function.IsGenerator ||
+            function.Parameters.Length != 2 ||
+            !TryGetSimpleParameterName(function.Parameters[0], out var leftParameter) ||
+            !TryGetSimpleParameterName(function.Parameters[1], out var rightParameter) ||
+            function.Body.Statements.Length != 1 ||
+            function.Body.Statements[0] is not ReturnStatement { Expression: BinaryExpression binary } ||
+            !IsInlineableBinaryOperator(binary.Operator) ||
+            !IsIdentifierNamed(binary.Left, leftParameter) ||
+            !IsIdentifierNamed(binary.Right, rightParameter))
+        {
+            return false;
+        }
+
+        candidate = new SimpleBinaryFunctionInlineCandidate(binary.Operator);
+        return true;
+    }
+
+    private static bool TryGetSimpleParameterName(FunctionParameter parameter, out Symbol name)
+    {
+        if (!parameter.IsRest &&
+            parameter.DefaultValue is null &&
+            parameter.Name is { } parameterName &&
+            (parameter.Pattern is null ||
+             parameter.Pattern is IdentifierBinding binding && ReferenceEquals(binding.Name, parameterName)))
+        {
+            name = parameterName;
+            return true;
+        }
+
+        name = default!;
+        return false;
+    }
+
+    private static bool IsInlineableBinaryOperator(BinaryOperator op)
+    {
+        return op is BinaryOperator.Add
+            or BinaryOperator.Subtract
+            or BinaryOperator.Multiply
+            or BinaryOperator.Divide;
+    }
+
+    private static bool IsIdentifierNamed(ExpressionNode expression, Symbol name)
+    {
+        return expression is IdentifierExpression identifier && ReferenceEquals(identifier.Name, name);
     }
 
     private static bool TryGetLiteralValue(ExpressionNode expression, out object? value)
@@ -1209,5 +1349,175 @@ public sealed class TypedConstantExpressionTransformer
         const long signMask = 1L << 63;
         var bits = BitConverter.DoubleToInt64Bits(value);
         return (bits & signMask) != 0;
+    }
+
+    private readonly record struct SimpleBinaryFunctionInlineCandidate(BinaryOperator Operator);
+
+    private sealed class SimpleBinaryFunctionInlineDisqualifier : AstVisitor
+    {
+        private readonly FunctionDeclaration _candidateDeclaration;
+        private readonly Symbol _candidateName;
+
+        private SimpleBinaryFunctionInlineDisqualifier(FunctionDeclaration candidateDeclaration)
+        {
+            _candidateDeclaration = candidateDeclaration;
+            _candidateName = candidateDeclaration.Name;
+        }
+
+        public static bool ContainsDisqualifier(ProgramNode program, FunctionDeclaration candidateDeclaration)
+        {
+            var visitor = new SimpleBinaryFunctionInlineDisqualifier(candidateDeclaration);
+            foreach (var statement in program.Body)
+            {
+                visitor.Visit(statement);
+                if (visitor.Found)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool Found { get; set; }
+
+        protected override void VisitFunctionDeclaration(FunctionDeclaration node)
+        {
+            if (!ReferenceEquals(node, _candidateDeclaration) && ReferenceEquals(node.Name, _candidateName))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitFunctionDeclaration(node);
+        }
+
+        protected override void VisitClassDeclaration(ClassDeclaration node)
+        {
+            if (ReferenceEquals(node.Name, _candidateName))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitClassDeclaration(node);
+        }
+
+        protected override void VisitImportStatement(ImportStatement node)
+        {
+            if (ReferenceEquals(node.DefaultBinding, _candidateName) ||
+                ReferenceEquals(node.NamespaceBinding, _candidateName) ||
+                node.NamedImports.Any(binding => ReferenceEquals(binding.Local, _candidateName)))
+            {
+                MarkFound();
+            }
+        }
+
+        protected override void VisitIdentifierBinding(IdentifierBinding node)
+        {
+            if (ReferenceEquals(node.Name, _candidateName))
+            {
+                MarkFound();
+            }
+        }
+
+        protected override void VisitAssignmentExpression(AssignmentExpression node)
+        {
+            if (ReferenceEquals(node.Target, _candidateName))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitAssignmentExpression(node);
+        }
+
+        protected override void VisitPropertyAssignmentExpression(PropertyAssignmentExpression node)
+        {
+            if (IsCandidateStaticProperty(node.Property))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitPropertyAssignmentExpression(node);
+        }
+
+        protected override void VisitIndexAssignmentExpression(IndexAssignmentExpression node)
+        {
+            if (IsCandidateStaticProperty(node.Index))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitIndexAssignmentExpression(node);
+        }
+
+        protected override void VisitDestructuringAssignmentExpression(DestructuringAssignmentExpression node)
+        {
+            if (BindingContainsCandidateName(node.Target))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitDestructuringAssignmentExpression(node);
+        }
+
+        protected override void VisitForEachStatement(ForEachStatement node)
+        {
+            if (BindingContainsCandidateName(node.Target))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitForEachStatement(node);
+        }
+
+        protected override void VisitUnaryExpression(UnaryExpression node)
+        {
+            if (node.Operator is UnaryOperator.Increment or UnaryOperator.Decrement &&
+                node.Operand is IdentifierExpression identifier &&
+                ReferenceEquals(identifier.Name, _candidateName))
+            {
+                MarkFound();
+                return;
+            }
+
+            base.VisitUnaryExpression(node);
+        }
+
+        private void MarkFound()
+        {
+            Found = true;
+            ShouldStop = true;
+        }
+
+        private bool IsCandidateStaticProperty(ExpressionNode property)
+        {
+            return property switch
+            {
+                IdentifierExpression identifier => identifier.Name.Name == _candidateName.Name,
+                LiteralExpression { Value.IsString: true } literal =>
+                    string.Equals(literal.Value.AsString(), _candidateName.Name, StringComparison.Ordinal),
+                _ => false
+            };
+        }
+
+        private bool BindingContainsCandidateName(BindingTarget target)
+        {
+            return target switch
+            {
+                IdentifierBinding identifier => ReferenceEquals(identifier.Name, _candidateName),
+                ArrayBinding array => array.Elements.Any(element =>
+                    element.Target is not null && BindingContainsCandidateName(element.Target)) ||
+                    (array.RestElement is not null && BindingContainsCandidateName(array.RestElement)),
+                ObjectBinding obj => obj.Properties.Any(property => BindingContainsCandidateName(property.Target)) ||
+                    (obj.RestElement is not null && BindingContainsCandidateName(obj.RestElement)),
+                _ => false
+            };
+        }
     }
 }

@@ -68,4 +68,44 @@ public sealed class TypedConstantExpressionTransformerTests
         Assert.Equal(expected, literal.Value);
     }
 
+    [Fact]
+    public async Task Does_not_inline_reassigned_top_level_binary_helper()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function add(a, b) {
+                return a + b;
+            }
+
+            add = function(a, b) {
+                return a - b;
+            };
+
+            add(20, 2);
+            """);
+
+        Assert.Equal(18.0, result);
+    }
+
+    [Fact]
+    public async Task Does_not_inline_global_property_reassigned_top_level_binary_helper()
+    {
+        await using var engine = new JsEngine();
+
+        var result = await engine.Evaluate("""
+            function add(a, b) {
+                return a + b;
+            }
+
+            globalThis.add = function(a, b) {
+                return a - b;
+            };
+
+            add(20, 2);
+            """);
+
+        Assert.Equal(18.0, result);
+    }
+
 }

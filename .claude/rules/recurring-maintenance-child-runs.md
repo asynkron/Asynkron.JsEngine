@@ -267,6 +267,13 @@ independent command invocations. Future docs command maintenance should collapse
 that kind of setup into one runnable command, for example by passing
 `--project` with an explicit path.
 
+Issue #1717 / PR #1719 applied that same command-shape lesson to the top-level
+README demo section. Several examples still used `cd examples/<Demo>` followed
+by `rtk dotnet run`, which made the snippet depend on shell state instead of
+being a direct runnable command. Future README/demo command slices should prefer
+`rtk dotnet run --project examples/<Demo>` when the example can be expressed as
+one stable invocation.
+
 Issue `autrun-dir1l0mv6bm8-42faac3141` / PR #1703 fixed a roadmap maintenance
 slice that cited a non-existent
 `docs/adrs/0107-constant-folding-boundaries-and-operator-safety.md`. The

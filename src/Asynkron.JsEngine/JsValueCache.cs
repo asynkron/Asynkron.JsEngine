@@ -62,11 +62,6 @@ public static class JsValueCache
     public static readonly object BoxedNaN = double.NaN;
     public static readonly object BoxedPositiveInfinity = double.PositiveInfinity;
     public static readonly object BoxedNegativeInfinity = double.NegativeInfinity;
-    private static readonly ObjectPool<object?[]> Pool1 = new(PoolSize, static () => new object?[1]);
-    private static readonly ObjectPool<object?[]> Pool2 = new(PoolSize, static () => new object?[2]);
-    private static readonly ObjectPool<object?[]> Pool3 = new(PoolSize, static () => new object?[3]);
-    private static readonly ObjectPool<object?[]> Pool4 = new(PoolSize, static () => new object?[4]);
-
     // JsValue argument array pools - avoid boxing when passing arguments to functions
     private static readonly ObjectPool<JsValue[]> JsValuePool1 = new(PoolSize, static () => new JsValue[1]);
     private static readonly ObjectPool<JsValue[]> JsValuePool2 = new(PoolSize, static () => new JsValue[2]);

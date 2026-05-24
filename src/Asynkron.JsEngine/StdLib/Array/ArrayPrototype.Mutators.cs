@@ -638,8 +638,8 @@ public sealed partial class ArrayPrototype
             }
 
             // ES spec steps 5-7: Default string comparison
-            var aStr = aVal.ToJsString();
-            var bStr = bVal.ToJsString();
+            var aStr = JsOps.ToJsString(aVal);
+            var bStr = JsOps.ToJsString(bVal);
             var ord = string.CompareOrdinal(aStr, bStr);
             return ord != 0 ? ord : a.OriginalIndex.CompareTo(b.OriginalIndex);
         }

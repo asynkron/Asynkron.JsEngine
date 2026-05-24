@@ -338,6 +338,19 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task String_Index_Property_Uses_Virtual_Descriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var boxed = new String("hello");
+            var descriptor = Object.getOwnPropertyDescriptor(boxed, "1");
+            "hello"[1] + ":" + descriptor.value + ":" + descriptor.writable + ":" +
+                descriptor.enumerable + ":" + descriptor.configurable;
+            """);
+        Assert.Equal("e:e:false:true:false", result);
+    }
+
+    [Fact]
     public async Task String_ToUpperCase()
     {
         await using var engine = CreateEngine();

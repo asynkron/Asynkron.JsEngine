@@ -573,7 +573,13 @@ internal static class JsOps
     [MethodImpl(JsEngineConstants.Inlining)]
     public static string ToJsString(in JsValue value, EvaluationContext? context = null)
     {
-        var realm = context?.RealmState;
+        return ToJsString(in value, context, context?.RealmState);
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    public static string ToJsString(in JsValue value, EvaluationContext? context, RealmState? realm)
+    {
+        var realmState = realm ?? context?.RealmState;
         return value.Kind switch
         {
             JsValueKind.Undefined => "undefined",
@@ -586,11 +592,35 @@ internal static class JsOps
                 JsRopeString rope => rope.Flatten(),
                 _ => string.Empty
             },
-            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string",
-                context, realm),
+            JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
+                "Cannot convert a Symbol value to a string", context, realmState),
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,
-            JsValueKind.Object => value.ObjectValue.ToJsString(context, realm),
+            JsValueKind.Object => value.ObjectValue.ToJsString(context, realmState),
             _ => value.ObjectValue?.ToString() ?? string.Empty
+        };
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    public static string ToJsStringForArray(in JsValue value, EvaluationContext? context = null, RealmState? realm = null)
+    {
+        if (value.IsNullOrUndefined)
+        {
+            return string.Empty;
+        }
+
+        return value.Kind switch
+        {
+            JsValueKind.Boolean => value.NumberValue != 0 ? "true" : "false",
+            JsValueKind.Number => ToCanonicalNumberString(value.NumberValue),
+            JsValueKind.String => value.ObjectValue switch
+            {
+                string str => str,
+                JsRopeString rope => rope.Flatten(),
+                _ => string.Empty
+            },
+            JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,
+            JsValueKind.Object => value.ObjectValue.ToJsString(context, realm ?? context?.RealmState),
+            _ => string.Empty
         };
     }
 

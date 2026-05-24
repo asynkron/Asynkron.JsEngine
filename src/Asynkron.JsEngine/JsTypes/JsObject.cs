@@ -303,11 +303,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         // If no explicit descriptor but property exists, return default descriptor
-        if (TryGetValue(name, out var existingValue))
+        if (TryGetJsValue(name, out var existingValue))
         {
             return new PropertyDescriptor
             {
-                Value = existingValue,
+                JsValue = existingValue,
                 Writable = true,
                 Enumerable = true,
                 Configurable = true
@@ -534,6 +534,38 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return false;
     }
 
+    internal bool TrySetExistingJsValue(string key, JsValue value)
+    {
+        if (_state is not { } state)
+        {
+            return false;
+        }
+
+        if (state.Descriptors.TryGetValue(key, out var descriptor))
+        {
+            if (descriptor.IsAccessorDescriptor || !descriptor.Writable)
+            {
+                return false;
+            }
+
+            MarkMutated();
+            state.Storage[key] = value;
+            descriptor.JsValue = value;
+            TrackArrayWriteJsValue(key, value);
+            return true;
+        }
+
+        if (!state.Storage.ContainsKey(key))
+        {
+            return false;
+        }
+
+        MarkMutated();
+        state.Storage[key] = value;
+        TrackArrayWriteJsValue(key, value);
+        return true;
+    }
+
     internal void CloneFromSnapshot(
         JsObject original,
         Func<object?, object?> cloneValue,
@@ -744,7 +776,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             // Track if this is a new property before setting it
             var isNewProperty = _state?.Storage.ContainsKey(name) != true;
             SetJsValue(name, value);
-            TrackArrayWriteJsValue(name);
+            TrackArrayWriteJsValue(name, value);
             if (isNewProperty)
             {
                 TrackPropertyInsertion(name);
@@ -753,38 +785,30 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return;
         }
 
-        // Fall back to full implementation for complex cases
-        // Pass JsValue directly (will be boxed) - better than ToObject() which loses type info
-        SetPropertyInternal(name, value, receiver);
+        // Fall back to full implementation for complex cases.
+        SetPropertyInternalJsValue(name, value, receiver);
     }
 
-    private void TrackArrayWriteJsValue(string name)
+    private void TrackArrayWriteJsValue(string name, JsValue value)
     {
         if (!_trackArrayLength)
         {
             return;
         }
 
-        if (!uint.TryParse(name, out var idx))
+        if (string.Equals(name, "length", StringComparison.Ordinal))
         {
+            TrackLengthAssignment(value);
             return;
         }
 
-        if (!(idx >= _trackedArrayLength))
-        {
-            return;
-        }
-
-        _trackedArrayLength = idx + 1;
-        SyncTrackedLengthDescriptor();
+        TrackArrayIndexWriteIfNeeded(name);
     }
 
-    // Internal implementation that uses object? for backward compatibility
-    private void SetPropertyInternal(string name, object? value, object? receiver)
+    private void SetPropertyInternalJsValue(string name, JsValue value, JsValue receiver)
     {
         var state = State;
-        var valueAsJsValue = JsValue.FromObjectUnsafe(value);
-        var receiverValue = JsValue.FromObjectUnsafe(receiver ?? this);
+        var receiverValue = receiver.IsUndefined ? _cachedJsValue : receiver;
         var privateFields = state.PrivateFields;
         if (name.IsPrivateSlotName())
         {
@@ -797,10 +821,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "Private accessor does not have a setter",
-                        realm: ResolveRealmState(receiver));
+                        realm: ResolveRealmStateFromReceiver(receiverValue));
                 }
 
-                desc.Set.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
+                desc.Set.Invoke(new SingleValueArgs(value), receiverValue);
 
                 return;
             }
@@ -811,10 +835,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "Private field is read-only",
-                        realm: ResolveRealmState(receiver));
+                        realm: ResolveRealmStateFromReceiver(receiverValue));
                 }
 
-                dataDesc.JsValue = valueAsJsValue;
+                dataDesc.JsValue = value;
                 privateFields[name] = dataDesc;
                 return;
             }
@@ -834,10 +858,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         {
                             throw StandardLibrary.ThrowTypeError(
                                 "Private accessor does not have a setter",
-                                realm: ResolveRealmState(receiver));
+                                realm: ResolveRealmStateFromReceiver(receiverValue));
                         }
 
-                        inheritedDesc.Set.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
+                        inheritedDesc.Set.Invoke(new SingleValueArgs(value), receiverValue);
                         return;
                     }
 
@@ -847,10 +871,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         {
                             throw StandardLibrary.ThrowTypeError(
                                 "Private field is read-only",
-                                realm: ResolveRealmState(receiver));
+                                realm: ResolveRealmStateFromReceiver(receiverValue));
                         }
 
-                        dataDescriptor.JsValue = valueAsJsValue;
+                        dataDescriptor.JsValue = value;
                         protoState.PrivateFields[name] = dataDescriptor;
                         return;
                     }
@@ -864,20 +888,20 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             // not via SetProperty during assignment.
             throw StandardLibrary.ThrowTypeError(
                 "Cannot set private field before it has been initialized",
-                realm: ResolveRealmState(receiver));
+                realm: ResolveRealmStateFromReceiver(receiverValue));
         }
 
         var hasDescriptor = state.Descriptors.TryGetValue(name, out var descriptor);
-        var hasDataSlot = TryGetValue(name, out _);
+        var hasDataSlot = TryGetJsValue(name, out _);
         var propertyExists = hasDescriptor || hasDataSlot;
-        var hasDistinctReceiver = TryResolveReceiverObject(receiver, out var receiverObject) &&
+        var hasDistinctReceiver = TryResolveReceiverObject(receiverValue, out var receiverObject) &&
                                  !ReferenceEquals(receiverObject, this);
 
         if (hasDescriptor)
         {
             if (descriptor!.IsAccessorDescriptor)
             {
-                descriptor.Set?.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
+                descriptor.Set?.Invoke(new SingleValueArgs(value), receiverValue);
 
                 return;
             }
@@ -889,13 +913,13 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             if (hasDistinctReceiver)
             {
-                ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
+                ReflectHelper.SetPropertyWithReceiver(this, name, value, receiverValue);
                 return;
             }
 
-            this[name] = value;
-            descriptor.JsValue = valueAsJsValue;
-            TrackArrayWrite(name, value);
+            SetJsValue(name, value);
+            descriptor.JsValue = value;
+            TrackArrayWriteJsValue(name, value);
             return;
         }
 
@@ -903,12 +927,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (hasDistinctReceiver)
             {
-                ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
+                ReflectHelper.SetPropertyWithReceiver(this, name, value, receiverValue);
                 return;
             }
 
-            this[name] = value;
-            TrackArrayWrite(name, value);
+            SetJsValue(name, value);
+            TrackArrayWriteJsValue(name, value);
             return;
         }
 
@@ -916,7 +940,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var setter = GetSetter(name);
         if (setter != null)
         {
-            setter.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
+            setter.Invoke(new SingleValueArgs(value), receiverValue);
             return;
         }
 
@@ -946,7 +970,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 }
 
                 MarkMutated();
-                this[name] = value;
+                SetJsValue(name, value);
                 TrackPropertyInsertion(name);
                 return;
             }
@@ -954,14 +978,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             var foundSetter = FindSetterInPrototypeChain(PrototypeAccessor, name);
             if (foundSetter != null)
             {
-                foundSetter.Invoke(new SingleValueArgs(valueAsJsValue), receiverValue);
+                foundSetter.Invoke(new SingleValueArgs(value), receiverValue);
                 return;
             }
         }
 
         if (hasDistinctReceiver)
         {
-            ReflectHelper.SetPropertyWithReceiver(this, name, valueAsJsValue, receiverValue);
+            ReflectHelper.SetPropertyWithReceiver(this, name, value, receiverValue);
             return;
         }
 
@@ -977,28 +1001,29 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return; // Silently ignore in non-strict mode
         }
 
-        this[name] = value;
-        TrackArrayWrite(name, value);
+        SetJsValue(name, value);
+        TrackArrayWriteJsValue(name, value);
         if (!propertyExists)
         {
             TrackPropertyInsertion(name);
         }
     }
 
-    private static bool TryResolveReceiverObject(object? receiver, out IJsObjectLike receiverObject)
+    private RealmState? ResolveRealmStateFromReceiver(JsValue receiver)
     {
-        switch (receiver)
+        return receiver.Kind == JsValueKind.Object ? ResolveRealmState(receiver.ObjectValue) : null;
+    }
+
+    private static bool TryResolveReceiverObject(JsValue receiver, out IJsObjectLike receiverObject)
+    {
+        if (receiver.Kind == JsValueKind.Object && receiver.ObjectValue is IJsObjectLike objectLike)
         {
-            case IJsObjectLike objectLike:
-                receiverObject = objectLike;
-                return true;
-            case JsValue jsValue when jsValue.TryGetObject<IJsObjectLike>(out var objectLike):
-                receiverObject = objectLike;
-                return true;
-            default:
-                receiverObject = null!;
-                return false;
+            receiverObject = objectLike;
+            return true;
         }
+
+        receiverObject = null!;
+        return false;
     }
 
     /// <summary>
@@ -1142,22 +1167,6 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return DefinePropertyInternalDirect(name, descriptor);
     }
 
-    private void TrackArrayWrite(string name, object? value)
-    {
-        if (!_trackArrayLength)
-        {
-            return;
-        }
-
-        if (string.Equals(name, "length", StringComparison.Ordinal))
-        {
-            TrackLengthAssignment(JsValue.FromObjectUnsafe(value));
-            return;
-        }
-
-        TrackArrayIndexWriteIfNeeded(name);
-    }
-
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
         MarkMutated();
@@ -1185,7 +1194,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         var hadStoredDescriptor = descriptors.TryGetValue(name, out var storedDescriptor);
-        var hadDataSlot = TryGetValue(name, out var existingValue);
+        var hadDataSlot = TryGetJsValue(name, out var existingValue);
         var currentDescriptor = storedDescriptor;
 
         if (!hadStoredDescriptor && hadDataSlot)
@@ -1271,7 +1280,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         var hadStoredDescriptor = descriptors.TryGetValue(name, out var storedDescriptor);
-        var hadDataSlot = TryGetValue(name, out var existingValue);
+        var hadDataSlot = TryGetJsValue(name, out var existingValue);
         var currentDescriptor = storedDescriptor;
 
         if (!hadStoredDescriptor && hadDataSlot)
@@ -1343,9 +1352,9 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
-    private static PropertyDescriptor CreateDataDescriptorFromExistingValue(object? value)
+    private static PropertyDescriptor CreateDataDescriptorFromExistingValue(JsValue value)
     {
-        return new PropertyDescriptor { Value = value, Writable = true, Enumerable = true, Configurable = true };
+        return new PropertyDescriptor { JsValue = value, Writable = true, Enumerable = true, Configurable = true };
     }
 
     private static void CompleteDescriptorForNewProperty(PropertyDescriptor descriptor)
@@ -1629,7 +1638,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
         else
         {
-            this[name] = descriptor.HasValue ? descriptor.JsValue.ToObject() : Symbol.Undefined;
+            SetJsValue(name, descriptor.HasValue ? descriptor.JsValue : JsValue.Undefined);
             Remove(GetterPrefix + name);
             Remove(SetterPrefix + name);
         }
@@ -2170,16 +2179,21 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         if (_virtualPropertyProvider is not null &&
             (_state?.Descriptors.ContainsKey(name) != true) &&
             !ContainsKey(name) &&
-            _virtualPropertyProvider.TryGetOwnProperty(name, out value, out var virtualDescriptor))
+            _virtualPropertyProvider.TryGetOwnProperty(name, out var virtualValue, out var virtualDescriptor))
         {
             if (virtualDescriptor?.IsAccessorDescriptor != true)
             {
+                value = virtualValue.ToObject();
                 return true;
             }
 
             if (virtualDescriptor.Get != null)
             {
                 InvokeGetterWithThrowHandling(virtualDescriptor.Get, receiver, context, out value);
+            }
+            else
+            {
+                value = Symbol.Undefined;
             }
 
             return true;
@@ -2229,7 +2243,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (virtualDescriptor?.IsAccessorDescriptor != true)
             {
-                value = JsValue.FromObjectUnsafe(virtualValue);
+                value = virtualValue;
                 return true;
             }
 

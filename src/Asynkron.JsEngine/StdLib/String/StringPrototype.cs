@@ -1566,7 +1566,7 @@ public sealed partial class StringPrototype
             throw ThrowTypeError("Cannot convert undefined or null to object", realm: Realm);
         }
 
-        var str = thisValue.ToJsString(context, Realm);
+        var str = JsOps.ToJsString(thisValue, context, Realm);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -1578,7 +1578,7 @@ public sealed partial class StringPrototype
     private string CoerceToString(JsValue value)
     {
         var context = Realm?.CreateContext();
-        var result = value.ToJsString(context, Realm);
+        var result = JsOps.ToJsString(value, context, Realm);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -1590,7 +1590,7 @@ public sealed partial class StringPrototype
     private string JsValueToString(JsValue value)
     {
         var context = Realm?.CreateContext();
-        var result = value.ToJsString(context, Realm);
+        var result = JsOps.ToJsString(value, context, Realm);
         if (context?.IsThrow == true)
         {
             throw new ThrowSignal(context.FlowValue);
@@ -1744,7 +1744,7 @@ public sealed partial class StringPrototype
         var ctx = Realm?.CreateContext();
         var pattern = candidate.IsUndefined
             ? string.Empty
-            : candidate.ToJsString(ctx, Realm);
+            : JsOps.ToJsString(candidate, ctx, Realm);
         if (ctx?.IsThrow == true)
         {
             throw new ThrowSignal(ctx.FlowValue);
@@ -1768,7 +1768,7 @@ public sealed partial class StringPrototype
         var ctx = Realm?.CreateContext();
         var pattern = candidate.IsUndefined
             ? string.Empty
-            : candidate.ToJsString(ctx, Realm);
+            : JsOps.ToJsString(candidate, ctx, Realm);
         if (ctx?.IsThrow == true)
         {
             throw new ThrowSignal(ctx.FlowValue);

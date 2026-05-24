@@ -262,7 +262,21 @@ public static partial class TypedAstEvaluator
             _programCounter = resumeTarget;
         }
 
-        private bool HandleAbruptCompletion(AbruptKind kind, object? /* intentional */ value)
+        private bool HandleAbruptCompletion(AbruptKind kind, JsValue value)
+        {
+            return HandleAbruptCompletionCore(kind, value, -1, hasControlTarget: false);
+        }
+
+        private bool HandleAbruptCompletion(AbruptKind kind, int controlTarget)
+        {
+            return HandleAbruptCompletionCore(kind, JsValue.Undefined, controlTarget, hasControlTarget: true);
+        }
+
+        private bool HandleAbruptCompletionCore(
+            AbruptKind kind,
+            JsValue value,
+            int controlTarget,
+            bool hasControlTarget)
         {
             // Clear any previous restored environment
             TryCatchStateRef.RestoredEnvironmentFromTry = null;
@@ -279,9 +293,7 @@ public static partial class TypedAstEvaluator
                     frame.CatchUsed = true;
 
                     // Store the thrown value in the frame for EnterCatchInstruction to read.
-                    // Handle case where value is already a boxed JsValue.
-                    var valueJs = value is JsValue js ? js : JsValue.FromObjectUnsafe(value);
-                    frame.ThrownValue = valueJs;
+                    frame.ThrownValue = value;
 
                     // Restore to the environment that was active when entering the try block.
                     // This ensures that block-scoped bindings inside the try are no longer visible.
@@ -295,11 +307,11 @@ public static partial class TypedAstEvaluator
                         // Use the entry environment for the catch slot, not the current (nested) environment
                         if (targetEnv.HasBinding(slot))
                         {
-                            targetEnv.AssignJsValue(slot, valueJs);
+                            targetEnv.AssignJsValue(slot, value);
                         }
                         else
                         {
-                            targetEnv.DefineJsValue(slot, valueJs);
+                            targetEnv.DefineJsValue(slot, value);
                         }
                     }
 
@@ -312,10 +324,10 @@ public static partial class TypedAstEvaluator
                     // For for-of loops: if this is a continue that targets within the loop,
                     // skip the finally block (IteratorClose). We only run IteratorClose when
                     // exiting the loop, not when continuing to the next iteration.
-                    if (kind == AbruptKind.Continue &&
+                    if (hasControlTarget &&
+                        kind == AbruptKind.Continue &&
                         frame.LoopContinueTarget >= 0 &&
-                        value is int targetIndex &&
-                        IsSameLoopContinueTarget(targetIndex, frame.LoopContinueTarget))
+                        IsSameLoopContinueTarget(controlTarget, frame.LoopContinueTarget))
                     {
                         // Same-loop continue stays within the protected loop body.
                         // Skip IteratorClose/finally handling, but keep the try frame active
@@ -323,11 +335,11 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
-                    if (kind == AbruptKind.Break &&
+                    if (hasControlTarget &&
+                        kind == AbruptKind.Break &&
                         frame.LoopBreakTarget >= 0 &&
-                        value is int breakTargetIndex &&
-                        !IsSameLoopControlTarget(breakTargetIndex, frame.LoopBreakTarget) &&
-                        IsBreakTargetInsideLoopFrame(breakTargetIndex, frame.LoopBreakTarget))
+                        !IsSameLoopControlTarget(controlTarget, frame.LoopBreakTarget) &&
+                        IsBreakTargetInsideLoopFrame(controlTarget, frame.LoopBreakTarget))
                     {
                         return false;
                     }
@@ -335,7 +347,9 @@ public static partial class TypedAstEvaluator
                     if (!frame.FinallyScheduled)
                     {
                         frame.FinallyScheduled = true;
-                        frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value);
+                        frame.PendingCompletion = hasControlTarget
+                            ? PendingCompletion.FromTarget(kind, controlTarget)
+                            : PendingCompletion.FromValue(kind, value);
                         BeginFinallyCompletionValue(frame);
 
                         // Restore to the environment that was active when entering the try block.
@@ -350,7 +364,9 @@ public static partial class TypedAstEvaluator
                     // inside a finally block, the new completion replaces the pending one.
                     // Jump to EndFinally to exit the finally block — continuing to execute
                     // remaining finally instructions would re-enter call loops and hang.
-                    frame.PendingCompletion = PendingCompletion.FromAbrupt(kind, value, originatedInFinally: true);
+                    frame.PendingCompletion = hasControlTarget
+                        ? PendingCompletion.FromTarget(kind, controlTarget, originatedInFinally: true)
+                        : PendingCompletion.FromValue(kind, value, originatedInFinally: true);
                     if (frame.EndFinallyIndex >= 0)
                     {
                         _programCounter = frame.EndFinallyIndex;
@@ -414,18 +430,6 @@ public static partial class TypedAstEvaluator
 
             return false;
         }
-
-        /// <summary>
-        /// JsValue overload - boxes the JsValue which is better than ToObject() as it preserves type info.
-        /// </summary>
-        private bool HandleAbruptCompletionJsValue(AbruptKind kind, JsValue value)
-        {
-            // Boxing JsValue is preferred over ToObject() because:
-            // 1. It preserves the JsValue type information
-            // 2. Downstream code can detect "is JsValue" and unbox efficiently
-            return HandleAbruptCompletion(kind, value);
-        }
-
         private bool TryCompleteRawSyncReturn(JsValue value, out JsValue returnValue)
         {
             if (_isGenerator || _isAsync || _isScriptMode || _plan?.CanUseRawSyncReturn != true)

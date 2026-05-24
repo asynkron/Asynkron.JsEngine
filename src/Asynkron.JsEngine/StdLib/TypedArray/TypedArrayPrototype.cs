@@ -1695,7 +1695,7 @@ public sealed partial class TypedArrayPrototype
 
         var length = typedArray.Length;
         var separator = args.Count > 0 && !args[0].IsUndefined
-            ? args[0].ToJsString()
+            ? JsOps.ToJsString(args[0])
             : ",";
 
         if (length == 0)

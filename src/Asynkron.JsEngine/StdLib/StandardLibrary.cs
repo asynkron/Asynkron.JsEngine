@@ -420,7 +420,7 @@ public static partial class StandardLibrary
     /// </summary>
     internal static string JsValueToString(JsValue value, RealmState? realm = null)
     {
-        return value.ToJsString(null, realm);
+        return JsOps.ToJsString(value, null, realm);
     }
 
     /// <summary>

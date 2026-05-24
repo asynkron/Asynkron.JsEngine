@@ -91,7 +91,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
             throw ThrowTypeError("ShadowRealm.prototype.importValue requires a specifier argument", realm: Realm);
         }
 
-        var specifierString = specifier.ToJsString();
+        var specifierString = JsOps.ToJsString(specifier);
 
         // 4. If Type(exportName) is not String, throw a TypeError.
         var exportName = args.Count > 1 ? args[1] : JsValue.Undefined;
@@ -387,7 +387,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
             return thrownValue.AsString() ?? string.Empty;
         }
 
-        return thrownValue.ToJsString() ?? "Error in ShadowRealm";
+        return JsOps.ToJsString(thrownValue) ?? "Error in ShadowRealm";
     }
 
     private static JsValue CreateResolvedPromise(RealmState realm, JsValue value)

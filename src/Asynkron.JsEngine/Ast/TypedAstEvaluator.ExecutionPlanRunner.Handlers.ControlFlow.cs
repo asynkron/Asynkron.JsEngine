@@ -184,7 +184,7 @@ public static partial class TypedAstEvaluator
             }
 
             var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
-            if (runner.HandleAbruptCompletionJsValue(AbruptKind.Return, returnVal))
+            if (runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
             {
                 if (wasInsideScheduledFinally)
                 {

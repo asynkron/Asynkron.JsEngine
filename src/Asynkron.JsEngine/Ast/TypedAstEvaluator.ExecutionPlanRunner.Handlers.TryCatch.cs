@@ -269,8 +269,7 @@ public static partial class TypedAstEvaluator
                     return InstructionResult.Continue;
                 }
 
-                var pendingJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
-                returnValue = runner.CompleteReturn(pendingJs);
+                returnValue = runner.CompleteReturn(pending.Value);
                 return InstructionResult.Return;
             }
 
@@ -285,13 +284,13 @@ public static partial class TypedAstEvaluator
                     runner.RestoreCompletionValueFromFinally(completedFrame);
                 }
 
-                if (runner.HandleAbruptCompletion(pending.Kind, pending.Value))
+                if (runner.HandleAbruptCompletion(pending.Kind, pending.TargetIndex))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
                 }
 
-                runner._programCounter = pending.Value is int idx ? idx : instruction.Next;
+                runner._programCounter = pending.TargetIndex >= 0 ? pending.TargetIndex : instruction.Next;
                 returnValue = default;
                 return InstructionResult.Continue;
             }
@@ -303,8 +302,7 @@ public static partial class TypedAstEvaluator
             }
 
             runner.TryCatchStateRef.TryStack.Clear();
-            var throwJs = pending.Value is JsValue tjs ? tjs : JsValue.FromObjectUnsafe(pending.Value);
-            throw new ThrowSignal(throwJs);
+            throw new ThrowSignal(pending.Value);
         }
     }
 }

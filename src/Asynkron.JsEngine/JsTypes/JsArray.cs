@@ -341,7 +341,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (index < _length && TryGetOwnIndex(index, out var value))
         {
-            return new PropertyDescriptor { Value = value, Writable = true, Enumerable = true, Configurable = true };
+            return new PropertyDescriptor { JsValue = value, Writable = true, Enumerable = true, Configurable = true };
         }
 
         return null;

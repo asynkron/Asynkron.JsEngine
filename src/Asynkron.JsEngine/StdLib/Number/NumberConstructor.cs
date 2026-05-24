@@ -94,7 +94,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.NaN;
         }
 
-        var str = args[0].ToJsString();
+        var str = JsOps.ToJsString(args[0]);
         str = str.Trim();
         if (str.Length == 0)
         {
@@ -137,7 +137,7 @@ public sealed partial class NumberConstructor(IJsObjectLike prototype, RealmStat
             return JsValue.NaN;
         }
 
-        var str = args[0].ToJsString();
+        var str = JsOps.ToJsString(args[0]);
         str = str.Trim();
         if (str.Length == 0)
         {

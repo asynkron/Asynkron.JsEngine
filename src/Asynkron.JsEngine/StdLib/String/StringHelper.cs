@@ -457,9 +457,9 @@ public static class StringHelper
     /// </summary>
     private sealed class StringVirtualPropertyProvider(string value) : IVirtualPropertyProvider
     {
-        public bool TryGetOwnProperty(string name, out object? valueOut, out PropertyDescriptor? descriptor)
+        public bool TryGetOwnProperty(string name, out JsValue valueOut, out PropertyDescriptor? descriptor)
         {
-            valueOut = null;
+            valueOut = JsValue.Undefined;
             descriptor = null;
 
             if (!IsArrayIndex(name, out var index) || index < 0 || index >= value.Length)
@@ -468,10 +468,10 @@ public static class StringHelper
             }
 
             var ch = value[index].ToString();
-            valueOut = ch;
+            valueOut = JsValue.FromString(ch);
             descriptor = new PropertyDescriptor
             {
-                Value = ch,
+                JsValue = valueOut,
                 Writable = false,
                 Enumerable = true,
                 Configurable = false

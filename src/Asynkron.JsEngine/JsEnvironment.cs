@@ -35,6 +35,7 @@ public sealed class JsEnvironment : IRentable
     private Dictionary<Symbol, ResolvedIdentifierBinding>? _identifierBindingCache;
     private bool _inheritStrictness;
     private bool _isStrictEffective;
+    private JsObject? _rootGlobalObjectCache;
 
     private bool _isDefaultDerivedConstructor;
     private HashSet<Symbol>? _simpleCatchParameters;
@@ -330,6 +331,7 @@ public sealed class JsEnvironment : IRentable
         _isEvalDeclarationEnvironment = false;
         _thisValue = default;
         _hasThisValue = false;
+        _rootGlobalObjectCache = null;
 
         // Inherit from enclosing
         _isStrictEffective = isStrict || (enclosing?.IsStrict ?? false);
@@ -676,6 +678,7 @@ public sealed class JsEnvironment : IRentable
         Depth = (enclosing?.Depth ?? 0) + 1;
         _thisValue = default;
         _hasThisValue = false;
+        _rootGlobalObjectCache = null;
         IsLeased = false;
         PoolLeaseId = 0;
     }
@@ -1371,7 +1374,7 @@ public sealed class JsEnvironment : IRentable
                 }
 
                 var globalObject = current.GetRootGlobalObject();
-                globalObject?.SetProperty(name.Name, value);
+                SetGlobalObjectProperty(globalObject, name, value);
 
                 return true;
             }
@@ -1579,7 +1582,13 @@ public sealed class JsEnvironment : IRentable
             if (IsGlobalFunctionScope && !localSlot.IsLexical)
             {
                 var globalObject = GetRootGlobalObject();
-                if (globalObject is not null && globalObject.TryGetProperty(name.Name, out var globalValue))
+                if (globalObject is not null && globalObject.TryGetJsValue(name.Name, out var globalValue))
+                {
+                    value = globalValue;
+                    return true;
+                }
+
+                if (globalObject is not null && globalObject.TryGetProperty(name.Name, out globalValue))
                 {
                     value = globalValue; // globalValue is already JsValue - don't box via FromObject!
                     return true;
@@ -1812,7 +1821,7 @@ public sealed class JsEnvironment : IRentable
             if (!currentSlot.IsLexical && targetEnv!.IsGlobalFunctionScope)
             {
                 var globalObject = targetEnv.GetRootGlobalObject();
-                globalObject?.SetProperty(name.Name, value);
+                SetGlobalObjectProperty(globalObject, name, value);
             }
 
             if (shouldLogSlots)
@@ -1938,7 +1947,7 @@ public sealed class JsEnvironment : IRentable
         if (!slot.IsLexical && IsGlobalFunctionScope)
         {
             var globalObject = GetRootGlobalObject();
-            globalObject?.SetProperty(name.Name, value);
+            SetGlobalObjectProperty(globalObject, name, value);
         }
 
         return true;
@@ -2093,7 +2102,7 @@ public sealed class JsEnvironment : IRentable
         // Sloppy assignment to an unresolvable reference creates a new
         // configurable property on the global object rather than a declarative
         // binding so that `delete` can remove it (ES2024 9.1.1.3.4 SetMutableBinding).
-        globalObject.SetProperty(name.Name, value);
+        SetGlobalObjectProperty(globalObject, name, value);
         context.RealmState.Logger?.LogInformation(
             "Sloppy assignment created unresolvable binding name={Name} valueKind={ValueKind}",
             name.Name,
@@ -2812,11 +2821,13 @@ public sealed class JsEnvironment : IRentable
                     {
                         current._thisValue = value;
                         current._hasThisValue = true;
+                        current._rootGlobalObjectCache =
+                            value.TryGetObject<JsObject>(out var rootGlobalObject) ? rootGlobalObject : null;
                     }
 
                     if (!slot.IsLexical)
                     {
-                        globalObject?.SetProperty(name.Name, value);
+                        SetGlobalObjectProperty(globalObject, name, value);
                     }
 
                     current.NotifyBindingObservers(name, value);
@@ -2890,11 +2901,26 @@ public sealed class JsEnvironment : IRentable
 
                 // Non-strict mode: Create the variable in the global scope (this environment)
                 current.DefineJsValue(name, value);
-                globalObject?.SetProperty(name.Name, value);
+                SetGlobalObjectProperty(globalObject, name, value);
                 return;
             }
 
             current = current.Enclosing;
+        }
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static void SetGlobalObjectProperty(JsObject? globalObject, Symbol name, JsValue value)
+    {
+        if (globalObject is null)
+        {
+            return;
+        }
+
+        var propertyName = name.Name;
+        if (!globalObject.TrySetExistingJsValue(propertyName, value))
+        {
+            globalObject.SetProperty(propertyName, value);
         }
     }
 
@@ -3021,6 +3047,11 @@ public sealed class JsEnvironment : IRentable
             current = current.Enclosing;
         }
 
+        if (current._rootGlobalObjectCache is { } cachedGlobalObject)
+        {
+            return cachedGlobalObject;
+        }
+
         ref var slot = ref current.TryGetSlotRef(Symbol.This);
         var slotFound = !Unsafe.IsNullRef(ref slot);
         if (slotFound)
@@ -3030,6 +3061,7 @@ public sealed class JsEnvironment : IRentable
                 : slot.Value;
             if (slotValue.TryGetObject<JsObject>(out var globalObject))
             {
+                current._rootGlobalObjectCache = globalObject;
                 return globalObject;
             }
             // Slot found but value is not a JsObject - log this case
@@ -3230,6 +3262,12 @@ public sealed class JsEnvironment : IRentable
     internal static JsValue GetWithBindingValueJsValue(in ObjectEnvironmentBinding binding)
     {
         var propertyName = binding.PropertyName;
+        if (binding.BindingObject is JsObject jsObject &&
+            jsObject.TryGetJsValue(propertyName, out var directValue))
+        {
+            return directValue;
+        }
+
         if (HasProperty(binding.BindingObject, propertyName))
         {
             return JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(binding.BindingObject), propertyName,
@@ -3559,7 +3597,12 @@ public sealed class JsEnvironment : IRentable
             if (_environment.IsGlobalFunctionScope && !slot.IsLexical)
             {
                 var globalObject = _environment.GetRootGlobalObject();
-                if (globalObject is not null && globalObject.TryGetProperty(_name.Name, out var globalValue))
+                if (globalObject is not null && globalObject.TryGetJsValue(_name.Name, out var globalValue))
+                {
+                    return globalValue;
+                }
+
+                if (globalObject is not null && globalObject.TryGetProperty(_name.Name, out globalValue))
                 {
                     return globalValue;
                 }
@@ -3623,7 +3666,7 @@ public sealed class JsEnvironment : IRentable
             if (!slot.IsLexical && _environment.IsGlobalFunctionScope)
             {
                 var globalObject = _environment.GetRootGlobalObject();
-                globalObject?.SetProperty(_name.Name, value);
+                SetGlobalObjectProperty(globalObject, _name, value);
             }
 
             _environment.NotifyBindingObservers(_name, value);

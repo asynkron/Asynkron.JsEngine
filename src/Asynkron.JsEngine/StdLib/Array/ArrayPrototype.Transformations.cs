@@ -25,7 +25,7 @@ public sealed partial class ArrayPrototype
         // This ensures separator conversion errors are thrown even for empty arrays
         var separator = args.Count == 0 || args[0].IsUndefined
             ? ","
-            : args[0].ToJsString();
+            : JsOps.ToJsString(args[0], evalContext, Realm);
 
         if (length == 0)
         {
@@ -41,7 +41,7 @@ public sealed partial class ArrayPrototype
             }
 
             var element = GetElementOrUndefinedJsValue(accessor, ToIndexString(k));
-            builder.Append(element.ToJsStringForArray());
+            builder.Append(JsOps.ToJsStringForArray(element, evalContext, Realm));
         }
 
         return new JsValue(builder.ToString());

@@ -1997,7 +1997,7 @@ internal static partial class IntlUtilities
             return localeIdentifier;
         }
 
-        return candidate.ToJsString();
+        return JsOps.ToJsString(candidate);
     }
 
     private sealed class TimeZoneRegistry(

@@ -1167,6 +1167,40 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return DefinePropertyInternalDirect(name, descriptor);
     }
 
+    internal void DefineDefaultDataProperty(string name, JsValue value)
+    {
+        if (!CanStoreImplicitDefaultDataProperty(name))
+        {
+            DefinePropertyDirect(name,
+                new PropertyDescriptor
+                {
+                    JsValue = value,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+            return;
+        }
+
+        MarkMutated();
+        var state = State;
+        if (!state.Storage.ContainsKey(name))
+        {
+            TrackPropertyInsertion(name);
+        }
+
+        state.Storage[name] = value;
+        TrackArrayIndexWriteIfNeeded(name);
+    }
+
+    private bool CanStoreImplicitDefaultDataProperty(string name)
+    {
+        return IsExtensible &&
+               !name.IsPrivateSlotName() &&
+               _virtualPropertyProvider is null &&
+               (_state?.Descriptors.ContainsKey(name) != true);
+    }
+
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor)
     {
         MarkMutated();

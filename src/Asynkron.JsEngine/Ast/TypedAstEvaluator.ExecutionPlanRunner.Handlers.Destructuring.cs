@@ -181,7 +181,7 @@ public static partial class TypedAstEvaluator
             // Bind value to target (skip for holes where TargetSymbol is null)
             if (instruction.TargetSymbol is not null)
             {
-                BindDestructuringValue(environment, instruction.TargetSymbol, value, instruction.VarKind);
+                BindDestructuringValue(environment, instruction.TargetSymbol, value, instruction.VarKind, context);
             }
 
             runner._programCounter = instruction.Next;
@@ -236,7 +236,7 @@ public static partial class TypedAstEvaluator
 
             // Bind rest array to target
             BindDestructuringValue(environment, instruction.RestSymbol,
-                JsValue.FromObjectUnsafe(restArray), instruction.VarKind);
+                JsValue.FromObjectUnsafe(restArray), instruction.VarKind, context);
 
             runner._programCounter = instruction.Next;
             returnValue = default;
@@ -278,13 +278,17 @@ public static partial class TypedAstEvaluator
             JsEnvironment environment,
             Symbol targetSymbol,
             JsValue value,
-            VariableKind varKind)
+            VariableKind varKind,
+            EvaluationContext context)
         {
             switch (varKind)
             {
                 case VariableKind.Var:
-                    // For var, assign to existing (hoisted) binding
-                    environment.AssignJsValue(targetSymbol, value);
+                    environment.EnsureFunctionScopedVarBinding(targetSymbol, context);
+                    if (!environment.TryAssignBlockedBinding(targetSymbol, value))
+                    {
+                        environment.AssignJsValue(targetSymbol, value);
+                    }
                     break;
 
                 case VariableKind.Let:

@@ -10736,11 +10736,16 @@ public static class TemporalHelper
         int month;
         if (hasMonthCode)
         {
-            month = monthCodeStr!.Length == 4 &&
-                    monthCodeStr[3] == 'L' &&
-                    !IsValidLeapMonthCodeForYear(calendar, year, monthCodeStr)
-                ? MonthCodeNumericValue(monthCodeStr)
-                : ResolvePlainYearMonthMonthCode(calendar, year, monthCodeStr, realm);
+            var resolvedMonthCode = monthCodeStr!;
+            var canDeferLeapMonthValidation =
+                !string.Equals(calendar, "iso8601", StringComparison.Ordinal) &&
+                !string.Equals(calendar, "gregory", StringComparison.Ordinal);
+            month = canDeferLeapMonthValidation &&
+                    resolvedMonthCode.Length == 4 &&
+                    resolvedMonthCode[3] == 'L' &&
+                    !IsValidLeapMonthCodeForYear(calendar, year, resolvedMonthCode)
+                ? MonthCodeNumericValue(resolvedMonthCode)
+                : ResolvePlainYearMonthMonthCode(calendar, year, resolvedMonthCode, realm);
             if (hasMonth)
             {
                 if (monthInt != month)

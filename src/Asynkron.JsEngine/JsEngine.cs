@@ -2773,6 +2773,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
             catch (ThrowSignal signal)
             {
+                context?.Clear();
                 ScheduleTask(() => promise.Reject(signal.ThrownValue));
                 return;
             }
@@ -3230,6 +3231,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 !name.StartsWith("__getter__", StringComparison.Ordinal) &&
                 !name.StartsWith("__setter__", StringComparison.Ordinal) &&
                 !name.StartsWith("@@symbol:", StringComparison.Ordinal))
+            .Where(name => IsResolvableNamespaceExportName(entry, name, phase))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
@@ -3278,6 +3280,43 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             EnsureModuleEvaluated(entry);
         }
+    }
+
+    private bool IsResolvableNamespaceExportName(ModuleEntry entry, string name, ImportPhase phase)
+    {
+        foreach (var statement in entry.Program.Body)
+        {
+            switch (statement)
+            {
+                case ExportDefaultStatement when string.Equals(name, "default", StringComparison.Ordinal):
+                    return true;
+                case ExportDeclarationStatement exportDeclaration:
+                    foreach (var symbol in GetDeclaredSymbols(exportDeclaration.Declaration))
+                    {
+                        if (string.Equals(symbol.Name, name, StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case ExportNamedStatement { FromModule: null } exportNamed:
+                    foreach (var specifier in exportNamed.Specifiers)
+                    {
+                        if (string.Equals(specifier.Exported.Name, name, StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+                    }
+
+                    break;
+                case ExportNamespaceAsStatement exportNamespace
+                    when string.Equals(exportNamespace.Exported.Name, name, StringComparison.Ordinal):
+                    return true;
+            }
+        }
+
+        return ResolveExport(entry, name, phase, []).Kind == ExportResolutionKind.Resolved;
     }
 
     private void PredeclareExportNames(

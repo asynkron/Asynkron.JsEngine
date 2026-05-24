@@ -301,7 +301,7 @@ public static partial class TypedAstEvaluator
                                                 !_wasAsyncFunction &&
                                                 !_hasParameterExpressions &&
                                                 hoistPlan.LexicalTemplate.Length == 0 &&
-                                                !hasFunctionDeclarations &&
+                                                !hasHoistableDeclarations &&
                                                 _allowIdentifierCache &&
                                                 hasSimpleParams &&
                                                 !_hasCapturedActivationInClosure &&

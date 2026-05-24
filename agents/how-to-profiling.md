@@ -49,8 +49,7 @@ CreateNextIterationEnvironment
 
 ### BenchmarkDotNet quick start
 ```bash
-rtk cd benchmarks/Asynkron.JsEngine.Benchmarks
-rtk dotnet run -c Release -- --filter "*Fibonacci*"
+rtk dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks -- --filter "*Fibonacci*"
 ```
 
 ### Detailed allocation trace

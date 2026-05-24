@@ -115,7 +115,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             obj.TryGetProperty(key, receiver, out var value);
             var entry = new JsArray([key, value], realmState);
-            entries.Push(entry);
+            entries.Push(JsValue.FromJsArray(entry));
         }
 
         return JsValue.FromJsArray(entries);
@@ -475,7 +475,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
             throw ThrowTypeError("Cannot convert undefined or null to object", realm: realmState);
         }
 
-        var names = new JsArray(obj.GetOwnPropertyNames(), realmState);
+        var names = new JsArray(obj.GetOwnPropertyNames().Select(static name => new JsValue(name)), realmState);
         return JsValue.FromJsArray(names);
     }
 

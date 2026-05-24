@@ -96,6 +96,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     /// Convenience constructor that wraps objects in JsValue.
     /// </summary>
+    [Obsolete("Use JsArray(IEnumerable<JsValue>, RealmState?) overload", true)]
     public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
         : this(realmState)
     {
@@ -756,6 +757,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     /// Convenience overload that wraps object in JsValue.
     /// </summary>
+    [Obsolete("Use SetElement(int, JsValue) overload", true)]
     public void SetElement(int index, object? value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -766,6 +768,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     /// Convenience overload that wraps object in JsValue.
     /// </summary>
+    [Obsolete("Use SetElement(uint, JsValue) overload", true)]
     public void SetElement(uint index, object? value)
     {
         SetElement(index, JsValue.FromObjectUnsafe(value));
@@ -1042,6 +1045,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// <summary>
     /// Convenience overload that wraps object in JsValue.
     /// </summary>
+    [Obsolete("Use Push(JsValue) overload", true)]
     public void Push(object? value)
     {
         // Handle case where value is already a boxed JsValue

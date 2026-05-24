@@ -1,25 +1,25 @@
 # Profiling
 
 ## Profiler Script (Preferred)
-Use `./tools/profile` (builds ProfileRunner, runs asynkron-profiler, converts traces, prints hot functions and allocation call graphs).
+Use `rtk ./tools/profile` (builds ProfileRunner, runs asynkron-profiler, converts traces, prints hot functions and allocation call graphs).
 
 Examples:
 ```bash
-./tools/profile fib            # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
-./tools/profile forloop        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
-./tools/profile all            # run all benchmarks
-./tools/profile fib --cpu      # CPU only
-./tools/profile fib --memory   # memory only
-./tools/profile fib --exception # exception profiling
-./tools/profile fib --heap     # heap snapshot only
-./tools/compare-jint-profiles  # common ProfileRunner/Jint timing matrix
-./tools/compare-jint-profiles --smoke # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
-./tools/compare-jint-profiles --async-smoke-only # tiny async/await-only matrix
-./tools/profile --compare      # separate BenchmarkDotNet Jint comparison suite
+rtk ./tools/profile fib                        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
+rtk ./tools/profile forloop                    # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
+rtk ./tools/profile all                        # run all benchmarks
+rtk ./tools/profile fib --cpu                  # CPU only
+rtk ./tools/profile fib --memory               # memory only
+rtk ./tools/profile fib --exception            # exception profiling
+rtk ./tools/profile fib --heap                 # heap snapshot only
+rtk ./tools/compare-jint-profiles              # common ProfileRunner/Jint timing matrix
+rtk ./tools/compare-jint-profiles --smoke      # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
+rtk ./tools/compare-jint-profiles --async-smoke-only # tiny async/await-only matrix
+rtk ./tools/profile --compare                  # separate BenchmarkDotNet Jint comparison suite
 ```
 
 Default scoping contract:
-- If no explicit mode is provided, `./tools/profile <profile>` runs CPU and memory as two separate profiler invocations.
+- If no explicit mode is provided, `rtk ./tools/profile <profile>` runs CPU and memory as two separate profiler invocations.
 - CPU defaults to `--filter Asynkron.JsEngine` and uses a profile-specific root for known profiles, for example `ExecuteInstructionLoop` for IR script profiles and `InvokeWithContextSlow` for activation profiles. Pass `--root <method>` to override it.
 - Memory defaults to `--root Asynkron.JsEngine`.
 - `--cpu` / `--memory` keep mode-only behavior but still add the same default scope when caller does not provide `--root` / `--filter`.

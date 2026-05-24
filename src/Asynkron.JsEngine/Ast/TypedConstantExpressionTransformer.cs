@@ -1,7 +1,6 @@
 #region
 
 using System.Collections.Immutable;
-using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 
 #endregion
@@ -470,7 +469,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(left, out var leftValue) && TryGetLiteralValue(right, out var rightValue) &&
             TryFoldBinary(expression.Operator, leftValue, rightValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
+            return new LiteralExpression(expression.Source, foldedValue);
         }
 
         if (ReferenceEquals(left, expression.Left) && ReferenceEquals(right, expression.Right))
@@ -487,7 +486,7 @@ public sealed class TypedConstantExpressionTransformer
         if (TryGetLiteralValue(operand, out var operandValue) &&
             TryFoldUnary(expression.Operator, operandValue, out var foldedValue))
         {
-            return new LiteralExpression(expression.Source, ToJsValue(foldedValue));
+            return new LiteralExpression(expression.Source, foldedValue);
         }
 
         return ReferenceEquals(operand, expression.Operand) ? expression : expression with { Operand = operand };
@@ -700,23 +699,15 @@ public sealed class TypedConstantExpressionTransformer
         return ReferenceEquals(inner, expression.Expression) ? expression : expression with { Expression = inner };
     }
 
-    private static bool TryGetLiteralValue(ExpressionNode expression, out object? value)
+    private static bool TryGetLiteralValue(ExpressionNode expression, out JsValue value)
     {
         if (expression is LiteralExpression literal && IsFoldableLiteral(literal.Value))
         {
-            // Extract the underlying value from JsValue for constant folding
-            value = literal.Value.Kind switch
-            {
-                JsValueKind.Null => null,
-                JsValueKind.Boolean => literal.Value.IsBoolean && literal.Value.NumberValue != 0,
-                JsValueKind.Number => literal.Value.NumberValue,
-                JsValueKind.String => literal.Value.AsString(),
-                _ => null
-            };
+            value = literal.Value;
             return true;
         }
 
-        value = null;
+        value = JsValue.Undefined;
         return false;
     }
 
@@ -728,22 +719,9 @@ public sealed class TypedConstantExpressionTransformer
             or JsValueKind.Null;
     }
 
-    private static JsValue ToJsValue(object? value)
+    private static bool TryFoldBinary(BinaryOperator op, JsValue left, JsValue right, out JsValue value)
     {
-        return value switch
-        {
-            null => JsValue.Null,
-            true => JsValue.True,
-            false => JsValue.False,
-            double d => new JsValue(d),
-            string s => new JsValue(s),
-            _ => JsValue.FromObjectUnsafe(value)
-        };
-    }
-
-    private static bool TryFoldBinary(BinaryOperator op, object? left, object? right, out object? value)
-    {
-        value = null;
+        value = JsValue.Undefined;
         return op switch
         {
             BinaryOperator.Add => TryFoldAddition(left, right, out value),
@@ -772,9 +750,9 @@ public sealed class TypedConstantExpressionTransformer
         };
     }
 
-    private static bool TryFoldUnary(UnaryOperator op, object? operand, out object? value)
+    private static bool TryFoldUnary(UnaryOperator op, JsValue operand, out JsValue value)
     {
-        value = null;
+        value = JsValue.Undefined;
         return op switch
         {
             UnaryOperator.Minus => TryFoldUnaryMinus(operand, out value),
@@ -785,56 +763,58 @@ public sealed class TypedConstantExpressionTransformer
         };
     }
 
-    private static bool TryFoldAddition(object? left, object? right, out object? value)
+    private static bool TryFoldAddition(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is string || right is string)
+        value = JsValue.Undefined;
+        if (left.Kind is JsValueKind.String || right.Kind is JsValueKind.String)
         {
-            value = CoerceToString(left) + CoerceToString(right);
+            value = new JsValue(JsOps.ToJsString(left) + JsOps.ToJsString(right));
             return true;
         }
 
-        if (left is double leftNum && right is double rightNum)
+        if (left.IsNumber && right.IsNumber)
         {
-            value = leftNum + rightNum;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryFoldSubtraction(object? left, object? right, out object? value)
-    {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
-        {
-            value = leftNum - rightNum;
+            value = new JsValue(left.NumberValue + right.NumberValue);
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldMultiplication(object? left, object? right, out object? value)
+    private static bool TryFoldSubtraction(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            value = leftNum * rightNum;
+            value = new JsValue(left.NumberValue - right.NumberValue);
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldDivision(object? left, object? right, out object? value)
+    private static bool TryFoldMultiplication(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
+            value = new JsValue(left.NumberValue * right.NumberValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryFoldDivision(JsValue left, JsValue right, out JsValue value)
+    {
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
             if (double.IsNaN(leftNum) || double.IsNaN(rightNum))
             {
-                value = double.NaN;
+                value = new JsValue(double.NaN);
                 return true;
             }
 
@@ -842,82 +822,84 @@ public sealed class TypedConstantExpressionTransformer
             {
                 if (leftNum == 0)
                 {
-                    value = double.NaN;
+                    value = new JsValue(double.NaN);
                     return true;
                 }
 
                 var numeratorNegative = HasNegativeSign(leftNum);
                 var denominatorNegative = HasNegativeSign(rightNum);
-                value = numeratorNegative ^ denominatorNegative
+                value = new JsValue(numeratorNegative ^ denominatorNegative
                     ? double.NegativeInfinity
-                    : double.PositiveInfinity;
+                    : double.PositiveInfinity);
                 return true;
             }
 
-            value = leftNum / rightNum;
+            value = new JsValue(leftNum / rightNum);
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldModulo(object? left, object? right, out object? value)
+    private static bool TryFoldModulo(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            value = rightNum == 0 ? double.NaN : leftNum % rightNum;
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
+            value = new JsValue(rightNum == 0 ? double.NaN : leftNum % rightNum);
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldExponentiation(object? left, object? right, out object? value)
+    private static bool TryFoldExponentiation(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            value = JsOps.MathPow(leftNum, rightNum);
+            value = new JsValue(JsOps.MathPow(left.NumberValue, right.NumberValue));
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldUnaryMinus(object? operand, out object? value)
+    private static bool TryFoldUnaryMinus(JsValue operand, out JsValue value)
     {
-        value = null;
-        if (operand is double number)
+        value = JsValue.Undefined;
+        if (operand.IsNumber)
         {
-            value = -number;
+            value = new JsValue(-operand.NumberValue);
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldUnaryPlus(object? operand, out object? value)
+    private static bool TryFoldUnaryPlus(JsValue operand, out JsValue value)
     {
-        value = null;
-        if (operand is double number)
+        value = JsValue.Undefined;
+        if (operand.IsNumber)
         {
-            value = number;
+            value = operand;
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldLogicalNot(object? operand, out object? value)
+    private static bool TryFoldLogicalNot(JsValue operand, out JsValue value)
     {
-        value = !CoerceToBoolean(operand);
+        value = JsOps.ToBoolean(operand) ? JsValue.False : JsValue.True;
         return true;
     }
 
-    private static bool TryFoldLogicalAnd(object? left, object? right, out object? value)
+    private static bool TryFoldLogicalAnd(JsValue left, JsValue right, out JsValue value)
     {
-        if (!CoerceToBoolean(left))
+        if (!JsOps.ToBoolean(left))
         {
             value = left;
             return true;
@@ -927,9 +909,9 @@ public sealed class TypedConstantExpressionTransformer
         return true;
     }
 
-    private static bool TryFoldLogicalOr(object? left, object? right, out object? value)
+    private static bool TryFoldLogicalOr(JsValue left, JsValue right, out JsValue value)
     {
-        if (CoerceToBoolean(left))
+        if (JsOps.ToBoolean(left))
         {
             value = left;
             return true;
@@ -939,222 +921,203 @@ public sealed class TypedConstantExpressionTransformer
         return true;
     }
 
-    private static bool TryFoldEquals(object? left, object? right, out object? value)
+    private static bool TryFoldEquals(JsValue left, JsValue right, out JsValue value)
     {
-        value = LooseEquals(left, right);
+        value = JsOps.LooseEquals(left, right) ? JsValue.True : JsValue.False;
         return true;
     }
 
-    private static bool TryFoldNotEquals(object? left, object? right, out object? value)
+    private static bool TryFoldNotEquals(JsValue left, JsValue right, out JsValue value)
     {
-        value = !LooseEquals(left, right);
+        value = JsOps.LooseEquals(left, right) ? JsValue.False : JsValue.True;
         return true;
     }
 
-    private static bool TryFoldStrictEquals(object? left, object? right, out object? value)
+    private static bool TryFoldStrictEquals(JsValue left, JsValue right, out JsValue value)
     {
-        value = StrictEquals(left, right);
+        value = JsOps.StrictEquals(left, right) ? JsValue.True : JsValue.False;
         return true;
     }
 
-    private static bool TryFoldStrictNotEquals(object? left, object? right, out object? value)
+    private static bool TryFoldStrictNotEquals(JsValue left, JsValue right, out JsValue value)
     {
-        value = !StrictEquals(left, right);
+        value = JsOps.StrictEquals(left, right) ? JsValue.False : JsValue.True;
         return true;
     }
 
-    private static bool TryFoldLessThan(object? left, object? right, out object? value)
+    private static bool TryFoldLessThan(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is string leftStr && right is string rightStr)
+        value = JsValue.Undefined;
+        if (left.Kind is JsValueKind.String && right.Kind is JsValueKind.String)
         {
-            value = string.CompareOrdinal(leftStr, rightStr) < 0;
+            value = string.CompareOrdinal(left.AsString(), right.AsString()) < 0 ? JsValue.True : JsValue.False;
             return true;
         }
 
-        if (left is double leftNum && right is double rightNum)
+        if (left.IsNumber && right.IsNumber)
         {
-            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum < rightNum;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryFoldLessThanOrEqual(object? left, object? right, out object? value)
-    {
-        value = null;
-        if (left is string leftStr && right is string rightStr)
-        {
-            value = string.CompareOrdinal(leftStr, rightStr) <= 0;
-            return true;
-        }
-
-        if (left is double leftNum && right is double rightNum)
-        {
-            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum <= rightNum;
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
+            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum < rightNum
+                ? JsValue.True
+                : JsValue.False;
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldGreaterThan(object? left, object? right, out object? value)
+    private static bool TryFoldLessThanOrEqual(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is string leftStr && right is string rightStr)
+        value = JsValue.Undefined;
+        if (left.Kind is JsValueKind.String && right.Kind is JsValueKind.String)
         {
-            value = string.CompareOrdinal(leftStr, rightStr) > 0;
+            value = string.CompareOrdinal(left.AsString(), right.AsString()) <= 0 ? JsValue.True : JsValue.False;
             return true;
         }
 
-        if (left is double leftNum && right is double rightNum)
+        if (left.IsNumber && right.IsNumber)
         {
-            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum > rightNum;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryFoldGreaterThanOrEqual(object? left, object? right, out object? value)
-    {
-        value = null;
-        if (left is string leftStr && right is string rightStr)
-        {
-            value = string.CompareOrdinal(leftStr, rightStr) >= 0;
-            return true;
-        }
-
-        if (left is double leftNum && right is double rightNum)
-        {
-            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum >= rightNum;
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
+            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum <= rightNum
+                ? JsValue.True
+                : JsValue.False;
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldBitwiseAnd(object? left, object? right, out object? value)
+    private static bool TryFoldGreaterThan(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.Kind is JsValueKind.String && right.Kind is JsValueKind.String)
         {
-            value = (double)(ToInt32(leftNum) & ToInt32(rightNum));
+            value = string.CompareOrdinal(left.AsString(), right.AsString()) > 0 ? JsValue.True : JsValue.False;
+            return true;
+        }
+
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
+            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum > rightNum
+                ? JsValue.True
+                : JsValue.False;
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldBitwiseOr(object? left, object? right, out object? value)
+    private static bool TryFoldGreaterThanOrEqual(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.Kind is JsValueKind.String && right.Kind is JsValueKind.String)
         {
-            value = (double)(ToInt32(leftNum) | ToInt32(rightNum));
+            value = string.CompareOrdinal(left.AsString(), right.AsString()) >= 0 ? JsValue.True : JsValue.False;
+            return true;
+        }
+
+        if (left.IsNumber && right.IsNumber)
+        {
+            var leftNum = left.NumberValue;
+            var rightNum = right.NumberValue;
+            value = !(double.IsNaN(leftNum) || double.IsNaN(rightNum)) && leftNum >= rightNum
+                ? JsValue.True
+                : JsValue.False;
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldBitwiseXor(object? left, object? right, out object? value)
+    private static bool TryFoldBitwiseAnd(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            value = (double)(ToInt32(leftNum) ^ ToInt32(rightNum));
+            value = new JsValue((double)(ToInt32(left.NumberValue) & ToInt32(right.NumberValue)));
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldBitwiseNot(object? operand, out object? value)
+    private static bool TryFoldBitwiseOr(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (operand is double number)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            value = (double)~ToInt32(number);
+            value = new JsValue((double)(ToInt32(left.NumberValue) | ToInt32(right.NumberValue)));
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldLeftShift(object? left, object? right, out object? value)
+    private static bool TryFoldBitwiseXor(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            var shift = ToInt32(rightNum) & 0x1F;
-            value = (double)(ToInt32(leftNum) << shift);
+            value = new JsValue((double)(ToInt32(left.NumberValue) ^ ToInt32(right.NumberValue)));
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldRightShift(object? left, object? right, out object? value)
+    private static bool TryFoldBitwiseNot(JsValue operand, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (operand.IsNumber)
         {
-            var shift = ToInt32(rightNum) & 0x1F;
-            value = (double)(ToInt32(leftNum) >> shift);
+            value = new JsValue((double)~ToInt32(operand.NumberValue));
             return true;
         }
 
         return false;
     }
 
-    private static bool TryFoldUnsignedRightShift(object? left, object? right, out object? value)
+    private static bool TryFoldLeftShift(JsValue left, JsValue right, out JsValue value)
     {
-        value = null;
-        if (left is double leftNum && right is double rightNum)
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            var shift = ToInt32(rightNum) & 0x1F;
-            value = (double)(ToUint32(leftNum) >> shift);
+            var shift = ToInt32(right.NumberValue) & 0x1F;
+            value = new JsValue((double)(ToInt32(left.NumberValue) << shift));
             return true;
         }
 
         return false;
     }
 
-    private static string CoerceToString(object? value)
+    private static bool TryFoldRightShift(JsValue left, JsValue right, out JsValue value)
     {
-        return value switch
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            null => "null",
-            string s => s,
-            bool b => b ? "true" : "false",
-            double d => d.ToString(CultureInfo.InvariantCulture),
-            IJsCallable => "function() { [native code] }",
-            _ => value.ToString() ?? string.Empty
-        };
+            var shift = ToInt32(right.NumberValue) & 0x1F;
+            value = new JsValue((double)(ToInt32(left.NumberValue) >> shift));
+            return true;
+        }
+
+        return false;
     }
 
-    private static bool CoerceToBoolean(object? value)
+    private static bool TryFoldUnsignedRightShift(JsValue left, JsValue right, out JsValue value)
     {
-        return value switch
+        value = JsValue.Undefined;
+        if (left.IsNumber && right.IsNumber)
         {
-            null => false,
-            bool b => b,
-            double d => d != 0 && !double.IsNaN(d),
-            string s => s.Length > 0,
-            _ => true
-        };
-    }
+            var shift = ToInt32(right.NumberValue) & 0x1F;
+            value = new JsValue((double)(ToUint32(left.NumberValue) >> shift));
+            return true;
+        }
 
-    private static bool LooseEquals(object? left, object? right)
-    {
-        return JsOps.LooseEquals(JsValue.FromObjectUnsafe(left), JsValue.FromObjectUnsafe(right));
-    }
-
-    private static bool StrictEquals(object? left, object? right)
-    {
-        return JsOps.StrictEquals(JsValue.FromObjectUnsafe(left), JsValue.FromObjectUnsafe(right));
+        return false;
     }
 
     private static int ToInt32(double value)

@@ -39,6 +39,10 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    new binding and can reintroduce per-invocation `JsSlot[]` growth. Use
    `DefineParameterFast` only for dictionary/no-slot fallback paths or real
    appended activation bindings.
+8. When pre-sizing function or parameter environments, count only activation
+   bindings that the runner will append on that exact path. Capacity reservations
+   may avoid `GrowSlots`, but they must not change logical slot count, binding
+   order, or whether a binding exists.
 
 ## Why
 
@@ -88,3 +92,14 @@ slot-backed binding.
 
 Related ADR:
 `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`.
+
+Issue `autrun-dir4p2zvmkps-4dd788bea7` and PR #1740 showed the activation
+backing-capacity trap in the `classdef` profile: class constructors repeatedly
+grew slot arrays while appending predictable function/parameter environment
+bindings. The accepted fix kept binding order unchanged and only reserved enough
+backing capacity for known appends, then proved the change with class-focused
+tests, slot/environment tests, runner AST-seam scan, and `forloop --memory`.
+Future activation sizing work should keep that distinction explicit.
+
+Related performance note:
+`docs/performance/classdef-ir-environment-pre-sizing.md`.

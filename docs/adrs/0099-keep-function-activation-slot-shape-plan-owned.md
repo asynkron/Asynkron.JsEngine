@@ -38,6 +38,15 @@ second definition appended duplicate parameter bindings on each invocation,
 inflating `JsSlot[]` growth and `GrowSlots` pressure even though the slot shape
 was already known.
 
+Issue `autrun-dir4p2zvmkps-4dd788bea7` / PR #1740 showed the same slot-growth
+pressure from the other side of activation setup. The `classdef` profile spent
+constructor-invocation time in
+`BindFunctionParameters -> DefineSlot -> GrowSlots -> Array.Copy` because the
+IR runner appended predictable activation bindings into environments with no
+reserved backing capacity. The fix pre-sized the function and parameter
+environments for known activation appends while keeping logical slot count and
+binding order unchanged.
+
 ## Decision
 
 Keep planned-function activation slot shape owned by `ExecutionPlan` and
@@ -63,6 +72,13 @@ that already exists in the activation layout. `DefineParameterFast` remains the
 fallback for dictionary/no-slot paths and for real appended activation bindings,
 not a mirror for every slot-backed parameter write.
 
+Activation environments should also reserve backing capacity for predictable
+runtime appends before those bindings are defined. Capacity pre-sizing is allowed
+for known activation-owned bindings such as `this`, `new.target`, runner
+bookkeeping, `super`, `arguments`, function-name bindings, and simple
+parameters, but it must not change the logical slot count, binding order, or
+observable environment semantics.
+
 ## Consequences
 
 - Function activation stays on a metadata-consumption path instead of doing
@@ -74,6 +90,11 @@ not a mirror for every slot-backed parameter write.
 - Slot-backed parameter binding remains allocation-stable for closure functions:
   preallocated parameter slots are updated in place instead of duplicated as
   appended bindings on every invocation.
+- Known activation-owned appends can avoid per-invocation `GrowSlots` and
+  `Array.Copy` pressure without moving semantic ownership away from the runner.
+- Capacity helpers remain a performance reservation detail. They must be kept
+  in sync with activation binding order and proved with activation/class and
+  slot-environment tests when changed.
 - Future activation optimization work should preserve this ownership boundary
   and prove behavior with the activation proof pack from
   `.claude/rules/function-activation-proof-pack.md`.
@@ -85,3 +106,4 @@ not a mirror for every slot-backed parameter write.
 
 - `.claude/rules/function-activation-proof-pack.md`
 - `.claude/rules/performance-profiling-guardrails.md`
+- `docs/performance/classdef-ir-environment-pre-sizing.md`

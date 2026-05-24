@@ -64,6 +64,11 @@ optimization.
     checks, and reviver source tracking. Future `json` work must prove the hot
     owner with a CPU profile, then separate avoidable intermediate string/list
     allocation from metadata that is required for observable JSON semantics.
+12. For activation environment capacity work, prove that the hot owner is slot
+    growth or slot-array copying on the selected profile before changing runner
+    sizing. Capacity helpers may reserve space for known activation appends, but
+    reports must distinguish backing capacity from logical slot count, binding
+    order, and observable environment semantics.
 
 ## Why
 
@@ -153,3 +158,14 @@ the non-observable compact/no-reviver cases while leaving the semantic
 replacer, raw JSON, pretty-printing, proxy, circular-check, and reviver paths on
 their existing fallbacks. Detailed measurement note:
 `docs/performance/json-compact-serialization.md`.
+
+Issue `autrun-dir4p2zvmkps-4dd788bea7` / PR #1740 selected `classdef` from the
+benchmark table and proved the hot owner with a `classdef` CPU call tree:
+constructor activation repeatedly reached
+`BindFunctionParameters -> DefineSlot -> GrowSlots -> Array.Copy`. The accepted
+slice pre-sized IR runner function and parameter environments for known
+activation appends, while keeping the same logical slot count and binding order.
+The durable lesson is that activation capacity fixes should be profile-owned and
+capacity-only, then backed by activation/class semantics tests, slot/environment
+tests, runner AST-seam scans, and an allocation-stability memory check. Detailed
+measurement note: `docs/performance/classdef-ir-environment-pre-sizing.md`.

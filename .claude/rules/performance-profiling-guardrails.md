@@ -41,6 +41,13 @@ optimization.
    equivalent diagnostic, keep packed flag side-state intact, and preserve the
    pooled fallback for larger programs. Do not raise the inline-buffer threshold
    without current profile evidence and a frame-size/semantics proof.
+9. For array dense-write optimizations, keep the shortcut at the `JsArray`
+   storage boundary and preserve the ordinary property-definition fallback.
+   Future `arrayops` or array built-in work must prove the hot owner with a CPU
+   profile, then pin descriptor/extensibility/length-writability semantics and
+   the `2^32 - 1` boundary. Numeric helpers may fast-path only indices
+   `< uint.MaxValue`; `"4294967295"` is an ordinary property and must not grow
+   array length.
 
 ## Why
 
@@ -83,3 +90,15 @@ expression-program buffer work should be driven by both runtime profile shape
 and stack-depth distribution, with fallback capacity and packed flag semantics
 left intact. Related ADR:
 `docs/adrs/0102-keep-small-expression-program-buffers-inline.md`.
+
+Issue `autrun-diqyh2msb568-aa393696f2` / PR #1687 selected `arrayops` from the
+benchmark table and proved the hot owner with an `arrayops` CPU call tree:
+ordinary dense result-array writes in `map`/`filter` and length updates in
+`push` were paying descriptor setup, index string construction, and boxed length
+storage costs. The accepted slice kept the optimization in `JsArray` storage,
+but the build-back fix showed why the semantic guard matters: `uint.MaxValue`
+is still a representable numeric value, while ECMAScript array indices stop
+before `2^32 - 1`. The durable lesson is that array fast paths must stay
+profile-owned and storage-owned while preserving ordinary property behavior at
+`"4294967295"`. Related ADR:
+`docs/adrs/0103-keep-array-dense-writes-storage-owned.md`.

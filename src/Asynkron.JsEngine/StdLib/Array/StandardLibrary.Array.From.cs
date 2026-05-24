@@ -42,7 +42,7 @@ public static partial class StandardLibrary
         for (var k = 0; k < len; k++)
         {
             var key = ToIndexString(k);
-            CreateDataPropertyOrThrow(result, key, args[k], realm, MethodName);
+            CreateDataPropertyOrThrowJsValue(result, key, args[k], realm, MethodName);
         }
 
         SetArrayLikeLength(result, len);
@@ -134,7 +134,7 @@ public static partial class StandardLibrary
                 ? InvokeArrayFromMapper(mapper, host, thisArg, value, k)
                 : value;
 
-            CreateDataPropertyOrThrow(result, key, mapped, realm, MethodName);
+            CreateDataPropertyOrThrowJsValue(result, key, mapped, realm, MethodName);
             k++;
         }
 
@@ -292,7 +292,7 @@ public static partial class StandardLibrary
 
             try
             {
-                CreateDataPropertyOrThrow(result, ToIndexString(k), mappedValue, realm, MethodName);
+                CreateDataPropertyOrThrowJsValue(result, ToIndexString(k), mappedValue, realm, MethodName);
             }
             catch (ThrowSignal)
             {

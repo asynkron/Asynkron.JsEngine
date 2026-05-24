@@ -388,33 +388,8 @@ public static partial class StandardLibrary
         callable.Invoke([], JsValue.FromObjectUnsafe(iterator));
     }
 
-    internal static void CreateDataPropertyOrThrow(IJsObjectLike target, string propertyKey, object? value,
-        RealmState? realm, string methodName)
-    {
-        var descriptor = new PropertyDescriptor
-        {
-            Value = value,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
-        };
-
-        if (target is IPropertyDefinitionHost definitionHost)
-        {
-            var defined = definitionHost.TryDefineProperty(propertyKey, descriptor);
-            if (!defined)
-            {
-                throw ThrowTypeError($"{methodName} could not define property '{propertyKey}'", realm: realm);
-            }
-
-            return;
-        }
-
-        target.DefineProperty(propertyKey, descriptor);
-    }
-
     /// <summary>
-    /// JsValue overload to avoid boxing. Prefer this over the object? overload.
+    /// Creates a data property from a JsValue without object boxing.
     /// </summary>
     internal static void CreateDataPropertyOrThrowJsValue(IJsObjectLike target, string propertyKey, JsValue value,
         RealmState? realm, string methodName)

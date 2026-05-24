@@ -83,7 +83,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   canonical local gate. In this repo, commands that an agent is expected to run
   should show the `rtk` prefix and normal verification should point at
   `rtk make quality`, while repository executable targets themselves must stay
-  wrapper-free per `.claude/rules/pre-pr-required.md`.
+  wrapper-free per `.claude/rules/pre-pr-required.md`. Treat `rtk make quality`
+  as local build/test evidence only; it does not replace the mandatory pre-PR
+  checklist in `.claude/rules/pre-pr-required.md`.
 
 ## Why
 

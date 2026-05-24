@@ -12,7 +12,10 @@ Examples:
 ./tools/profile fib --memory   # memory only
 ./tools/profile fib --exception # exception profiling
 ./tools/profile fib --heap     # heap snapshot only
-./tools/profile --compare      # Jint comparison benchmarks
+./tools/compare-jint-profiles  # common ProfileRunner/Jint timing matrix
+./tools/compare-jint-profiles --smoke # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
+./tools/compare-jint-profiles --async-smoke-only # tiny async/await-only matrix
+./tools/profile --compare      # separate BenchmarkDotNet Jint comparison suite
 ```
 
 Default scoping contract:

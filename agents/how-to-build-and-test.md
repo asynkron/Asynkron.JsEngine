@@ -32,15 +32,9 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeT
 When a spawned maintenance-child issue asks for one bounded repository
 maintenance pass, keep the slice repo-local and reviewable:
 
-- Policy ownership: recurring-child policy and edge-case lessons live in
-  `.claude/rules/recurring-maintenance-child-runs.md`.
-- Operational ownership: this section owns the runnable checklist and `## Build
-  Update` template used in build-stage issue updates.
-- ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
-  reservation (`faktorial-api adr-next`) and duplicate-prefix guardrails.
-- Persistent ADR/rule compaction details stay in
-  `.claude/rules/recurring-maintenance-child-runs.md`; keep this section
-  focused on the operational checklist and Build Update template.
+- Rule ownership lives in `.claude/rules/recurring-maintenance-child-runs.md`
+  and `.claude/rules/adr-allocation.md`; this section stays focused on the
+  runnable checklist and `## Build Update` template.
 
 1. Check active sibling child log summaries before choosing a slice so this
    run intentionally avoids overlapping sibling work; record the sibling check
@@ -51,14 +45,10 @@ maintenance pass, keep the slice repo-local and reviewable:
 3. Capture a cheap baseline signal before editing. Prefer evidence such as
    `rtk make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
-   For issue details, comments, prior stage output, and logs, use supplied
-   Faktorial Source Context first. If more evidence is needed, query full issue
-   details/comments from the Faktorial HTTP API issue/dashboard endpoint (for
-   example `/api/issues/<issue>`), then use the compact summary endpoint
-   (`/api/logs/<issue>/summary`), and use narrow searches over
-   `.faktorial/logs/ghNNNN.log` only when API summaries are still insufficient.
-   Do not run the host `faktorial` daemon binary for issue/log/state reads from
-   an agent. Treat missing `gh` auth as an environment detail, not a blocker.
+   For issue details/logs, use supplied Faktorial Source Context first, then
+   `/api/issues/<issue>`, then `/api/logs/<issue>/summary`, and only then
+   narrow searches over `.faktorial/logs/ghNNNN.log` if needed. Do not run the
+   host `faktorial` daemon binary for issue/log/state reads from an agent.
 4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

@@ -93,3 +93,10 @@ but the build-stage reran the exact command on the current issue branch and it
 passed 4021 tests with a clean worktree. That incident confirms agents should
 continue stopping on proven stale/transient reds instead of inventing a nearby
 implementation patch just because the trigger was p0.
+Issue #1708 repeated the build-health variant for `main is red: d944f3a`: the
+stored mainverify excerpt only showed restore output from
+`dotnet build Asynkron.JsEngine.sln`, but the build-stage reran that exact
+command and it passed with no changed paths. That incident confirms that
+truncated failure excerpts must still be reproved before source edits, and a
+clean exact-command pass should close as stale/transient evidence rather than a
+nearby repair.

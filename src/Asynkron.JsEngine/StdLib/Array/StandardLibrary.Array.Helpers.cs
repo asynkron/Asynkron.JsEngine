@@ -447,7 +447,7 @@ public static partial class StandardLibrary
     internal static void CreateDataPropertyOrThrowJsValue(IJsObjectLike target, long propertyIndex, JsValue value,
         RealmState? realm, string methodName)
     {
-        if ((ulong)propertyIndex <= uint.MaxValue &&
+        if ((ulong)propertyIndex < uint.MaxValue &&
             target is JsArray { } array &&
             array.TryCreateDataPropertyFast((uint)propertyIndex, value))
         {

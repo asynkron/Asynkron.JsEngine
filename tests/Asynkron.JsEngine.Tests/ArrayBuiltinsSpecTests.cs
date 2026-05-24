@@ -1,5 +1,6 @@
 using System.Linq;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.StdLib;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -7,6 +8,25 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.StdLibArray)]
 public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    [Fact(Timeout = 2000)]
+    public async Task CreateDataPropertyOrThrow_NumericUintMaxValueCreatesOrdinaryProperty()
+    {
+        var array = new JsArray();
+
+        StandardLibrary.CreateDataPropertyOrThrowJsValue(
+            array,
+            4294967295L,
+            "sentinel",
+            realm: null,
+            methodName: "test");
+
+        Assert.True(array.TryGetProperty("4294967295", out var value));
+        Assert.Equal("sentinel", value);
+        Assert.True(array.TryGetProperty("length", out var length));
+        Assert.Equal(0d, length);
+        await Task.CompletedTask;
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Array_toLocaleString_InvokesElementMethodWithArgs()
     {

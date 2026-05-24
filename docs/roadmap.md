@@ -8,6 +8,10 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 ### What Works Well
 - The engine has a clear fast-path direction: typed AST parse/analyze, lowered statement IR, and expression payloads compiled into `ExpressionProgram` bytecode.
 - Expression bytecode coverage and failure-code taxonomy are documented and test-linked (`docs/expression-bytecode-coverage.md`).
+- Recent profile-driven slices improved hot-path behavior in measurable ways:
+  - inline small expression buffers reduced `classdef` profile cost and allocation pressure (`docs/performance/classdef-inline-expression-buffers.md`)
+  - numeric binary expression-bytecode fast paths improved `ir-arithmetic` throughput (`docs/performance/ir-arithmetic-binary-fast-path.md`)
+- Object-literal static key normalization and backlog tracking are documented with explicit supported/unsupported boundaries (`docs/unsupported-expression-program-backlog-2026-05-21.md`, `docs/expression-bytecode-coverage.md`).
 - Recent migration reporting keeps runtime/storage boundaries explicit and avoids overclaiming execution-path changes (`docs/expression-bytecode-migration-report-2026-05-23.md`).
 - Activation-slot ownership and observable arguments binding seams are now documented as plan-owned/runtime-consumed boundaries (`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`, `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`).
 - Activation-focused quality guardrails are now explicit: dedicated profile entries and focused activation proof-pack coverage exist to keep optimization work evidence-first (`tools/profile-manifest.json`, `.claude/rules/function-activation-proof-pack.md`, `.claude/rules/performance-profiling-guardrails.md`).
@@ -27,10 +31,11 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 ## Short-Term Goals
 1. Burn down unsupported statement instruction families identified by current storage diagnostics.
 2. Keep expression-bytecode coverage maps and failure buckets in sync with compiler behavior and representative tests.
-3. Preserve runtime truth boundaries while improving compact storage readiness (no premature claim that compact storage is the runtime contract).
+3. Extend proven expression-bytecode optimization slices (inline expression buffers, numeric binary fast paths, and static object-key normalization) using profile and coverage evidence as the acceptance gate.
 4. Track activation/eval-sensitive changes with narrow, repeatable proof packs before broadening to larger sweeps.
 5. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
 6. Keep function-call activation slices aligned to ADR 0101 ownership boundaries and report-backed proof signals before broad runtime rewrites.
+7. Preserve runtime truth boundaries while improving compact storage readiness (no premature claim that compact storage is the runtime contract).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -41,6 +46,10 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 ## Evidence Surfaces
 - Current migration direction and runtime/storage boundary: `docs/expression-bytecode-migration-report-2026-05-23.md`
 - Expression bytecode capability and failure taxonomy: `docs/expression-bytecode-coverage.md`
+- Recent expression-bytecode optimization evidence:
+  - `docs/performance/classdef-inline-expression-buffers.md`
+  - `docs/performance/ir-arithmetic-binary-fast-path.md`
+  - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

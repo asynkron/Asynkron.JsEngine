@@ -26,6 +26,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When sibling summaries influence slice selection, record that sibling check
   explicitly in the child-run evidence (issue update) so review can confirm the
   run stayed non-overlapping without reconstructing scheduler state.
+- When a fan-in or conflict-resolution issue discovers two completed children
+  that landed the same maintenance slice, consolidate through one canonical
+  delivery. Prefer the superset branch when it cleanly contains the duplicate
+  child's change, record why the other child is superseded, and do not land the
+  overlapping documentation edit twice.
 - When a docs slice enumerates filesystem contents (regression packs, demo
   directories, runsettings files, build targets), compare the doc against the
   actual directory listing as the baseline signal. Treat doc/filesystem drift
@@ -236,3 +241,11 @@ guidance: `rtk make quality` is the canonical local build/test evidence gate for
 recurring-child runs, but it is not permission to skip the mandatory pre-PR
 checklist. Without this traceability, future compaction slices can accidentally
 weaken PR-readiness requirements while trying to simplify recurring-child docs.
+
+Issue #1678 / PR #1679 was a fan-in repair for duplicate recurring-child
+deliveries from #1669 and #1670. Both children touched
+`agents/how-to-profiling.md` for the same `rtk` command-example alignment, while
+#1669 was the superset because it also updated `AGENTS.md`. The repair landed
+one canonical copy from the superset branch and treated the narrower child as
+superseded, preventing duplicated docs churn and avoiding a false merge-conflict
+repair against an already clean index.

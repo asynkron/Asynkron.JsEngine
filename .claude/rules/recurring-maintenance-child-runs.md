@@ -20,6 +20,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
+- If canonical quality verification reports a recurring-child docs or rule
+  slice as failed but the available log is truncated or lacks a concrete
+  file/line diagnostic, treat it as a verification-context gap first. Re-run
+  `rtk git diff --check` and the exact local gate before changing source, and
+  patch only when current evidence points at deterministic source drift.
 - When multiple recurring-maintenance children are active, check active sibling
   child log summaries before choosing a slice so two children do not target the
   same narrow docs cleanup in parallel.
@@ -225,6 +230,13 @@ fallback: recurring-child agents need full issue body/comment context from the
 Faktorial issue/dashboard API before relying on compact summaries, because
 compact logs are stage history and can omit acceptance criteria, comments, or
 human direction that should steer the bounded slice.
+
+Issue #1715 / PR #1721 added the related quality-gate edge case. The delivery
+commit was already present, the available prior quality artifact was truncated,
+and current local `rtk git diff --check` plus `rtk make quality` passed. The
+durable lesson is to avoid inventing a mechanical docs or rule patch from an
+opaque failed verifier record; re-run the exact local evidence first, then only
+edit when a current deterministic diagnostic names source drift.
 
 Issue #1464 tightened persistent-compaction evidence guidance: when the slice
 updates an existing semantic home instead of creating a new durable artifact,

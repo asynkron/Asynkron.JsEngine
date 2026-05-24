@@ -480,7 +480,7 @@ public sealed partial class ArrayPrototype
                     var toKey = ToIndexString(resultIndex);
                     if (TryGetExistingElement(spreadAccessor, fromKey, out var value))
                     {
-                        CreateDataPropertyOrThrow(result, toKey, value, Realm, MethodName);
+                        CreateDataPropertyOrThrowJsValue(result, toKey, value, Realm, MethodName);
                     }
 
                     resultIndex++;
@@ -494,7 +494,7 @@ public sealed partial class ArrayPrototype
                     throw ThrowTypeError("Array length exceeds 2^53 - 1", realm: Realm);
                 }
 
-                CreateDataPropertyOrThrow(result, ToIndexString(resultIndex++), sourceValue, Realm, MethodName);
+                CreateDataPropertyOrThrowJsValue(result, ToIndexString(resultIndex++), sourceValue, Realm, MethodName);
             }
         }
 

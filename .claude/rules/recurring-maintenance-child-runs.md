@@ -91,6 +91,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   wrapper-free per `.claude/rules/pre-pr-required.md`. Treat `rtk make quality`
   as local build/test evidence only; it does not replace the mandatory pre-PR
   checklist in `.claude/rules/pre-pr-required.md`.
+- When fixing docs command examples, make the final command copy/paste-safe as
+  a single shell invocation when possible. Do not use `rtk cd ...` as a setup
+  line or rely on cwd state crossing command examples; prefer explicit path
+  flags such as `--project <path>` so the example works exactly as pasted.
 
 ## Why
 
@@ -249,3 +253,11 @@ deliveries from #1669 and #1670. Both children touched
 one canonical copy from the superset branch and treated the narrower child as
 superseded, preventing duplicated docs churn and avoiding a false merge-conflict
 repair against an already clean index.
+
+Issue #1670 / PR #1676 found the next edge case in profiling docs: after the
+examples were `rtk`-prefixed, the BenchmarkDotNet quick start still used a
+two-line `rtk cd ...` plus `rtk dotnet run ...` shape. That looked wrapped but
+was not actually copy/paste safe because cwd state does not carry between
+independent command invocations. Future docs command maintenance should collapse
+that kind of setup into one runnable command, for example by passing
+`--project` with an explicit path.

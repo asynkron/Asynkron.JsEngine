@@ -45,6 +45,11 @@ When working inside the core engine, keep JavaScript values represented as
    private pool fields. Prove it with a targeted symbol search for both helper
    names and backing storage names; a method-only no-caller search can still
    leave unused `ObjectPool<object?[]>` fields behind.
+10. When a private runtime helper builds and returns a JavaScript value for a
+    caller that already requires `JsValue`, migrate the helper return type to
+    `JsValue` and delete caller-side `JsValue.FromObjectUnsafe(...)` rewraps.
+    Keep adjacent async, promise, or host-interop helpers separate unless the
+    selected slice proves that boundary too.
 
 ## Why
 
@@ -96,3 +101,12 @@ methods were gone, which showed that object-carrier cleanup must include both
 callable symbols and backing storage. Future core `JsValue` migrations should
 scan for the old helper names and the old storage type/name pattern before
 claiming the object carrier has been removed.
+
+Issue `autrun-dir4l5ptszpk-836da057ea` / PR #1738 migrated the synchronous
+Array static helper result boundary for `Array.of`, synchronous `Array.from`,
+and iterable `Array.from`. The helpers already constructed JavaScript arrays and
+their callsites immediately rewrapped the `object?` result into `JsValue`, so
+the durable lesson is to let the private helper own the typed return value and
+return it directly from the host/constructor callsite. `Array.fromAsync` stayed
+out of scope because its promise/async path is a separate boundary that needs
+its own focused proof.

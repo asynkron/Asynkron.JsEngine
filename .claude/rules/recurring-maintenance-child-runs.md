@@ -48,18 +48,19 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When documenting runner inventory output, state whether it is a static list
   or a live failure snapshot, and define what any displayed counts measure
   before agents use those counts for maintenance scoping.
-- When gathering issue details, comments, stage output, or logs in a recurring
-  child agent environment, use supplied Faktorial Source Context first. If more
-  evidence is needed, query full issue details/comments from the Faktorial HTTP
-  API issue/dashboard endpoint (for example `/api/issues/<issue>`), then use
-  the compact `/api/logs/<issue>/summary` endpoint, then narrow line-capped
-  searches over `.faktorial/logs/ghNNNN.log` only when API context is still
-  insufficient. If an issue-detail endpoint returns only preview/truncated
-  markdown (for example `...`), treat that as partial context and continue with
-  compact-summary plus bounded raw-log structural searches.
+- For recurring-child context reads, follow
+  `.claude/rules/agent-context-issues.md` for Faktorial precedence and bounded
+  evidence gathering. Keep recurring-child behavior explicit: use supplied
+  Source Context first, then full issue/dashboard API details, then compact
+  `/api/logs/<issue>/summary`, and use narrow line-capped
+  `.faktorial/logs/ghNNNN.log` structural snippets only when API context is
+  still insufficient.
+- If an issue-detail endpoint returns only preview/truncated markdown (for
+  example `...`), treat it as partial context and continue with compact summary
+  plus bounded raw-log structural searches.
 - Do not run the host `faktorial` daemon binary for issue, log, or state reads
-  from an agent. Treat older guidance that recommends `faktorial issue` or
-  `faktorial log-summary` as stale for agent runtime context gathering.
+  from an agent; older guidance that recommends `faktorial issue` or
+  `faktorial log-summary` is stale for agent runtime context gathering.
 - When older completed sibling issue logs are no longer available through the
   supplied context or HTTP summary path, treat the failed lookup itself as
   baseline evidence and continue from durable in-repo artifacts (for example

@@ -5,17 +5,17 @@ Use `rtk ./tools/profile` (builds ProfileRunner, runs asynkron-profiler, convert
 
 Examples:
 ```bash
-rtk ./tools/profile fib            # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
-rtk ./tools/profile forloop        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
-rtk ./tools/profile all            # run all benchmarks
-rtk ./tools/profile fib --cpu      # CPU only
-rtk ./tools/profile fib --memory   # memory only
-rtk ./tools/profile fib --exception # exception profiling
-rtk ./tools/profile fib --heap     # heap snapshot only
-rtk ./tools/compare-jint-profiles  # common ProfileRunner/Jint timing matrix
-rtk ./tools/compare-jint-profiles --smoke # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
+rtk ./tools/profile fib                        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
+rtk ./tools/profile forloop                    # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine
+rtk ./tools/profile all                        # run all benchmarks
+rtk ./tools/profile fib --cpu                  # CPU only
+rtk ./tools/profile fib --memory               # memory only
+rtk ./tools/profile fib --exception            # exception profiling
+rtk ./tools/profile fib --heap                 # heap snapshot only
+rtk ./tools/compare-jint-profiles              # common ProfileRunner/Jint timing matrix
+rtk ./tools/compare-jint-profiles --smoke      # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
 rtk ./tools/compare-jint-profiles --async-smoke-only # tiny async/await-only matrix
-rtk ./tools/profile --compare      # separate BenchmarkDotNet Jint comparison suite
+rtk ./tools/profile --compare                  # separate BenchmarkDotNet Jint comparison suite
 ```
 
 Default scoping contract:

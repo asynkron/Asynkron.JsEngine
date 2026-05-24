@@ -19,7 +19,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)
-- Quick ProfileRunner/Jint timing matrix: run `./tools/compare-jint-profiles` for the common sync JS profile set, or `./tools/compare-jint-profiles --smoke` for only `fib`, `forloop`, `ir-arithmetic`, `functioncalls`, and `functioncalls-lite`. Use `./tools/compare-jint-profiles --async-smoke-only` to isolate tiny Jint async/await behavior. Do not use `./tools/profile --compare` for this matrix; it runs the separate BenchmarkDotNet Jint comparison suite.
+- Quick ProfileRunner/Jint timing matrix: run `rtk ./tools/compare-jint-profiles` for the common sync JS profile set, or `rtk ./tools/compare-jint-profiles --smoke` for only `fib`, `forloop`, `ir-arithmetic`, `functioncalls`, and `functioncalls-lite`. Use `rtk ./tools/compare-jint-profiles --async-smoke-only` to isolate tiny Jint async/await behavior. Do not use `rtk ./tools/profile --compare` for this matrix; it runs the separate BenchmarkDotNet Jint comparison suite.
 
 ## Debugging & Test Strategies
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)
@@ -40,7 +40,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - For this class of work, prove progress three ways:
   - Scan remaining AST-eval seams with `rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
   - Run a narrow lowering/IR proof pack first, then widen
-  - Recheck `./tools/profile forloop --memory` after each chunk to ensure the hot path stays allocation-stable
+  - Recheck `rtk ./tools/profile forloop --memory` after each chunk to ensure the hot path stays allocation-stable
 
 ## Lessons from failure-burn-down sessions
 - Re-prove every subagent fix on `main` before claiming a reduction. A sidecar/worktree may pass because of local state, missing companion edits, stale binaries, or harness differences.
@@ -49,4 +49,4 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - Keep proof filters extremely narrow: exact failing file first, then owning cluster, then a slightly broader confirmation run.
 - Subagent tasks should be tightly bounded: one seam, one owned file set, and one exact `Release` proof command.
 - Copying a whole file from a sidecar is integration, not proof. Always rerun the exact focused proof on `main` immediately after transplanting a sidecar change.
-- For IR/bytecode optimization work, keep the proof loop explicit: build, narrow owning pack, focused IR pack, AST-eval seam scan, and `./tools/profile forloop --memory`. Do not claim CPU or memory wins without current-worktree numbers.
+- For IR/bytecode optimization work, keep the proof loop explicit: build, narrow owning pack, focused IR pack, AST-eval seam scan, and `rtk ./tools/profile forloop --memory`. Do not claim CPU or memory wins without current-worktree numbers.

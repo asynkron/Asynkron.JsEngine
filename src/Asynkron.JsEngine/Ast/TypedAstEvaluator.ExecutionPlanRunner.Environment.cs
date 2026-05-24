@@ -90,6 +90,23 @@ public static partial class TypedAstEvaluator
                 varEnvironment = functionEnvironment;
             }
 
+            var isArrowFunction = _function.IsArrow;
+            var isDerivedClassConstructor = _callable is SyncFunctionInvoker { IsDerivedClassConstructor: true };
+            functionEnvironment.InitializeSlotsWithCapacity(0,
+                ComputeFunctionEnvironmentMinimumCapacity(
+                    parameterNames.Length,
+                    needsArgumentsObject,
+                    hasParameterExpressions,
+                    isArrowFunction,
+                    isDerivedClassConstructor));
+            if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+            {
+                parameterEnvironment.InitializeSlotsWithCapacity(0,
+                    ComputeParameterEnvironmentMinimumCapacity(
+                        parameterNames.Length,
+                        needsArgumentsObject));
+            }
+
             var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
                 _function.Source, description, isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
@@ -181,8 +198,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
             }
 
-            var isDerivedClassConstructor = _callable is SyncFunctionInvoker { IsDerivedClassConstructor: true };
-            var isArrowFunction = _function.IsArrow;
             var arrowThisInitialized = true;
             if (isArrowFunction)
             {
@@ -313,6 +328,71 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return executionEnvironment;
+        }
+
+        private int ComputeFunctionEnvironmentMinimumCapacity(
+            int parameterCount,
+            bool needsArgumentsObject,
+            bool hasParameterExpressions,
+            bool isArrowFunction,
+            bool isDerivedClassConstructor)
+        {
+            var capacity = 2; // this + this-initialized marker.
+
+            if (!isArrowFunction)
+            {
+                capacity += 2; // new.target + active function.
+            }
+
+            capacity += 2; // yield resume context + runner instance.
+
+            if (isArrowFunction && _lexicalThisEnvironment is not null)
+            {
+                capacity++;
+            }
+
+            if (_homeObject is not null ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                isDerivedClassConstructor)
+            {
+                capacity++;
+            }
+
+            if (!hasParameterExpressions)
+            {
+                if (needsArgumentsObject)
+                {
+                    capacity++;
+                }
+
+                if (_function.Name is not null && !_hasFunctionNameEnvironment)
+                {
+                    capacity++;
+                }
+
+                capacity += parameterCount;
+            }
+
+            return capacity;
+        }
+
+        private int ComputeParameterEnvironmentMinimumCapacity(
+            int parameterCount,
+            bool needsArgumentsObject)
+        {
+            var capacity = parameterCount;
+            if (needsArgumentsObject)
+            {
+                capacity++;
+            }
+
+            if (_function.Name is not null && !_hasFunctionNameEnvironment)
+            {
+                capacity++;
+            }
+
+            return capacity;
         }
 
         private static void SyncParameterSlotsToPlan(

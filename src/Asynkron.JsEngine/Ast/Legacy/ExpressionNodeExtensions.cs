@@ -1508,7 +1508,6 @@ public static partial class TypedAstEvaluator
         }
 
         IReadOnlyList<JsValue> frozenArguments;
-        object?[]? pooledArgsArray = null; // Track if we used a pooled object array
         JsValue[]? pooledJsValueArray = null; // Track if we used a pooled JsValue array
         if (!hasSpread)
         {
@@ -2024,12 +2023,6 @@ public static partial class TypedAstEvaluator
 
             envAwareHandle?.CallingJsEnvironment = null;
             contextAwareHandle?.CallingContext = null;
-
-            // Return pooled argument arrays
-            if (pooledArgsArray is not null)
-            {
-                JsValueCache.ReturnArgumentArray(pooledArgsArray);
-            }
 
             if (pooledJsValueArray is not null)
             {

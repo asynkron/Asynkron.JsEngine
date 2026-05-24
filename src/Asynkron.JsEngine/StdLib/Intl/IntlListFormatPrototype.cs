@@ -54,9 +54,9 @@ public sealed partial class IntlListFormatPrototype
         foreach (var (partType, partValue) in parts)
         {
             var obj = new JsObject(Realm.ObjectPrototype);
-            CreateDataPropertyOrThrow(obj, "type", partType, Realm,
+            CreateDataPropertyOrThrowJsValue(obj, "type", new JsValue(partType), Realm,
                 "Intl.ListFormat.prototype.formatToParts");
-            CreateDataPropertyOrThrow(obj, "value", partValue, Realm,
+            CreateDataPropertyOrThrowJsValue(obj, "value", new JsValue(partValue), Realm,
                 "Intl.ListFormat.prototype.formatToParts");
             result.Push(new JsValue(obj));
         }
@@ -75,9 +75,9 @@ public sealed partial class IntlListFormatPrototype
         var type = GetStringSlot(instance, TypeSlot, "conjunction");
         var style = GetStringSlot(instance, StyleSlot, "long");
 
-        CreateDataPropertyOrThrow(obj, "locale", locale, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "type", type, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "style", style, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(locale), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "type", new JsValue(type), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "style", new JsValue(style), Realm, operation);
 
         return new JsValue(obj);
     }

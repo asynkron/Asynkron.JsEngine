@@ -81,29 +81,29 @@ public sealed partial class IntlDisplayNamesPrototype
         var localeValue = instance.TryGetProperty(LocaleSlot, out var locale) && locale.TryGetString(out var localeStr)
             ? localeStr
             : "en";
-        CreateDataPropertyOrThrow(obj, "locale", localeValue, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(localeValue), Realm, operation);
 
         var styleValue = instance.TryGetProperty(StyleSlot, out var style) && style.TryGetString(out var styleStr)
             ? styleStr
             : "long";
-        CreateDataPropertyOrThrow(obj, "style", styleValue, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "style", new JsValue(styleValue), Realm, operation);
 
         var typeValue = instance.TryGetProperty(TypeSlot, out var type) && type.TryGetString(out var typeStr)
             ? typeStr
             : "language";
-        CreateDataPropertyOrThrow(obj, "type", typeValue, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "type", new JsValue(typeValue), Realm, operation);
 
         var fallbackValue =
             instance.TryGetProperty(FallbackSlot, out var fallback) && fallback.TryGetString(out var fallbackStr)
                 ? fallbackStr
                 : "code";
-        CreateDataPropertyOrThrow(obj, "fallback", fallbackValue, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "fallback", new JsValue(fallbackValue), Realm, operation);
 
         var languageDisplayValue = instance.TryGetProperty(LanguageDisplaySlot, out var languageDisplay) &&
                                    languageDisplay.TryGetString(out var languageDisplayStr)
             ? languageDisplayStr
             : "dialect";
-        CreateDataPropertyOrThrow(obj, "languageDisplay", languageDisplayValue, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "languageDisplay", new JsValue(languageDisplayValue), Realm, operation);
         return new JsValue(obj);
     }
 

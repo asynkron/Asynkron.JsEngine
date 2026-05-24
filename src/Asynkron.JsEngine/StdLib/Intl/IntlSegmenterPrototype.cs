@@ -46,8 +46,8 @@ public sealed partial class IntlSegmenterPrototype
         var locale = GetStringSlot(instance, LocaleSlot, "en");
         var granularity = GetStringSlot(instance, GranularitySlot, "grapheme");
 
-        CreateDataPropertyOrThrow(obj, "locale", locale, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "granularity", granularity, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(locale), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "granularity", new JsValue(granularity), Realm, operation);
 
         return new JsValue(obj);
     }
@@ -171,14 +171,14 @@ public sealed partial class IntlSegmenterPrototype
         var obj = new JsObject(realm.ObjectPrototype);
         const string operation = "Intl.Segmenter segment data";
 
-        CreateDataPropertyOrThrow(obj, "segment", segment, realm, operation);
-        CreateDataPropertyOrThrow(obj, "index", (double)index, realm, operation);
-        CreateDataPropertyOrThrow(obj, "input", input, realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "segment", new JsValue(segment), realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "index", new JsValue((double)index), realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "input", new JsValue(input), realm, operation);
 
         if (string.Equals(granularity, "word", StringComparison.Ordinal))
         {
             var isWordLike = IsWordLike(segment);
-            CreateDataPropertyOrThrow(obj, "isWordLike", isWordLike, realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "isWordLike", new JsValue(isWordLike), realm, operation);
         }
 
         return obj;
@@ -196,8 +196,8 @@ public sealed partial class IntlSegmenterPrototype
             if (currentIndex >= boundaries.Count - 1)
             {
                 var done = new JsObject(realm.ObjectPrototype);
-                CreateDataPropertyOrThrow(done, "value", JsValue.Undefined, realm, "Segment Iterator");
-                CreateDataPropertyOrThrow(done, "done", true, realm, "Segment Iterator");
+                CreateDataPropertyOrThrowJsValue(done, "value", JsValue.Undefined, realm, "Segment Iterator");
+                CreateDataPropertyOrThrowJsValue(done, "done", new JsValue(true), realm, "Segment Iterator");
                 return new JsValue(done);
             }
 
@@ -209,8 +209,8 @@ public sealed partial class IntlSegmenterPrototype
             currentIndex++;
 
             var result = new JsObject(realm.ObjectPrototype);
-            CreateDataPropertyOrThrow(result, "value", new JsValue(segmentData), realm, "Segment Iterator");
-            CreateDataPropertyOrThrow(result, "done", false, realm, "Segment Iterator");
+            CreateDataPropertyOrThrowJsValue(result, "value", new JsValue(segmentData), realm, "Segment Iterator");
+            CreateDataPropertyOrThrowJsValue(result, "done", new JsValue(false), realm, "Segment Iterator");
             return new JsValue(result);
         }, realm, false);
 

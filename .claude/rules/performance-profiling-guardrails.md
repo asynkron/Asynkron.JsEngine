@@ -35,6 +35,12 @@ optimization.
    `EvaluateExpressionProgram` and the operator helper are hot, keep uncommon
    or mixed-type operands on the generic operator path, and compare against the
    committed/current baseline conservatively when profiler runs are noisy.
+8. For expression-program buffer optimizations, prove that the profile cost is
+   repeated small `EvaluateExpressionProgram` execution before changing runner
+   storage. Pair the CPU call tree with a `MaxStackDepth` distribution or
+   equivalent diagnostic, keep packed flag side-state intact, and preserve the
+   pooled fallback for larger programs. Do not raise the inline-buffer threshold
+   without current profile evidence and a frame-size/semantics proof.
 
 ## Why
 
@@ -65,3 +71,15 @@ uncommon operators on the existing generic path, and reported the win using the
 slowest final run because the profiling environment was noisy. The durable
 lesson is that expression-bytecode CPU work should be profile-owned and
 semantics-preserving, not a broad benchmark chase or a blanket operator rewrite.
+
+Issue `autrun-diqxxf5b04kw-a516a2bc0a` / PR #1685 selected `classdef` from the
+benchmark table and then proved the hot owner with a `classdef` CPU call tree:
+many short expression programs were repeatedly paying expression stack/flag
+buffer acquisition and ArrayPool rent/return costs. The storage diagnostic
+showed all selected-program max stack depths fit within eight slots, so the
+accepted slice used stack-local inline buffers for small programs and kept the
+existing pooled path for larger programs. The durable lesson is that
+expression-program buffer work should be driven by both runtime profile shape
+and stack-depth distribution, with fallback capacity and packed flag semantics
+left intact. Related ADR:
+`docs/adrs/0102-keep-small-expression-program-buffers-inline.md`.

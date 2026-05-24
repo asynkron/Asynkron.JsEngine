@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
@@ -386,6 +388,66 @@ public sealed class WithStatementTests(ITestOutputHelper output) : InternalTestB
             "get:p",
             "has:p",
             "set:p");
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task With_ProxyPlainSelfReferentialAssignment_UsesDistinctReadThenWriteAndKeepsPlainAssignmentInstruction()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const log = [];
+            const target = { p: 1 };
+            const proxy = new Proxy(target, {
+                has(obj, key) {
+                    log.push(`has:${String(key)}`);
+                    return Reflect.has(obj, key);
+                },
+                get(obj, key, receiver) {
+                    log.push(`get:${String(key)}`);
+                    return Reflect.get(obj, key, receiver);
+                },
+                set(obj, key, value, receiver) {
+                    log.push(`set:${String(key)}`);
+                    return Reflect.set(obj, key, value, receiver);
+                }
+            });
+
+            with (proxy) {
+                p = p + 2;
+            }
+
+            [target.p, log];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(3d, array.GetElement(0).ToObject());
+
+        var logArray = Assert.IsType<JsArray>(array.GetElement(1).ToObject());
+        AssertLogContainsInOrder(
+            logArray,
+            "has:p",
+            "get:Symbol(Symbol.unscopables)",
+            "has:p",
+            "get:p",
+            "has:p",
+            "set:p");
+
+        var program = engine.ParseProgram("""
+            function run(proxy) {
+                with (proxy) {
+                    p = p + 2;
+                }
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var runDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)runDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        Assert.Contains(cache.Plan.Instructions.OfType<AssignmentSlotInstruction>(), static instruction => instruction.TargetSymbol.Name == "p");
+        Assert.DoesNotContain(cache.Plan.Instructions.OfType<CompoundAssignmentSlotInstruction>(), static instruction => instruction.TargetSymbol.Name == "p");
     }
 
     private static void AssertLogContainsInOrder(JsArray logArray, params string[] expected)

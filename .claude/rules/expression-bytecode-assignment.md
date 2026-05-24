@@ -42,6 +42,12 @@ path that can evaluate the assignment.
    the trap/order behavior and the instruction shape; plain `p = p + rhs` must
    remain a distinct RHS read followed by writeback, not a compound-assignment
    shortcut.
+9. When refreshing roadmap or planning docs for assignment-lowering work, state
+   both halves of the boundary: slot-proven static paths may use the
+   compound-slot optimization, while dynamic `with`/proxy/no-cache identifier
+   semantics remain on generic assignment-reference paths. Cite the maintained
+   performance note and ADR guardrails instead of implying a new benchmark,
+   Test262, or runtime win unless the current slice actually re-proved it.
 
 ## Why
 
@@ -79,3 +85,11 @@ must prove both observable proxy trap order (`has` / unscopables / `get` /
 final `set`) and IR shape (`AssignmentSlotInstruction`, not
 `CompoundAssignmentSlotInstruction`) before claiming a dynamic assignment path
 is safe to optimize.
+
+Issue `autrun-dir45gsowoq8-58782a260a` / PR #1732 was a docs-only roadmap
+refresh after the implementation work had already landed. The useful lesson was
+not another assignment optimization: it was keeping the roadmap evidence-backed
+by naming the optimized static-slot path, the preserved dynamic lookup boundary,
+and the existing proof surfaces (`docs/performance/ir-arithmetic-self-assignment-compound-slot.md`,
+ADR 0107, and ADR 0108) without claiming new verification from a maintenance
+slice that did not run runtime proofs.

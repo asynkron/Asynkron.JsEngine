@@ -76,12 +76,14 @@ public sealed partial class IntlRelativeTimeFormatPrototype
         var obj = new JsObject(Realm.ObjectPrototype);
         const string operation = "Intl.RelativeTimeFormat.prototype.resolvedOptions";
 
-        CreateDataPropertyOrThrow(obj, "locale", GetStringSlot(instance, "__locale__", "en"), Realm, operation);
-        CreateDataPropertyOrThrow(obj, "style", GetStringSlot(instance, "__style__", "long"), Realm, operation);
-        CreateDataPropertyOrThrow(obj, "numeric", GetStringSlot(instance, "__numeric__", "always"), Realm,
-            operation);
-        CreateDataPropertyOrThrow(obj, "numberingSystem", GetStringSlot(instance, "__numberingSystem__", "latn"),
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(GetStringSlot(instance, "__locale__", "en")),
             Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "style", new JsValue(GetStringSlot(instance, "__style__", "long")),
+            Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numeric", new JsValue(GetStringSlot(instance, "__numeric__", "always")), Realm,
+            operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numberingSystem",
+            new JsValue(GetStringSlot(instance, "__numberingSystem__", "latn")), Realm, operation);
 
         return new JsValue(obj);
     }

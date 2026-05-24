@@ -84,27 +84,28 @@ public sealed partial class IntlDurationFormatPrototype
         const string operation = "Intl.DurationFormat.prototype.resolvedOptions";
 
         var locale = GetSlotString(instance, LocaleSlot, "en");
-        CreateDataPropertyOrThrow(obj, "locale", locale, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(locale), Realm, operation);
 
         var numberingSystem = GetSlotString(instance, NumberingSystemSlot, "latn");
-        CreateDataPropertyOrThrow(obj, "numberingSystem", numberingSystem, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "numberingSystem", new JsValue(numberingSystem), Realm, operation);
 
         var style = GetSlotString(instance, StyleSlot, "short");
-        CreateDataPropertyOrThrow(obj, "style", style, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "style", new JsValue(style), Realm, operation);
 
         for (var i = 0; i < UnitNames.Length; i++)
         {
             var unitStyle = GetSlotString(instance, $"__{UnitNames[i]}Style__", "short");
-            CreateDataPropertyOrThrow(obj, UnitNames[i], unitStyle, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, UnitNames[i], new JsValue(unitStyle), Realm, operation);
 
             var unitDisplay = GetSlotString(instance, $"__{UnitNames[i]}Display__", "auto");
-            CreateDataPropertyOrThrow(obj, UnitNames[i] + "Display", unitDisplay, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, UnitNames[i] + "Display", new JsValue(unitDisplay), Realm,
+                operation);
         }
 
         // fractionalDigits: undefined or integer
         if (instance.TryGetProperty(FractionalDigitsSlot, out var fdValue) && !fdValue.IsUndefined)
         {
-            CreateDataPropertyOrThrow(obj, "fractionalDigits", fdValue, Realm, operation);
+            CreateDataPropertyOrThrowJsValue(obj, "fractionalDigits", fdValue, Realm, operation);
         }
 
         return new JsValue(obj);

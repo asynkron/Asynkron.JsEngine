@@ -117,9 +117,9 @@ public sealed partial class IntlPluralRulesPrototype
 
         // Property order per spec: locale, type, notation, minimumIntegerDigits,
         // then digit options (sig or frac), pluralCategories, rounding options
-        CreateDataPropertyOrThrow(obj, "locale", locale, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "type", type, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "notation", notation, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "locale", new JsValue(locale), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "type", new JsValue(type), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "notation", new JsValue(notation), Realm, operation);
         CreateDataPropertyOrThrowJsValue(obj, "minimumIntegerDigits", (double)minimumIntegerDigits, Realm, operation);
 
         if (hasMinSig)
@@ -155,10 +155,12 @@ public sealed partial class IntlPluralRulesPrototype
         CreateDataPropertyOrThrowJsValue(obj, "pluralCategories", JsValue.FromJsArray(categoriesArray), Realm,
             operation);
         CreateDataPropertyOrThrowJsValue(obj, "roundingIncrement", (double)roundingIncrement, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "roundingMode", roundingMode, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "roundingPriority",
-            roundingType is "significantDigits" or "fractionDigits" ? "auto" : roundingType, Realm, operation);
-        CreateDataPropertyOrThrow(obj, "trailingZeroDisplay", trailingZeroDisplay, Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "roundingMode", new JsValue(roundingMode), Realm, operation);
+        CreateDataPropertyOrThrowJsValue(obj, "roundingPriority",
+            new JsValue(roundingType is "significantDigits" or "fractionDigits" ? "auto" : roundingType), Realm,
+            operation);
+        CreateDataPropertyOrThrowJsValue(obj, "trailingZeroDisplay", new JsValue(trailingZeroDisplay), Realm,
+            operation);
 
         return new JsValue(obj);
     }

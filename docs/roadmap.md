@@ -3,7 +3,7 @@
 ## Purpose
 This roadmap aligns near-term implementation work with the long-term goal of building a strong Node.js competitor on .NET, while staying explicit about what is currently proven versus what is still directional.
 
-## Current State (2026-05-23)
+## Current State (2026-05-24)
 
 ### What Works Well
 - The engine has a clear fast-path direction: typed AST parse/analyze, lowered statement IR, and expression payloads compiled into `ExpressionProgram` bytecode.
@@ -11,6 +11,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Recent migration reporting keeps runtime/storage boundaries explicit and avoids overclaiming execution-path changes (`docs/expression-bytecode-migration-report-2026-05-23.md`).
 - Activation-slot ownership and observable arguments binding seams are now documented as plan-owned/runtime-consumed boundaries (`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`, `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`).
 - Activation-focused quality guardrails are now explicit: dedicated profile entries and focused activation proof-pack coverage exist to keep optimization work evidence-first (`tools/profile-manifest.json`, `.claude/rules/function-activation-proof-pack.md`, `.claude/rules/performance-profiling-guardrails.md`).
+- Function-call activation overhead closeout evidence is now captured with focused semantics, Test262 activation-adjacent coverage, profiler output, and canonical quality-gate results (`docs/function-call-activation-overhead-final-report-2026-05-23.md`).
+- Typed argument-carrier ownership boundaries are now explicitly durable in ADR form, keeping optimization scope narrow and evidence-linked (`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -28,6 +30,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 3. Preserve runtime truth boundaries while improving compact storage readiness (no premature claim that compact storage is the runtime contract).
 4. Track activation/eval-sensitive changes with narrow, repeatable proof packs before broadening to larger sweeps.
 5. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
+6. Keep function-call activation slices aligned to ADR 0101 ownership boundaries and report-backed proof signals before broad runtime rewrites.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -41,6 +44,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
+  - `docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`
+- Function-call activation closeout evidence:
+  - `docs/function-call-activation-overhead-final-report-2026-05-23.md`
 - Activation proof/profile guardrails:
   - `.claude/rules/function-activation-proof-pack.md`
   - `.claude/rules/performance-profiling-guardrails.md`

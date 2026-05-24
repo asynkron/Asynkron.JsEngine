@@ -12,7 +12,10 @@ rtk ./tools/profile fib --cpu      # CPU only
 rtk ./tools/profile fib --memory   # memory only
 rtk ./tools/profile fib --exception # exception profiling
 rtk ./tools/profile fib --heap     # heap snapshot only
-rtk ./tools/profile --compare      # Jint comparison benchmarks
+rtk ./tools/compare-jint-profiles  # common ProfileRunner/Jint timing matrix
+rtk ./tools/compare-jint-profiles --smoke # fib, forloop, ir-arithmetic, functioncalls, functioncalls-lite
+rtk ./tools/compare-jint-profiles --async-smoke-only # tiny async/await-only matrix
+rtk ./tools/profile --compare      # separate BenchmarkDotNet Jint comparison suite
 ```
 
 Default scoping contract:

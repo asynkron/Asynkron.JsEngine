@@ -83,7 +83,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   canonical local gate. In this repo, commands that an agent is expected to run
   should show the `rtk` prefix and normal verification should point at
   `rtk make quality`, while repository executable targets themselves must stay
-  wrapper-free per `.claude/rules/pre-pr-required.md`.
+  wrapper-free per `.claude/rules/pre-pr-required.md`. Treat `rtk make quality`
+  as local build/test evidence only; it does not replace the mandatory pre-PR
+  checklist in `.claude/rules/pre-pr-required.md`.
 
 ## Why
 
@@ -228,3 +230,9 @@ contract requires `rtk`-prefixed shell commands and `rtk make quality` is the
 canonical local gate. Future documentation-maintenance children should treat
 stale command examples as workflow drift and fix them in the owned doc instead
 of leaving operators to reconcile conflicting playbooks.
+
+Issue #1666 / PR #1674 clarified the remaining ambiguity in that same workflow
+guidance: `rtk make quality` is the canonical local build/test evidence gate for
+recurring-child runs, but it is not permission to skip the mandatory pre-PR
+checklist. Without this traceability, future compaction slices can accidentally
+weaken PR-readiness requirements while trying to simplify recurring-child docs.

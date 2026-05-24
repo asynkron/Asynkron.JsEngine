@@ -20,6 +20,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Function-call activation overhead closeout evidence is now captured with focused semantics, Test262 activation-adjacent coverage, profiler output, and canonical quality-gate results (`docs/function-call-activation-overhead-final-report-2026-05-23.md`).
 - Typed argument-carrier ownership boundaries are now explicitly durable in ADR form, keeping optimization scope narrow and evidence-linked (`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`).
 - Constant-folding and expression simplification follow-up work remains constrained by existing storage and activation ADR boundaries plus the linked performance evidence in this roadmap.
+- Self-referential arithmetic assignment lowering is now explicitly bounded by slot-proof guardrails: proven static-slot shapes can route through compound-slot instructions, while dynamic `with`/proxy-observable assignment semantics stay on generic assignment-reference paths (`docs/performance/ir-arithmetic-self-assignment-compound-slot.md`, `docs/adrs/0107-keep-self-referential-assignment-slot-optimization-slot-proven.md`, `docs/adrs/0108-keep-self-referential-with-assignment-dynamic.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -40,6 +41,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 6. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
 7. Keep function-call activation slices aligned to ADR 0101 ownership boundaries and report-backed proof signals before broad runtime rewrites.
 8. Preserve runtime truth boundaries while improving compact storage readiness and honoring object/array storage ADR constraints (no premature claim that compact storage is the runtime contract).
+9. Continue assignment-lowering slices by prioritizing slot-proven self-referential arithmetic and bitwise paths, while keeping dynamic/no-cache identifier semantics explicitly non-negotiable under ADR 0107/0108.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -68,6 +70,10 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `.claude/rules/function-activation-proof-pack.md`
   - `.claude/rules/performance-profiling-guardrails.md`
   - `tools/profile-manifest.json`
+- Assignment-lowering optimization proof and semantic guardrails:
+  - `docs/performance/ir-arithmetic-self-assignment-compound-slot.md`
+  - `docs/adrs/0107-keep-self-referential-assignment-slot-optimization-slot-proven.md`
+  - `docs/adrs/0108-keep-self-referential-with-assignment-dynamic.md`
 - Historical Test262 gap inventory (not a current pass/fail baseline): `docs/remaining-test262-gaps.md`
 - Active diagnostics/runtime implementation surfaces:
   - `src/Asynkron.JsEngine/Execution/StatementInstructionStorageDiagnostics.cs`

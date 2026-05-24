@@ -142,8 +142,11 @@ Examples:
 - use `CreateDataPropertyOrThrowJsValue(result, key, value, realm, method)` when
   `value` is a `JsValue` from arguments, property reads, iterator results, or
   mapper callbacks;
-- leave the broader `CreateDataPropertyOrThrow(...)` object helper for raw host
-  primitives or callsites that have not been intentionally migrated yet;
+- for result-object builders that are intentionally migrated to the typed helper,
+  wrap raw host primitives with `new JsValue(...)` at the callsite and preserve
+  the existing property order;
+- leave the broader `CreateDataPropertyOrThrow(...)` object helper for callsites
+  that have not been intentionally migrated yet;
 - keep the same spec operation and ordinary fallback behavior. This rule is
   about preserving the typed value carrier and avoiding avoidable boxing, not
   about bypassing property-definition semantics.
@@ -234,3 +237,11 @@ already held `JsValue` values away from the legacy `object?`
 creation should keep typed JavaScript values typed when an equivalent
 `JsValue` helper exists, while leaving genuinely host-primitive callsites for
 separate, intentional slices.
+
+Issue `autrun-diqzio3j4ge0-256eba07a6` / PR #1693 applied that intentional
+slice to Intl result-object builders across `DisplayNames`, `DurationFormat`,
+`ListFormat`, `PluralRules`, `RelativeTimeFormat`, and `Segmenter`. The durable
+lesson is that once a result-builder slice is chosen, even raw host strings,
+numbers, and booleans should enter the typed helper as explicit `JsValue`
+instances so the object-building path no longer falls back through the legacy
+`object?` carrier.

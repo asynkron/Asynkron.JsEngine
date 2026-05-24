@@ -2662,6 +2662,28 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ScriptExpressionStatement_SelfReferentialArithmeticAssignment_UsesCompoundAssignmentSlotInstruction()
+    {
+        var program = _engine.ParseProgram("""
+            let value = 1;
+            value = value + 2;
+            """);
+
+        await _engine.Evaluate(program);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var assignment = Assert.Single(cache.Plan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
+        Assert.Null(assignment.RhsExpression);
+        Assert.Equal(BinaryOperator.Add, assignment.Operator);
+        AssertProgramContains<LoadLiteralExpressionOp>(
+            assignment.RhsProgram,
+            op => op.Value.IsNumber && op.Value.NumberValue == 2.0);
+    }
+
+    [Fact]
     public async Task ScriptExpressionStatement_MutableLogicalCompoundAssignment_UsesLogicalAssignmentInstruction()
     {
         var program = _engine.ParseProgram("""

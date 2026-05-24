@@ -21,6 +21,12 @@ When working inside the core engine, keep JavaScript values represented as
 5. Keep the proof scoped to the migrated cluster: capture a targeted baseline
    search for the legacy signatures, rerun the matching search after the edit,
    and pair it with focused tests that cover the affected semantics.
+6. If a public or compatibility `object?` convenience overload must remain
+   during migration, quarantine it with compile-time pressure such as
+   `[Obsolete(..., true)]` and migrate repo-internal callers to the `JsValue`
+   overload explicitly. Wrap host primitives at the callsite with
+   `new JsValue(...)`, `JsValue.FromJsArray(...)`, or another typed helper so
+   overload resolution cannot silently fall back through `FromObjectUnsafe`.
 
 ## Why
 
@@ -33,3 +39,14 @@ contract and kept boxing/conversion bridges alive in code that already had
 `JsValue` literals. Future object-to-`JsValue` migrations should preserve
 intentional public/interop boundaries, but core helper clusters should stay
 `JsValue`-native end to end.
+
+Issue `autrun-dir0bkkyd220-65fe370aa4` / PR #1700 migrated the bounded
+`JsArray` legacy-overload slice by marking the `IEnumerable<object?>`,
+`SetElement(..., object?)`, and `Push(object?)` overloads obsolete with
+`error: true`, then updating exposed internal callsites to pass `JsValue`
+directly. The old convenience overloads were still useful as compatibility
+bridges, but leaving them unguarded let core runtime code accidentally choose
+object conversion when it already had JavaScript values. Future array/object
+carrier migrations should use the same bounded quarantine pattern: expose
+callers with the compiler, migrate only the selected cluster, and keep the
+before/after signature search as proof that accidental internal binding is gone.

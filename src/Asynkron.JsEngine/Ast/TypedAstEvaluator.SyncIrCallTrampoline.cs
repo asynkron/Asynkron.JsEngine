@@ -163,10 +163,23 @@ public static partial class TypedAstEvaluator
 
             private static bool CanUseTrampoline(SyncFunctionInvoker invoker, ExecutionPlan plan, JsValue newTarget)
             {
-                if (!invoker._isStrict ||
-                    invoker._function.Name is null ||
-                    HasParameterNamed(invoker, invoker._function.Name) ||
-                    !invoker.CanUseSimpleIrActivationFastPath(plan, newTarget) ||
+                if (!newTarget.IsUndefined ||
+                    invoker.IsClassConstructor ||
+                    invoker.IsAsyncLike ||
+                    invoker._function.IsGenerator ||
+                    invoker._function.IsDefaultDerivedConstructor ||
+                    invoker._hasParameterExpressions ||
+                    invoker._usesArguments ||
+                    invoker._needsArgumentsBinding ||
+                    !invoker._allowIdentifierCache ||
+                    invoker._homeObject is not null ||
+                    invoker.PrivateNameScope is not null ||
+                    !invoker._capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                    invoker._superConstructor is not null ||
+                    invoker._superPrototype is not null ||
+                    !invoker._instanceFields.IsDefaultOrEmpty ||
+                    invoker._function.Name is { } functionName && HasParameterNamed(invoker, functionName) ||
+                    !invoker.CanUseSimpleIrActivationPlanShape(plan) ||
                     !plan.CanUseRawSyncReturn ||
                     plan.ActivationSlots is not { } activationSlots)
                 {

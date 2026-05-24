@@ -33,6 +33,30 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayIterationMethods_UsePrototypeValuesForHoles()
+    {
+        await using var engine = CreateEngine();
+
+        var result = Assert.IsType<JsObject>(await engine.Evaluate("""
+            try {
+              Array.prototype[1] = 10;
+              const arr = [1, , 3];
+              ({
+                mapped: arr.map(x => x * 2).join(","),
+                filtered: arr.filter(x => x >= 10).join(","),
+                reduced: arr.reduce((acc, x) => acc + x, 0)
+              });
+            } finally {
+              delete Array.prototype[1];
+            }
+        """));
+
+        Assert.Equal("2,20,6", result["mapped"]);
+        Assert.Equal("10", result["filtered"]);
+        Assert.Equal(14d, result["reduced"]);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_indexOf_ObservesPropertiesAddedDuringIteration()
     {
         await using var engine = CreateEngine();

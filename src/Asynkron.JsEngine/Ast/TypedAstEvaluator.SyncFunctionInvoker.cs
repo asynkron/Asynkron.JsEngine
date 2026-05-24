@@ -1722,7 +1722,37 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             where TArgs : IReadOnlyList<JsValue>
         {
             result = JsValue.Undefined;
-            if (!CanUseSimpleIrActivationFastPath(plan, newTarget))
+
+            var canUseSimpleIrActivationFastPath = CanUseSimpleIrActivationFastPath(plan, newTarget);
+            if (canUseSimpleIrActivationFastPath &&
+                plan.SimpleReturnParameterBinary is { } parameterBinary)
+            {
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-parameter-binary-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+
+                result = EvaluateSimpleReturnParameterBinary(arguments, parameterBinary, context);
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+            }
+
+            if (SyncIrCallTrampoline.TryInvoke(
+                    this,
+                    arguments,
+                    thisValue,
+                    context,
+                    newTarget,
+                    plan,
+                    out result))
+            {
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+            }
+
+            if (!canUseSimpleIrActivationFastPath)
             {
                 return false;
             }
@@ -1730,33 +1760,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             try
             {
                 context.MarkThisInitialized();
-
-                if (plan.SimpleReturnParameterBinary is { } parameterBinary)
-                {
-                    RealmState.Logger?.LogInformation(
-                        "simple-ir-parameter-binary-fast-path func={Function} argc={ArgumentCount}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        arguments.Count);
-                    RealmState.Logger?.LogInformation(
-                        "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
-                        _function.Name?.Name ?? "<anonymous>",
-                        arguments.Count);
-
-                    result = EvaluateSimpleReturnParameterBinary(arguments, parameterBinary, context);
-                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-                }
-
-                if (SyncIrCallTrampoline.TryInvoke(
-                        this,
-                        arguments,
-                        thisValue,
-                        context,
-                        newTarget,
-                        plan,
-                        out result))
-                {
-                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-                }
 
                 var executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
                 RealmState.Logger?.LogInformation(

@@ -67,6 +67,10 @@ maintenance pass, keep the slice repo-local and reviewable:
 5. Make only the small change required for that slice.
 6. Capture the matching final signal after editing and record both signals in
    the issue update.
+7. When the slice adds or keeps evidence links to repository files (especially
+   roadmap/docs claims), verify each cited path exists before finalizing. If a
+   planned ADR/report path is missing, cite a maintained existing evidence
+   surface instead of keeping the broken reference.
 
 Use a compact evidence shape in the issue update so reviewers can compare
 before/after quickly:

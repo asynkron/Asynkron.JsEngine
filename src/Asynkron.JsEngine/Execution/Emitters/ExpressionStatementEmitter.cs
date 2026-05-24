@@ -141,6 +141,16 @@ internal static class ExpressionStatementEmitter
                 IsImmutableTarget: false
             } assignment)
         {
+            if (TryEmitSelfReferentialArithmeticAssignment(
+                    ctx,
+                    assignment,
+                    suppressCompletion,
+                    nextIndex,
+                    out entryIndex))
+            {
+                return true;
+            }
+
             if (assignment.Value is AwaitExpression assignmentAwait)
             {
                 if (!ExpressionProgramCompiler.TryCompile(
@@ -245,13 +255,7 @@ internal static class ExpressionStatementEmitter
                 IsCompoundAssignment: true,
                 Value: BinaryExpression arithmeticBinary
             } compoundAssign &&
-            arithmeticBinary.Operator is
-                BinaryOperator.Add or BinaryOperator.Subtract or
-                BinaryOperator.Multiply or BinaryOperator.Divide or
-                BinaryOperator.Modulo or BinaryOperator.Power or
-                BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or
-                BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
-                BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift)
+            IsArithmeticCompoundOperator(arithmeticBinary.Operator))
         {
             if (arithmeticBinary.Right is AwaitExpression compoundAwait)
             {
@@ -361,6 +365,88 @@ internal static class ExpressionStatementEmitter
             ClassExpression { Name: null } => true,
             _ => false
         };
+    }
+
+    private static bool TryEmitSelfReferentialArithmeticAssignment(
+        EmitContext ctx,
+        AssignmentExpression assignment,
+        bool suppressCompletion,
+        int nextIndex,
+        out int entryIndex)
+    {
+        if (assignment.Value is not BinaryExpression
+            {
+                Left: IdentifierExpression leftIdentifier
+            } binary ||
+            leftIdentifier.Name != assignment.Target ||
+            !HasStaticSlotResolution(assignment, leftIdentifier) ||
+            !IsArithmeticCompoundOperator(binary.Operator))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        if (binary.Right is AwaitExpression awaitRight)
+        {
+            if (!ExpressionProgramCompiler.TryCompile(
+                    awaitRight.Expression,
+                    out var awaitedProgram,
+                    out var awaitFailure))
+            {
+                ctx.SetExpressionProgramFailure(
+                    "CompoundAssignmentSlotInstruction",
+                    awaitRight.Expression,
+                    awaitFailure);
+                entryIndex = -1;
+                return false;
+            }
+
+            entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+                nextIndex,
+                assignment.Target,
+                binary.Operator,
+                AwaitStateKey: ((IAstCacheable<Symbol>)awaitRight).GetOrCreateCache(),
+                AwaitedProgram: awaitedProgram,
+                SuppressCompletionValue: suppressCompletion));
+            return true;
+        }
+
+        if (!ExpressionProgramCompiler.TryCompile(binary.Right, out var rhsProgram, out var failure))
+        {
+            ctx.SetExpressionProgramFailure(
+                "CompoundAssignmentSlotInstruction",
+                binary.Right,
+                failure);
+            entryIndex = -1;
+            return false;
+        }
+
+        entryIndex = ctx.Append(new CompoundAssignmentSlotInstruction(
+            nextIndex,
+            assignment.Target,
+            binary.Operator,
+            rhsProgram,
+            SuppressCompletionValue: suppressCompletion));
+        return true;
+    }
+
+    private static bool HasStaticSlotResolution(AssignmentExpression assignment, IdentifierExpression leftIdentifier)
+    {
+        return assignment is { ScopeId: >= 0, SlotIndex: >= 0 } &&
+               leftIdentifier is { ScopeId: >= 0, SlotIndex: >= 0 } &&
+               assignment.ScopeId == leftIdentifier.ScopeId &&
+               assignment.SlotIndex == leftIdentifier.SlotIndex;
+    }
+
+    private static bool IsArithmeticCompoundOperator(BinaryOperator op)
+    {
+        return op is
+            BinaryOperator.Add or BinaryOperator.Subtract or
+            BinaryOperator.Multiply or BinaryOperator.Divide or
+            BinaryOperator.Modulo or BinaryOperator.Power or
+            BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or
+            BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
+            BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift;
     }
 
     private static bool TryEmitSequenceExpressionStatement(

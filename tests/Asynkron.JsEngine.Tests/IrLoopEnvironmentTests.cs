@@ -671,7 +671,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleAssignmentExpression_UsesAssignmentInstruction()
+    public async Task SelfReferentialArithmeticAssignment_UsesCompoundAssignmentInstruction()
     {
         await using var engine = CreateEngine();
 
@@ -694,8 +694,8 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var hasAssignmentInstruction = cache.Plan.Instructions
-            .Any(i => i.Kind == InstructionKind.AssignmentSlot);
+        var hasCompoundAssignmentInstruction = cache.Plan.Instructions
+            .Any(i => i.Kind == InstructionKind.CompoundAssignmentSlot);
         var hasAssignmentEvaluateAndDiscard = cache.Plan.Instructions
             .Any(i => i.Kind == InstructionKind.EvaluateAndDiscard);
 
@@ -703,10 +703,10 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         output.WriteLine("=== IR for simple assignment expression ===");
         output.WriteLine(planOutput);
 
-        Assert.True(hasAssignmentInstruction,
-            "Simple identifier assignment should emit AssignmentSlotInstruction");
+        Assert.True(hasCompoundAssignmentInstruction,
+            "Self-referential arithmetic assignment should reuse CompoundAssignmentSlotInstruction");
         Assert.False(hasAssignmentEvaluateAndDiscard,
-            "Simple identifier assignment should no longer use EvaluateAndDiscardInstruction");
+            "Self-referential arithmetic assignment should no longer use EvaluateAndDiscardInstruction");
     }
 
     [Fact(Timeout = 5000)]

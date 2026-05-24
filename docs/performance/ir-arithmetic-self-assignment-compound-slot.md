@@ -50,15 +50,21 @@ and writes the result back.
 
 ## Change
 
-`ExpressionStatementEmitter` now recognizes self-referential arithmetic
-assignments shaped as `x = x <op> rhs` and emits the existing
-`CompoundAssignmentSlotInstruction` instead of a generic `AssignmentSlotInstruction`
-whose value program includes both `x` and the binary operation.
+`ExpressionStatementEmitter` recognizes self-referential arithmetic assignments
+shaped as `x = x <op> rhs` only when the AST already carries static slot
+metadata. For normal plan builds, `SlotAssignmentRewriter` performs the
+conversion after scope analysis proves the assignment target resolves to a fixed
+slot. That emits the existing `CompoundAssignmentSlotInstruction` instead of a
+generic `AssignmentSlotInstruction` whose value program includes both `x` and
+the binary operation.
 
 The rewrite is limited to simple identifier targets and arithmetic or bitwise
 operators already supported by compound-slot lowering. It preserves the
 existing awaited-right-hand-side path and still routes unsupported or failed
 expression-program compilation through the existing fallback/failure behavior.
+Dynamic lookup paths such as `with` and other no-cache contexts keep the generic
+assignment instruction so the runtime can preserve pre-resolved assignment
+reference semantics.
 
 ## Final Signal
 

@@ -379,6 +379,7 @@ internal static class ExpressionStatementEmitter
                 Left: IdentifierExpression leftIdentifier
             } binary ||
             leftIdentifier.Name != assignment.Target ||
+            !HasStaticSlotResolution(assignment, leftIdentifier) ||
             !IsArithmeticCompoundOperator(binary.Operator))
         {
             entryIndex = -1;
@@ -427,6 +428,14 @@ internal static class ExpressionStatementEmitter
             rhsProgram,
             SuppressCompletionValue: suppressCompletion));
         return true;
+    }
+
+    private static bool HasStaticSlotResolution(AssignmentExpression assignment, IdentifierExpression leftIdentifier)
+    {
+        return assignment is { ScopeId: >= 0, SlotIndex: >= 0 } &&
+               leftIdentifier is { ScopeId: >= 0, SlotIndex: >= 0 } &&
+               assignment.ScopeId == leftIdentifier.ScopeId &&
+               assignment.SlotIndex == leftIdentifier.SlotIndex;
     }
 
     private static bool IsArithmeticCompoundOperator(BinaryOperator op)

@@ -354,6 +354,19 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         var assignmentFlatSlotId = GetOrCreateFlatSlotId(
                             assignmentResolution.scopeId,
                             assignmentResolution.slotIndex);
+
+                        if (rewrittenProgram is { } selfReferentialProgram &&
+                            TryCreateSelfReferentialCompoundAssignment(
+                                assign,
+                                selfReferentialProgram,
+                                assignmentResolution.scopeId,
+                                assignmentResolution.slotIndex,
+                                assignmentFlatSlotId,
+                                out var compoundAssignment))
+                        {
+                            return compoundAssignment;
+                        }
+
                         return assign with
                         {
                             ValueProgram = rewrittenProgram,
@@ -862,6 +875,92 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         }
 
         return -1;
+    }
+
+    private static bool TryCreateSelfReferentialCompoundAssignment(
+        AssignmentSlotInstruction assignment,
+        ExpressionProgram valueProgram,
+        int scopeId,
+        int slotIndex,
+        int flatSlotId,
+        out CompoundAssignmentSlotInstruction compoundAssignment)
+    {
+        compoundAssignment = default!;
+
+        if (assignment.AwaitedProgram is not null || valueProgram.OperationCount != 3)
+        {
+            return false;
+        }
+
+        var operations = valueProgram.EnumerateOperations().GetEnumerator();
+        if (!operations.MoveNext())
+        {
+            return false;
+        }
+
+        var left = operations.Current;
+        if (left.Kind != ExpressionOpKind.LoadIdentifier)
+        {
+            return false;
+        }
+
+        var leftIdentifier = left.GetIdentifier(valueProgram.IdentifierConstants.AsSpan());
+        if (!ReferenceEquals(leftIdentifier.Name, assignment.TargetSymbol) ||
+            leftIdentifier.ScopeId != scopeId ||
+            leftIdentifier.SlotIndex != slotIndex)
+        {
+            return false;
+        }
+
+        if (!operations.MoveNext())
+        {
+            return false;
+        }
+
+        var right = operations.Current;
+        if (!operations.MoveNext())
+        {
+            return false;
+        }
+
+        var binary = operations.Current;
+        if (binary.Kind != ExpressionOpKind.Binary ||
+            !IsArithmeticCompoundOperator(binary.Operator) ||
+            operations.MoveNext())
+        {
+            return false;
+        }
+
+        var rhsProgram = new ExpressionProgram(
+            [right],
+            valueProgram.LiteralConstants,
+            valueProgram.StringConstants,
+            valueProgram.ObjectConstants,
+            valueProgram.IdentifierConstants,
+            valueProgram.SpreadMaskConstants);
+
+        compoundAssignment = new CompoundAssignmentSlotInstruction(
+            assignment.Next,
+            assignment.TargetSymbol,
+            binary.Operator,
+            rhsProgram,
+            SuppressCompletionValue: assignment.SuppressCompletionValue,
+            ScopeId: scopeId,
+            SlotIndex: slotIndex,
+            FlatSlotId: flatSlotId,
+            RhsFlatSlotId: TryGetFlatSlotId(rhsProgram));
+        return true;
+    }
+
+    private static bool IsArithmeticCompoundOperator(BinaryOperator op)
+    {
+        return op is
+            BinaryOperator.Add or BinaryOperator.Subtract or
+            BinaryOperator.Multiply or BinaryOperator.Divide or
+            BinaryOperator.Modulo or BinaryOperator.Power or
+            BinaryOperator.BitwiseAnd or BinaryOperator.BitwiseOr or
+            BinaryOperator.BitwiseXor or BinaryOperator.LeftShift or
+            BinaryOperator.RightShift or BinaryOperator.UnsignedRightShift;
     }
 
     /// <summary>

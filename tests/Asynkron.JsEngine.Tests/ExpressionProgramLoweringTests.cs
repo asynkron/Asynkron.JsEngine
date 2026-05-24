@@ -2662,7 +2662,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ScriptExpressionStatement_SelfReferentialArithmeticAssignment_UsesCompoundAssignmentSlotInstruction()
+    public async Task ScriptExpressionStatement_SelfReferentialArithmeticAssignmentWithoutSlotResolution_UsesAssignmentSlotInstruction()
     {
         var program = _engine.ParseProgram("""
             let value = 1;
@@ -2675,12 +2675,45 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
         Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
         Assert.NotNull(cache.Plan);
 
-        var assignment = Assert.Single(cache.Plan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
-        Assert.Null(assignment.RhsExpression);
-        Assert.Equal(BinaryOperator.Add, assignment.Operator);
+        Assert.Empty(cache.Plan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
+        var assignment = Assert.Single(cache.Plan.Instructions.OfType<AssignmentSlotInstruction>());
+        Assert.Null(assignment.ValueExpression);
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            assignment.ValueProgram,
+            op => op.Name.Name == "value");
         AssertProgramContains<LoadLiteralExpressionOp>(
-            assignment.RhsProgram,
+            assignment.ValueProgram,
             op => op.Value.IsNumber && op.Value.NumberValue == 2.0);
+    }
+
+    [Fact]
+    public async Task ScriptExpressionStatement_SelfReferentialArithmeticAssignmentInsideWith_UsesAssignmentSlotInstruction()
+    {
+        var program = _engine.ParseProgram("""
+            var scope = { value: 1 };
+            with (scope) {
+                value = value + 2;
+            }
+            scope.value;
+            """);
+
+        var result = await _engine.Evaluate(program);
+        Assert.Equal(3.0, result);
+
+        var cache = ((IAstCacheable<ScriptPlanCache>)program).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Script plan should build. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        Assert.Empty(cache.Plan.Instructions.OfType<CompoundAssignmentSlotInstruction>());
+        var assignment = Assert.Single(
+            cache.Plan.Instructions.OfType<AssignmentSlotInstruction>(),
+            instruction => instruction.TargetSymbol.Name == "value");
+        AssertProgramContains<LoadIdentifierExpressionOp>(
+            assignment.ValueProgram,
+            op => op.Name.Name == "value");
+        AssertProgramContains<BinaryExpressionOp>(
+            assignment.ValueProgram,
+            op => op.Operator == BinaryOperator.Add);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -115,8 +116,9 @@ public static class JsonHelper
                 var index = 0;
                 foreach (var item in element.EnumerateArray())
                 {
-                    var itemValue = ParseJsonValue(item, realm, arr, index.ToString(CultureInfo.InvariantCulture),
-                        tracker);
+                    var itemValue = tracker is null
+                        ? ParseJsonValue(item, realm, null, null, null)
+                        : ParseJsonValue(item, realm, arr, index.ToString(CultureInfo.InvariantCulture), tracker);
                     arr.Push(itemValue);
                     index++;
                 }
@@ -661,37 +663,56 @@ public static class JsonHelper
             }
         }
 
-        var partial = new List<string>();
-        foreach (var propKey in keys)
+        string result;
+        if (state.Gap.Length == 0)
         {
-            var strP = SerializeJsonProperty(state, propKey, obj);
-            if (strP is not null)
+            var builder = new StringBuilder();
+            builder.Append('{');
+            var wroteMember = false;
+            foreach (var propKey in keys)
             {
-                var member = QuoteString(propKey) + ":";
-                if (state.Gap.Length > 0)
+                var strP = SerializeJsonProperty(state, propKey, obj);
+                if (strP is null)
                 {
-                    member += " ";
+                    continue;
                 }
 
-                member += strP;
-                partial.Add(member);
-            }
-        }
+                if (wroteMember)
+                {
+                    builder.Append(',');
+                }
 
-        string result;
-        if (partial.Count == 0)
-        {
-            result = "{}";
-        }
-        else if (state.Gap.Length == 0)
-        {
-            result = "{" + string.Join(',', partial) + "}";
+                builder.Append(QuoteString(propKey));
+                builder.Append(':');
+                builder.Append(strP);
+                wroteMember = true;
+            }
+
+            builder.Append('}');
+            result = builder.ToString();
         }
         else
         {
-            var separator = ",\n" + state.Indent;
-            var properties = string.Join(separator, partial);
-            result = "{\n" + state.Indent + properties + "\n" + stepback + "}";
+            var partial = new List<string>();
+            foreach (var propKey in keys)
+            {
+                var strP = SerializeJsonProperty(state, propKey, obj);
+                if (strP is not null)
+                {
+                    partial.Add(QuoteString(propKey) + ": " + strP);
+                }
+            }
+
+            if (partial.Count == 0)
+            {
+                result = "{}";
+            }
+            else
+            {
+                var separator = ",\n" + state.Indent;
+                var properties = string.Join(separator, partial);
+                result = "{\n" + state.Indent + properties + "\n" + stepback + "}";
+            }
         }
 
         state.Indent = stepback;
@@ -714,29 +735,46 @@ public static class JsonHelper
         var stepback = state.Indent;
         state.Indent = stepback + state.Gap;
 
-        var partial = new List<string>();
         var length = StandardLibrary.LengthOfArrayLike(arr, state.Realm);
 
-        for (long index = 0; index < length; index++)
-        {
-            var strP = SerializeJsonProperty(state, index.ToString(CultureInfo.InvariantCulture), arr);
-            partial.Add(strP ?? "null");
-        }
-
         string result;
-        if (partial.Count == 0)
+        if (state.Gap.Length == 0)
         {
-            result = "[]";
-        }
-        else if (state.Gap.Length == 0)
-        {
-            result = "[" + string.Join(',', partial) + "]";
+            var builder = new StringBuilder();
+            builder.Append('[');
+            for (long index = 0; index < length; index++)
+            {
+                if (index > 0)
+                {
+                    builder.Append(',');
+                }
+
+                var strP = SerializeJsonProperty(state, index.ToString(CultureInfo.InvariantCulture), arr);
+                builder.Append(strP ?? "null");
+            }
+
+            builder.Append(']');
+            result = builder.ToString();
         }
         else
         {
-            var separator = ",\n" + state.Indent;
-            var properties = string.Join(separator, partial);
-            result = "[\n" + state.Indent + properties + "\n" + stepback + "]";
+            var partial = new List<string>();
+            for (long index = 0; index < length; index++)
+            {
+                var strP = SerializeJsonProperty(state, index.ToString(CultureInfo.InvariantCulture), arr);
+                partial.Add(strP ?? "null");
+            }
+
+            if (partial.Count == 0)
+            {
+                result = "[]";
+            }
+            else
+            {
+                var separator = ",\n" + state.Indent;
+                var properties = string.Join(separator, partial);
+                result = "[\n" + state.Indent + properties + "\n" + stepback + "]";
+            }
         }
 
         state.Indent = stepback;

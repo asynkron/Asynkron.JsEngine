@@ -27,7 +27,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     [JsConstructorMethod("of", Length = 0d)]
     public static JsValue Of(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
-        return JsValue.FromObjectUnsafe(ArrayOf(thisValue, args, realm));
+        return ArrayOf(thisValue, args, realm);
     }
 
     [JsConstructorSymbolGetter("species")]
@@ -167,8 +167,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         HostFunction arrayFrom = null!;
         arrayFrom = new HostFunction((thisValue, args) =>
         {
-            var result = ArrayFrom(arrayFrom, thisValue, args, Realm);
-            return JsValue.FromObjectUnsafe(result);
+            return ArrayFrom(arrayFrom, thisValue, args, Realm);
         }, Realm, false);
         AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");

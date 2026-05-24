@@ -11,7 +11,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    internal static object? ArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
+    internal static JsValue ArrayOf(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm)
     {
         const string MethodName = "Array.of";
         var len = args.Count;
@@ -46,7 +46,7 @@ public static partial class StandardLibrary
         }
 
         SetArrayLikeLength(result, len);
-        return result;
+        return JsValue.FromObjectUnsafe(result);
 
         static IJsObjectLike CreateDefaultArrayInstance(int length, RealmState? realm)
         {
@@ -56,7 +56,7 @@ public static partial class StandardLibrary
         }
     }
 
-    internal static object? ArrayFrom(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
+    internal static JsValue ArrayFrom(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.from";
@@ -139,7 +139,7 @@ public static partial class StandardLibrary
         }
 
         SetArrayLikeLength(result, k);
-        return result;
+        return JsValue.FromObjectUnsafe(result);
     }
 
     internal static object? ArrayFromAsync(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
@@ -218,7 +218,7 @@ public static partial class StandardLibrary
         return promise.JsObject;
     }
 
-    internal static object? ArrayFromIterable(HostFunction host, JsValue thisValue, JsValue items,
+    internal static JsValue ArrayFromIterable(HostFunction host, JsValue thisValue, JsValue items,
         IJsCallable iteratorMethod, IJsCallable? mapper, bool mapping, JsValue thisArg, RealmState? realm)
     {
         const string MethodName = "Array.from";
@@ -265,7 +265,7 @@ public static partial class StandardLibrary
             if (done)
             {
                 SetArrayLikeLength(result, k);
-                return result;
+                return JsValue.FromObjectUnsafe(result);
             }
 
             if (k >= MaxConcreteArrayLength)

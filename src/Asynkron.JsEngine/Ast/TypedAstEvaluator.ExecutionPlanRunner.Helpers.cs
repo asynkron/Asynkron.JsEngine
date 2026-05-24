@@ -252,6 +252,12 @@ public static partial class TypedAstEvaluator
                 return JsValue.Undefined;
             }
 
+            if (program.IsSimpleNumericCandidate &&
+                TryEvaluateSimpleNumericExpressionProgram(program, environment, context, out var simpleNumericResult))
+            {
+                return simpleNumericResult;
+            }
+
             var literalConstants = program.LiteralConstants.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
             var objectConstants = program.ObjectConstants.AsSpan();
@@ -1288,6 +1294,161 @@ public static partial class TypedAstEvaluator
                     ReleaseExpressionBuffers(stackBuffer!, flagBuffer!, stackIndex, rentedFromPool);
                 }
             }
+        }
+
+        private bool TryEvaluateSimpleNumericExpressionProgram(
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
+            {
+                return false;
+            }
+
+            var literalConstants = program.LiteralConstants.AsSpan();
+            var identifierConstants = program.IdentifierConstants.AsSpan();
+            var operationCount = program.OperationCount;
+            var stackSize = Math.Max(program.MaxStackDepth, 1);
+            var inlineStackBuffer = default(InlineExpressionStackBuffer);
+            JsValue[]? stackBuffer = null;
+            var usePooledBuffer = stackSize > InlineExpressionStackCapacity;
+            Span<JsValue> stack = usePooledBuffer
+                ? (stackBuffer = ArrayPool<JsValue>.Shared.Rent(stackSize)).AsSpan(0, stackSize)
+                : MemoryMarshal.CreateSpan(ref inlineStackBuffer[0], InlineExpressionStackCapacity).Slice(0, stackSize);
+            var stackIndex = 0;
+
+            try
+            {
+                for (var programCounter = 0; programCounter < operationCount; programCounter++)
+                {
+                    var operation = program.GetOperation(programCounter);
+                    switch (operation.Kind)
+                    {
+                        case ExpressionOpKind.LoadLiteral:
+                            {
+                                var literal = operation.GetLiteral(literalConstants);
+                                if (!literal.IsNumber)
+                                {
+                                    return false;
+                                }
+
+                                stack[stackIndex++] = literal;
+                                break;
+                            }
+
+                        case ExpressionOpKind.LoadIdentifier:
+                            {
+                                var identifier = operation.GetIdentifier(identifierConstants);
+                                if (operation.IsArguments ||
+                                    !TryReadSimpleNumericIdentifier(identifier, environment, context, out var value))
+                                {
+                                    return false;
+                                }
+
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    result = JsValue.Undefined;
+                                    return true;
+                                }
+
+                                if (!value.IsNumber)
+                                {
+                                    return false;
+                                }
+
+                                stack[stackIndex++] = value;
+                                break;
+                            }
+
+                        case ExpressionOpKind.Binary:
+                            {
+                                var right = stack[--stackIndex];
+                                var left = stack[stackIndex - 1];
+                                if (!left.IsNumber || !right.IsNumber)
+                                {
+                                    return false;
+                                }
+
+                                stack[stackIndex - 1] = ApplySimpleNumericBinaryOperator(
+                                    operation.Operator,
+                                    left.NumberValue,
+                                    right.NumberValue);
+                                break;
+                            }
+
+                        default:
+                            return false;
+                    }
+                }
+
+                result = stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+                return true;
+            }
+            finally
+            {
+                if (stackBuffer is not null)
+                {
+                    stack.Slice(0, stackIndex).Clear();
+                    ArrayPool<JsValue>.Shared.Return(stackBuffer, clearArray: false);
+                }
+            }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryReadSimpleNumericIdentifier(
+            IdentifierOperand identifier,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue value)
+        {
+            if (_isScriptMode &&
+                _flatSlots is not null &&
+                (uint)identifier.FlatSlotId < (uint)_flatSlots.Length &&
+                _flatSlots[identifier.FlatSlotId].IsValid)
+            {
+                value = _flatSlots[identifier.FlatSlotId].Read();
+                return true;
+            }
+
+            if (identifier.ScopeId >= 0 &&
+                identifier.SlotIndex >= 0 &&
+                environment.TryReadIdentifierWithSlot(
+                    identifier.Name,
+                    identifier.ScopeId,
+                    identifier.SlotIndex,
+                    context,
+                    out value))
+            {
+                return true;
+            }
+
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue ApplySimpleNumericBinaryOperator(
+            BinaryOperator op,
+            double left,
+            double right)
+        {
+            return op switch
+            {
+                BinaryOperator.Add => JsValue.FromDouble(left + right),
+                BinaryOperator.Subtract => JsValue.FromDouble(left - right),
+                BinaryOperator.Multiply => JsValue.FromDouble(left * right),
+                BinaryOperator.Divide => JsValue.FromDouble(left / right),
+                BinaryOperator.Modulo => JsValue.FromDouble(JsOps.MathMod(left, right)),
+                BinaryOperator.LessThan => left < right ? JsValue.True : JsValue.False,
+                BinaryOperator.LessThanOrEqual => left <= right ? JsValue.True : JsValue.False,
+                BinaryOperator.GreaterThan => left > right ? JsValue.True : JsValue.False,
+                BinaryOperator.GreaterThanOrEqual => left >= right ? JsValue.True : JsValue.False,
+                _ => JsValue.Undefined
+            };
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

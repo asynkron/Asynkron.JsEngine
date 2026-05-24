@@ -105,6 +105,7 @@ internal readonly record struct ExpressionProgram
         IdentifierConstants = identifierConstants.IsDefault ? ImmutableArray<IdentifierOperand>.Empty : identifierConstants;
         SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<int>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
+        IsSimpleNumericCandidate = ComputeIsSimpleNumericCandidate(operations);
     }
 
     public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
@@ -120,6 +121,8 @@ internal readonly record struct ExpressionProgram
     public ImmutableArray<ImmutableArray<int>> SpreadMaskConstants { get; init; }
 
     public int MaxStackDepth { get; init; }
+
+    public bool IsSimpleNumericCandidate { get; init; }
 
     public int OperationCount => _operations.IsDefault ? 0 : _operations.Length;
 
@@ -214,6 +217,46 @@ internal readonly record struct ExpressionProgram
         }
 
         return Math.Max(maxStackDepth, 1);
+    }
+
+    private static bool ComputeIsSimpleNumericCandidate(ImmutableArray<PackedExpressionOp> operations)
+    {
+        if (operations.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var operation in operations)
+        {
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadIdentifier:
+                    continue;
+
+                case ExpressionOpKind.Binary when IsSimpleNumericBinaryOperator(operation.Operator):
+                    continue;
+
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsSimpleNumericBinaryOperator(BinaryOperator op)
+    {
+        return op is
+            BinaryOperator.Add or
+            BinaryOperator.Subtract or
+            BinaryOperator.Multiply or
+            BinaryOperator.Divide or
+            BinaryOperator.Modulo or
+            BinaryOperator.LessThan or
+            BinaryOperator.LessThanOrEqual or
+            BinaryOperator.GreaterThan or
+            BinaryOperator.GreaterThanOrEqual;
     }
 
     private static int GetStackDelta(PackedExpressionOp operation)

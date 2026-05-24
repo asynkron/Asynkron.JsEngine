@@ -323,6 +323,15 @@ host-runtime shortcuts.
     than a local truthiness shortcut. Why: issue #1036 / PR #1275 fixed
     `Symbol.hasInstance` Test262 failures where the custom hook result and
     call shape had to match ECMAScript `InstanceofOperator` semantics.
+43. For ECMAScript `ToString` paths that first coerce objects with
+    `ToPrimitive(..., string)`, keep the post-coercion completion split
+    explicit. If the active context is throwing, rethrow that JavaScript
+    completion before continuing; if `ToPrimitive` returns another object,
+    throw a JavaScript `TypeError` rather than returning `"[object Object]"` or
+    falling through to host string conversion. Why: issue #1723 / PR #1726
+    fixed Array `join`/`toString` Test262 regressions after the
+    `JsValueExtensions.ToJsString` object-carrier path swallowed these
+    observable coercion failures.
 
 ## Why
 
@@ -468,6 +477,18 @@ path is the spec `ToBoolean` result after abrupt-completion propagation, not an
 engine-local shortcut. Future `instanceof` or well-known-symbol operator-hook
 work should add focused local regressions for call shape and result coercion,
 then run the owning focused Test262 group before widening.
+
+Issue #1723 / PR #1726 fixed the Array `join`/`toString` separator coercion
+cluster after the object-to-string helper ran `ToPrimitive(..., string)` but
+then converted an object result into `"[object Object]"` and failed to rethrow a
+pending active-context completion immediately. Future object `ToString` work
+should preserve the exact split between pending JavaScript throws,
+object-to-primitive `TypeError`, and successful primitive string conversion,
+then prove the owning Array join/toString Test262 fixtures before widening to
+unrelated Temporal, Intl, module, or iterator-close failures.
+
+Related ADR:
+`docs/adrs/0109-keep-object-to-string-coercion-abrupt-completions.md`.
 
 Issue #832 / PR #1128 fixed `Temporal.Duration.compare` after `relativeTo`
 conversion first skipped `era`/`eraYear` reads entirely, then needed a

@@ -32,9 +32,13 @@ optimization.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
-   `EvaluateExpressionProgram` and the operator helper are hot, keep uncommon
+   `EvaluateExpressionProgram` and the owning helper are hot, keep uncommon
    or mixed-type operands on the generic operator path, and compare against the
-   committed/current baseline conservatively when profiler runs are noisy.
+   committed/current baseline conservatively when profiler runs are noisy. If a
+   whole-expression-program fast path is added, treat any compile-time marker as
+   a candidate hint only: the runner must still guard identifier-cache
+   eligibility, `with`, `arguments`, static slot reads, and runtime number
+   operands before bypassing the generic expression interpreter.
 8. For expression-program buffer optimizations, prove that the profile cost is
    repeated small `EvaluateExpressionProgram` execution before changing runner
    storage. Pair the CPU call tree with a `MaxStackDepth` distribution or
@@ -90,6 +94,17 @@ uncommon operators on the existing generic path, and reported the win using the
 slowest final run because the profiling environment was noisy. The durable
 lesson is that expression-bytecode CPU work should be profile-owned and
 semantics-preserving, not a broad benchmark chase or a blanket operator rewrite.
+
+Issue `autrun-dir3mbor11cg-7a927e0289` / PR #1731 repeated the `ir-arithmetic`
+profile after the binary helper and self-assignment slices. The accepted slice
+added an `ExpressionProgram.IsSimpleNumericCandidate` marker plus a runner fast
+path for literal/identifier/numeric-binary programs, but the marker remained a
+candidate only: the runner rechecks identifier-cache eligibility, `with`,
+`arguments`, slot-read availability, and number operands before bypassing the
+generic interpreter. The durable lesson is that expression-program CPU fast
+paths must be runtime-guarded against JavaScript's dynamic lookup and coercion
+surfaces, not only shape-filtered from source or bytecode. Related ADR:
+`docs/adrs/0110-keep-simple-numeric-expression-program-fast-path-runtime-guarded.md`.
 
 Issue `autrun-diqxxf5b04kw-a516a2bc0a` / PR #1685 selected `classdef` from the
 benchmark table and then proved the hot owner with a `classdef` CPU call tree:

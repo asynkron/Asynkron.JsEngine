@@ -22,10 +22,16 @@ unless the issue explicitly asks for a major migration.
 - If a recurring npm sweep re-proves the same safe-line signal and there is no
   compatible manifest or lockfile update to apply, keep the delivery
   evidence-only: refresh the dated dependency note or issue evidence, and leave
-  package files unchanged.
+  package files unchanged. If the existing dated note is already current for
+  the same signal, do not manufacture a repository diff just to make the run
+  non-empty.
 - Record the baseline and final dependency signals in the issue context:
   `outdated`, `audit`, installed versions, and the project build or demo proof
   that owns the dependency.
+- Before committing an evidence-only dependency sweep, verify `git status`
+  against the intended no-diff outcome. Do not commit transient command
+  artifacts from metadata gathering, such as curl cookie jars or numeric
+  scratch files, as a substitute for a real dependency change.
 
 ## Why
 
@@ -56,6 +62,16 @@ and found the same actionable state: Express 4 was still current on
 lived on `next`. The useful recurring-maintenance delivery was refreshing the
 dated README dependency signal only, not manufacturing a package update or
 pulling a major/pre-release line into the routine sweep.
+
+Issue #1716 / PR #1720 repeated the same NodeHostDemo dependency-maintenance
+slice on the same 2026-05-24 signal already recorded in the README:
+`express@5.2.1` on `latest`, Express 4 current at `4.22.2`, and
+`polka@1.0.0-next.28` only on `next`. Because the durable README note was
+already current and there was no compatible package or lockfile update, the
+correct delivery was issue-evidence-only with no repository diff. The local
+delivery branch still showed why the status check matters: the only changed
+file was a generated curl cookie jar named `200`, which should not become a
+dependency-maintenance artifact.
 
 Issue #1571 / PR #1576 applied the same bounded-slice rule to .NET test
 infrastructure. The main test project moved `Microsoft.NET.Test.Sdk` from

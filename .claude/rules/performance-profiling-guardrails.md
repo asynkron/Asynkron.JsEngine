@@ -48,6 +48,12 @@ optimization.
    the `2^32 - 1` boundary. Numeric helpers may fast-path only indices
    `< uint.MaxValue`; `"4294967295"` is an ordinary property and must not grow
    array length.
+10. For object-literal default data-property optimizations, keep the shortcut at
+    the `JsObject` storage boundary and preserve the ordinary descriptor
+    fallback. Future `objectcreation` or object-literal work must prove the hot
+    owner with a CPU profile, then pin descriptor visibility, insertion order,
+    extensibility, virtual-provider/private-field exclusions, and later
+    `Object.defineProperty` promotion semantics.
 
 ## Why
 
@@ -102,3 +108,15 @@ before `2^32 - 1`. The durable lesson is that array fast paths must stay
 profile-owned and storage-owned while preserving ordinary property behavior at
 `"4294967295"`. Related ADR:
 `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`.
+
+Issue `autrun-diqzaewea814-77aafdbdd9` / PR #1692 selected `objectcreation`
+from the benchmark table and proved the hot owner with an `objectcreation` CPU
+call tree: ordinary object-literal data properties were paying full descriptor
+setup and descriptor-dictionary writes even though their observable descriptor
+is the default writable/enumerable/configurable shape. The accepted slice kept
+the optimization in `JsObject.DefineDefaultDataProperty`, falling back for
+non-extensible objects, virtual providers, private fields, and existing explicit
+descriptors. The durable lesson is that object-literal fast paths must stay
+profile-owned and storage-owned while preserving descriptor materialization and
+promotion semantics. Related ADR:
+`docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`.

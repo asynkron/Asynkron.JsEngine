@@ -52,32 +52,28 @@ Console application demos are included in the `examples` folder:
 
 ### Main Demo
 ```bash
-cd examples/Demo
-rtk dotnet run
+rtk dotnet run --project examples/Demo
 ```
 
 The main demo showcases basic features including variables, functions, closures, objects, arrays, control flow, operators, and standard library usage.
 
 ### Promise and Timer Demo
 ```bash
-cd examples/PromiseDemo
-rtk dotnet run
+rtk dotnet run --project examples/PromiseDemo
 ```
 
 Demonstrates setTimeout, setInterval, Promise creation, chaining, error handling, and event queue processing.
 
 ### Event Queue Demo
 ```bash
-cd examples/EventQueueDemo
-rtk dotnet run
+rtk dotnet run --project examples/EventQueueDemo
 ```
 
 Shows host-scheduled task execution, nested scheduling, and async task queue draining through `JsEngine.ScheduleTask(...)`.
 
 ### NPM Package Compatibility Demo
 ```bash
-cd examples/NpmPackageDemo
-rtk dotnet run
+rtk dotnet run --project examples/NpmPackageDemo
 ```
 
 Shows that the engine can run pure JavaScript npm packages without Node.js dependencies.

@@ -40,6 +40,11 @@ When working inside the core engine, keep JavaScript values represented as
    the legacy overload instead of keeping it as a speculative compatibility
    bridge. Use `[Obsolete(..., true)]` only when the overload must remain long
    enough to expose real callers or preserve an intentional boundary.
+9. When deleting an `object?` helper cluster backed by pools, remove the whole
+   dead carrier surface: helper methods, caller-side rent/return hooks, and
+   private pool fields. Prove it with a targeted symbol search for both helper
+   names and backing storage names; a method-only no-caller search can still
+   leave unused `ObjectPool<object?[]>` fields behind.
 
 ## Why
 
@@ -82,3 +87,12 @@ overload after earlier slices had already moved array result builders to
 core helper has no remaining internal callers and an equivalent typed path owns
 the semantics, preserving the legacy overload just keeps an accidental
 object-carrier entry point alive for future code.
+
+Issue `autrun-dir3tzc35h6w-a5094b82c5` / PR #1728 removed the legacy dynamic
+call `object?[]` argument-array helper surface from `JsValueCache` after the
+call path had moved to pooled `JsValue[]` arrays. Review still found the
+private `ObjectPool<object?[]>` fields (`Pool1`-`Pool4`) after the helper
+methods were gone, which showed that object-carrier cleanup must include both
+callable symbols and backing storage. Future core `JsValue` migrations should
+scan for the old helper names and the old storage type/name pattern before
+claiming the object carrier has been removed.

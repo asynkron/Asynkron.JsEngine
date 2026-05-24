@@ -23,6 +23,14 @@ simple activation parameter binding. Two-argument calls now use a direct typed
 path before the generic fallback, and the empty runner placeholder uses
 `Array.Empty<JsValue>()` instead of a boxed helper singleton.
 
+Issue `autrun-dir3tzc35h6w-a5094b82c5` / PR #1728 later removed the leftover
+legacy dynamic-call `object?[]` argument-array helpers from `JsValueCache`. The
+first delivery deleted the unused `RentArgumentArray`, `ReturnArgumentArray`,
+and `CreateArgs` helper surface, then review caught that the now-unreferenced
+`ObjectPool<object?[]>` fields still existed. The follow-up removed those pools
+too, leaving only the `JsValue[]` argument-array pools for the dynamic-call fast
+path.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -38,7 +46,10 @@ For sync-function invocation and simple IR activation:
    can avoid materializing an array or helper object;
 4. use shared array instances such as `Array.Empty<JsValue>()` for required
    placeholder argument lists instead of boxed empty helper values; and
-5. keep the generic fallback for uncommon or unsafe callable shapes rather than
+5. after a call path has migrated from `object?[]` to `JsValue[]`, delete the
+   obsolete helper methods, local return hooks, and private pool fields in the
+   same cleanup slice; and
+6. keep the generic fallback for uncommon or unsafe callable shapes rather than
    widening the simple activation predicate.
 
 `TwoValueArgs` remains valid only when the concrete struct type is preserved
@@ -53,6 +64,10 @@ has crossed an interface-typed hot-path boundary.
 - Future arity-specific invocation work should preserve concrete argument-list
   types through `CallableInvokeHelpers`, `SyncFunctionInvoker`, parameter
   binding, and simple activation setup.
+- Dynamic-call cleanup should scan both the public/private helper methods and
+  the backing pool fields. A no-caller search for `ReturnArgumentArray` is not
+  enough if `ObjectPool<object?[]>` fields remain allocated and named as a
+  plausible future entry point.
 - Allocation claims should check the relevant profile output for helper carrier
   rows such as `TwoValueArgs` or `EmptyValueArgs`, not just the total allocation
   number.

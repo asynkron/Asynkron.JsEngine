@@ -726,6 +726,26 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         }
     }
 
+    /// <summary>
+    /// Fast path for ordinary dense array data-property creation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryCreateDataPropertyFast(uint index, JsValue value)
+    {
+        if (_properties.HasNumericDescriptorKeys() || !IsExtensible)
+        {
+            return false;
+        }
+
+        if (index >= _length && !IsLengthWritable())
+        {
+            return false;
+        }
+
+        SetElementFast(index, value);
+        return true;
+    }
+
     public void SetElement(int index, JsValue value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -1125,6 +1145,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         UpdateLengthProperty();
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool IsLengthWritable()
+    {
+        var descriptor = _properties.GetOwnPropertyDescriptor("length");
+        return descriptor is not { HasWritable: true, Writable: false };
+    }
+
     internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
     {
         return TrySetArrayLength(true, JsValue.FromObjectUnsafe(value), false, true, context,
@@ -1341,8 +1368,9 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        lengthDescriptor.JsValue = JsValue.FromObjectUnsafe((double)_length);
-        _properties["length"] = (double)_length;
+        var lengthValue = JsValue.FromDouble(_length);
+        lengthDescriptor.JsValue = lengthValue;
+        _properties.SetJsValue("length", lengthValue);
         if (writable.HasValue)
         {
             lengthDescriptor.Writable = writable.Value;

@@ -441,6 +441,22 @@ public static partial class StandardLibrary
         target.DefineProperty(propertyKey, descriptor);
     }
 
+    /// <summary>
+    /// Numeric-index overload that keeps dense JsArray creation on the element fast path.
+    /// </summary>
+    internal static void CreateDataPropertyOrThrowJsValue(IJsObjectLike target, long propertyIndex, JsValue value,
+        RealmState? realm, string methodName)
+    {
+        if ((ulong)propertyIndex < uint.MaxValue &&
+            target is JsArray { } array &&
+            array.TryCreateDataPropertyFast((uint)propertyIndex, value))
+        {
+            return;
+        }
+
+        CreateDataPropertyOrThrowJsValue(target, ToIndexString(propertyIndex), value, realm, methodName);
+    }
+
     internal static void SetPropertyOrThrow(IJsPropertyAccessor accessor, string propertyKey, JsValue value,
         RealmState? realm, string methodName)
     {

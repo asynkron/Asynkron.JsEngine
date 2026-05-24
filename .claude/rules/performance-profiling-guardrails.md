@@ -24,6 +24,11 @@ optimization.
    environment/context creation, arguments object creation, parameter binding,
    slot growth, closure capture, eval-sensitive scope behavior, or invoker
    overhead.
+6. Preserve comparable profiler baselines when a performance issue asks for a
+   reduction claim. A current activation-profile run is useful evidence, but it
+   only proves improvement when the matching prior profile output or committed
+   baseline numbers are still available. If the baseline is missing, report
+   stable/no-regression or current-hotspot evidence instead of claiming a win.
 
 ## Why
 
@@ -37,3 +42,11 @@ agent can safely claim a function-call optimization target or regression.
 Without this rule, future performance agents can overread generic
 `functioncalls` or `forloop` profiles, mix CPU and memory conclusions, or edit
 runtime activation code before proving which activation owner is actually hot.
+
+Issue
+`planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-p-0b25b4f88b`
+and PR #1665 showed the baseline-retention failure mode during closeout. The
+activation profiles and full LanguageTests throughput were captured, but the
+handoff's comparable activation baseline directory was not present in the
+worktree, so the report could only make a no-focused-regression/current-hotspot
+claim rather than a strong activation-overhead reduction claim.

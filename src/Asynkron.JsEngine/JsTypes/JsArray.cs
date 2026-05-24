@@ -27,7 +27,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static readonly object ArrayHoleSentinel = new();
     private static readonly JsValue ArrayHole = new(JsValueKind.Object, 0.0, ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
-    private readonly List<JsValue> _items = [];
+    private readonly List<JsValue> _items;
 
     private readonly JsObject _properties = new();
     internal JsObject Properties => _properties;
@@ -40,7 +40,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private readonly JsValue _cachedJsValue;
 
     public JsArray(RealmState? realmState = null)
+        : this(realmState, 0)
     {
+    }
+
+    internal JsArray(RealmState? realmState, int capacity)
+    {
+        _items = capacity > 0 ? new List<JsValue>(capacity) : [];
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         RealmState = realmState;
         _rangeErrorCtor = realmState?.RangeErrorConstructor;

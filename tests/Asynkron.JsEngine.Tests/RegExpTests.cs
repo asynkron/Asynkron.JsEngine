@@ -240,6 +240,52 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Match_GlobalCharacterClass_HonorsOwnExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /[a-z]+/g;
+            let calls = 0;
+            regex.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["zz"];
+                    match.index = 1;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            let matches = "abc".match(regex);
+            matches[0] + ":" + calls;
+        """);
+        Assert.Equal("zz:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Match_GlobalCharacterClass_HonorsOwnFlagsOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /[a-z]+/g;
+            let calls = 0;
+            Object.defineProperty(regex, "flags", {
+                configurable: true,
+                get() {
+                    calls++;
+                    return "";
+                }
+            });
+
+            let match = "abc".match(regex);
+            match[0] + ":" + calls;
+        """);
+        Assert.Equal("abc:1", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_Search_ReturnsIndex()
     {
         await using var engine = CreateEngine();
@@ -295,6 +341,60 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
 
                                            """);
         Assert.Equal("hi hi hi", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalCharacterClass_HonorsOwnExecOverride()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /[aeiou]/g;
+            let calls = 0;
+            regex.exec = function (input) {
+                calls++;
+                if (calls === 1) {
+                    let match = ["e"];
+                    match.index = 1;
+                    match.input = input;
+                    return match;
+                }
+
+                return null;
+            };
+
+            "hello".replace(regex, "*") + ":" + calls;
+        """);
+        Assert.Equal("h*llo:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalCharacterClass_WithDollarSubstitution()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "abc".replace(/[ab]/g, "<$&>");
+        """);
+        Assert.Equal("<a><b>c", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Match_GlobalNoCapture_AllowsZeroLengthMatches()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "ab".match(/(?:)/g).join(",");
+        """);
+        Assert.Equal(",,", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalNoCapture_AllowsZeroLengthMatches()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "ab".replace(/(?:)/g, "-");
+        """);
+        Assert.Equal("-a-b-", result);
     }
 
     [Fact(Timeout = 2000)]

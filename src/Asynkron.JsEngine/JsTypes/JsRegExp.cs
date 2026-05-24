@@ -169,6 +169,7 @@ public sealed class JsRegExp
     private readonly AnchoredPropertyEscapeMatcher? _anchoredPropertyEscapeMatcher;
     private readonly AnchoredSimpleClassEscape _anchoredSimpleClassEscape;
     private readonly byte _encodedFlags;
+    private bool? _hasCapturingGroups;
     private string? _flags;
 
     private enum AnchoredSimpleClassEscape : byte
@@ -297,6 +298,13 @@ public sealed class JsRegExp
 
     public JsObject JsObject { get; }
     internal RealmState? RealmState { get; }
+    internal bool CanUseMatchOnlyFastPath =>
+        !HasIndices &&
+        _anchoredSimpleClassEscape == AnchoredSimpleClassEscape.None &&
+        _anchoredPropertyEscapeMatcher is null &&
+        !HasCapturingGroups;
+
+    private bool HasCapturingGroups => _hasCapturingGroups ??= EnsureRegex().GetGroupNumbers().Length > 1;
 
     /// <summary>
     /// Mapping from sanitized .NET group names back to original ECMAScript group names.
@@ -523,6 +531,60 @@ public sealed class JsRegExp
         RealmState.UpdateRegExpStatics(input, match);
         return result;
     }
+
+    internal bool TryExecMatchOnly(string input, out MatchOnlyResult result)
+    {
+        result = default;
+
+        var lastIndex = GetLastIndex();
+        var startIndex = Global || Sticky ? lastIndex : 0;
+
+        if (startIndex > input.Length)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            RealmState.UpdateRegExpStatics(input, fastIndex, fastLength);
+            result = new MatchOnlyResult(fastIndex, fastLength, input.Substring(fastIndex, fastLength));
+            return true;
+        }
+
+        var match = EnsureRegex().Match(input, startIndex);
+
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
+
+        if (!match.Success)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        if (Global || Sticky)
+        {
+            SetLastIndexStrict(match.Index + match.Length);
+        }
+
+        RealmState.UpdateRegExpStatics(input, match);
+        result = new MatchOnlyResult(match.Index, match.Length, match.Value);
+        return true;
+    }
+
+    internal readonly record struct MatchOnlyResult(int Index, int Length, string Value);
 
     /// <summary>
     ///     Finds all matches in the input string.

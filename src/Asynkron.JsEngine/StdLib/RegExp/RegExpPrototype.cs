@@ -18,6 +18,16 @@ public sealed partial class RegExpPrototype
 {
     private HostFunction? _defaultExecFunction;
     private int _defaultExecPrototypeMutationVersion;
+    private IJsCallable? _defaultFlagsGetter;
+    private IJsCallable? _defaultHasIndicesGetter;
+    private IJsCallable? _defaultGlobalGetter;
+    private IJsCallable? _defaultIgnoreCaseGetter;
+    private IJsCallable? _defaultMultilineGetter;
+    private IJsCallable? _defaultDotAllGetter;
+    private IJsCallable? _defaultUnicodeGetter;
+    private IJsCallable? _defaultUnicodeSetsGetter;
+    private IJsCallable? _defaultStickyGetter;
+    private int _defaultFlagAccessorsPrototypeMutationVersion;
 
     [JsHostMethod("test", Length = 1d)]
     public JsValue Test(JsValue thisValue, IReadOnlyList<JsValue> args)
@@ -271,6 +281,20 @@ public sealed partial class RegExpPrototype
                 _defaultExecPrototypeMutationVersion = prototypeObject.CurrentMutationVersion;
             }
         }
+
+        if (Prototype is JsObject defaultPrototype)
+        {
+            CaptureDefaultGetter(defaultPrototype, "flags", ref _defaultFlagsGetter);
+            CaptureDefaultGetter(defaultPrototype, "hasIndices", ref _defaultHasIndicesGetter);
+            CaptureDefaultGetter(defaultPrototype, "global", ref _defaultGlobalGetter);
+            CaptureDefaultGetter(defaultPrototype, "ignoreCase", ref _defaultIgnoreCaseGetter);
+            CaptureDefaultGetter(defaultPrototype, "multiline", ref _defaultMultilineGetter);
+            CaptureDefaultGetter(defaultPrototype, "dotAll", ref _defaultDotAllGetter);
+            CaptureDefaultGetter(defaultPrototype, "unicode", ref _defaultUnicodeGetter);
+            CaptureDefaultGetter(defaultPrototype, "unicodeSets", ref _defaultUnicodeSetsGetter);
+            CaptureDefaultGetter(defaultPrototype, "sticky", ref _defaultStickyGetter);
+            _defaultFlagAccessorsPrototypeMutationVersion = defaultPrototype.CurrentMutationVersion;
+        }
     }
 
     private JsRegExp RequireRegExp(JsValue receiver)
@@ -344,6 +368,25 @@ public sealed partial class RegExpPrototype
 
         // Step 2: Let S be ToString(string).
         var input = args.Count > 0 ? JsOps.ToJsString(args[0]) ?? string.Empty : string.Empty;
+
+        if (TryResolveOrdinaryDefaultRegExp(thisValue, out var defaultRegex))
+        {
+            if (!defaultRegex.Global)
+            {
+                return RegExpExec(thisValue, input);
+            }
+
+            if (defaultRegex.CanUseMatchOnlyFastPath &&
+                TryMatchDefaultGlobalNoCapture(
+                    thisValue,
+                    defaultRegex,
+                    input,
+                    defaultRegex.Unicode,
+                    out var defaultMatchResult))
+            {
+                return defaultMatchResult;
+            }
+        }
 
         // Step 3: Let flags be ToString(Get(rx, "flags")).
         JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
@@ -535,6 +578,20 @@ public sealed partial class RegExpPrototype
         // Step 5: If functionalReplace is false, let replaceValue be ToString(replaceValue).
         var replaceStr = functionalReplace ? string.Empty : JsOps.ToJsString(replaceValue);
 
+        if (!functionalReplace &&
+            TryResolveOrdinaryDefaultRegExp(thisValue, out var defaultRegex) &&
+            TryReplaceDefaultNoCapture(
+                thisValue,
+                defaultRegex,
+                input,
+                replaceStr,
+                defaultRegex.Global,
+                defaultRegex.Unicode,
+                out var defaultReplaceResult))
+        {
+            return defaultReplaceResult;
+        }
+
         // Step 6: Let flags be ToString(Get(rx, "flags")).
         JsOps.TryGetPropertyValue(thisValue, "flags", out var flagsValue);
         var flags = JsOps.ToJsString(flagsValue);
@@ -680,6 +737,99 @@ public sealed partial class RegExpPrototype
         return new JsValue(accumulatedResult.ToString());
     }
 
+    private bool TryMatchDefaultGlobalNoCapture(
+        JsValue thisValue,
+        JsRegExp regex,
+        string input,
+        bool fullUnicode,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+        SetProperty(thisValue, "lastIndex", new JsValue(0d));
+
+        var results = new JsArray(Realm, 16);
+        var count = 0;
+        while (regex.TryExecMatchOnly(input, out var match))
+        {
+            results.Push(new JsValue(match.Value));
+            count++;
+
+            if (match.Length == 0)
+            {
+                JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexValue);
+                var thisIndex = ToLengthOrZero(lastIndexValue);
+                var nextIndex = AdvanceStringIndexDouble(input, thisIndex, fullUnicode);
+                SetProperty(thisValue, "lastIndex", new JsValue(nextIndex));
+            }
+        }
+
+        result = count == 0 ? JsValue.Null : JsValue.FromJsArray(results);
+        return true;
+    }
+
+    private bool TryReplaceDefaultNoCapture(
+        JsValue thisValue,
+        JsRegExp regex,
+        string input,
+        string replacement,
+        bool isGlobal,
+        bool fullUnicode,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+        if (replacement.Contains('$', StringComparison.Ordinal) ||
+            regex.Global != isGlobal ||
+            !regex.CanUseMatchOnlyFastPath)
+        {
+            return false;
+        }
+
+        if (isGlobal)
+        {
+            SetProperty(thisValue, "lastIndex", new JsValue(0d));
+        }
+
+        StringBuilder? builder = null;
+        var nextSourcePosition = 0;
+        while (regex.TryExecMatchOnly(input, out var match))
+        {
+            builder ??= new StringBuilder(input.Length + replacement.Length);
+            if (match.Index >= nextSourcePosition)
+            {
+                builder.Append(input.AsSpan(nextSourcePosition, match.Index - nextSourcePosition));
+                builder.Append(replacement);
+                nextSourcePosition = match.Index + match.Length;
+            }
+
+            if (!isGlobal)
+            {
+                break;
+            }
+
+            if (match.Length == 0)
+            {
+                JsOps.TryGetPropertyValue(thisValue, "lastIndex", out var lastIndexValue);
+                var thisIndex = ToLengthOrZero(lastIndexValue);
+                var nextIndex = AdvanceStringIndexDouble(input, thisIndex, fullUnicode);
+                SetProperty(thisValue, "lastIndex", new JsValue(nextIndex));
+            }
+        }
+
+        if (builder is null)
+        {
+            result = new JsValue(input);
+            return true;
+        }
+
+        if (nextSourcePosition < input.Length)
+        {
+            builder.Append(input.AsSpan(nextSourcePosition));
+        }
+
+        result = new JsValue(builder.ToString());
+        return true;
+    }
+
     private bool HasDefaultRegExpExec(JsValue thisValue)
     {
         if (!thisValue.TryGetObject<JsObject>(out var instance) ||
@@ -705,6 +855,81 @@ public sealed partial class RegExpPrototype
 
         _defaultExecPrototypeMutationVersion = regExpPrototype.CurrentMutationVersion;
         return true;
+    }
+
+    private bool TryResolveOrdinaryDefaultRegExp(JsValue thisValue, out JsRegExp regex)
+    {
+        regex = null!;
+        if (!thisValue.TryGetObject<JsObject>(out var instance) ||
+            Realm.RegExpPrototype is not { } regExpPrototype ||
+            !ReferenceEquals(instance.Prototype, regExpPrototype) ||
+            !HasDefaultRegExpFlagAccessors(regExpPrototype) ||
+            !HasDefaultRegExpExec(thisValue))
+        {
+            return false;
+        }
+
+        if (instance.GetOwnPropertyDescriptor("flags") is not null ||
+            instance.GetOwnPropertyDescriptor("hasIndices") is not null ||
+            instance.GetOwnPropertyDescriptor("global") is not null ||
+            instance.GetOwnPropertyDescriptor("ignoreCase") is not null ||
+            instance.GetOwnPropertyDescriptor("multiline") is not null ||
+            instance.GetOwnPropertyDescriptor("dotAll") is not null ||
+            instance.GetOwnPropertyDescriptor("unicode") is not null ||
+            instance.GetOwnPropertyDescriptor("unicodeSets") is not null ||
+            instance.GetOwnPropertyDescriptor("sticky") is not null)
+        {
+            return false;
+        }
+
+        var resolved = ResolveRegExpFromThisValue(thisValue);
+        if (resolved is null || !ReferenceEquals(resolved.JsObject, instance))
+        {
+            return false;
+        }
+
+        regex = resolved;
+        return true;
+    }
+
+    private static void CaptureDefaultGetter(JsObject prototype, string name, ref IJsCallable? getter)
+    {
+        if (getter is null &&
+            prototype.GetOwnPropertyDescriptor(name) is { HasGet: true } descriptor)
+        {
+            getter = descriptor.Get;
+        }
+    }
+
+    private bool HasDefaultRegExpFlagAccessors(JsObject regExpPrototype)
+    {
+        if (regExpPrototype.CurrentMutationVersion == _defaultFlagAccessorsPrototypeMutationVersion)
+        {
+            return true;
+        }
+
+        if (!HasDefaultGetter(regExpPrototype, "flags", _defaultFlagsGetter) ||
+            !HasDefaultGetter(regExpPrototype, "hasIndices", _defaultHasIndicesGetter) ||
+            !HasDefaultGetter(regExpPrototype, "global", _defaultGlobalGetter) ||
+            !HasDefaultGetter(regExpPrototype, "ignoreCase", _defaultIgnoreCaseGetter) ||
+            !HasDefaultGetter(regExpPrototype, "multiline", _defaultMultilineGetter) ||
+            !HasDefaultGetter(regExpPrototype, "dotAll", _defaultDotAllGetter) ||
+            !HasDefaultGetter(regExpPrototype, "unicode", _defaultUnicodeGetter) ||
+            !HasDefaultGetter(regExpPrototype, "unicodeSets", _defaultUnicodeSetsGetter) ||
+            !HasDefaultGetter(regExpPrototype, "sticky", _defaultStickyGetter))
+        {
+            return false;
+        }
+
+        _defaultFlagAccessorsPrototypeMutationVersion = regExpPrototype.CurrentMutationVersion;
+        return true;
+    }
+
+    private static bool HasDefaultGetter(JsObject prototype, string name, IJsCallable? defaultGetter)
+    {
+        return defaultGetter is not null &&
+               prototype.GetOwnPropertyDescriptor(name) is { HasGet: true } descriptor &&
+               ReferenceEquals(descriptor.Get, defaultGetter);
     }
 
     private bool TryReplaceLegacyGlobalNonWhitespacePlus(
@@ -968,6 +1193,16 @@ public sealed partial class RegExpPrototype
     // =====================================================================
     private JsValue RegExpExec(JsValue r, string s)
     {
+        if (HasDefaultRegExpExec(r))
+        {
+            var defaultResolved = ResolveRegExpInstance(r);
+            if (defaultResolved is not null)
+            {
+                var defaultResult = defaultResolved.Exec(s);
+                return defaultResult is null ? JsValue.Null : JsValue.FromObjectUnsafe(defaultResult);
+            }
+        }
+
         // Step 1: Let exec be Get(R, "exec").
         JsOps.TryGetPropertyValue(r, "exec", out var exec);
 

@@ -11,12 +11,15 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Recent profile-driven slices improved hot-path behavior in measurable ways:
   - inline small expression buffers reduced `classdef` profile cost and allocation pressure (`docs/performance/classdef-inline-expression-buffers.md`)
   - numeric binary expression-bytecode fast paths improved `ir-arithmetic` throughput (`docs/performance/ir-arithmetic-binary-fast-path.md`)
+- Recent JSON compact-serialization tuning shows measurable benchmark wins while keeping runtime behavior stable and explicitly documented (`docs/performance/json-compact-serialization.md`).
 - Object-literal static key normalization and backlog tracking are documented with explicit supported/unsupported boundaries (`docs/unsupported-expression-program-backlog-2026-05-21.md`, `docs/expression-bytecode-coverage.md`).
+- Object and dense-array storage policy boundaries are captured as durable ADR constraints that keep follow-up optimization slices runtime-safe (`docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`, `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`).
 - Recent migration reporting keeps runtime/storage boundaries explicit and avoids overclaiming execution-path changes (`docs/expression-bytecode-migration-report-2026-05-23.md`).
 - Activation-slot ownership and observable arguments binding seams are now documented as plan-owned/runtime-consumed boundaries (`docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`, `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`).
 - Activation-focused quality guardrails are now explicit: dedicated profile entries and focused activation proof-pack coverage exist to keep optimization work evidence-first (`tools/profile-manifest.json`, `.claude/rules/function-activation-proof-pack.md`, `.claude/rules/performance-profiling-guardrails.md`).
 - Function-call activation overhead closeout evidence is now captured with focused semantics, Test262 activation-adjacent coverage, profiler output, and canonical quality-gate results (`docs/function-call-activation-overhead-final-report-2026-05-23.md`).
 - Typed argument-carrier ownership boundaries are now explicitly durable in ADR form, keeping optimization scope narrow and evidence-linked (`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`).
+- Constant-folding and expression simplification follow-up work remains constrained by existing storage and activation ADR boundaries plus the linked performance evidence in this roadmap.
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -31,16 +34,17 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 ## Short-Term Goals
 1. Burn down unsupported statement instruction families identified by current storage diagnostics.
 2. Keep expression-bytecode coverage maps and failure buckets in sync with compiler behavior and representative tests.
-3. Extend proven expression-bytecode optimization slices (inline expression buffers, numeric binary fast paths, and static object-key normalization) using profile and coverage evidence as the acceptance gate.
-4. Track activation/eval-sensitive changes with narrow, repeatable proof packs before broadening to larger sweeps.
-5. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
-6. Keep function-call activation slices aligned to ADR 0101 ownership boundaries and report-backed proof signals before broad runtime rewrites.
-7. Preserve runtime truth boundaries while improving compact storage readiness (no premature claim that compact storage is the runtime contract).
+3. Continue JsValue/object-overload hot-path cleanup in targeted slices, proving each step with profile and allocation evidence before widening.
+4. Extend proven expression-bytecode optimization slices (inline expression buffers, numeric binary fast paths, static object-key normalization, and JSON serialization follow-through) using profile and coverage evidence as the acceptance gate.
+5. Track activation/eval-sensitive changes with narrow, repeatable proof packs before broadening to larger sweeps.
+6. Keep activation profile loops current for each optimization slice so allocation and hot-path movement are measured rather than inferred.
+7. Keep function-call activation slices aligned to ADR 0101 ownership boundaries and report-backed proof signals before broad runtime rewrites.
+8. Preserve runtime truth boundaries while improving compact storage readiness and honoring object/array storage ADR constraints (no premature claim that compact storage is the runtime contract).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
 2. Reach Node.js-competitive runtime behavior and developer ergonomics on .NET, including module/runtime compatibility and predictable host integration seams.
-3. Improve performance tracking discipline (CPU/allocation benchmarks and profile trends) so speed/memory work remains evidence-driven over time.
+3. Keep benchmark breadth and profiling discipline (CPU/allocation trends across representative scenarios) so speed/memory work remains evidence-driven over time.
 4. Land compact statement-bytecode execution paths only when unsupported-family and parity evidence show safe readiness.
 
 ## Evidence Surfaces
@@ -49,7 +53,11 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Recent expression-bytecode optimization evidence:
   - `docs/performance/classdef-inline-expression-buffers.md`
   - `docs/performance/ir-arithmetic-binary-fast-path.md`
+  - `docs/performance/json-compact-serialization.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
+- Storage/semantics guardrail ADRs for hot-path follow-through:
+  - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
+  - `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

@@ -104,9 +104,14 @@ internal static class JsValueExtensions
                 case IJsPropertyAccessor accessor:
                     {
                         var primitive = JsOps.ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
-                        if (primitive.TryGetObject<IJsPropertyAccessor>(out _))
+                        if (context?.IsThrow == true)
                         {
-                            return "[object Object]";
+                            throw new ThrowSignal(context.FlowValue);
+                        }
+
+                        if (primitive.Kind == JsValueKind.Object)
+                        {
+                            throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context, realmState);
                         }
 
                         value = primitive;

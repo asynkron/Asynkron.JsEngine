@@ -677,6 +677,37 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Function_StrictFibonacci_RecursiveSelfCall()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function fib(n) {
+                if (n <= 1) return n;
+                return fib(n - 1) + fib(n - 2);
+            }
+            fib(10);
+        ");
+        Assert.Equal(55d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictSelfNameShadowedByParameter_DoesNotForceRecursiveTarget()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function f(f, n) {
+                if (n <= 0) return 1;
+                return f(n);
+            }
+            function g(x) { return x + 1; }
+            f(g, 2);
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
     public async Task Function_Closure()
     {
         await using var engine = CreateEngine();

@@ -16,7 +16,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    public sealed class SyncFunctionInvoker : IJsEnvironmentAwareCallable, IJsObjectLike,
+    public sealed partial class SyncFunctionInvoker : IJsEnvironmentAwareCallable, IJsObjectLike,
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
         IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
     {
@@ -70,6 +70,8 @@ public static partial class TypedAstEvaluator
         // Updated when setters are called that could invalidate fast path
         private bool _canUseFastPathBase;
         private bool _canUseSimpleIrActivationFastBase;
+        private ExecutionPlan? _syncIrTrampolineEligibilityPlan;
+        private byte _syncIrTrampolineEligibility;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
@@ -1741,6 +1743,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         arguments.Count);
 
                     result = EvaluateSimpleReturnParameterBinary(arguments, parameterBinary, context);
+                    return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+                }
+
+                if (SyncIrCallTrampoline.TryInvoke(
+                        this,
+                        arguments,
+                        thisValue,
+                        context,
+                        newTarget,
+                        plan,
+                        out result))
+                {
                     return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
                 }
 

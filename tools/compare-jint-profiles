@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_root=$(cd "$script_dir/.." && pwd)
+runner_project="$script_dir/ProfileRunner/ProfileRunner.csproj"
+runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
+runner_exe="$runner_bin/ProfileRunner"
+runner_dll="$runner_bin/ProfileRunner.dll"
+build_runner=true
+run_async_smoke=false
+async_smoke_only=false
+runner_cmd=()
+
+smoke_profiles=(
+  fib
+  forloop
+  ir-arithmetic
+  functioncalls
+  functioncalls-lite
+)
+
+default_profiles=(
+  fib
+  forloop
+  whileloop
+  ir-arithmetic
+  objectcreation
+  arrayops
+  stringops
+  propertyaccess
+  classdef
+  destructuring
+  spread
+  mapset
+  json
+  regex
+  promise
+  forofiteration
+  functioncalls
+  functioncalls-lite
+)
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./tools/compare-jint-profiles [--no-build] [--smoke] [--async-smoke|--async-smoke-only] [profile...]
+
+Runs the ProfileRunner timing scripts against Asynkron and Jint and prints one
+repeatable comparison table.
+
+Smoke profiles:
+  fib forloop ir-arithmetic functioncalls functioncalls-lite
+
+Default profiles:
+  fib forloop whileloop ir-arithmetic objectcreation arrayops stringops
+  propertyaccess classdef destructuring spread mapset json regex promise
+  forofiteration functioncalls functioncalls-lite
+
+This is not BenchmarkDotNet and does not run ./tools/profile --compare.
+It intentionally avoids async/generator profiles in the timing table.
+
+Use --async-smoke-only to run tiny Jint async/await probes separately. This
+checks syntax/runtime behavior, not throughput.
+USAGE
+}
+
+profiles=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --no-build)
+      build_runner=false
+      shift
+      ;;
+    --smoke)
+      profiles=("${smoke_profiles[@]}")
+      shift
+      ;;
+    --async-smoke)
+      run_async_smoke=true
+      shift
+      ;;
+    --async-smoke-only)
+      run_async_smoke=true
+      async_smoke_only=true
+      profiles=()
+      shift
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      profiles+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ${#profiles[@]} -eq 0 && "$async_smoke_only" == false ]]; then
+  profiles=("${default_profiles[@]}")
+fi
+
+if [[ "$build_runner" == true ]]; then
+  dotnet build "$runner_project" -c Release -v q --nologo >/dev/null
+fi
+
+if [[ -x "$runner_exe" ]]; then
+  runner_cmd=("$runner_exe")
+else
+  runner_cmd=(dotnet "$runner_dll")
+fi
+
+if [[ ! -x "$runner_exe" && ! -f "$runner_dll" ]]; then
+  echo "ProfileRunner was not found. Build it first or omit --no-build." >&2
+  exit 1
+fi
+
+profile_needs_iife_wrap() {
+  case "$1" in
+    simplearithmetic|whileloop|objectcreation|arrayops|stringops|propertyaccess|classdef|destructuring|spread|mapset|json|regex|promise|recursion|closures)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+run_engine() {
+  local engine=$1
+  local profile=$2
+  local out status line ms
+  local args=("--$engine" "--force-timing")
+
+  if profile_needs_iife_wrap "$profile"; then
+    args+=("--wrap-iife")
+  fi
+
+  set +e
+  out=$("${runner_cmd[@]}" "${args[@]}" "$profile" 2>&1)
+  status=$?
+  set -e
+
+  line=$(printf '%s\n' "$out" | awk '/Done in/ {line=$0} END {if (line) print line}')
+  if [[ $status -ne 0 || -z "$line" ]]; then
+    printf 'ERR'
+    printf '\n%s %s failed:\n%s\n' "$engine" "$profile" "$out" >&2
+    return 1
+  fi
+
+  ms=$(printf '%s\n' "$line" | sed -n 's/.*Done in \([0-9][0-9]*\)ms.*/\1/p')
+  if [[ -z "$ms" ]]; then
+    printf 'ERR'
+    printf '\nCould not parse timing for %s %s:\n%s\n' "$engine" "$profile" "$line" >&2
+    return 1
+  fi
+
+  printf '%s' "$ms"
+}
+
+failed=false
+if [[ ${#profiles[@]} -gt 0 ]]; then
+  printf 'profile\tasynkron_ms\tjint_ms\tdelta\n'
+
+  for profile in "${profiles[@]}"; do
+    a_ms=$(run_engine asynkron "$profile") || failed=true
+    j_ms=$(run_engine jint "$profile") || failed=true
+
+    if [[ "$a_ms" =~ ^[0-9]+$ && "$j_ms" =~ ^[0-9]+$ && "$a_ms" -gt 0 && "$j_ms" -gt 0 ]]; then
+      delta=$(awk -v a="$a_ms" -v j="$j_ms" 'BEGIN {
+        if (a < j) {
+          printf "Asynkron %.2fx faster", j / a
+        } else if (j < a) {
+          printf "Jint %.2fx faster", a / j
+        } else {
+          printf "tie"
+        }
+      }')
+    else
+      delta='n/a'
+    fi
+
+    printf '%s\t%s\t%s\t%s\n' "$profile" "$a_ms" "$j_ms" "$delta"
+  done
+fi
+
+if [[ "$run_async_smoke" == true ]]; then
+  if [[ ${#profiles[@]} -gt 0 ]]; then
+    printf '\n'
+  fi
+  printf 'Jint async smoke:\n'
+  "${runner_cmd[@]}" jint-async-smoke
+fi
+
+if [[ "$failed" == true ]]; then
+  exit 1
+fi

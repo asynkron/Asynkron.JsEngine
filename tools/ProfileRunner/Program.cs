@@ -14,9 +14,13 @@ using Microsoft.Extensions.Logging;
 #pragma warning disable MA0048 // File name matches project entry point, not nested types.
 
 const string listCommand = "list";
+const string jintAsyncSmokeCommand = "jint-async-smoke";
 var engineKind = EngineKind.Asynkron;
 var reportExpressionProgramStorage = false;
 var reportStatementInstructionStorage = false;
+var forceTiming = false;
+var forceFreshEnginePerIteration = false;
+var wrapInFunction = false;
 var positionalArgs = new List<string>();
 
 for (var i = 0; i < args.Length; i++)
@@ -76,6 +80,24 @@ for (var i = 0; i < args.Length; i++)
         continue;
     }
 
+    if (string.Equals(arg, "--force-timing", StringComparison.OrdinalIgnoreCase))
+    {
+        forceTiming = true;
+        continue;
+    }
+
+    if (string.Equals(arg, "--fresh-engine-per-iteration", StringComparison.OrdinalIgnoreCase))
+    {
+        forceFreshEnginePerIteration = true;
+        continue;
+    }
+
+    if (string.Equals(arg, "--wrap-iife", StringComparison.OrdinalIgnoreCase))
+    {
+        wrapInFunction = true;
+        continue;
+    }
+
     positionalArgs.Add(arg);
 }
 
@@ -97,11 +119,27 @@ if (string.Equals(profileKey, "bytecode", StringComparison.OrdinalIgnoreCase))
     return;
 }
 
+if (string.Equals(profileKey, jintAsyncSmokeCommand, StringComparison.OrdinalIgnoreCase))
+{
+    RunJintAsyncSmoke();
+    return;
+}
+
 if (!manifest.Profiles.TryGetValue(profileKey, out var profile))
 {
     Console.Error.WriteLine($"Unknown profile: {profileKey}");
     Console.Error.WriteLine("Use 'list' to see available profiles.");
     return;
+}
+
+if (forceTiming)
+{
+    profile.ShowTiming = true;
+}
+
+if (forceFreshEnginePerIteration)
+{
+    profile.FreshEnginePerIteration = true;
 }
 
 var scriptPath = Path.Combine(Path.GetDirectoryName(manifestPath)!, manifest.ScriptsDir, profile.Script);
@@ -112,6 +150,11 @@ if (!File.Exists(scriptPath))
 }
 
 var script = File.ReadAllText(scriptPath);
+if (wrapInFunction)
+{
+    script = string.Concat("(function(){\n", script, "\n})();");
+}
+
 var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
 var iterations = profile.Iterations > 0 ? profile.Iterations : 1;
 
@@ -336,6 +379,81 @@ void RunBytecodeProfile()
     }
 
     Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Bytecode checksum: {checksum:F2}"));
+}
+
+void RunJintAsyncSmoke()
+{
+    var cases = new (string Name, string Source)[]
+    {
+        ("no-await", """
+            async function f() { return 42; }
+            f();
+            """),
+        ("single-await", """
+            let finalResult = 0;
+            async function getValue() { return 42; }
+            async function run() {
+                finalResult = await getValue();
+                return finalResult;
+            }
+            run();
+            finalResult;
+            """),
+        ("promise-resolve", """
+            let finalResult = 0;
+            (async function() {
+                finalResult = await Promise.resolve(42);
+            })();
+            finalResult;
+            """),
+        ("await-loop-10", CreateJintAwaitLoopSource(10)),
+        ("await-loop-100", CreateJintAwaitLoopSource(100)),
+        ("await-loop-1000", CreateJintAwaitLoopSource(1000)),
+    };
+
+    Console.WriteLine("case\telapsed_ms\tresult_type\tresult");
+    foreach (var profileCase in cases)
+    {
+        using var engine = new Engine(options => options.TimeoutInterval(TimeSpan.FromSeconds(5)));
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var result = engine.Evaluate(profileCase.Source).ToObject();
+            sw.Stop();
+            var resultText = result?.ToString() ?? "<null>";
+            var resultType = result?.GetType().Name ?? "<null>";
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{profileCase.Name}\t{sw.ElapsedMilliseconds}\t{resultType}\t{resultText}"));
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"{profileCase.Name}\t{sw.ElapsedMilliseconds}\tERROR\t{ex.GetType().Name}: {ex.Message}"));
+        }
+    }
+}
+
+static string CreateJintAwaitLoopSource(int iterations)
+{
+    return string.Create(
+        CultureInfo.InvariantCulture,
+        $$"""
+        let finalResult = 0;
+        async function asyncAdd(a, b) {
+            return a + b;
+        }
+        (async function() {
+            let result = 0;
+            for (let i = 0; i < {{iterations}}; i++) {
+                result = await asyncAdd(result, i);
+            }
+            finalResult = result;
+        })();
+        finalResult;
+        """);
 }
 
 double RunBytecodeCase(
@@ -738,9 +856,9 @@ sealed class ProfileDefinition
 
     public bool ShowProgress { get; init; }
 
-    public bool ShowTiming { get; init; }
+    public bool ShowTiming { get; set; }
 
-    public bool FreshEnginePerIteration { get; init; }
+    public bool FreshEnginePerIteration { get; set; }
 
     public string? Header { get; init; }
 

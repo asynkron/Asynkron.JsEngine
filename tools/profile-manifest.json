@@ -322,10 +322,10 @@
       "description": "Regular for...of iteration",
       "script": "forofiteration.js",
       "mode": "sync",
-      "iterations": 20,
+      "iterations": 2000,
       "warmup": 1,
-      "show_progress": true,
-      "show_timing": false
+      "show_progress": false,
+      "show_timing": true
     }
   }
 }

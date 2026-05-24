@@ -20,6 +20,7 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)
+- Quick ProfileRunner/Jint timing matrix: run `./tools/compare-jint-profiles` for the common sync JS profile set, or `./tools/compare-jint-profiles --smoke` for only `fib`, `forloop`, `ir-arithmetic`, `functioncalls`, and `functioncalls-lite`. Use `./tools/compare-jint-profiles --async-smoke-only` to isolate tiny Jint async/await behavior. Do not use `./tools/profile --compare` for this matrix; it runs the separate BenchmarkDotNet Jint comparison suite.
 
 ## Debugging & Test Strategies
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)

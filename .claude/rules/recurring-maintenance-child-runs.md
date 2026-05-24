@@ -41,6 +41,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- When a docs slice mirrors a command inventory already maintained in another
+  repo document, compare both surfaces plus the backing filesystem inventory
+  before editing. Update only the stale surface and keep the peer document as
+  evidence instead of reworking every matching section.
 - When a docs slice fixes links or status pointers to deleted files, use the
   missing target plus the current live evidence path as the baseline/final
   signal pair. Prefer redirecting readers to maintained source files over
@@ -286,6 +290,15 @@ by `rtk dotnet run`, which made the snippet depend on shell state instead of
 being a direct runnable command. Future README/demo command slices should prefer
 `rtk dotnet run --project examples/<Demo>` when the example can be expressed as
 one stable invocation.
+
+Issue #1729 / PR #1733 found the follow-up drift in the agent build/test
+playbook: the README already listed the maintained runnable demo set
+(`Demo`, `PromiseDemo`, `EventQueueDemo`, `NpmPackageDemo`, `NodeHostDemo`),
+and `examples/` contained the backing projects, but
+`agents/how-to-build-and-test.md` still omitted `EventQueueDemo` and
+`NodeHostDemo`. Future mirrored demo-inventory slices should compare the peer
+doc and filesystem together, then update only the stale playbook/list rather
+than widening into demo behavior or unrelated example docs.
 
 Issue `autrun-dir1l0mv6bm8-42faac3141` / PR #1703 fixed a roadmap maintenance
 slice that cited a non-existent

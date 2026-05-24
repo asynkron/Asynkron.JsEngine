@@ -315,6 +315,45 @@ public sealed class SetTests(ITestOutputHelper output) : InternalTestBase(output
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Set_Treats_Positive_And_Negative_Zero_As_Same_Value()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   let mySet = new Set();
+                                                   mySet.add(+0);
+                                                   mySet.add(-0);
+                                                   mySet.size === 1 && mySet.has(-0) && mySet.has(+0);
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Set_Handles_Null_And_Undefined_With_JsValue_Storage()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   let mySet = new Set();
+                                                   mySet.add(null);
+                                                   mySet.add(undefined);
+                                                   mySet.add(null);
+                                                   mySet.add(undefined);
+
+                                                   let sizeAfterAdds = mySet.size;
+                                                   let hasBoth = mySet.has(null) && mySet.has(undefined);
+                                                   let deletedNull = mySet.delete(null);
+                                                   let deletedUndefined = mySet.delete(undefined);
+                                                   let emptyAfterDeletes = mySet.size === 0;
+
+                                                   sizeAfterAdds === 2 && hasBoth && deletedNull && deletedUndefined && emptyAfterDeletes;
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Set_Typeof_Returns_Object()
     {
         await using var engine = CreateEngine();

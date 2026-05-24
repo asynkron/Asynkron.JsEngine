@@ -49,23 +49,22 @@ CreateNextIterationEnvironment
 
 ### BenchmarkDotNet quick start
 ```bash
-cd benchmarks/Asynkron.JsEngine.Benchmarks
-dotnet run -c Release -- --filter "*Fibonacci*"
+rtk dotnet run -c Release --project benchmarks/Asynkron.JsEngine.Benchmarks -- --filter "*Fibonacci*"
 ```
 
 ### Detailed allocation trace
 ```bash
-dotnet-trace collect \
+rtk dotnet-trace collect \
   --profile gc-verbose \
   --format NetTrace \
   -o trace.nettrace \
-  -- dotnet run -c Release \
+  -- rtk dotnet run -c Release \
      --project benchmarks/Asynkron.JsEngine.Benchmarks \
      --filter "JintComparisonBenchmarks.Asynkron_ForLoop"
 
-dotnet-trace report trace.nettrace topN -n 30
+rtk dotnet-trace report trace.nettrace topN -n 30
 # or
-dotnet-trace convert trace.nettrace --format Speedscope
+rtk dotnet-trace convert trace.nettrace --format Speedscope
 ```
 See `docs/memory-profiling.md` for deeper guidance.
 

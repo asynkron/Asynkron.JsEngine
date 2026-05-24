@@ -34,8 +34,27 @@ public static partial class TypedAstEvaluator
             AssertFlatSlotMappings(scopeId, mappings, environment);
             foreach (var (slotIndex, flatSlotId) in mappings)
             {
-                _flatSlots[flatSlotId] = new JsVariable(environment, slotIndex);
+                _flatSlots[flatSlotId] = CreateFlatSlotVariable(scopeId, environment, slotIndex);
             }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private JsVariable CreateFlatSlotVariable(int scopeId, JsEnvironment environment, int slotIndex)
+        {
+            if (_isScriptMode &&
+                _plan is { } plan &&
+                scopeId == plan.RootScopeId &&
+                (uint)slotIndex < (uint)plan.SlotSymbols.Length)
+            {
+                var symbol = plan.SlotSymbols[slotIndex];
+                var existingSlotIndex = environment.FindSlotIndex(symbol);
+                if (existingSlotIndex >= 0)
+                {
+                    return new JsVariable(environment, existingSlotIndex);
+                }
+            }
+
+            return CreateSlotVariable(environment, slotIndex);
         }
 
         [Conditional("DEBUG")]

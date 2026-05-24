@@ -4501,6 +4501,28 @@ public sealed class JsEnvironment : IRentable
         }
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal void WriteSlotDirect(int slotIndex, JsValue value)
+    {
+        AssertSlotIndexValid(slotIndex, nameof(WriteSlotDirect));
+        ref var slot = ref _slots![slotIndex];
+        slot.Value = value;
+        // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
+        slot.Flags &= ~SlotFlags.Uninitialized;
+        if (slot.Name is { } name)
+        {
+            if (IsGlobalFunctionScope && !slot.IsLexical)
+            {
+                SetGlobalObjectProperty(GetRootGlobalObject(), name, value);
+            }
+
+            if (_bindingObservers is not null)
+            {
+                NotifyBindingObservers(name, value);
+            }
+        }
+    }
+
     /// <summary>
     /// Resolves an identifier to its target environment and slot index.
     /// Returns true if the identifier can be accessed via slots, false if dictionary fallback is needed.

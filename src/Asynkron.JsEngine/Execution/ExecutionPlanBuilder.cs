@@ -155,10 +155,10 @@ internal sealed partial class ExecutionPlanBuilder
 
         // After building all instructions, assign slots to user variables and update AST nodes.
         //
-        // NOTE: For scripts (IsScriptLevel=true), we do NOT assign slots to user variables because:
-        // 1. Script hoisting already created dictionary-based bindings for var/let/const declarations
-        // 2. Scripts may contain 'with' statements that require dynamic identifier resolution
-        // 3. Slot-based lookup would bypass the with-scope, breaking 'with' semantics
+        // NOTE: For scripts, slot assignment is only enabled for a narrow numeric-loop fast path.
+        // Script hoisting has already created bindings on the global environment; root flat slots
+        // must bind back to those hoisted slots by name. Dynamic, lexical-TDZ, object/property/call,
+        // function/class, and iterator shapes keep the old dictionary/global-object path.
         //
         // NOTE: For functions that contain dynamic scope features (with/direct eval), we also skip slot assignment
         // because:
@@ -167,7 +167,8 @@ internal sealed partial class ExecutionPlanBuilder
         // These functions run via dictionary lookups (AllowIdentifierCache=false).
         ScopeSlotAnalysis? analysis = null;
         SlotAssignmentRewriter? rewriter = null;
-        if (!IsScriptLevel && TypedAstEvaluator.AllowsIdentifierCaching(function))
+        if (TypedAstEvaluator.AllowsIdentifierCaching(function) &&
+            (!IsScriptLevel || CanUseScriptRootSlotFastPath(function)))
         {
             analysis = AssignSlotsToUserVariables(entryIndex, function, _rootScopeId, analysisRootScopeId,
                 out rewriter);
@@ -216,6 +217,102 @@ internal sealed partial class ExecutionPlanBuilder
             flatSlotMappings,
             activationSlots);
         return true;
+    }
+
+    private bool CanUseScriptRootSlotFastPath(FunctionExpression function)
+    {
+        if (DynamicScopeDetector.ContainsWithOrDirectEval(function.Body))
+        {
+            return false;
+        }
+
+        var sawBranch = false;
+        var sawIncrement = false;
+        foreach (var instruction in Instructions)
+        {
+            if (!CanUseScriptRootSlotFastPath(instruction))
+            {
+                return false;
+            }
+
+            sawBranch |= instruction is BranchInstruction;
+            sawIncrement |= instruction is IncrementSlotInstruction;
+        }
+
+        return sawBranch && sawIncrement;
+    }
+
+    private static bool CanUseScriptRootSlotFastPath(ExecutionInstruction instruction)
+    {
+        return instruction switch
+        {
+            EvaluateAndDiscardInstruction evaluate =>
+                CanUseScriptRootSlotFastPath(evaluate.ExpressionProgram),
+
+            SimpleVariableDeclarationInstruction { VarKind: VariableKind.Var } declaration =>
+                declaration.AwaitedProgram is null &&
+                (declaration.InitializerProgram is null ||
+                 CanUseScriptRootSlotFastPath(declaration.InitializerProgram.Value)),
+
+            AssignmentSlotInstruction assignment =>
+                assignment.AwaitedProgram is null &&
+                assignment.ValueProgram is { } valueProgram &&
+                CanUseScriptRootSlotFastPath(valueProgram),
+
+            CompoundAssignmentSlotInstruction compoundAssignment =>
+                compoundAssignment.AwaitedProgram is null &&
+                compoundAssignment.RhsProgram is { } rhsProgram &&
+                CanUseScriptRootSlotFastPath(rhsProgram),
+
+            IncrementSlotInstruction => true,
+
+            BranchInstruction branch =>
+                CanUseScriptRootSlotFastPath(branch.ConditionProgram),
+
+            JumpInstruction => true,
+            ReturnInstruction { ReturnProgram: null, AwaitedProgram: null } => true,
+            SetCompletionValueInstruction => true,
+            BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue } => true,
+            BreakableExitInstruction => true,
+
+            _ => false
+        };
+    }
+
+    private static bool CanUseScriptRootSlotFastPath(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (!CanUseScriptRootSlotFastPath(operation.Kind))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool CanUseScriptRootSlotFastPath(ExpressionOpKind kind)
+    {
+        return kind is
+            ExpressionOpKind.LoadLiteral or
+            ExpressionOpKind.LoadIdentifier or
+            ExpressionOpKind.StoreIdentifier or
+            ExpressionOpKind.UpdateIdentifier or
+            ExpressionOpKind.TypeOf or
+            ExpressionOpKind.TypeOfIdentifier or
+            ExpressionOpKind.UnaryPlus or
+            ExpressionOpKind.UnaryMinus or
+            ExpressionOpKind.UnaryBitwiseNot or
+            ExpressionOpKind.UnaryVoid or
+            ExpressionOpKind.UnaryLogicalNot or
+            ExpressionOpKind.Binary or
+            ExpressionOpKind.DuplicateTop or
+            ExpressionOpKind.SwapTopTwo or
+            ExpressionOpKind.Pop or
+            ExpressionOpKind.Jump or
+            ExpressionOpKind.JumpIfTrue or
+            ExpressionOpKind.JumpIfFalse;
     }
 
     private static ActivationSlotShape BuildActivationSlotShape(

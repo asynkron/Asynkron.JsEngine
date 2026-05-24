@@ -326,6 +326,7 @@ public static partial class TypedAstEvaluator
                                     identifier.Name,
                                     identifier.ScopeId,
                                     identifier.SlotIndex,
+                                    identifier.FlatSlotId,
                                     operation.IsArguments,
                                     environment,
                                     context);
@@ -1365,6 +1366,7 @@ public static partial class TypedAstEvaluator
             Symbol name,
             int scopeId,
             int slotIndex,
+            int flatSlotId,
             bool isArguments,
             JsEnvironment environment,
             EvaluationContext context)
@@ -1381,6 +1383,14 @@ public static partial class TypedAstEvaluator
                 return environment.TryGetIdentifierJsValue(name, context, out var resolvedValue)
                     ? resolvedValue
                     : HandleIdentifierNotFound(name, context);
+            }
+
+            if (_isScriptMode &&
+                _flatSlots is not null &&
+                (uint)flatSlotId < (uint)_flatSlots.Length &&
+                _flatSlots[flatSlotId].IsValid)
+            {
+                return _flatSlots[flatSlotId].Read();
             }
 
             if (scopeId >= 0 && slotIndex >= 0)
@@ -1524,6 +1534,7 @@ public static partial class TypedAstEvaluator
                 identifier.Name,
                 identifier.ScopeId,
                 identifier.SlotIndex,
+                identifier.FlatSlotId,
                 update.IsArguments,
                 environment,
                 context);
@@ -1719,6 +1730,7 @@ public static partial class TypedAstEvaluator
                 operand.Name,
                 operand.ScopeId,
                 operand.SlotIndex,
+                operand.FlatSlotId,
                 identifier.IsArguments,
                 environment,
                 context);
@@ -2961,6 +2973,14 @@ public static partial class TypedAstEvaluator
                 return environment.TryGetIdentifierJsValue(identifier.Name, context, out var resolvedValue)
                     ? resolvedValue
                     : HandleIdentifierNotFound(identifier.Name, context);
+            }
+
+            if (_isScriptMode &&
+                _flatSlots is not null &&
+                (uint)identifier.FlatSlotId < (uint)_flatSlots.Length &&
+                _flatSlots[identifier.FlatSlotId].IsValid)
+            {
+                return _flatSlots[identifier.FlatSlotId].Read();
             }
 
             if (environment.TryReadIdentifierWithSlot(identifier, context, out var slotValue))

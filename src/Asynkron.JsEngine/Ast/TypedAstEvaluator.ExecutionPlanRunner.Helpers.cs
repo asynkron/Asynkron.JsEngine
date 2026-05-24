@@ -1915,14 +1915,7 @@ public static partial class TypedAstEvaluator
                 ApplyObjectLiteralAnonymousFunctionName(propertyValue, propertyName);
             }
 
-            targetObject.DefineProperty(propertyName,
-                new PropertyDescriptor
-                {
-                    JsValue = propertyValue,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
-                });
+            targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
         }
 
         private static void DefineComputedObjectLiteralProperty(
@@ -1943,14 +1936,7 @@ public static partial class TypedAstEvaluator
                 ApplyObjectLiteralAnonymousFunctionName(propertyValue, propertyName);
             }
 
-            targetObject.DefineProperty(propertyName,
-                new PropertyDescriptor
-                {
-                    JsValue = propertyValue,
-                    Writable = true,
-                    Enumerable = true,
-                    Configurable = true
-                });
+            targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
         }
 
         private static void DefineObjectLiteralMethod(

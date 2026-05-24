@@ -33,6 +33,12 @@ path that can evaluate the assignment.
 7. Compute assignment-reference strictness from the full active context:
    environment strictness, current scope strictness, and strict source context.
    Do not derive it only from the current scope frame.
+8. Only rewrite `x = x <op> rhs` into a compound-slot instruction after static
+   slot resolution proves the RHS `x` and assignment target are the same
+   binding. Emitter-time shortcuts must require already-stamped slot metadata;
+   otherwise let `SlotAssignmentRewriter` decide after scope analysis. Dynamic
+   lookup and no-cache paths, especially `with`, must keep generic assignment
+   reference semantics.
 
 ## Why
 
@@ -54,3 +60,11 @@ path resolved the LHS too late, so RHS side effects could create a global
 property before the final write decided whether the original LHS was
 unresolvable. The same repair confirmed that captured references must carry
 strictness from environment/source context, not only the current scope frame.
+
+Issue `autrun-dir08v6q4vag-367d2e753a` / PR #1701 optimized
+self-referential arithmetic assignment lowering for the `ir-arithmetic`
+profile, then review exposed that an emitter-only shape match could bypass
+dynamic assignment lookup. The durable constraint is that assignment
+optimizations are binding optimizations, not just syntax optimizations: the
+rewrite is valid only after slot metadata proves both identifier references are
+the same static slot.

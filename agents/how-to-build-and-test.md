@@ -161,7 +161,9 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
 ```bash
 rtk dotnet run --project examples/Demo
 rtk dotnet run --project examples/PromiseDemo
+rtk dotnet run --project examples/EventQueueDemo
 rtk dotnet run --project examples/NpmPackageDemo
+rtk dotnet run --project examples/NodeHostDemo
 ```
 
 ## Test262 regression session

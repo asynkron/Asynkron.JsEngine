@@ -13,6 +13,7 @@ namespace Asynkron.JsEngine.JsTypes;
 internal sealed class SameValueZeroComparer : IEqualityComparer<object>
 {
     public static readonly SameValueZeroComparer Instance = new();
+    public static readonly JsValueSameValueZeroComparer JsValueInstance = new();
 
     private SameValueZeroComparer()
     {
@@ -62,5 +63,69 @@ internal sealed class SameValueZeroComparer : IEqualityComparer<object>
         }
 
         return obj.GetHashCode();
+    }
+
+    internal sealed class JsValueSameValueZeroComparer : IEqualityComparer<JsValue>
+    {
+        public bool Equals(JsValue x, JsValue y)
+        {
+            if (x.Kind != y.Kind)
+            {
+                return false;
+            }
+
+            return x.Kind switch
+            {
+                JsValueKind.Undefined => true,
+                JsValueKind.Null => true,
+                JsValueKind.Number => EqualNumbers(x.NumberValue, y.NumberValue),
+                JsValueKind.String => string.Equals(x.AsString(), y.AsString(), StringComparison.Ordinal),
+                JsValueKind.Symbol or JsValueKind.Object => ReferenceEquals(x.ObjectValue, y.ObjectValue),
+                _ => x.Equals(y)
+            };
+        }
+
+        public int GetHashCode(JsValue obj)
+        {
+            return obj.Kind switch
+            {
+                JsValueKind.Undefined => 0,
+                JsValueKind.Null => 1,
+                JsValueKind.Number => GetNumberHashCode(obj.NumberValue),
+                JsValueKind.String => obj.AsString().GetHashCode(StringComparison.Ordinal),
+                JsValueKind.Symbol or JsValueKind.Object => obj.ObjectValue?.GetHashCode() ?? 0,
+                _ => obj.GetHashCode()
+            };
+        }
+
+        private static bool EqualNumbers(double x, double y)
+        {
+            if (double.IsNaN(x) && double.IsNaN(y))
+            {
+                return true;
+            }
+
+            if (x == 0.0 && y == 0.0)
+            {
+                return true;
+            }
+
+            return x.Equals(y);
+        }
+
+        private static int GetNumberHashCode(double number)
+        {
+            if (double.IsNaN(number))
+            {
+                return 0;
+            }
+
+            if (number == 0.0)
+            {
+                return 1;
+            }
+
+            return number.GetHashCode();
+        }
     }
 }

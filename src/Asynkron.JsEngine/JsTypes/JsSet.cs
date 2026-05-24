@@ -14,12 +14,12 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     IAsJsValue
 {
     // Use List to maintain insertion order for iteration
-    private readonly List<object?> _insertionOrder = [];
+    private readonly List<JsValue> _insertionOrder = [];
 
     private readonly JsObject _properties = new();
 
     // Use HashSet for O(1) lookups
-    private readonly HashSet<object> _set = new(SameValueZeroComparer.Instance);
+    private readonly HashSet<JsValue> _set = new(SameValueZeroComparer.JsValueInstance);
 
     // Cached JsValue to avoid repeated struct creation
     // ReSharper disable once ReplaceWithFieldKeyword
@@ -30,10 +30,6 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
     }
 
-    // Track null/undefined separately (can't be HashSet members with our comparer)
-    private bool _hasNull;
-    private bool _hasUndefined;
-
     /// <summary>
     ///     Indicates whether this Set is "plain" - i.e., has no custom properties,
     ///     no modified prototype, and can use fast-path optimizations.
@@ -43,7 +39,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Gets the number of values in the Set.
     /// </summary>
-    public int Size => _set.Count + (_hasNull ? 1 : 0) + (_hasUndefined ? 1 : 0);
+    public int Size => _set.Count;
 
     internal int ValueCount => _insertionOrder.Count;
 
@@ -130,7 +126,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
     internal JsValue GetValue(int index)
     {
-        return JsValue.FromObjectUnsafe(_insertionOrder[index]);
+        return _insertionOrder[index];
     }
 
     /// <summary>
@@ -139,39 +135,9 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsSet Add(JsValue jsValue)
     {
-        // Handle null
-        if (jsValue.IsNull)
+        if (_set.Add(jsValue))
         {
-            if (_hasNull)
-            {
-                return this;
-            }
-
-            _hasNull = true;
-            _insertionOrder.Add(null);
-
-            return this;
-        }
-
-        // Handle undefined
-        if (jsValue.IsUndefined)
-        {
-            if (_hasUndefined)
-            {
-                return this;
-            }
-
-            _hasUndefined = true;
-            _insertionOrder.Add(Symbol.Undefined);
-
-            return this;
-        }
-
-        // Regular value - convert to object for HashSet storage
-        var value = JsValueExtractor.Extract(jsValue);
-        if (_set.Add(value))
-        {
-            _insertionOrder.Add(value);
+            _insertionOrder.Add(jsValue);
         }
 
         return this;
@@ -182,21 +148,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Has(JsValue jsValue)
     {
-        // Handle null
-        if (jsValue.IsNull)
-        {
-            return _hasNull;
-        }
-
-        // Handle undefined
-        if (jsValue.IsUndefined)
-        {
-            return _hasUndefined;
-        }
-
-        // Regular value - use HashSet
-        var value = JsValueExtractor.Extract(jsValue);
-        return _set.Contains(value);
+        return _set.Contains(jsValue);
     }
 
     /// <summary>
@@ -205,40 +157,12 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Delete(JsValue jsValue)
     {
-        // Handle null
-        if (jsValue.IsNull)
-        {
-            if (!_hasNull)
-            {
-                return false;
-            }
-
-            _hasNull = false;
-            _insertionOrder.Remove(null);
-            return true;
-        }
-
-        // Handle undefined
-        if (jsValue.IsUndefined)
-        {
-            if (!_hasUndefined)
-            {
-                return false;
-            }
-
-            _hasUndefined = false;
-            _insertionOrder.Remove(Symbol.Undefined);
-            return true;
-        }
-
-        // Regular value - use HashSet
-        var value = JsValueExtractor.Extract(jsValue);
-        if (!_set.Remove(value))
+        if (!_set.Remove(jsValue))
         {
             return false;
         }
 
-        _insertionOrder.Remove(value);
+        _insertionOrder.Remove(jsValue);
         return true;
     }
 
@@ -249,8 +173,6 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     {
         _set.Clear();
         _insertionOrder.Clear();
-        _hasNull = false;
-        _hasUndefined = false;
     }
 
     /// <summary>
@@ -269,8 +191,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         while (i < _insertionOrder.Count)
         {
             var value = _insertionOrder[i];
-            var jsValue = JsValue.FromObjectUnsafe(value);
-            callback.Invoke([jsValue, jsValue, _cachedJsValue], thisArg);
+            callback.Invoke([value, value, _cachedJsValue], thisArg);
 
             // If the item at position i is still the same value we just visited, advance past it.
             // If it changed (due to a deletion shifting items left), stay at i to visit the new item.
@@ -289,7 +210,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         var values = new List<JsValue>(_insertionOrder.Count);
         foreach (var value in _insertionOrder)
         {
-            values.Add(JsValue.FromObjectUnsafe(value));
+            values.Add(value);
         }
 
         return new JsArray(values);

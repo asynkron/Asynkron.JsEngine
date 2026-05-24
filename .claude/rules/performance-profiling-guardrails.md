@@ -29,6 +29,12 @@ optimization.
    only proves improvement when the matching prior profile output or committed
    baseline numbers are still available. If the baseline is missing, report
    stable/no-regression or current-hotspot evidence instead of claiming a win.
+7. For expression-bytecode arithmetic optimization, narrow from a broad
+   benchmark table to the profile that actually owns the hot path before
+   changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
+   `EvaluateExpressionProgram` and the operator helper are hot, keep uncommon
+   or mixed-type operands on the generic operator path, and compare against the
+   committed/current baseline conservatively when profiler runs are noisy.
 
 ## Why
 
@@ -50,3 +56,12 @@ activation profiles and full LanguageTests throughput were captured, but the
 handoff's comparable activation baseline directory was not present in the
 worktree, so the report could only make a no-focused-regression/current-hotspot
 claim rather than a strong activation-overhead reduction claim.
+
+Issue `autrun-diqwn50g1d08-a853a50d18` / PR #1682 selected `ir-arithmetic` from
+a broader `rtk ./benchmark.sh` table because that profile mapped directly to
+expression bytecode numeric binary operators. The accepted slice added a
+number-number fast path in `ApplyProgramBinaryOperator`, kept non-number and
+uncommon operators on the existing generic path, and reported the win using the
+slowest final run because the profiling environment was noisy. The durable
+lesson is that expression-bytecode CPU work should be profile-owned and
+semantics-preserving, not a broad benchmark chase or a blanket operator rewrite.

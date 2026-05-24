@@ -1087,16 +1087,7 @@ public static partial class TypedAstEvaluator
                             {
                                 var right = stack[--stackIndex];
                                 var left = stack[stackIndex - 1];
-                                stack[stackIndex - 1] =
-                                    operation.Operator switch
-                                    {
-                                        BinaryOperator.LessThan or
-                                        BinaryOperator.LessThanOrEqual or
-                                        BinaryOperator.GreaterThan or
-                                        BinaryOperator.GreaterThanOrEqual =>
-                                            ProfileBranchCompare(operation.Operator, left, right, context),
-                                        _ => ProfileApplyBinaryOperator(operation.Operator, left, right, context)
-                                    };
+                                stack[stackIndex - 1] = ApplyProgramBinaryOperator(operation.Operator, left, right, context);
                                 stackFlags.Set(stackIndex - 1, false);
                                 programCounter++;
                                 break;
@@ -1272,6 +1263,43 @@ public static partial class TypedAstEvaluator
 
                 ReleaseExpressionBuffers(stackBuffer, flagBuffer, stackIndex, rentedFromPool);
             }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue ApplyProgramBinaryOperator(
+            BinaryOperator op,
+            in JsValue left,
+            in JsValue right,
+            EvaluationContext context)
+        {
+            if (left.IsNumber && right.IsNumber)
+            {
+                var leftNumber = left.NumberValue;
+                var rightNumber = right.NumberValue;
+                return op switch
+                {
+                    BinaryOperator.Add => JsValue.FromDouble(leftNumber + rightNumber),
+                    BinaryOperator.Subtract => JsValue.FromDouble(leftNumber - rightNumber),
+                    BinaryOperator.Multiply => JsValue.FromDouble(leftNumber * rightNumber),
+                    BinaryOperator.Divide => JsValue.FromDouble(leftNumber / rightNumber),
+                    BinaryOperator.Modulo => JsValue.FromDouble(JsOps.MathMod(leftNumber, rightNumber)),
+                    BinaryOperator.LessThan => leftNumber < rightNumber ? JsValue.True : JsValue.False,
+                    BinaryOperator.LessThanOrEqual => leftNumber <= rightNumber ? JsValue.True : JsValue.False,
+                    BinaryOperator.GreaterThan => leftNumber > rightNumber ? JsValue.True : JsValue.False,
+                    BinaryOperator.GreaterThanOrEqual => leftNumber >= rightNumber ? JsValue.True : JsValue.False,
+                    _ => ProfileApplyBinaryOperator(op, left, right, context)
+                };
+            }
+
+            return op switch
+            {
+                BinaryOperator.LessThan or
+                BinaryOperator.LessThanOrEqual or
+                BinaryOperator.GreaterThan or
+                BinaryOperator.GreaterThanOrEqual =>
+                    ProfileBranchCompare(op, left, right, context),
+                _ => ProfileApplyBinaryOperator(op, left, right, context)
+            };
         }
 
         private void AcquireExpressionBuffers(

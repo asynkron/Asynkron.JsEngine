@@ -131,6 +131,23 @@ Do not "simplify" copy helpers into descriptor creation on the target unless the
 ECMAScript algorithm explicitly calls for that operation. Pair this class of
 change with focused regressions for accessor targets and failed writes.
 
+## Data Property Helper Value Carriers
+
+When a built-in creates data properties and the value is already carried as a
+`JsValue`, use the `JsValue` helper overload instead of routing through an
+`object?` helper.
+
+Examples:
+
+- use `CreateDataPropertyOrThrowJsValue(result, key, value, realm, method)` when
+  `value` is a `JsValue` from arguments, property reads, iterator results, or
+  mapper callbacks;
+- leave the broader `CreateDataPropertyOrThrow(...)` object helper for raw host
+  primitives or callsites that have not been intentionally migrated yet;
+- keep the same spec operation and ordinary fallback behavior. This rule is
+  about preserving the typed value carrier and avoiding avoidable boxing, not
+  about bypassing property-definition semantics.
+
 ## Why
 
 Issue #751 fixed `Array.prototype.at` after the direct array-element path failed
@@ -209,3 +226,11 @@ local guard for integrity-level accessor targets. The durable lesson is that
 `Object.assign` must remain a throwing `Set` operation on the existing target:
 integrity-level data-property restrictions do not block an existing setter, and
 the same contract applies to Symbol keys.
+
+Issue `autrun-diqz1xnc6eww-de7b218dd3` / PR #1689 migrated `Array.of`,
+`Array.from`, iterable `Array.from`, and `Array.prototype.concat` callsites that
+already held `JsValue` values away from the legacy `object?`
+`CreateDataPropertyOrThrow` path. The durable lesson is that data-property
+creation should keep typed JavaScript values typed when an equivalent
+`JsValue` helper exists, while leaving genuinely host-primitive callsites for
+separate, intentional slices.

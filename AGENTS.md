@@ -38,7 +38,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - When compacting expression bytecode, push shared encodings into the runtime type that owns the semantics. Keep the execution fast path in encoded form and let printer/test bridges decode only for diagnostics.
 - Interpreter side-state matters too. If expression execution needs per-stack metadata such as optional-chain short-circuit state, prefer packed representations over parallel byte/bool arrays when the semantics are binary.
 - For this class of work, prove progress three ways:
-  - Scan remaining AST-eval seams with `rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+  - Scan remaining AST-eval seams with `rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
   - Run a narrow lowering/IR proof pack first, then widen
   - Recheck `rtk ./tools/profile forloop --memory` after each chunk to ensure the hot path stays allocation-stable
 

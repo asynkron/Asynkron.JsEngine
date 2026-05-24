@@ -597,7 +597,7 @@ public sealed class JsRegExp
         foreach (Match match in matches)
         {
             // Preserve exec-like result entries for matchAll.
-            result.Push(CreateMatchArray(match, input));
+            result.Push(JsValue.FromJsArray(CreateMatchArray(match, input)));
         }
 
         return result;
@@ -698,12 +698,12 @@ public sealed class JsRegExp
         if (HasIndices)
         {
             var indices = new JsArray(RealmState);
-            indices.Push(CreateIndexPair(match.Index, match.Index + match.Value.Length));
+            indices.Push(JsValue.FromJsArray(CreateIndexPair(match.Index, match.Index + match.Value.Length)));
             foreach (var capture in match.Captures)
             {
                 indices.Push(capture is null
                     ? JsValue.Undefined
-                    : CreateIndexPair(capture.Value.Start, capture.Value.End));
+                    : JsValue.FromJsArray(CreateIndexPair(capture.Value.Start, capture.Value.End)));
             }
 
             result.DefineProperty("indices", new PropertyDescriptor

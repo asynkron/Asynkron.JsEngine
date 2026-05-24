@@ -481,7 +481,9 @@ public static class ReflectHelper
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return JsValue.FromJsArray(new JsArray(moduleNamespace.OwnKeys(), realm));
+            return JsValue.FromJsArray(new JsArray(moduleNamespace
+                .OwnKeys()
+                .Select(static key => JsValue.FromObjectUnsafe(key)), realm));
         }
 
         if (target is JsProxy proxy)
@@ -495,7 +497,7 @@ public static class ReflectHelper
                     continue;
                 }
 
-                result.Push(key);
+                result.Push(new JsValue(key));
             }
 
             return JsValue.FromJsArray(result);

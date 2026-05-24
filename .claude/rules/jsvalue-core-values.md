@@ -27,6 +27,14 @@ When working inside the core engine, keep JavaScript values represented as
    overload explicitly. Wrap host primitives at the callsite with
    `new JsValue(...)`, `JsValue.FromJsArray(...)`, or another typed helper so
    overload resolution cannot silently fall back through `FromObjectUnsafe`.
+7. For JavaScript collection storage (`Set`, `Map`, weak collections, or
+   collection-like helpers), migrate the owning storage and equality comparer
+   together. A `JsValue`-backed collection must use `JsValue`-native
+   SameValueZero or spec equality semantics directly, including `NaN`,
+   positive/negative zero, ordinal strings, symbols, and object identity. Keep
+   legacy `object?` comparers only for collection owners that still store
+   `object?`; do not route migrated storage through `ToObject`,
+   `FromObjectUnsafe`, or side-channel sentinels for `null`/`undefined`.
 
 ## Why
 
@@ -50,3 +58,14 @@ object conversion when it already had JavaScript values. Future array/object
 carrier migrations should use the same bounded quarantine pattern: expose
 callers with the compiler, migrate only the selected cluster, and keep the
 before/after signature search as proof that accidental internal binding is gone.
+
+Issue `autrun-dir1jb469ky8-1d5d23090a` / PR #1704 migrated `JsSet` storage from
+`object?` plus separate `null`/`undefined` tracking to `List<JsValue>` and
+`HashSet<JsValue>`. The important lesson was not just the field type change:
+`Set` equality is part of the storage contract. The fix added a `JsValue` native
+SameValueZero comparer so `NaN` coalesces, positive and negative zero compare
+equal, strings stay ordinal, and symbols/objects keep identity semantics without
+boxing through CLR objects. Future collection migrations should move storage,
+membership tests, iteration, deletion, and comparer semantics as one cluster;
+leaving a shared `object?` comparer in the path reintroduces the same conversion
+boundary the migration is trying to remove.

@@ -3,6 +3,7 @@
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
@@ -19,6 +20,21 @@ public static partial class TypedAstEvaluator
 {
     private sealed partial class ExecutionPlanRunner
     {
+        private const int InlineExpressionStackCapacity = 8;
+        private const int InlineExpressionFlagWordCapacity = 1;
+
+        [InlineArray(InlineExpressionStackCapacity)]
+        private struct InlineExpressionStackBuffer
+        {
+            private JsValue _element0;
+        }
+
+        [InlineArray(InlineExpressionFlagWordCapacity)]
+        private struct InlineExpressionFlagBuffer
+        {
+            private ulong _element0;
+        }
+
         private static JsValue CreateIteratorResult(JsValue value, bool done)
         {
             // Use singleton for the common done case with undefined value
@@ -243,13 +259,19 @@ public static partial class TypedAstEvaluator
             var spreadMaskConstants = program.SpreadMaskConstants.AsSpan();
             var operationCount = program.OperationCount;
             var stackSize = Math.Max(program.MaxStackDepth, 1);
-            AcquireExpressionBuffers(
-                stackSize,
-                out var stackBuffer,
-                out var flagBuffer,
-                out var rentedFromPool);
-            Span<JsValue> stack = stackBuffer.AsSpan(0, stackSize);
-            var stackFlags = new ExpressionFlagStack(flagBuffer.AsSpan(0, GetExpressionFlagWordCount(stackSize)));
+            var flagWordCount = GetExpressionFlagWordCount(stackSize);
+            var inlineStackBuffer = default(InlineExpressionStackBuffer);
+            var inlineFlagBuffer = default(InlineExpressionFlagBuffer);
+            JsValue[]? stackBuffer = null;
+            ulong[]? flagBuffer = null;
+            var rentedFromPool = false;
+            var usePooledBuffers = stackSize > InlineExpressionStackCapacity;
+            Span<JsValue> stack = usePooledBuffers
+                ? AcquirePooledExpressionStack(stackSize, out stackBuffer, out flagBuffer, out rentedFromPool)
+                : MemoryMarshal.CreateSpan(ref inlineStackBuffer[0], InlineExpressionStackCapacity).Slice(0, stackSize);
+            var stackFlags = new ExpressionFlagStack(usePooledBuffers
+                ? flagBuffer!.AsSpan(0, flagWordCount)
+                : MemoryMarshal.CreateSpan(ref inlineFlagBuffer[0], InlineExpressionFlagWordCapacity).Slice(0, flagWordCount));
             var stackIndex = 0;
             var programCounter = 0;
             AssignmentReference[]? assignmentReferenceBuffer = null;
@@ -1261,7 +1283,10 @@ public static partial class TypedAstEvaluator
                     ArrayPool<AssignmentReference>.Shared.Return(assignmentReferenceBuffer, clearArray: false);
                 }
 
-                ReleaseExpressionBuffers(stackBuffer, flagBuffer, stackIndex, rentedFromPool);
+                if (usePooledBuffers)
+                {
+                    ReleaseExpressionBuffers(stackBuffer!, flagBuffer!, stackIndex, rentedFromPool);
+                }
             }
         }
 
@@ -1324,6 +1349,16 @@ public static partial class TypedAstEvaluator
             }
 
             _expressionBufferLeaseCount++;
+        }
+
+        private Span<JsValue> AcquirePooledExpressionStack(
+            int stackSize,
+            out JsValue[] stackBuffer,
+            out ulong[] flagBuffer,
+            out bool rentedFromPool)
+        {
+            AcquireExpressionBuffers(stackSize, out stackBuffer, out flagBuffer, out rentedFromPool);
+            return stackBuffer.AsSpan(0, stackSize);
         }
 
         private void EnsureCachedExpressionBufferCapacity(int stackSize)

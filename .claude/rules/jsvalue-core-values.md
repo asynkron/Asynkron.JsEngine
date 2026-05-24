@@ -35,6 +35,11 @@ When working inside the core engine, keep JavaScript values represented as
    legacy `object?` comparers only for collection owners that still store
    `object?`; do not route migrated storage through `ToObject`,
    `FromObjectUnsafe`, or side-channel sentinels for `null`/`undefined`.
+8. When a private helper cluster already has complete `JsValue` coverage and a
+   targeted search shows the `object?` overload has no internal callers, delete
+   the legacy overload instead of keeping it as a speculative compatibility
+   bridge. Use `[Obsolete(..., true)]` only when the overload must remain long
+   enough to expose real callers or preserve an intentional boundary.
 
 ## Why
 
@@ -69,3 +74,11 @@ boxing through CLR objects. Future collection migrations should move storage,
 membership tests, iteration, deletion, and comparer semantics as one cluster;
 leaving a shared `object?` comparer in the path reintroduces the same conversion
 boundary the migration is trying to remove.
+
+Issue `autrun-dir2jazax9jk-d413d0e4d7` / PR #1713 removed the dead
+`StandardLibrary.Array.Helpers.CreateDataPropertyOrThrow(..., object? value, ...)`
+overload after earlier slices had already moved array result builders to
+`CreateDataPropertyOrThrowJsValue`. The durable lesson is that once a private
+core helper has no remaining internal callers and an equivalent typed path owns
+the semantics, preserving the legacy overload just keeps an accidental
+object-carrier entry point alive for future code.

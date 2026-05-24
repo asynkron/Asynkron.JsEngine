@@ -145,8 +145,9 @@ Examples:
 - for result-object builders that are intentionally migrated to the typed helper,
   wrap raw host primitives with `new JsValue(...)` at the callsite and preserve
   the existing property order;
-- leave the broader `CreateDataPropertyOrThrow(...)` object helper for callsites
-  that have not been intentionally migrated yet;
+- after the selected helper cluster has no remaining internal `object?` callers,
+  delete the broader overload rather than keeping a dead fallback that future
+  callsites can accidentally choose;
 - keep the same spec operation and ordinary fallback behavior. This rule is
   about preserving the typed value carrier and avoiding avoidable boxing, not
   about bypassing property-definition semantics.
@@ -245,3 +246,11 @@ lesson is that once a result-builder slice is chosen, even raw host strings,
 numbers, and booleans should enter the typed helper as explicit `JsValue`
 instances so the object-building path no longer falls back through the legacy
 `object?` carrier.
+
+Issue `autrun-dir2jazax9jk-d413d0e4d7` / PR #1713 completed the array
+data-property helper slice by deleting the now-dead
+`CreateDataPropertyOrThrow(..., object? value, ...)` overload. Earlier guidance
+allowed leaving the broader object helper for unmigrated callsites, but the
+array cluster no longer had any such callers. Future data-property helper work
+should treat a clean focused search as permission to remove the dead overload
+and keep only the typed `JsValue` path.

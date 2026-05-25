@@ -286,11 +286,18 @@ try {
             // createRealm function - not fully implemented but needed for compatibility
             ["createRealm"] = new HostFunction(_ =>
             {
-                // Create a fresh engine with its own intrinsics; expose its global
-                // object so tests can access constructors like Array/Function.
+                // Create a fresh engine with its own intrinsics; expose the global
+                // object and realm-bound evalScript entry point on the returned realm.
                 var realmEngine = CreateTest262Engine(logger, debugMode, useSnapshot);
                 var realmGlobal = realmEngine.GlobalObject;
                 realmGlobal["global"] = realmGlobal;
+                realmGlobal["evalScript"] = new HostFunction(args => args.Count switch
+                {
+                    > 1 => throw new InvalidOperationException("only script parsing supported"),
+                    > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(
+                        EvalScriptSync(realmEngine, script)),
+                    _ => JsValue.Undefined,
+                }, realmEngine.RealmState);
 
                 return (JsValue)realmGlobal;
             }),

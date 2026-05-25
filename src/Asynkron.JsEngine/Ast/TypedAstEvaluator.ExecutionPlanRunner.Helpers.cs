@@ -245,7 +245,8 @@ public static partial class TypedAstEvaluator
         private JsValue EvaluateExpressionProgram(
             ExpressionProgram program,
             JsEnvironment environment,
-            EvaluationContext context)
+            EvaluationContext context,
+            bool tailPosition = false)
         {
             if (program.IsEmpty)
             {
@@ -1246,7 +1247,8 @@ public static partial class TypedAstEvaluator
                                     stackIndex,
                                     spreadMaskConstants,
                                     environment,
-                                    context);
+                                    context,
+                                    tailPosition && programCounter == operationCount - 1);
                                 programCounter++;
                                 break;
                             }
@@ -2637,7 +2639,8 @@ public static partial class TypedAstEvaluator
             int stackIndex,
             ReadOnlySpan<ImmutableArray<int>> spreadMaskConstants,
             JsEnvironment environment,
-            EvaluationContext context)
+            EvaluationContext context,
+            bool tailPosition = false)
         {
             var calleeIndex = stackIndex - call.ArgumentCount - 1;
             var receiverIndex = call.HasExplicitThis ? calleeIndex - 1 : -1;
@@ -2657,6 +2660,15 @@ public static partial class TypedAstEvaluator
                     context,
                     context.RealmState);
                 context.SetThrow(error);
+                stack[baseIndex] = JsValue.Undefined;
+                stackFlags.Set(baseIndex, false);
+                return baseIndex + 1;
+            }
+
+            if (tailPosition &&
+                call.SpreadMaskConstantIndex < 0 &&
+                TryRequestSameFunctionTailRestart(callable, thisValue, call.ArgumentCount, stack, calleeIndex + 1))
+            {
                 stack[baseIndex] = JsValue.Undefined;
                 stackFlags.Set(baseIndex, false);
                 return baseIndex + 1;
@@ -2810,6 +2822,62 @@ public static partial class TypedAstEvaluator
             stack[baseIndex] = result;
             stackFlags.Set(baseIndex, false);
             return baseIndex + 1;
+        }
+
+        private bool TryRequestSameFunctionTailRestart(
+            IJsCallable callable,
+            JsValue thisValue,
+            int argumentCount,
+            Span<JsValue> stack,
+            int argumentStartIndex)
+        {
+            if (_isScriptMode ||
+                _isAsync ||
+                _isGenerator ||
+                _plan?.ActivationSlots is null ||
+                _executionEnvironment is null ||
+                !ReferenceEquals(callable, _callable) ||
+                !_isStrict && !thisValue.IsUndefined)
+            {
+                return false;
+            }
+
+            var arguments = new JsValue[argumentCount];
+            for (var i = 0; i < argumentCount; i++)
+            {
+                arguments[i] = stack[argumentStartIndex + i];
+            }
+
+            _tailRestartArguments = arguments;
+            _tailRestartRequested = true;
+            return true;
+        }
+
+        private bool TryRestartTailCall()
+        {
+            if (!_tailRestartRequested ||
+                _tailRestartArguments is not { } arguments ||
+                _plan?.ActivationSlots is not { } activationSlots ||
+                _executionEnvironment is null)
+            {
+                return false;
+            }
+
+            _tailRestartRequested = false;
+            _tailRestartArguments = null;
+            _scriptCompletionValue = JsValue.Unit;
+            _completedWithRawSyncReturn = false;
+
+            var parameterSlots = activationSlots.ParameterSlotIndices;
+            for (var i = 0; i < parameterSlots.Length; i++)
+            {
+                _executionEnvironment.SetSlotDirect(
+                    parameterSlots[i],
+                    i < arguments.Length ? arguments[i] : JsValue.Undefined);
+            }
+
+            _programCounter = _plan.EntryPoint;
+            return true;
         }
 
         private int ExecuteProgramConstruct(

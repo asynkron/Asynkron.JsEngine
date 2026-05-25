@@ -157,8 +157,14 @@ public static partial class TypedAstEvaluator
             var returnVal = instruction.AwaitedProgram is { } awaitedProgram
                 ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
                 : instruction.ReturnProgram is { } returnProgram
-                    ? runner.EvaluateExpressionProgram(returnProgram, environment, context)
+                    ? runner.EvaluateExpressionProgram(returnProgram, environment, context, tailPosition: true)
                     : JsValue.Undefined;
+
+            if (runner.TryRestartTailCall())
+            {
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
             {

@@ -253,7 +253,10 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
-                            _ = CanRunExpression(invoker, returnProgram, activationSlots);
+                            if (!CanRunExpression(invoker, returnProgram, activationSlots))
+                            {
+                                return false;
+                            }
 
                             break;
 
@@ -631,12 +634,6 @@ public static partial class TypedAstEvaluator
                                     return StepResult.Bail;
                                 }
 
-                                var arg0 = argumentCount > 0
-                                    ? stack[calleeIndex + 1]
-                                    : JsValue.Undefined;
-                                var arg1 = argumentCount > 1
-                                    ? stack[calleeIndex + 2]
-                                    : JsValue.Undefined;
                                 var restartThisValue = stack[receiverIndex];
                                 frame.ExpressionProgramCounter++;
                                 InitializeFrame(ref frame, callee, restartThisValue, frame.Plan);
@@ -646,7 +643,7 @@ public static partial class TypedAstEvaluator
                                 {
                                     var slotIndex = activationSlots.ParameterSlotIndices[i];
                                     frame.Slots![slotIndex] = i < argumentCount
-                                        ? i == 0 ? arg0 : i == 1 ? arg1 : JsValue.Undefined
+                                        ? stack[calleeIndex + 1 + i]
                                         : JsValue.Undefined;
                                 }
 

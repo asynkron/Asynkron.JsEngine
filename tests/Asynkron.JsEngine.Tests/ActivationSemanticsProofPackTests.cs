@@ -29,7 +29,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));

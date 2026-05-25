@@ -69,6 +69,14 @@ When working inside the core engine, keep JavaScript values represented as
     interface fallback, for example `TryGetObject<JsObject>` followed by
     `TryGetObject<IJsPropertyAccessor>`. Do not silently collapse a previous
     accessor-compatible path to `JsObject` only.
+12. When moving legacy object-carrier string coercion into `JsOps`/`JsValue`
+    helpers, preserve exotic object classification before ordinary host
+    interface shape. In particular, handle `IIsHtmlDda` before callable,
+    accessor, host-function, or generic object fallback branches so HTMLDDA-like
+    values stringify as `"undefined"` even when they also have callable or
+    accessor shape. Pair this with a focused proof on the shared helper, because
+    array stringification and other callers inherit the behavior from that
+    helper.
 
 ## Why
 
@@ -172,3 +180,12 @@ accepted by the old path. Future object-extraction migrations should use typed
 `JsValue` access without narrowing away interface-backed object semantics.
 Related ADR:
 `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`.
+
+Issue `autrun-dirtf04x6gtk-01ca431d93` / PR #1907 migrated array string
+coercion onto the shared `JsOps.ToJsString` object-value helper. Review found
+that placing the `IIsHtmlDda` branch after callable/accessor branches made an
+HTMLDDA-like value stringify as native function text instead of `"undefined"`.
+Future object-carrier string-coercion migrations must preserve the legacy
+exotic-object branch precedence while moving the helper to `JsValue`. Related
+ADR:
+`docs/adrs/0141-keep-htmldda-string-coercion-precedence-in-jsops.md`.

@@ -2861,10 +2861,10 @@ public static partial class TypedAstEvaluator
             if (_isScriptMode ||
                 _isAsync ||
                 _isGenerator ||
-                _plan?.ActivationSlots is not { ParameterSlotIndices.IsDefault: false } ||
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
-                !_isStrict && !thisValue.IsUndefined)
+                !_isStrict && !thisValue.IsUndefined ||
+                !CanRestartCurrentTailCall())
             {
                 return false;
             }
@@ -2882,16 +2882,54 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool TryRestartTailCall()
+        private bool CanRestartCurrentTailCall()
         {
-            if (!_tailRestartRequested ||
-                _tailRestartArguments is not { } arguments ||
-                _plan?.ActivationSlots is not { ParameterSlotIndices.IsDefault: false } activationSlots ||
-                _executionEnvironment is null)
+            if (_plan?.ActivationSlots is { ParameterSlotIndices.IsDefault: false })
+            {
+                return true;
+            }
+
+            if (!_isStrict || !HasOnlySimpleTailRestartParameters())
             {
                 return false;
             }
 
+            var hoistPlan = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
+            return !hoistPlan.NeedsEnvironment;
+        }
+
+        private bool HasOnlySimpleTailRestartParameters()
+        {
+            HashSet<Symbol>? seenNames = null;
+            for (var i = 0; i < _function.Parameters.Length; i++)
+            {
+                var parameter = _function.Parameters[i];
+                if (parameter is not { Name: { } name, Pattern: null, DefaultValue: null, IsRest: false })
+                {
+                    return false;
+                }
+
+                seenNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                if (!seenNames.Add(name))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool TryRestartTailCall()
+        {
+            if (!_tailRestartRequested ||
+                _tailRestartArguments is not { } arguments ||
+                _executionEnvironment is null ||
+                _plan is null)
+            {
+                return false;
+            }
+
+            var plan = _plan;
             _tailRestartRequested = false;
             _tailRestartArguments = null;
             _scriptCompletionValue = JsValue.Unit;
@@ -2902,16 +2940,67 @@ public static partial class TypedAstEvaluator
                 RebindStrictTailRestartThis(_tailRestartThisValue);
             }
 
-            var parameterSlots = activationSlots.ParameterSlotIndices;
-            for (var i = 0; i < parameterSlots.Length; i++)
+            if (plan.ActivationSlots is { ParameterSlotIndices.IsDefault: false } activationSlots)
             {
-                _executionEnvironment.SetSlotDirect(
-                    parameterSlots[i],
-                    i < arguments.Length ? arguments[i] : JsValue.Undefined);
+                var parameterSlots = activationSlots.ParameterSlotIndices;
+                for (var i = 0; i < parameterSlots.Length; i++)
+                {
+                    _executionEnvironment.SetSlotDirect(
+                        parameterSlots[i],
+                        i < arguments.Length ? arguments[i] : JsValue.Undefined);
+                }
+            }
+            else if (!TryRebindDictionaryTailRestartParameters(arguments))
+            {
+                return false;
             }
 
-            _programCounter = _plan.EntryPoint;
+            _programCounter = plan.EntryPoint;
             return true;
+        }
+
+        private bool TryRebindDictionaryTailRestartParameters(IReadOnlyList<JsValue> arguments)
+        {
+            if (_executionEnvironment is null)
+            {
+                return false;
+            }
+
+            var parameterEnvironment = FindTailRestartParameterEnvironment(_executionEnvironment);
+            if (parameterEnvironment is null)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _function.Parameters.Length; i++)
+            {
+                var parameter = _function.Parameters[i];
+                if (parameter.Name is not { } name)
+                {
+                    return false;
+                }
+
+                var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                parameterEnvironment.DefineJsValue(name, value, isLexicalBinding: false);
+            }
+
+            return true;
+        }
+
+        private static JsEnvironment? FindTailRestartParameterEnvironment(JsEnvironment executionEnvironment)
+        {
+            var current = executionEnvironment;
+            while (current is not null)
+            {
+                if (current.IsParameterEnvironment || current.IsFunctionScope)
+                {
+                    return current;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return null;
         }
 
         private void ClearTailRestartRequest()

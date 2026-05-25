@@ -10,7 +10,9 @@ From repo root:
 rtk ./tools/run-test262-regressions.sh
 ```
 
-This uses `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` and executes:
+This uses `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt`.
+The command below is the script's internal runner invocation (raw `dotnet test`,
+without an `rtk` wrapper), not a separate operator command you should run directly:
 
 ```bash
 dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "..."

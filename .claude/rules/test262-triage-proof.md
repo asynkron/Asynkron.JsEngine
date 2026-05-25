@@ -7,8 +7,8 @@ on the current worktree before changing implementation or harness code.
 ## Rules
 
 1. Start with the issue-supplied narrow proof command, usually:
-   `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=<MethodGroup>"`.
-2. If directory-form `dotnet test` fails because the SDK cannot resolve the
+   `rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=<MethodGroup>"`.
+2. If directory-form `rtk dotnet test` fails because the SDK cannot resolve the
    test project from a folder argument, rerun the exact same focused proof
    against
    `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`.
@@ -56,6 +56,12 @@ on the current worktree before changing implementation or harness code.
     harness output as proof-environment friction. Remove only that generated
     output and rerun the exact same focused proof before changing engine,
     generated source, harness policy, or issue ownership.
+11. When removing rows from `current-regressions.filter.txt` or a named
+    `regression-packs/*.filter.txt` pack, update the pack header count from the
+    runner's effective inventory, not by hand. Run
+    `rtk ./tools/run-test262-regressions.sh --list` and make the relevant
+    `# Filters:` header match the reported `<pack> (<N> entries)` count before
+    handing off review.
 
 ## Why
 
@@ -362,3 +368,12 @@ internal `BigIntTests` pinned the sign, mixed BigInt/Number TypeError, and
 zero-modulo RangeError cases. Future Test262 crash-list issues may use the
 same focused-wrapper shape when the generated method group is the noisy part
 and the exact listed fixture set is the real acceptance boundary.
+
+Issue #1831 / PR #1919 removed the now-green
+`Expressions_delete ... super-property-uninitialized-this.js` row from the
+umbrella regression list and the language pack, but review caught that the
+language pack `# Filters:` header still said `78` while
+`rtk ./tools/run-test262-regressions.sh --list` reported
+`language (76 entries)`. Future regression-pack cleanup should treat `--list`
+as the source of truth for effective pack entry counts so review does not have
+to rediscover header drift after an otherwise mechanical row removal.

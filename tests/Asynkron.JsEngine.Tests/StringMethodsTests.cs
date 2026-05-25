@@ -257,6 +257,25 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_LongConcatenation_ConsumersObserveFullString()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let result = "";
+                                                       for (let i = 0; i < 2000; i++) {
+                                                           result += "x";
+                                                       }
+                                                       let upper = result.toUpperCase();
+                                                       let split = result.split("");
+                                                       let joined = split.join("-");
+                                                       upper.length + ":" + split.length + ":" + joined.length + ":" + joined[0] + joined[joined.length - 1];
+
+                                           """);
+        Assert.Equal("2000:2000:3999:xx", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_Split_WithLimit()
     {
         await using var engine = CreateEngine();

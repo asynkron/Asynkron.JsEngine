@@ -101,6 +101,15 @@ loop-runtime owner is still triage context only; do not patch loop emitters,
 completion bookkeeping, or Test262 harness behavior when the exact reported
 rows are green.
 
+Issue #1844 repeated the same boundary for legacy `Statements_with` rows. The
+issue body named object-environment lookup, `with` scope lifetime, `var`
+pre-resolution, and closure capture as plausible owners, but the build-stage
+proof passed the whole issue-supplied `Name=Statements_with` filter 182/182 on
+the current worktree, and focused `WithStatementTests` passed 21/21. Keep the
+owner map as investigation context only; do not patch `WithEmitter`,
+`JsEnvironment`, object-environment lookup, or the Test262 harness unless a
+current focused `with` row fails reproducibly.
+
 Issue #1031 / PR #1103 applied the green-proof closeout path to
 `Expressions_class_asyncGenMethodStatic`: current `origin/main` already passed
 the reported Test262 method group, so the delivery added only a focused

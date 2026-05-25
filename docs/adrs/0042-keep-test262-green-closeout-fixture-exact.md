@@ -175,3 +175,11 @@ pinning.
   2/2 on the current worktree. The correct closeout was evidence-only: no
   loop emitter, completion bookkeeping, runtime, harness, or regression-test
   patch is warranted unless a current exact row fails reproducibly.
+- Issue #1844 reused the no-source-change form for legacy `Statements_with`
+  rows. The issue body named object-environment lookup, `with` lifetime, `var`
+  pre-resolution, and closure capture as plausible owners, but the build-stage
+  focused proof passed `Name=Statements_with` 182/182 on the current worktree,
+  and the focused internal `WithStatementTests` pack passed 21/21. The correct
+  closeout was evidence-only: no `WithEmitter`, `JsEnvironment`,
+  object-environment lookup, Test262 harness, or regression-test patch is
+  warranted unless a current focused row fails reproducibly.

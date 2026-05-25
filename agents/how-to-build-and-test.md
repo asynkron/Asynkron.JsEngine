@@ -57,8 +57,14 @@ maintenance pass, keep the slice repo-local and reviewable:
    example `/api/issues/<issue>`), then use the compact summary endpoint
    (`/api/logs/<issue>/summary`), and use narrow searches over
    `.faktorial/logs/ghNNNN.log` only when API summaries are still insufficient.
+   If the issue-detail API returns preview or truncated markdown, treat that as
+   partial context and continue with compact summaries plus bounded structural
+   raw-log snippets instead of broad fallback reads.
    Do not run the host `faktorial` daemon binary for issue/log/state reads from
    an agent. Treat missing `gh` auth as an environment detail, not a blocker.
+   If an older sibling summary lookup is unavailable, record that failed lookup
+   as evidence and continue from durable in-repo artifacts rather than blocking
+   or widening into external source-host reads.
 4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

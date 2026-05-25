@@ -84,6 +84,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
   for guidance that already has an owned home.
+- When overlap spans a cross-cutting rule and accepted helper-specific ADRs,
+  keep the detailed decisions in the ADRs and add a short ownership note to the
+  rule instead of copying every helper boundary into the rule body.
 - When a persistent ADR/rule compaction child updates an existing semantic
   home, record baseline and final evidence from the same overlap check command
   (for example a targeted `rg` over the owned rule file) so review can confirm
@@ -256,6 +259,15 @@ updates an existing semantic home instead of creating a new durable artifact,
 the issue update should still show baseline/final output from one stable
 overlap-check command. This keeps the run auditable as an intentional
 compaction pass rather than an unproven wording edit.
+
+Issue #1814 / PR #1819 applied that compaction pattern to overlapping
+`JsValue` object-carrier guidance. The accepted ADRs for array length helpers,
+Array prototype result helpers, and number receiver extraction already owned
+their helper-specific boundaries, while `.claude/rules/jsvalue-core-values.md`
+owned the cross-cutting migration policy. The durable lesson is to clarify that
+ownership split in the existing rule and leave accepted ADR detail intact,
+rather than creating another ADR or duplicating every helper-specific decision
+in the rule.
 
 Issue #1534 added an output-boundary lesson from recurring-child runtime
 evidence: when interim progress messages mimic final structured responses, the

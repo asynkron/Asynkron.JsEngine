@@ -251,12 +251,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case PushEnvironmentInstruction push:
                 var mappedPushScope = RemapScopeId(push.ScopeId);
                 var lexical = GetLexicalBindings(mappedPushScope);
+                var slotMap = GetSlotMap(mappedPushScope);
                 var updatedPush = push with
                 {
                     ScopeId = mappedPushScope,
                     SlotCount = GetSlotCount(mappedPushScope),
-                    SlotMap = GetSlotMap(mappedPushScope),
-                    LexicalBindings = lexical
+                    SlotMap = slotMap,
+                    LexicalBindings = lexical,
+                    LexicalSlotIndices = BuildLexicalSlotIndices(lexical, slotMap)
                 };
                 _scopeStack.Push(mappedPushScope);
                 return updatedPush;
@@ -1077,6 +1079,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         return _lexicalBindings.TryGetValue(lookupScopeId, out var set)
             ? set
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
+    }
+
+    private static ImmutableArray<int> BuildLexicalSlotIndices(
+        ImmutableHashSet<Symbol> lexicalBindings,
+        ImmutableDictionary<Symbol, int> slotMap)
+    {
+        if (lexicalBindings.Count == 0 || slotMap.IsEmpty)
+        {
+            return default;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(lexicalBindings.Count);
+        foreach (var binding in lexicalBindings)
+        {
+            if (slotMap.TryGetValue(binding, out var slotIndex))
+            {
+                builder.Add(slotIndex);
+            }
+        }
+
+        return builder.Count == 0 ? default : builder.MoveToImmutable();
     }
 
     private void LeaveScope(int scopeId)

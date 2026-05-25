@@ -288,6 +288,8 @@ internal sealed record BindingVariableDeclarationInstruction(
 /// <param name="AllowPooling">Whether environment pooling is allowed (no closures capture this env).</param>
 /// <param name="SlotNames">Pre-computed array of (Symbol, SlotIndex) for fast slot name initialization.
 ///     When non-empty, this is used instead of iterating SlotMap (which is slow for ImmutableDictionary).</param>
+/// <param name="LexicalSlotIndices">Pre-computed lexical slot indices for TDZ marking.
+///     When non-empty, this is used instead of iterating LexicalBindings and probing SlotMap.</param>
 internal sealed record PushEnvironmentInstruction(
     int Next,
     ImmutableArray<Symbol> PerIterationBindings,
@@ -298,6 +300,7 @@ internal sealed record PushEnvironmentInstruction(
     ImmutableHashSet<Symbol>? LexicalBindings = null,
     ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames = default,
+    ImmutableArray<int> LexicalSlotIndices = default,
     BlockStatement? SourceBlock = null)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 

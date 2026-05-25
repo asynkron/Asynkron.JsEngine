@@ -110,10 +110,12 @@ internal static class LoopEmitterHelpers
         // Pre-compute slot map and names for per-iteration bindings
         ImmutableDictionary<Symbol, int>? slotMap = null;
         ImmutableArray<(Symbol Name, int SlotIndex)> slotNames = default;
+        ImmutableArray<int> lexicalSlotIndices = default;
         if (config.HasPerIterationBindings)
         {
             slotMap = EmitContext.BuildSlotMap(config.PerIterationBindings, config.PerIterationSlotIndices);
             slotNames = EmitContext.BuildSlotNames(config.PerIterationBindings, config.PerIterationSlotIndices);
+            lexicalSlotIndices = BuildLexicalSlotIndices(config.PerIterationSlotIndices);
         }
 
         // ================================================================
@@ -207,7 +209,8 @@ internal static class LoopEmitterHelpers
                     slotMap!,
                     config.CanReuseIterationEnvironment,
                     config.LexicalBindings,
-                    SlotNames: slotNames));
+                    SlotNames: slotNames,
+                    LexicalSlotIndices: lexicalSlotIndices));
                 continueTarget = createEnvIndex;
                 bodyEndTarget = createEnvIndex;
             }
@@ -272,7 +275,8 @@ internal static class LoopEmitterHelpers
                 slotMap!,
                 config.CanReuseIterationEnvironment,
                 config.LexicalBindings,
-                SlotNames: slotNames));
+                SlotNames: slotNames,
+                LexicalSlotIndices: lexicalSlotIndices));
             iterBodyEntry = createEnvIndex;
         }
 
@@ -299,7 +303,8 @@ internal static class LoopEmitterHelpers
                 slotMap!,
                 config.CanReuseIterationEnvironment,
                 config.LexicalBindings,
-                SlotNames: slotNames));
+                SlotNames: slotNames,
+                LexicalSlotIndices: lexicalSlotIndices));
         }
 
         if (config.HasLeadingStatements)
@@ -329,7 +334,8 @@ internal static class LoopEmitterHelpers
                 slotMap!,
                 config.CanReuseIterationEnvironment,
                 config.LexicalBindings,
-                SlotNames: slotNames));
+                SlotNames: slotNames,
+                LexicalSlotIndices: lexicalSlotIndices));
         }
 
         // BreakableEnter - pushes context for break/continue from legacy AST fallback paths
@@ -359,5 +365,24 @@ internal static class LoopEmitterHelpers
         entryIndex = initIndex >= 0 ? initIndex : outerTarget;
 
         return true;
+    }
+
+    private static ImmutableArray<int> BuildLexicalSlotIndices(ImmutableArray<int> slotIndices)
+    {
+        if (slotIndices.IsDefaultOrEmpty)
+        {
+            return default;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(slotIndices.Length);
+        foreach (var slotIndex in slotIndices)
+        {
+            if (slotIndex >= 0)
+            {
+                builder.Add(slotIndex);
+            }
+        }
+
+        return builder.Count == 0 ? default : builder.MoveToImmutable();
     }
 }

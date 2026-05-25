@@ -135,6 +135,7 @@ internal static class BlockEmitter
         // marked Uninitialized when the block scope is entered. Exclude function declarations
         // since those are initialized immediately by hoisting.
         var lexicalBindings = ComputeBlockLexicalBindings(hoistPlan.TopLevelLexicalNames, functionDeclarations);
+        var lexicalSlotIndices = BuildLexicalSlotIndices(lexicalBindings, slotMap);
 
         entryIndex = ctx.Append(new PushEnvironmentInstruction(
             hoistEntry,
@@ -144,6 +145,7 @@ internal static class BlockEmitter
             slotMap,
             allowPooling,
             LexicalBindings: lexicalBindings,
+            LexicalSlotIndices: lexicalSlotIndices,
             SourceBlock: block));
 
         return true;
@@ -185,6 +187,27 @@ internal static class BlockEmitter
         }
 
         return builder.Count > 0 ? builder.ToImmutable() : null;
+    }
+
+    private static ImmutableArray<int> BuildLexicalSlotIndices(
+        ImmutableHashSet<Symbol>? lexicalBindings,
+        ImmutableDictionary<Symbol, int> slotMap)
+    {
+        if (lexicalBindings is not { Count: > 0 } || slotMap.IsEmpty)
+        {
+            return default;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(lexicalBindings.Count);
+        foreach (var binding in lexicalBindings)
+        {
+            if (slotMap.TryGetValue(binding, out var slotIndex))
+            {
+                builder.Add(slotIndex);
+            }
+        }
+
+        return builder.Count == 0 ? default : builder.MoveToImmutable();
     }
 
     /// <summary>

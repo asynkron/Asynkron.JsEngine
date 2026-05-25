@@ -1,6 +1,7 @@
 .PHONY: quality build-internal test-internal test-internal-no-build
 
 CONFIGURATION ?= Debug
+DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
 DOTNET_TEST_ARGS ?=
 XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
 DOTNET ?= dotnet
@@ -12,10 +13,10 @@ quality:
 	$(MAKE) test-internal-no-build
 
 build-internal:
-	$(DOTNET) build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -c $(CONFIGURATION)
-	$(DOTNET) build src/Asynkron.JsEngine.Generators/Asynkron.JsEngine.Generators.csproj -c $(CONFIGURATION)
-	$(DOTNET) build tests/Asynkron.JsEngine.Tests.Helpers/Asynkron.JsEngine.Tests.Helpers.csproj -c $(CONFIGURATION)
-	$(DOTNET) build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION)
+	$(DOTNET) build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS)
+	$(DOTNET) build src/Asynkron.JsEngine.Generators/Asynkron.JsEngine.Generators.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS)
+	$(DOTNET) build tests/Asynkron.JsEngine.Tests.Helpers/Asynkron.JsEngine.Tests.Helpers.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS)
+	$(DOTNET) build tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS)
 
 test-internal:
 	$(DOTNET) test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c $(CONFIGURATION) $(DOTNET_TEST_ARGS) -- $(XUNIT_ARGS)

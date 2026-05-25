@@ -37,7 +37,10 @@ When working inside the core engine, keep JavaScript values represented as
 6. If a public or compatibility `object?` convenience overload must remain
    during migration, quarantine it with compile-time pressure such as
    `[Obsolete(..., true)]` and migrate repo-internal callers to the `JsValue`
-   overload explicitly. Wrap host primitives at the callsite with
+   overload or shared `JsOps` operation explicitly. Do not keep test or
+   runtime callsites on extension syntax such as `.ToNumber()` or
+   `.ToJsString()` when the receiver is already a `JsValue`. Wrap host
+   primitives at the callsite with
    `new JsValue(...)`, `JsValue.FromJsArray(...)`, or another typed helper so
    overload resolution cannot silently fall back through `FromObjectUnsafe`.
    For C# collection expressions or array literals that combine host primitives
@@ -239,3 +242,14 @@ driver migrations should keep the carrier `JsValue`-native, use typed object
 extraction for iterator-result records, and prove cleanup with focused searches
 for the legacy carrier name, `nextResult is JsValue`, and
 `FromObjectUnsafe(nextResult)`.
+
+Issue `autrun-dis4ox75yk7c-4a701ae598` / PR #1952 marked
+`JsValueExtensions.ToNumber(this object?)` and
+`JsValueExtensions.ToJsString(this object?, ...)` obsolete with
+`error: true`, then migrated the remaining exposed internal test callsites to
+`JsOps.ToNumber(...)` and `JsOps.ToJsString(...)`. The lesson is that even
+low-risk test helpers can keep legacy extension-style object coercion callable
+inside the repo; future bounded slices should let the compiler expose those
+callers, migrate them to shared `JsOps` operations, and keep the proof as a
+targeted before/after search plus the focused semantic tests for the touched
+callers.

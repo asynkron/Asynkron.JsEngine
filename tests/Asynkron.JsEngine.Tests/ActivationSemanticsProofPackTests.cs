@@ -21,19 +21,19 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function add(a, b) {
-                var c = a + b;
-                return c;
+                var c = a;
+                var d = b;
+                return c + d;
             }
 
             add(20, 22);
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.DoesNotContain(logRecords,
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(logRecords,
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 

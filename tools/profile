@@ -319,7 +319,11 @@ runner_cmd = [str(runner_path)] if runner_path == runner_exe else ["dotnet", str
 if not profiler_cmd:
     profiler_cmd = ["asynkron-profiler"]
 
-profiles = sorted(data.get("profiles", {}).keys())
+profiles = sorted(
+    key
+    for key, definition in data.get("profiles", {}).items()
+    if definition.get("include_in_all", True)
+)
 
 def has_flag(name: str) -> bool:
     return any(arg == name or arg.startswith(name + "=") for arg in profiler_args)

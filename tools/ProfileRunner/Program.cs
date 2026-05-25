@@ -142,6 +142,16 @@ if (forceFreshEnginePerIteration)
     profile.FreshEnginePerIteration = true;
 }
 
+var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
+var iterations = profile.Iterations > 0 ? profile.Iterations : 1;
+
+if (profile.Test262Cases.Count > 0)
+{
+    await Test262ProfileRunner.RunAsync(profileKey, profile, warmup, iterations);
+    await Task.Delay(500);
+    return;
+}
+
 var scriptPath = Path.Combine(Path.GetDirectoryName(manifestPath)!, manifest.ScriptsDir, profile.Script);
 if (!File.Exists(scriptPath))
 {
@@ -154,9 +164,6 @@ if (wrapInFunction)
 {
     script = string.Concat("(function(){\n", script, "\n})();");
 }
-
-var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
-var iterations = profile.Iterations > 0 ? profile.Iterations : 1;
 
 var traceRealm = false;
 var runsForAverage = iterations;
@@ -756,7 +763,9 @@ static ProfileManifest LoadManifest(string manifestPath)
             FreshEnginePerIteration = GetBool(profileElement, "fresh_engine_per_iteration", false),
             Header = GetOptionalString(profileElement, "header"),
             TraceRealmEnv = GetOptionalString(profileElement, "trace_realm_env"),
-            TraceRealmRuns = GetInt(profileElement, "trace_realm_runs", 0)
+            TraceRealmRuns = GetInt(profileElement, "trace_realm_runs", 0),
+            IncludeInAll = GetBool(profileElement, "include_in_all", true),
+            Test262Cases = GetTest262Cases(profileElement)
         };
 
         profiles[profileProperty.Name] = definition;
@@ -799,6 +808,29 @@ static bool GetBool(JsonElement element, string propertyName, bool fallback)
         : element.TryGetProperty(propertyName, out value) && value.ValueKind == JsonValueKind.False
             ? false
             : fallback;
+}
+
+static IReadOnlyList<Test262ProfileCase> GetTest262Cases(JsonElement element)
+{
+    if (!element.TryGetProperty("test262_cases", out var casesElement) ||
+        casesElement.ValueKind != JsonValueKind.Array)
+    {
+        return [];
+    }
+
+    var cases = new List<Test262ProfileCase>();
+    foreach (var caseElement in casesElement.EnumerateArray())
+    {
+        var file = GetString(caseElement, "file", string.Empty);
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            continue;
+        }
+
+        cases.Add(new Test262ProfileCase(file, GetBool(caseElement, "strict", false)));
+    }
+
+    return cases;
 }
 
 static void PrintProfiles(ProfileManifest manifest)
@@ -865,6 +897,10 @@ sealed class ProfileDefinition
     public string? TraceRealmEnv { get; init; }
 
     public int TraceRealmRuns { get; init; }
+
+    public bool IncludeInAll { get; init; } = true;
+
+    public IReadOnlyList<Test262ProfileCase> Test262Cases { get; init; } = [];
 }
 
 enum EngineKind
@@ -878,6 +914,8 @@ readonly record struct BytecodeProfileCase(
     ExpressionProgram Program,
     int Iterations,
     bool ExpectsNumericResult = true);
+
+readonly record struct Test262ProfileCase(string File, bool Strict);
 
 sealed class ConsoleLogger(string name) : ILogger
 {

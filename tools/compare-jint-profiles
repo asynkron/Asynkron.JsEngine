@@ -60,6 +60,10 @@ Default profiles:
 This is not BenchmarkDotNet and does not run ./tools/profile --compare.
 It intentionally avoids async/generator profiles in the timing table.
 
+Test262 profiles are Asynkron-only because they depend on this repository's
+$262 host harness. They are accepted as explicit profile arguments and report
+Jint as n/a.
+
 Use --async-smoke-only to run tiny Jint async/await probes separately. This
 checks syntax/runtime behavior, not throughput.
 USAGE
@@ -177,7 +181,11 @@ if [[ ${#profiles[@]} -gt 0 ]]; then
 
   for profile in "${profiles[@]}"; do
     a_ms=$(run_engine asynkron "$profile") || failed=true
-    j_ms=$(run_engine jint "$profile") || failed=true
+    if [[ "$profile" == test262-* ]]; then
+      j_ms="n/a"
+    else
+      j_ms=$(run_engine jint "$profile") || failed=true
+    fi
 
     if [[ "$a_ms" =~ ^[0-9]+$ && "$j_ms" =~ ^[0-9]+$ && "$a_ms" -gt 0 && "$j_ms" -gt 0 ]]; then
       delta=$(awk -v a="$a_ms" -v j="$j_ms" 'BEGIN {

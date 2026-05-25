@@ -256,3 +256,15 @@ large currency/DisplayNames loop. The bounded focused rerun on current
 lookup and transient cancellation as context only after a bounded current proof
 passes; do not change Intl runtime, object `@@toStringTag` descriptors, or the
 Test262 harness without a reproducible failing row.
+
+Issue #1826 repeated the same exact-row proof boundary for generated RegExp
+Unicode property escape crash rows. The issue listed emoji, Script, and
+Script_Extensions fixtures from `RegExp_propertyEscapes_generated`; current main
+passed representative affected rows and then the full issue-listed affected file
+set 28/28 in 12s. The broad `Name=RegExp_propertyEscapes_generated` filter was
+attempted but killed after roughly three minutes because that generated method
+group includes broader known offenders outside the issue slice. Future generated
+RegExp property-escape issues should still inspect `JsRegExp` and Unicode
+property data ownership, but once the exact listed rows are green, treat a broad
+method-group hang as proof friction rather than permission to edit RegExp
+runtime, generated Unicode data, or Test262 harness code.

@@ -139,3 +139,11 @@ pinning.
   correct closeout was evidence-only: no Intl runtime, object descriptor,
   Test262 harness, or regression-test patch is warranted unless a current
   focused row fails reproducibly.
+- Issue #1826 reused this decision for generated RegExp Unicode property
+  escape crash rows. The issue-listed emoji, Script, and Script_Extensions
+  fixture set passed 28/28 on current main, while the broad
+  `Name=RegExp_propertyEscapes_generated` filter was killed after roughly three
+  minutes because it selected broader known generated-RegExp offenders outside
+  the issue slice. The correct closeout was evidence-only: no `JsRegExp`,
+  generated Unicode data, or Test262 harness patch is warranted unless an exact
+  listed row or tightly owned neighboring fixture fails reproducibly.

@@ -202,21 +202,43 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectEvalParameterDefaultInArrow_CanDeclareArgumentsWithoutLeakingGlobal()
+    public async Task DirectEvalParameterDefaultInArrow_ThrowsWhenDeclaringArguments_PrecedingParameter()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            const oldArguments = globalThis.arguments;
-            let count = 0;
-            const f = (p = eval("var arguments = 'param'")) => {
-              count++;
-              return [arguments, count, globalThis.arguments === oldArguments].join(",");
-            };
+            let threw = false;
+            const f = (arguments, p = eval("var arguments = 'param'")) => {};
 
-            f();
+            try {
+              f();
+            } catch (err) {
+              threw = err instanceof SyntaxError;
+            }
+
+            threw;
         """);
 
-        Assert.Equal("param,1,true", result);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalParameterDefaultInArrow_ThrowsWhenDeclaringArguments_FollowingParameter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let threw = false;
+            const f = (p = eval("var arguments = 'param'"), q = () => arguments, arguments) => {};
+
+            try {
+              f();
+            } catch (err) {
+              threw = err instanceof SyntaxError;
+            }
+
+            threw;
+        """);
+
+        Assert.Equal(true, result);
     }
 
     [Fact(Timeout = 5000)]

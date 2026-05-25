@@ -466,10 +466,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // regardless of whether an arguments binding already exists.
                 // Check the calling environment (not varEnv) because GetVarEnvironment() returns
                 // the function scope, not the parameter environment.
-                // Exception: Arrow functions don't have their own 'arguments' binding, so this
-                // restriction doesn't apply to them.
                 if (isDirectEval &&
-                    environment is { IsParameterEnvironment: true, IsArrowFunctionEnvironment: false } &&
+                    environment is { IsParameterEnvironment: true } &&
                     string.Equals(name.Name, "arguments", StringComparison.Ordinal) &&
                     environment.HasOwnBinding(Symbol.Arguments))
                 {

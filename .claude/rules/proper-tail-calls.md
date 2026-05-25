@@ -22,8 +22,11 @@ tail restart behavior, keep runtime context ownership explicit.
 5. Reset or reinitialize expression interpreter side state when reusing a
    trampoline frame, including optional-chain short-circuit flags and any
    stack-slot metadata.
-6. Preserve the callable object's realm-sensitive errors. A revoked proxy called
-   from tail position must throw from the proxy realm, not from the caller realm.
+6. Preserve the callable object's operation-selected realm-sensitive errors. A
+   revoked proxy called from tail position must throw from the realm selected
+   by that proxy operation; do not replace it with a generic caller, callee, or
+   proxy-creation realm. See `.claude/rules/ecmascript-proxy-realm-errors.md`
+   for the apply/construct null-handler rule.
 7. Prove this class with focused internal coverage before broad Test262 runs:
    call-depth stability, `try` / `catch` frame cleanup, `try` / `finally`
    ordering, strict member-call receiver rebinding, and relevant realm-sensitive
@@ -40,7 +43,9 @@ the existing function environment before jumping back to the plan entry point.
 
 The same issue also exposed that tail-call work crosses expression-bytecode
 side-state, `try` / `finally` completion ordering, and proxy realm identity.
-Future changes need targeted semantic proof for those boundaries; a green broad
-suite or a call-depth-only test is not enough.
+Issue #1864 / PR #1890 later refined the proxy lesson: revoked proxy
+`[[Call]]` and `[[Construct]]` null-handler errors use the current execution
+realm when present. Future changes need targeted semantic proof for those
+boundaries; a green broad suite or a call-depth-only test is not enough.
 
 Related ADR: `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`.

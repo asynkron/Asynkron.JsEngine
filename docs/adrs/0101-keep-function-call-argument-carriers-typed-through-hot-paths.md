@@ -31,6 +31,13 @@ and `CreateArgs` helper surface, then review caught that the now-unreferenced
 too, leaving only the `JsValue[]` argument-array pools for the dynamic-call fast
 path.
 
+Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 extended the same typed-carrier
+lesson to array iteration callbacks. `map`, `filter`, `forEach`, and related
+iteration helpers previously created three-element argument-array literals for
+`(value, index, array)`. The accepted slice introduced `ThreeValueArgs` and a
+generic callback helper so those three callback arguments stay concrete until
+the callable consumes them.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -52,9 +59,10 @@ For sync-function invocation and simple IR activation:
 6. keep the generic fallback for uncommon or unsafe callable shapes rather than
    widening the simple activation predicate.
 
-`TwoValueArgs` remains valid only when the concrete struct type is preserved
-through the generic path. It should not be treated as allocation-free after it
-has crossed an interface-typed hot-path boundary.
+`TwoValueArgs`, `ThreeValueArgs`, and future arity-specific struct carriers
+remain valid only when the concrete struct type is preserved through the generic
+path. They should not be treated as allocation-free after crossing an
+interface-typed hot-path boundary.
 
 ## Consequences
 
@@ -69,8 +77,8 @@ has crossed an interface-typed hot-path boundary.
   enough if `ObjectPool<object?[]>` fields remain allocated and named as a
   plausible future entry point.
 - Allocation claims should check the relevant profile output for helper carrier
-  rows such as `TwoValueArgs` or `EmptyValueArgs`, not just the total allocation
-  number.
+  rows such as `TwoValueArgs`, `ThreeValueArgs`, or `EmptyValueArgs`, not just
+  the total allocation number.
 - This complements ADR 0099 and ADR 0100: ADR 0099 owns activation slot-shape
   metadata, ADR 0100 owns observable `arguments` binding creation, and this ADR
   owns allocation-stable argument carrier flow.

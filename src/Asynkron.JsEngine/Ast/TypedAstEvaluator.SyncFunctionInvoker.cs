@@ -792,6 +792,7 @@ public static partial class TypedAstEvaluator
             {
                 context.CallDepth = callingContext.CallDepth;
                 context.MaxCallDepth = callingContext.MaxCallDepth;
+                context.DisableSyncIrCallTrampoline = callingContext.DisableSyncIrCallTrampoline;
             }
 
             // Track Function.caller (Annex B) for non-strict functions.

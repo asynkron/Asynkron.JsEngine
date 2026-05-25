@@ -3,6 +3,7 @@
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -30,7 +31,8 @@ public static partial class TypedAstEvaluator
                 where TArgs : IReadOnlyList<JsValue>
             {
                 result = JsValue.Undefined;
-                if (!CanUseTrampoline(invoker, plan, newTarget))
+                if (context.DisableSyncIrCallTrampoline ||
+                    !CanUseTrampoline(invoker, plan, newTarget))
                 {
                     return false;
                 }
@@ -84,7 +86,7 @@ public static partial class TypedAstEvaluator
                             }
 
                             completedFrame.ExpressionPurpose = ExpressionPurpose.None;
-                            if (!ReturnFromFrame(ref frames, ref depth, value, context, out result))
+                            if (!ReturnFromFrame(ref frames, ref depth, value, out result))
                             {
                                 return true;
                             }
@@ -95,7 +97,7 @@ public static partial class TypedAstEvaluator
                         var instructions = frame.Plan.Instructions;
                         if ((uint)frame.ProgramCounter >= (uint)instructions.Length)
                         {
-                            if (!ReturnFromFrame(ref frames, ref depth, JsValue.Undefined, context, out result))
+                            if (!ReturnFromFrame(ref frames, ref depth, JsValue.Undefined, out result))
                             {
                                 return true;
                             }
@@ -126,6 +128,25 @@ public static partial class TypedAstEvaluator
                                 frame.ProgramCounter = ((SetCompletionValueInstruction)instruction).Next;
                                 break;
 
+                            case InstructionKind.PushEnvironment:
+                                {
+                                    var push = (PushEnvironmentInstruction)instruction;
+                                    if (push.SlotCount != 0 ||
+                                        !push.PerIterationBindings.IsDefaultOrEmpty ||
+                                        push.LexicalBindings is { Count: > 0 })
+                                    {
+                                        result = InvokeCurrentFrameNormally(frames[depth - 1], context);
+                                        return true;
+                                    }
+
+                                    frame.ProgramCounter = push.Next;
+                                    break;
+                                }
+
+                            case InstructionKind.PopEnvironment:
+                                frame.ProgramCounter = ((PopEnvironmentInstruction)instruction).Next;
+                                break;
+
                             case InstructionKind.Return:
                                 {
                                     var returnInstruction = (ReturnInstruction)instruction;
@@ -138,7 +159,7 @@ public static partial class TypedAstEvaluator
                                             -1,
                                             -1);
                                     }
-                                    else if (!ReturnFromFrame(ref frames, ref depth, JsValue.Undefined, context, out result))
+                                    else if (!ReturnFromFrame(ref frames, ref depth, JsValue.Undefined, out result))
                                     {
                                         return true;
                                     }
@@ -147,8 +168,8 @@ public static partial class TypedAstEvaluator
                                 }
 
                             default:
-                                result = JsValue.Undefined;
-                                return false;
+                                result = InvokeCurrentFrameNormally(frames[depth - 1], context);
+                                return true;
                         }
                     }
 
@@ -181,7 +202,6 @@ public static partial class TypedAstEvaluator
                     !invoker._instanceFields.IsDefaultOrEmpty ||
                     invoker._function.Name is { } functionName && HasParameterNamed(invoker, functionName) ||
                     !invoker.CanUseSimpleIrActivationPlanShape(plan) ||
-                    !plan.CanUseRawSyncReturn ||
                     plan.ActivationSlots is not { } activationSlots)
                 {
                     return false;
@@ -233,10 +253,7 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
-                            if (!CanRunExpression(invoker, returnProgram, activationSlots))
-                            {
-                                return false;
-                            }
+                            _ = CanRunExpression(invoker, returnProgram, activationSlots);
 
                             break;
 
@@ -245,7 +262,11 @@ public static partial class TypedAstEvaluator
                         case SetCompletionValueInstruction:
                             break;
 
-                        default:
+                        case ReturnInstruction { AwaitedProgram: not null }:
+                        case EnterTryInstruction:
+                        case EnterCatchInstruction:
+                        case LeaveTryInstruction:
+                        case EndFinallyInstruction:
                             return false;
                     }
                 }
@@ -272,6 +293,10 @@ public static partial class TypedAstEvaluator
                     switch (operation.Kind)
                     {
                         case ExpressionOpKind.LoadLiteral:
+                            tags[tagIndex++] = ExpressionStackTag.Value;
+                            break;
+
+                        case ExpressionOpKind.LoadTemplateObject:
                             tags[tagIndex++] = ExpressionStackTag.Value;
                             break;
 
@@ -308,6 +333,28 @@ public static partial class TypedAstEvaluator
 
                             tagIndex--;
                             tags[tagIndex - 1] = ExpressionStackTag.Value;
+                            break;
+
+                        case ExpressionOpKind.Pop:
+                            if (tagIndex < 1)
+                            {
+                                return false;
+                            }
+
+                            tagIndex--;
+                            break;
+
+                        case ExpressionOpKind.Jump:
+                        case ExpressionOpKind.JumpIfNullish:
+                        case ExpressionOpKind.JumpIfShortCircuited:
+                        case ExpressionOpKind.JumpIfTrue:
+                        case ExpressionOpKind.JumpIfFalse:
+                        case ExpressionOpKind.JumpIfNotNullish:
+                            if (tagIndex < 1)
+                            {
+                                return false;
+                            }
+
                             break;
 
                         case ExpressionOpKind.Call:
@@ -401,32 +448,6 @@ public static partial class TypedAstEvaluator
                 maxDepth = Math.Max(maxDepth, depth);
             }
 
-            private static void PushFrameFromExpression(
-                ref SyncIrFrame[] frames,
-                ref int depth,
-                ref int maxDepth,
-                SyncFunctionInvoker invoker,
-                ReadOnlySpan<JsValue> arguments,
-                JsValue thisValue,
-                ExecutionPlan plan)
-            {
-                EnsureFrameCapacity(ref frames, depth + 1);
-                ref var frame = ref frames[depth];
-                InitializeFrame(ref frame, invoker, thisValue, plan);
-
-                var activationSlots = plan.ActivationSlots!;
-                for (var i = 0; i < activationSlots.ParameterSlotIndices.Length; i++)
-                {
-                    var slotIndex = activationSlots.ParameterSlotIndices[i];
-                    frame.Slots![slotIndex] = i < arguments.Length
-                        ? arguments[i]
-                        : JsValue.Undefined;
-                }
-
-                depth++;
-                maxDepth = Math.Max(maxDepth, depth);
-            }
-
             private static void InitializeFrame(
                 ref SyncIrFrame frame,
                 SyncFunctionInvoker invoker,
@@ -473,6 +494,16 @@ public static partial class TypedAstEvaluator
                             frame.ExpressionProgramCounter++;
                             break;
 
+                        case ExpressionOpKind.LoadTemplateObject:
+                            {
+                                var descriptor = operation.GetObject<TaggedTemplateDescriptor>(
+                                    program.ObjectConstants.AsSpan());
+                                stack[frame.ExpressionStackIndex++] = JsValue.FromJsArray(
+                                    GetOrCreateProgramTemplateObject(descriptor, context));
+                                frame.ExpressionProgramCounter++;
+                                break;
+                            }
+
                         case ExpressionOpKind.LoadIdentifier:
                             if (!TryReadIdentifier(
                                     frame,
@@ -518,10 +549,53 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case ExpressionOpKind.Pop:
+                            frame.ExpressionStackIndex--;
+                            frame.ExpressionProgramCounter++;
+                            break;
+
+                        case ExpressionOpKind.Jump:
+                            frame.ExpressionProgramCounter = operation.Target;
+                            break;
+
+                        case ExpressionOpKind.JumpIfNullish:
+                            frame.ExpressionProgramCounter =
+                                stack[frame.ExpressionStackIndex - 1].IsNullish
+                                    ? operation.Target
+                                    : frame.ExpressionProgramCounter + 1;
+                            break;
+
+                        case ExpressionOpKind.JumpIfTrue:
+                            frame.ExpressionProgramCounter =
+                                stack[frame.ExpressionStackIndex - 1].IsTruthy
+                                    ? operation.Target
+                                    : frame.ExpressionProgramCounter + 1;
+                            break;
+
+                        case ExpressionOpKind.JumpIfFalse:
+                            frame.ExpressionProgramCounter =
+                                !stack[frame.ExpressionStackIndex - 1].IsTruthy
+                                    ? operation.Target
+                                    : frame.ExpressionProgramCounter + 1;
+                            break;
+
+                        case ExpressionOpKind.JumpIfNotNullish:
+                            frame.ExpressionProgramCounter =
+                                !stack[frame.ExpressionStackIndex - 1].IsNullish
+                                    ? operation.Target
+                                    : frame.ExpressionProgramCounter + 1;
+                            break;
+
+                        case ExpressionOpKind.JumpIfShortCircuited:
+                            frame.ExpressionProgramCounter++;
+                            break;
+
                         case ExpressionOpKind.Call:
                             {
                                 if (operation.SpreadMaskConstantIndex >= 0 ||
-                                    !operation.HasExplicitThis)
+                                    !operation.HasExplicitThis ||
+                                    frame.ExpressionPurpose != ExpressionPurpose.Return ||
+                                    frame.ExpressionProgramCounter != operationCount - 1)
                                 {
                                     return StepResult.Bail;
                                 }
@@ -536,23 +610,25 @@ public static partial class TypedAstEvaluator
                                     return StepResult.Bail;
                                 }
 
-                                if (++context.CallDepth > context.MaxCallDepth)
+                                var arg0 = argumentCount > 0
+                                    ? stack[calleeIndex + 1]
+                                    : JsValue.Undefined;
+                                var arg1 = argumentCount > 1
+                                    ? stack[calleeIndex + 2]
+                                    : JsValue.Undefined;
+                                var restartThisValue = stack[receiverIndex];
+                                frame.ExpressionProgramCounter++;
+                                InitializeFrame(ref frame, callee, restartThisValue, frame.Plan);
+
+                                var activationSlots = frame.Plan.ActivationSlots!;
+                                for (var i = 0; i < activationSlots.ParameterSlotIndices.Length; i++)
                                 {
-                                    context.CallDepth--;
-                                    throw new InvalidOperationException(
-                                        $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+                                    var slotIndex = activationSlots.ParameterSlotIndices[i];
+                                    frame.Slots![slotIndex] = i < argumentCount
+                                        ? i == 0 ? arg0 : i == 1 ? arg1 : JsValue.Undefined
+                                        : JsValue.Undefined;
                                 }
 
-                                frame.ExpressionProgramCounter++;
-                                frame.ExpressionStackIndex = receiverIndex;
-                                PushFrameFromExpression(
-                                    ref frames,
-                                    ref depth,
-                                    ref maxDepth,
-                                    callee,
-                                    stack.AsSpan(calleeIndex + 1, argumentCount),
-                                    stack[receiverIndex],
-                                    frame.Plan);
                                 return StepResult.PushedFrame;
                             }
 
@@ -619,7 +695,6 @@ public static partial class TypedAstEvaluator
                 ref SyncIrFrame[] frames,
                 ref int depth,
                 JsValue value,
-                EvaluationContext context,
                 out JsValue result)
             {
                 result = value;
@@ -630,7 +705,6 @@ public static partial class TypedAstEvaluator
                     return false;
                 }
 
-                context.CallDepth--;
                 ref var caller = ref frames[depth - 1];
                 caller.ExpressionStack![caller.ExpressionStackIndex++] = value;
                 return true;
@@ -705,6 +779,46 @@ public static partial class TypedAstEvaluator
 
                     frames[i] = default;
                 }
+            }
+
+            private static JsValue InvokeCurrentFrameNormally(
+                SyncIrFrame frame,
+                EvaluationContext context)
+            {
+                var invoker = frame.Invoker!;
+                var activationSlots = frame.ActivationSlots!;
+                var arguments = new JsValue[activationSlots.ParameterSlotIndices.Length];
+                for (var i = 0; i < arguments.Length; i++)
+                {
+                    arguments[i] = frame.Slots![activationSlots.ParameterSlotIndices[i]];
+                }
+
+                var previousDisable = context.DisableSyncIrCallTrampoline;
+                context.DisableSyncIrCallTrampoline = true;
+                try
+                {
+                    return invoker.InvokeWithContext(arguments, frame.ThisValue, context);
+                }
+                finally
+                {
+                    context.DisableSyncIrCallTrampoline = previousDisable;
+                }
+            }
+
+            private static JsArray GetOrCreateProgramTemplateObject(
+                TaggedTemplateDescriptor descriptor,
+                EvaluationContext context)
+            {
+                if (context.RealmState.TemplateObjectCache.TryGetValue(descriptor, out var cachedTemplate))
+                {
+                    return (JsArray)cachedTemplate;
+                }
+
+                var stringsArray = new JsArray(descriptor.CookedStrings, context.RealmState);
+                var rawStringsArray = new JsArray(descriptor.RawStrings, context.RealmState);
+                var templateObject = (JsArray)stringsArray.CreateTemplateObject(rawStringsArray);
+                context.RealmState.TemplateObjectCache[descriptor] = templateObject;
+                return templateObject;
             }
 
             private enum ExpressionPurpose : byte

@@ -93,4 +93,20 @@ public sealed class TestVariableDeclarations(ITestOutputHelper output) : Interna
 
         Assert.Equal(true, result);
     }
+
+    [Fact]
+    public async Task DirectEvalVarArgumentsInSloppyFunction_ShouldBeAllowed()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            function testcase() {
+                eval(""var arguments;"");
+                return 1;
+            }
+
+            testcase();
+        ");
+
+        Assert.Equal(1.0, result);
+    }
 }

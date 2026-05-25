@@ -16,7 +16,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleSyncFunction_ComputesExpectedResult()
+    public async Task SimpleSyncFunction_UsesIrActivationFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -29,6 +29,12 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

@@ -20,6 +20,8 @@ generator function activation. Nested non-arrow functions remain a boundary
 because they own their own `arguments` semantics.
 
 Issue #1750 / PR #1789 exposed a second boundary in the opposite direction.
+The #gh1806 red-main repair and learn pass rechecked the same merged delivery
+from local main-verification evidence and kept this ADR as the canonical record.
 A sloppy function can need the spec-created arguments object even when
 `NeedsArgumentsBinding` would otherwise say the binding is not observable from
 executed code. In `function f() { return typeof arguments; var arguments = 42;

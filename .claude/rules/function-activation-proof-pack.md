@@ -54,7 +54,6 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    fallback signals, or measured allocation evidence. Do not require optional
    activation trace logs when the optimized path may validly skip creating an
    activation object or omit the trace.
-
 ## Why
 
 Issue `planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-p-8b2aee3a48`
@@ -76,7 +75,8 @@ avoidance.
 
 Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.
 
-Issue #1750 / PR #1789 showed the inverse lazy-arguments trap directly:
+Issue #1750 / PR #1789, reviewed again during the #gh1806 red-main learn pass,
+showed the inverse lazy-arguments trap directly:
 `function f() { return typeof arguments; var arguments = 42; }` still needs the
 sloppy function arguments object at the return point even though the later
 `var arguments` declaration is unreachable and has no executed initializer. The

@@ -26,6 +26,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - RegExp property-escape matcher/cache handling has recent targeted optimization work, which gives roadmap follow-up a concrete runtime hotspot surface to track with profile evidence (`src/Asynkron.JsEngine/JsTypes/JsRegExp.cs`).
 - RegExp runtime ownership boundaries are now explicitly captured for both the bounded instance cache shape and anchored property-escape matcher scope (`docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`, `docs/adrs/0113-keep-anchored-regexp-property-escape-single-codepoint-runtime-owned.md`).
 - Additional 2026-05 evidence slices now document simple numeric expression fast-path tuning and class-definition environment pre-sizing, tightening the current-state link between runtime changes and measured profile outcomes (`docs/performance/ir-arithmetic-simple-numeric-expression-fast-path.md`, `docs/performance/classdef-ir-environment-pre-sizing.md`).
+- Recent string-append rope follow-through reduced `stringops` cost while keeping flattening consumer-driven and runtime-owned; the remaining gap is explicitly tracked in evidence rather than inferred (`docs/performance/stringops-rope-append-fast-path.md`, `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`).
+- Recent compliance and helper-surface slices tightened spec-order and runtime-boundary ownership in hot paths: Array reduce/reduceRight/some result helpers are JsValue-native, computed-member nullish read order is explicitly spec-ordered, and descriptor-backed delete strictness behavior is runtime-owned with focused regression proof (`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`, `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`, `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -49,6 +51,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 9. Continue assignment-lowering slices by prioritizing slot-proven self-referential arithmetic and bitwise paths, while keeping dynamic/no-cache identifier semantics explicitly non-negotiable under ADR 0107/0108.
 10. Keep Test262 profile-runner coverage and profile-manifest entries aligned as new clusters are added, so recurring diagnostics remain reproducible.
 11. Remove remaining obsolete object-overload tripwires only after each callsite migration stays profile-neutral and semantic-safe under ADR 0114 boundaries.
+12. Continue `stringops` follow-up by isolating remaining append-loop versus consumer-flattening cost with profile-backed slices under ADR 0120 constraints.
+13. Keep compliance-oriented runtime slices narrow and evidence-first for computed-member nullish ordering and descriptor-delete strictness boundaries while expanding nearby proof packs only after focused checks pass.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -65,11 +69,16 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/classdef-inline-expression-buffers.md`
   - `docs/performance/ir-arithmetic-binary-fast-path.md`
   - `docs/performance/json-compact-serialization.md`
+  - `docs/performance/stringops-rope-append-fast-path.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
   - `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`
   - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
+  - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
+  - `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`
+  - `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`
+  - `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

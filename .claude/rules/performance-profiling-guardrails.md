@@ -69,6 +69,12 @@ optimization.
     sizing. Capacity helpers may reserve space for known activation appends, but
     reports must distinguish backing capacity from logical slot count, binding
     order, and observable environment semantics.
+13. For repeated RegExp matcher performance work, keep shared .NET `Regex`
+    reuse keyed by the runtime bridge shape that actually executes: capped
+    normalized pattern plus `RegexOptions`. Preserve per-instance `_compiledRegex`
+    reuse as the first fast path, bound the shared cache, and do not convert a
+    construction-cache win into broader RegExp construction laziness without a
+    separate invalid-pattern timing and metadata proof.
 
 ## Why
 
@@ -169,3 +175,10 @@ The durable lesson is that activation capacity fixes should be profile-owned and
 capacity-only, then backed by activation/class semantics tests, slot/environment
 tests, runner AST-seam scans, and an allocation-stability memory check. Detailed
 measurement note: `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 optimized repeated Test262
+matcher execution by caching equivalent .NET `Regex` instances after RegExp
+normalization and quantifier capping. The durable lesson is that RegExp cache
+keys are semantic: raw source text is not enough, cache growth must be bounded,
+and construction laziness remains a separate observable-timing decision. Related
+ADR: `docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`.

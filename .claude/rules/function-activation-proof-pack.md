@@ -30,9 +30,9 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    boundary.
 6. When optimizing arity-specific sync calls, keep struct argument carriers on
    concrete generic paths until parameter binding consumes them. Do not pass
-   `TwoValueArgs` or similar readonly struct lists through `IReadOnlyList`-typed
-   hot helper parameters or locals, because that boxes the struct and reintroduces
-   the allocation the optimization is trying to remove.
+   `TwoValueArgs`, `ThreeValueArgs`, or similar readonly struct lists through
+   `IReadOnlyList`-typed hot helper parameters or locals, because that boxes the
+   struct and reintroduces the allocation the optimization is trying to remove.
 7. When binding parameters into an activation that already has slot storage,
    update the planned parameter slots directly. Do not call
    `DefineParameterFast` as a closure mirror for those parameters; it appends a
@@ -103,3 +103,8 @@ Future activation sizing work should keep that distinction explicit.
 
 Related performance note:
 `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 applied the same carrier rule
+outside activation setup by routing array iteration callbacks through
+`ThreeValueArgs`. The reusable lesson is unchanged: the struct is only
+allocation-free while it stays concrete through the hot callback path.

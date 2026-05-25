@@ -75,6 +75,8 @@ public sealed class EvaluationContext(
     /// </summary>
     internal bool AllowIdentifierCache { get; set; }
 
+    internal bool DisableSyncIrCallTrampoline { get; set; }
+
     internal bool DisallowAstEvaluation { get; set; } =
 #if DEBUG
         AssertNoAstEvaluation;
@@ -606,6 +608,7 @@ public sealed class EvaluationContext(
         _assignmentSlotCache?.Clear();
         _classFieldInitializerDepth = 0;
         AllowIdentifierCache = false;
+        DisableSyncIrCallTrampoline = false;
 #if DEBUG
         DisallowAstEvaluation = AssertNoAstEvaluation;
 #else

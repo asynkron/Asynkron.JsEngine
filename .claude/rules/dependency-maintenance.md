@@ -10,6 +10,12 @@ unless the issue explicitly asks for a major migration.
 - For .NET package references that appear in multiple project files, align the
   compatible version across every owning project in the same scoped slice
   unless there is a documented reason for one project to stay pinned.
+- When a .NET dependency sweep finds the same package already pinned to the
+  same literal version in several project files, prefer centralizing that
+  version in `Directory.Build.props` as a named MSBuild property if the slice
+  can stay small and the resolved package version does not change. Do not turn
+  that cleanup into full Central Package Management or a broad package
+  modernization inside a routine recurring child.
 - Do not fold major-version migrations into a routine dependency sweep just
   because `latest` reports one. Major upgrades need their own issue, migration
   notes, and behavior-specific proof.
@@ -66,6 +72,14 @@ Issue #1299 / PR #1305 updated `Microsoft.Extensions.Logging.Abstractions` from
 project together. Keeping the repeated .NET package pin aligned avoided a
 partial dependency state where only one project saw the compatible patch update
 while sibling projects continued to carry the older package.
+
+Issue #1923 / PR #1928 followed up on that same repeated
+`Microsoft.Extensions.Logging.Abstractions` surface after all three project
+files already carried the same `10.0.8` literal. The safe maintenance slice was
+to move the version literal into `Directory.Build.props` as
+`MicrosoftExtensionsLoggingAbstractionsVersion` and reference that property from
+the runtime, main test, and test helper projects, without changing the resolved
+package version or introducing full Central Package Management.
 
 Issue #1532 / PR #1536 documented the same NodeHostDemo drift after npm
 metadata showed `express@5.2.1` on `latest`, `express@4.22.2` on `latest-4`,

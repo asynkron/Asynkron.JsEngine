@@ -16,6 +16,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - Prefer the copy/paste `## Build Update` template in
   `agents/how-to-build-and-test.md` for the operational build-stage update
   format so child-run updates stay comparable across recurring issues.
+- When a top-level entrypoint such as `README.md` summarizes recurring-child
+  workflow, keep it as a short pointer to the owned playbook and include the
+  sibling-summary check plus stable evidence field names. Do not duplicate the
+  whole checklist outside `agents/how-to-build-and-test.md`.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
@@ -160,6 +164,14 @@ copy/paste `## Build Update` template in `agents/how-to-build-and-test.md`.
 Without a template, recurring maintenance children can still mention the right
 fields while varying the structure enough that review has to reconstruct the
 slice, before/after signals, diff hygiene, and scope boundaries by hand.
+
+Issue #1845 / PR #1888 closed the top-level README drift around that same
+evidence shape. `README.md` already pointed at the maintenance-child playbook,
+but it did not name sibling-summary checks or the stable `Baseline signal`,
+`Final signal`, `Sibling check`, `Slice check`, and `Scope note` fields. Future
+entrypoint docs should expose those anchors while leaving the detailed
+checklist in `agents/how-to-build-and-test.md`, so operators see the contract
+without maintaining two full copies.
 
 Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
 was already handling the README stale-link candidate

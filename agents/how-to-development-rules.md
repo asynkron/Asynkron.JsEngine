@@ -18,7 +18,7 @@
 
 ## Test Timeouts
 - All tests must finish within 20 seconds.
-- CLI pattern: `dotnet test -- xUnit.MaxParallelThreads=1 -timeout 20000`.
+- CLI pattern: `rtk dotnet test tests/Asynkron.JsEngine.Tests -- xUnit.MaxParallelThreads=1 -timeout 20000`.
 
 ## Project Structure
 ```

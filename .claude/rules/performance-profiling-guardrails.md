@@ -75,6 +75,14 @@ optimization.
     reuse as the first fast path, bound the shared cache, and do not convert a
     construction-cache win into broader RegExp construction laziness without a
     separate invalid-pattern timing and metadata proof.
+14. For array built-in call-boundary optimizations, prove that generic
+    host-call argument materialization is the hot owner before bypassing it.
+    Keep shortcuts limited to generated native built-in identities and delegate
+    the receiver semantics back to the owning runtime type, such as `JsArray`.
+    Do not turn a one-argument `Array.prototype.push` win into a generic
+    single-argument host-call shortcut or a user-visible function-name
+    heuristic. Pin descriptor, prototype, proxy, extensibility, length
+    writability, and maximum-length fallback behavior with focused tests.
 
 ## Why
 
@@ -182,3 +190,16 @@ normalization and quantifier capping. The durable lesson is that RegExp cache
 keys are semantic: raw source text is not enough, cache growth must be bounded,
 and construction laziness remains a separate observable-timing decision. Related
 ADR: `docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`.
+
+Issue `autrun-dirmopwawwc8-6c6cc5263e` / PR #1786 selected `arrayops` again
+after dense array writes had already been optimized. The CPU call tree showed
+the remaining owner under `arr.push(i)` was single-argument generated native
+host invocation, with boxing below the generic `IReadOnlyList<JsValue>` call
+boundary. The accepted slice added an expression-runner shortcut only for the
+native one-argument `push` shape, then delegated the observable append decision
+to `JsArray.TryPushSingleFast`, which falls back for indexed descriptors,
+prototype overrides or proxies, non-extensible arrays, non-writable length, and
+maximum length. The durable lesson is that call-boundary fast paths must stay
+profile-owned and runtime-guarded; the semantic owner still has to be the
+receiver runtime type. Related ADR:
+`docs/adrs/0116-keep-array-push-single-arg-host-call-shortcut-runtime-guarded.md`.

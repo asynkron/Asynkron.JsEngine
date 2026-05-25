@@ -16,15 +16,20 @@ path that can evaluate the assignment.
    leave another execution path applying the hint.
 3. Pass `AllowNameInference: false` for all member, computed member, and super
    property writes. A `MemberExpression` assignment is a property write, not an
-   identifier binding assignment.
+   identifier binding assignment. Non-computed private member assignments are
+   still named member writes, but reads and writes must stay private-aware:
+   getter/setter calls, brand checks, and short-circuit skips belong to the
+   property handle path, not to a plain-object fallback or an AST-evaluation
+   escape hatch.
 4. For expression-position logical member assignments (`&&=`, `||=`, `??=`),
    prove both branches have the same stack contract: exactly one expression
    result remains, and duplicated receiver/property-key operands are cleaned up.
 5. Add focused tests for the semantic split before widening Test262 proof:
    identifier name inference, parenthesized identifier no-inference, member
    no-inference, strict getter-only or non-writable write failures when the
-   branch runs, and strict write skips when the logical assignment
-   short-circuits.
+   branch runs, strict write skips when the logical assignment short-circuits,
+   and private accessor branches where `&&=`, `||=`, and `??=` invoke the
+   private setter only when assignment actually runs.
 6. For expression-statement identifier assignments with no flat slot and no
    scoped slot, capture the `AssignmentReference` before evaluating the RHS and
    write back through that captured reference afterward. RHS side effects that
@@ -57,6 +62,13 @@ Identifier assignments needed RHS-based NamedEvaluation, but member writes had
 to disable that same inference and preserve property write failures. The fix
 also had to make expression-position member short-circuit cleanup leave the same
 single-result stack shape as the write branch.
+
+Issue #1832 / PR #1857 added the missing private-accessor regression slice for
+that same member path. The durable lesson is that private accessor logical
+assignment is not a separate lowering family, but it must prove the named member
+path routes reads and writes through private-aware `PropertyHandle` semantics:
+assignment branches call the private setter, while short-circuit branches skip
+both RHS evaluation and the setter.
 
 Issue #774 / PR #950 then exposed the same parenthesized-assignment exclusion on
 plain assignment. The expression bytecode compiler, expression-statement slot

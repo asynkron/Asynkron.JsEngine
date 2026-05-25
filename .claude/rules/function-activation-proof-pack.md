@@ -54,6 +54,14 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    fallback signals, or measured allocation evidence. Do not require optional
    activation trace logs when the optimized path may validly skip creating an
    activation object or omit the trace.
+11. When skipping concrete `JsArgumentsObject` materialization for performance,
+    keep the optimization guarded by both `argumentsObjectNeeded` and
+    `NeedsArgumentsBinding`. The former owns the spec-shaped activation
+    decision; the latter owns whether the binding/object can be observed on the
+    current path. Do not replace this with a direct body scan, and do not weaken
+    direct eval, parameter-default, dynamic-scope, nested-arrow, or hoisted
+    `var arguments` proofs.
+
 ## Why
 
 Issue `planitem-planmanual1779530433702731000-reduce-function-call-activation-overhead-p-8b2aee3a48`
@@ -145,3 +153,15 @@ activation fast-path work. The repair kept the semantic proof focused by
 asserting stable negative fast-path signals instead of the optional trace.
 Future activation tests should prove the behavior that must stay true and avoid
 turning diagnostics into contractual runtime output.
+
+Issue `autrun-dirquxckeg74-0fe6957821` / PR #1811 optimized the `classdef`
+profile by skipping `JsArgumentsObject` allocation for functions where
+`argumentsObjectNeeded` is spec-eligible but `NeedsArgumentsBinding` proves the
+binding is unobservable. The durable lesson is that lazy materialization is a
+profile-owned activation optimization, not a simplification of the arguments
+semantics split from ADR 0100. Future work should preserve the two-decision
+shape and prove the observable-binding cases explicitly before claiming an
+arguments-object allocation win.
+
+Related ADR:
+`docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`.

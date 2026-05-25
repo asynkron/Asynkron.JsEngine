@@ -39,6 +39,12 @@ model explicitly.
    Preserve `lastIndex`, legacy RegExp statics, match indexes, and prefix/gap
    replacement assembly. Whole-input early returns are allowed only when the
    first match starts at index `0`.
+10. For shared .NET `Regex` instance caching, cache only after the ECMAScript
+    pattern has been normalized into the runtime bridge shape, key by the capped
+    normalized pattern and `RegexOptions`, and keep the cache bounded. The cache
+    may reuse equivalent .NET matcher objects, but it must not skip syntax
+    validation, capture metadata, `lastIndex`, statics, or observable execution
+    paths.
 
 ## Why
 
@@ -80,3 +86,13 @@ nonzero first match such as `" a".replace(/\S+/g, "X")` must preserve the input
 prefix rather than collapse to a whole-input replacement. Future replace
 shortcuts should keep the same guard shape and add regression coverage for
 custom `exec`, prefix preservation, and metadata updates.
+
+Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 added a bounded shared
+`Regex` instance cache for repeated Test262 matcher patterns. The cache is safe
+only because lookup happens after the same normalization and large-quantifier
+capping as the uncached path, and because the key includes `RegexOptions`.
+Future RegExp bridge performance work should preserve that runtime-shape key
+boundary instead of caching by raw JavaScript source alone.
+
+Related ADR:
+`docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`.

@@ -62,6 +62,8 @@ public static partial class TypedAstEvaluator
         private readonly ActivationSlotShape? _activationSlots;
         private readonly bool _hasSimpleReturnParameterBinaryFastPath;
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
+        private readonly bool _hasFunctionDeclarations;
+        private readonly bool _hasNonParameterCalleeCall;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -124,6 +126,7 @@ public static partial class TypedAstEvaluator
                 .GetOrCreateCache()
                 .HasHoistableDeclarations;
             var hasFunctionDeclarations = hoistPlan.HasFunctionDeclarations;
+            _hasFunctionDeclarations = hasFunctionDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
@@ -162,6 +165,21 @@ public static partial class TypedAstEvaluator
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
             _parameterNames = parameterNames;
+            if (parameterNames.Length == 0)
+            {
+                _hasNonParameterCalleeCall =
+                    ContainsNonParameterCalleeIdentifier(function, new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+            }
+            else
+            {
+                var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                foreach (var parameterName in parameterNames)
+                {
+                    parameterNameSet.Add(parameterName);
+                }
+
+                _hasNonParameterCalleeCall = ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
+            }
             _lexicalTemplate = hoistPlan.LexicalTemplate;
             _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             _topLevelLexicalNames = hoistPlan.TopLevelLexicalNames;
@@ -883,6 +901,8 @@ public static partial class TypedAstEvaluator
             var canUseIrPlan =
                 !_function.IsGenerator &&
                 !IsAsyncFunction &&
+                !_hasFunctionDeclarations &&
+                !_hasNonParameterCalleeCall &&
                 (_allowIdentifierCache || !_closure.HasWithObjectInChain() || plan is not null || failureReason is not null);
             if (canUseIrPlan)
             {
@@ -2550,6 +2570,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             return slotCount > 0 ? slotCount : 0;
         }
+
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private int ComputeActivationMinimumCapacity()

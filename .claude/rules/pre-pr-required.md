@@ -60,6 +60,13 @@ Preserve the `make quality` split between `build-internal` and
 `test-internal-no-build`. The `--no-build` test target is allowed only in this
 quality-gate path because `quality` performs the build immediately first.
 
+Keep every `build-internal` `dotnet build` line wired through
+`$(DOTNET_BUILD_STABILITY_ARGS)`. The default `DOTNET_BUILD_STABILITY_ARGS ?=
+/m:1 /nr:false` is part of the quality-gate reliability contract: it serializes
+MSBuild and disables node reuse so host child-node failures do not masquerade as
+source failures. Do not remove it or omit it from new internal build projects
+without a current quality-window proof.
+
 Keep Makefile command tools configurable through variables such as
 `DOTNET ?= dotnet` and `GIT ?= git`. Do not hardcode `rtk`, `rtk proxy`, or
 another local agent wrapper inside repository Make targets; wrap the shell
@@ -75,3 +82,9 @@ Issue #755 / PR #905 later repaired review feedback where the Makefile
 preserved the correct quality sequence but still embedded the local `rtk`
 wrapper. Repository targets must remain runnable outside the agent runtime while
 agent sessions can still invoke them as `rtk make quality`.
+
+Issue #1830 / PR #1850 repaired a later quality-gate failure where MSBuild child
+node "2" exited prematurely during `tests/Asynkron.JsEngine.Tests.csproj`.
+Because the failure was build-host/process reliability rather than a test
+assertion, the durable fix is to keep `build-internal` single-node and
+node-reuse-free by default through the shared stability variable.

@@ -4,10 +4,10 @@ namespace Asynkron.JsEngine.Tests;
 
 public class DurationFormatDebugTest
 {
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task ResolvedOptionsCheck()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var df = new Intl.DurationFormat('en');
             var opts = df.resolvedOptions();
@@ -22,10 +22,10 @@ public class DurationFormatDebugTest
         Assert.Contains("years=short", str);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task FormatDefaultStyle()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate(@"
             var df = new Intl.DurationFormat('en');
             var duration = {years: 1, months: 2, weeks: 3, days: 3, hours: 4, minutes: 5, seconds: 6, milliseconds: 7, microseconds: 8, nanoseconds: 9};
@@ -35,10 +35,10 @@ public class DurationFormatDebugTest
         Assert.NotEmpty(str);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task OutOfRangeSeconds()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         // seconds = 2^53 should throw RangeError
         var result = await engine.Evaluate(@"
             var df = new Intl.DurationFormat();
@@ -55,19 +55,19 @@ public class DurationFormatDebugTest
         Assert.Contains("threw RangeError", str);
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task DecimalConversionCheck()
     {
         // Test what Number.MAX_SAFE_INTEGER + 1 evaluates to
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         var result = await engine.Evaluate("'' + (Number.MAX_SAFE_INTEGER + 1)");
         Assert.Equal("9007199254740992", result?.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task UnicodeGroupName()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
 
         // Test supplementary plane chars in group names
         var result = await engine.Evaluate(@"
@@ -83,10 +83,10 @@ public class DurationFormatDebugTest
         Assert.Equal("a", result2?.ToString());
     }
 
-    [Fact]
+    [Fact(Timeout = 2000)]
     public async Task HarnessSimulation()
     {
-        var engine = new JsEngine();
+        await using var engine = new JsEngine();
         // Simulate what the test harness does
         var result = await engine.Evaluate(@"
             var df = new Intl.DurationFormat('en');

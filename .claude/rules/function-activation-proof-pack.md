@@ -30,9 +30,9 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    boundary.
 6. When optimizing arity-specific sync calls, keep struct argument carriers on
    concrete generic paths until parameter binding consumes them. Do not pass
-   `TwoValueArgs` or similar readonly struct lists through `IReadOnlyList`-typed
-   hot helper parameters or locals, because that boxes the struct and reintroduces
-   the allocation the optimization is trying to remove.
+   `TwoValueArgs`, `ThreeValueArgs`, or similar readonly struct lists through
+   `IReadOnlyList`-typed hot helper parameters or locals, because that boxes the
+   struct and reintroduces the allocation the optimization is trying to remove.
 7. When binding parameters into an activation that already has slot storage,
    update the planned parameter slots directly. Do not call
    `DefineParameterFast` as a closure mirror for those parameters; it appends a
@@ -43,6 +43,10 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    bindings that the runner will append on that exact path. Capacity reservations
    may avoid `GrowSlots`, but they must not change logical slot count, binding
    order, or whether a binding exists.
+9. Keep activation fast-path assertions tied to stable behavior, negative
+   fallback signals, or measured allocation evidence. Do not require optional
+   activation trace logs when the optimized path may validly skip creating an
+   activation object or omit the trace.
 
 ## Why
 
@@ -103,3 +107,17 @@ Future activation sizing work should keep that distinction explicit.
 
 Related performance note:
 `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 applied the same carrier rule
+outside activation setup by routing array iteration callbacks through
+`ThreeValueArgs`. The reusable lesson is unchanged: the struct is only
+allocation-free while it stays concrete through the hot callback path.
+
+Issue #1758 / PR #1762 showed the proof-pack trace-log trap directly: the
+quality gate failed because
+`ActivationSemanticsProofPackTests.SimpleSyncFunction_UsesIrActivationFastPath`
+required an activation trace log that was no longer guaranteed after valid
+activation fast-path work. The repair kept the semantic proof focused by
+asserting stable negative fast-path signals instead of the optional trace.
+Future activation tests should prove the behavior that must stay true and avoid
+turning diagnostics into contractual runtime output.

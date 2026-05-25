@@ -36,6 +36,15 @@ unless the issue explicitly asks for a major migration.
   tests, or quality-gate repairs. If verification exposes a flaky or brittle
   non-dependency test, record or route it separately unless the dependency
   change itself caused the failure.
+- For Test262 project dependency sweeps, separate package-compatibility proof
+  from host runtime inventory. If a narrow Test262 discovery/build signal is
+  blocked by `test262harness.console` requiring a locally missing
+  `Microsoft.NETCore.App 8.0.0`, keep the slice valid only when the same
+  blocker is captured before and after the dependency edit, restore reaches the
+  harness generation step, and the canonical internal quality gate still owns
+  final source verification. Do not turn that environment gap into a Test262
+  harness migration or unrelated runtime-install task inside the dependency
+  slice.
 
 ## Why
 
@@ -100,3 +109,14 @@ delivery branch before the dependency slice was accepted. Future dependency
 sweeps should keep any activation proof-pack or other unrelated quality repair
 on its owning issue, even when it is discovered while proving the maintenance
 run.
+
+Issue #1815 / PR #1821 updated only the Test262 project's compatible NUnit line:
+`NUnit` `4.4.0 -> 4.6.1` and `NUnit3TestAdapter` `6.1.0 -> 6.2.0`. The narrow
+Test262 discovery signal restored packages and then failed in
+`dotnet test262 generate` because the local user dotnet inventory lacked the
+exact `Microsoft.NETCore.App 8.0.0` runtime required by
+`test262harness.console`; the same blocker existed before and after the edit.
+The accepted proof boundary was to record that unchanged environment blocker,
+keep the dependency diff to the two PackageReference updates, and rely on the
+canonical internal quality gate for source-level verification instead of
+folding a Test262 harness/runtime migration into the routine dependency sweep.

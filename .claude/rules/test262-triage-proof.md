@@ -43,6 +43,13 @@ on the current worktree before changing implementation or harness code.
    suspected, and enable `JSENGINE_DEBUG_POOL_GUARDS=true` for pooled-state
    suspects. If all of those focused stress checks stay green, close out
    without runtime or harness changes.
+9. If the generated method group is host-contention-prone but the issue lists a
+   small exact fixture set that should remain a reusable acceptance gate, add a
+   focused Test262 wrapper class for those exact rows instead of relying on the
+   broad `Name=<MethodGroup>` filter. Keep the wrapper named for the issue
+   slice, include strict and non-strict variants when the issue listed both,
+   and document that the wrapper exists to classify the exact rows without
+   executing the noisy generated pack.
 
 ## Why
 
@@ -290,3 +297,15 @@ reports should inspect `ParseArgumentList` and call-target lowering as context,
 but do not patch parser, expression bytecode, or harness timeout policy from a
 stale crash row when the current evidence shows green adjacent coverage and
 bounded proof friction rather than a deterministic failing fixture.
+
+Issue #1833 / PR #1854 repeated the exact-row proof boundary for BigInt
+modulus crash rows. The broad `Name=Expressions_modulus` pack was
+host-contention-prone in the local environment, but the issue-listed BigInt
+fixtures were small enough to promote into
+`ExpressionsModulusBigIntFocusedTests`. That wrapper proved
+`bigint-and-number.js`, `bigint-arithmetic.js`, `bigint-errors.js`, and
+`bigint-modulo-zero.js` across strict and non-strict variants 8/8, while
+internal `BigIntTests` pinned the sign, mixed BigInt/Number TypeError, and
+zero-modulo RangeError cases. Future Test262 crash-list issues may use the
+same focused-wrapper shape when the generated method group is the noisy part
+and the exact listed fixture set is the real acceptance boundary.

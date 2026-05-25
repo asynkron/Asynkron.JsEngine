@@ -147,3 +147,15 @@ pinning.
   the issue slice. The correct closeout was evidence-only: no `JsRegExp`,
   generated Unicode data, or Test262 harness patch is warranted unless an exact
   listed row or tightly owned neighboring fixture fails reproducibly.
+- Issue #1833 / PR #1854 reused this decision for BigInt modulus crash rows.
+  The broad `Name=Expressions_modulus` method group was host-contention-prone,
+  so the delivery created
+  `tests/Asynkron.JsEngine.Tests.Test262/ExpressionsModulusBigIntFocusedTests.cs`
+  as a reusable exact-row acceptance gate for the issue-listed BigInt fixtures.
+  That focused wrapper passed the strict and non-strict rows for
+  `bigint-and-number.js`, `bigint-arithmetic.js`, `bigint-errors.js`, and
+  `bigint-modulo-zero.js` 8/8, while internal `BigIntTests` pinned sign,
+  mixed BigInt/Number TypeError, and zero-modulo RangeError behavior. The
+  correct closeout is a bounded proof/test coverage artifact, not a broad
+  runtime or Test262 harness change, when the generated method group is the
+  noisy part and the exact rows are green.

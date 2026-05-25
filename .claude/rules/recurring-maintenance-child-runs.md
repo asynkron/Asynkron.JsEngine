@@ -137,6 +137,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   rule homes before creating another knowledge artifact. If the proxy,
   control-flow, tail-call, or other domain rule already captures the lesson,
   record that overlap and avoid duplicate ADR/rule churn.
+- For recurring code-reduction children, prefer deleting one proven-dead
+  internal helper or overload over reshaping a surrounding feature. Prove the
+  slice with a targeted symbol/caller search immediately before and after the
+  edit, pair it with a code-size signal such as `rtk cloc --vcs=git
+  --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
+  out of scope unless the exact deletion no longer compiles.
 
 ## Why
 
@@ -431,3 +437,13 @@ destructuring profile lessons, plus `.claude/rules/jsvalue-core-values.md` for
 HTMLDDA string-coercion precedence. Future learn passes for roadmap refreshes
 should record that overlap and avoid creating duplicate ADR/rule artifacts when
 the delivery only surfaced already-accepted evidence in `docs/roadmap.md`.
+
+Issue `autrun-dis3ezc3dlnc-5e34c6d44c` / PR #1944 was a recurring code
+reduction child that removed the unused internal
+`IntlNumberFormatResult.FromLiteral(string value)` factory. The useful pattern
+was not an Intl architecture decision: the build stage reran the exact
+`FromLiteral(` caller search, deleted only the dead helper, recorded the search
+turning from declaration-only to no matches, and showed the C# line count drop.
+Future code-reduction children should reuse that narrow evidence shape instead
+of widening a dead-helper cleanup into formatter behavior, tests, or scheduler
+policy.

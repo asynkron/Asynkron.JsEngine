@@ -16,21 +16,27 @@ tail restart behavior, keep runtime context ownership explicit.
    receiver, then apply the restart only after scheduled cleanup has been
    honored. For strict functions, rebind `this` in the existing function
    environment and slot storage before resetting parameter slots.
-4. Do not mark a return expression as tail-position while an active `finally`
-   frame still has to run. Tail-call stack reuse must not skip pending cleanup
-   or change which abrupt completion wins.
-5. Reset or reinitialize expression interpreter side state when reusing a
+4. In expression bytecode, tail position is not limited to the final op. A call
+   in a conditional or other branch is tail-position eligible when all
+   remaining ops are unconditional jumps to expression-program end.
+5. Do not apply a tail restart until active `finally` cleanup has run. If a
+   return expression requested a same-function restart before `finally`, carry
+   that fact on the pending return completion and apply it after `EndFinally`
+   only if the return survives. If `finally` replaces that completion without a
+   restart, clear the stale restart request.
+6. Reset or reinitialize expression interpreter side state when reusing a
    trampoline frame, including optional-chain short-circuit flags and any
    stack-slot metadata.
-6. Preserve the callable object's operation-selected realm-sensitive errors. A
+7. Preserve the callable object's operation-selected realm-sensitive errors. A
    revoked proxy called from tail position must throw from the realm selected
    by that proxy operation; do not replace it with a generic caller, callee, or
    proxy-creation realm. See `.claude/rules/ecmascript-proxy-realm-errors.md`
    for the apply/construct null-handler rule.
-7. Prove this class with focused internal coverage before broad Test262 runs:
+8. Prove this class with focused internal coverage before broad Test262 runs:
    call-depth stability, `try` / `catch` frame cleanup, `try` / `finally`
-   ordering, strict member-call receiver rebinding, and relevant realm-sensitive
-   proxy coverage.
+   ordering and completion override, conditional-expression branch calls,
+   strict member-call receiver rebinding, and relevant realm-sensitive proxy
+   coverage.
 
 ## Why
 
@@ -48,4 +54,13 @@ Issue #1864 / PR #1890 later refined the proxy lesson: revoked proxy
 realm when present. Future changes need targeted semantic proof for those
 boundaries; a green broad suite or a call-depth-only test is not enough.
 
-Related ADR: `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`.
+Issue #1865 / PR #1898 refined the same proper-tail-call boundary again:
+conditional-expression branches can end through unconditional jumps rather than
+as the final bytecode op, and return completions can carry a pending restart
+through scheduled `finally`. The rule exists so future fixes preserve
+completion replacement semantics instead of treating a stale restart flag as a
+surviving return.
+
+Related ADRs:
+- `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
+- `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`

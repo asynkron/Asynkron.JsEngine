@@ -244,3 +244,15 @@ Future Intl.NumberFormat crash-batch issues should still inspect option parsing
 and formatter ownership, but once the exact current proof and a small adjacent
 semantic slice are green, stop without changing Intl runtime, Test262 harness,
 or nearby regression tests unless a current failing row is reproduced.
+
+Issue #1827 repeated the evidence-only closeout for `Intl.supportedValuesOf`
+and `Intl[@@toStringTag]` crash rows. The issue named plausible `IntlHelper`,
+`IntlUtilities`, object metadata, and generated Test262 owner surfaces, and an
+early overlapping run showed one `Intl.supportedValuesOf` row canceled during a
+large currency/DisplayNames loop. The bounded focused rerun on current
+`origin/main` then passed the combined filter
+`FullyQualifiedName~Intl_supportedValuesOf|FullyQualifiedName~Intl_toStringTag`
+52/52 with no repository diff. Future Intl crash-list issues should treat owner
+lookup and transient cancellation as context only after a bounded current proof
+passes; do not change Intl runtime, object `@@toStringTag` descriptors, or the
+Test262 harness without a reproducible failing row.

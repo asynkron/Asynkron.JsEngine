@@ -128,3 +128,14 @@ pinning.
   correct closeout was evidence-only: no `IntlNumberFormatConstructor`,
   `IntlNumberFormatter`, Test262 harness, or regression-test patch was
   warranted without a current failing row.
+- Issue #1827 repeated the no-source-change closeout for
+  `Intl.supportedValuesOf` and `Intl[@@toStringTag]` crash rows. Investigation
+  correctly identified `IntlHelper`, `IntlUtilities`, Intl object metadata, and
+  generated Test262 filters as plausible owner surfaces, and one early
+  overlapping run canceled a `supportedValuesOf` currency/DisplayNames row.
+  The bounded focused rerun on current `origin/main` passed the combined
+  `FullyQualifiedName~Intl_supportedValuesOf|FullyQualifiedName~Intl_toStringTag`
+  filter 52/52, and the delivery branch had no source or test diff. The
+  correct closeout was evidence-only: no Intl runtime, object descriptor,
+  Test262 harness, or regression-test patch is warranted unless a current
+  focused row fails reproducibly.

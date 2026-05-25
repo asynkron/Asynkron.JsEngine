@@ -89,6 +89,12 @@ When working inside the core engine, keep JavaScript values represented as
     `null`, or `JsValue.FromObjectUnsafe(...)` as a private save/restore bridge
     unless the path is an explicit public, host interop, debugger, or diagnostic
     boundary.
+14. When a private iterator driver stores the result of a JavaScript
+    `next()` call or an enumerated JavaScript value for later loop binding, keep
+    that temporary carrier typed as `JsValue`. Use typed extraction such as
+    `TryGetObject<IJsObjectLike>(...)` for iterator-result objects and pass the
+    carried value directly to loop binding; do not unwrap to `object?` and then
+    rewrap with `JsValue.FromObjectUnsafe(...)`.
 
 ## Why
 
@@ -222,3 +228,14 @@ payload slot that already captured `JsValue` values. Future completion-carrier
 migrations should preserve a separate pending flag, keep the payload slot
 typed as `JsValue`, and reset it with `JsValue.Undefined`. Related ADR:
 `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`.
+
+Issue `autrun-dis3ezcxvtww-2f5a72bcac` / PR #1945 migrated the for-of iterator
+driver's private `nextResult` local from `object?` to `JsValue`. The old driver
+called iterator `next()` into a JavaScript value, unwrapped object results into
+CLR objects for protocol handling, then rewrapped the fallback loop value with
+`JsValue.FromObjectUnsafe(...)`. That was not a public or host-interop
+boundary; it was a private loop-carrier inside the evaluator. Future iterator
+driver migrations should keep the carrier `JsValue`-native, use typed object
+extraction for iterator-result records, and prove cleanup with focused searches
+for the legacy carrier name, `nextResult is JsValue`, and
+`FromObjectUnsafe(nextResult)`.

@@ -168,3 +168,10 @@ pinning.
   closeout was no source, generated Test262, or harness-policy change: stale
   generated harness output is proof friction, and a green focused rerun wins
   over the old crash-batch summary.
+- Issue #1843 reused the no-source-change form for legacy
+  `Statements_while` rows. The issue body named loop completion and body
+  side-effect semantics as plausible owners for `S12.6.2_A8.js` and
+  `S12.6.2_A9.js`, but the build-stage exact Release filters passed both rows
+  2/2 on the current worktree. The correct closeout was evidence-only: no
+  loop emitter, completion bookkeeping, runtime, harness, or regression-test
+  patch is warranted unless a current exact row fails reproducibly.

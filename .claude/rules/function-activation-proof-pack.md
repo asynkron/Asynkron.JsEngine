@@ -40,6 +40,12 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    `TwoValueArgs`, `ThreeValueArgs`, or similar readonly struct lists through
    `IReadOnlyList`-typed hot helper parameters or locals, because that boxes the
    struct and reintroduces the allocation the optimization is trying to remove.
+   If the arity reduction is for an Array iteration callback, also prove the
+   callback cannot observe omitted arguments before switching from the full
+   `(value, index, array)` carrier to a narrower carrier. Ordinary functions,
+   rest parameters, parameter expressions, async/generator callbacks, and
+   callbacks with explicit index or array parameters must stay on the full
+   observable argument path.
 8. When binding parameters into an activation that already has slot storage,
    update the planned parameter slots directly. Do not call
    `DefineParameterFast` as a closure mirror for those parameters; it appends a
@@ -148,6 +154,21 @@ Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 applied the same carrier rule
 outside activation setup by routing array iteration callbacks through
 `ThreeValueArgs`. The reusable lesson is unchanged: the struct is only
 allocation-free while it stays concrete through the hot callback path.
+
+Issue `autrun-dis3ezcjxsm0-238752b986` / PR #1949 showed the next trap in the
+same callback path: after `ThreeValueArgs` removed array allocation, the
+`classdef` profile still paid for index/array callback arguments that simple
+arrow callbacks could not observe. The fix was deliberately narrower than a
+generic callback-length shortcut: only non-async, non-generator arrows with zero
+or one simple identifier parameter and no parameter expressions use
+`SingleValueArgs`. The full three-argument path remains the semantic owner for
+ordinary functions that expose `arguments`, rest parameters, and callbacks that
+name the index or array. Future callback-arity optimizations should pair the
+profile evidence with positive value-semantics tests and negative observable
+extra-argument tests.
+
+Related ADR:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
 
 Issue #1754 / PR #1759 first corrected the proof-pack trace-log trap by
 renaming the affected test to match its stable negative fast-path assertions

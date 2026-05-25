@@ -83,6 +83,15 @@ optimization.
     single-argument host-call shortcut or a user-visible function-name
     heuristic. Pin descriptor, prototype, proxy, extensibility, length
     writability, and maximum-length fallback behavior with focused tests.
+14a. For Array iteration callback arity optimizations, prove that callback
+     argument materialization is the selected profile owner before reducing
+     `(value, index, array)` to a narrower carrier. Keep the arity predicate
+     owned by the typed callback/invoker shape, not by a generic callback
+     length heuristic. Preserve the full argument path for callbacks that can
+     observe omitted arguments through `arguments`, rest parameters, parameter
+     expressions, async/generator execution, or explicit index/array
+     parameters, and pin both value semantics and observable extra-argument
+     behavior with focused tests.
 15. For repeated string append optimizations, prove whether the selected
     `stringops` cost is append-loop flattening, consumer flattening, or another
     string built-in before changing the rope or addition path. Keep primitive
@@ -214,6 +223,17 @@ The durable lesson is that activation capacity fixes should be profile-owned and
 capacity-only, then backed by activation/class semantics tests, slot/environment
 tests, runner AST-seam scans, and an allocation-stability memory check. Detailed
 measurement note: `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dis3ezcjxsm0-238752b986` / PR #1949 selected the `classdef`
+profile and found `ArrayPrototype.InvokeArrayIterationCallback` still paying
+for full `(value, index, array)` callback argument materialization in the
+`dogs.map(d => d.speak())` subtree. The accepted slice reduced that carrier
+only for simple arrows whose extra arguments are unobservable and kept ordinary
+functions, rest, index/array parameters, parameter expressions, async functions,
+and generators on the full path. The durable lesson is that callback-arity
+performance work needs both profile ownership and an observability predicate,
+not just callback length or benchmark pressure. Related ADR:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
 
 Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 optimized repeated Test262
 matcher execution by caching equivalent .NET `Regex` instances after RegExp

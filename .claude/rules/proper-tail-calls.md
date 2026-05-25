@@ -42,6 +42,15 @@ tail restart behavior, keep runtime context ownership explicit.
    only when they are the final operation in a return-purpose expression
    program; branch-condition calls and non-final operand calls must use
    ordinary invocation unless the executor is widened first.
+10. Same-function tail restarts without activation-slot parameter indices are
+    allowed only for the strict dictionary-backed shape that can be rebound
+    exactly: simple unique identifier parameters, no rest/default/destructuring
+    parameters, and no extra hoisted function-body environment. Otherwise use
+    ordinary invocation until the binding shape is separately proven.
+11. Keep proxy realm residuals split from tail-restart eligibility. A TCO issue
+    may include both stack-depth and proxy-realm rows, but a dictionary restart
+    fix must not claim or mask the proxy row unless the proxy operation's realm
+    proof also passes.
 
 ## Why
 
@@ -75,7 +84,18 @@ but rejected branch expressions and non-final return-expression calls before
 frame setup. The durable lesson is that semantic tail-position rules and
 executor eligibility are related but not interchangeable.
 
+Issue #1917 / PR #1932 exposed a different same-function restart gap: the
+non-eval Test262 rows used a dictionary-backed parameter environment rather
+than activation-slot parameter indices, so eligible strict same-function tail
+calls still overflowed through ordinary recursive invocation. The fix allowed
+dictionary rebinding only for strict functions with simple unique identifier
+parameters and no extra hoisted body environment. The same issue's
+`Proxy.revocable` realm row remained a separate proxy realm-propagation
+failure, which is why future agents must keep stack-depth eligibility and proxy
+realm ownership split.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
 - `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`
+- `docs/adrs/0144-keep-dictionary-tail-restarts-strict-and-simple.md`

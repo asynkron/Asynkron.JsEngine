@@ -22,7 +22,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Constant-folding and expression simplification follow-up work remains constrained by existing storage and activation ADR boundaries plus the linked performance evidence in this roadmap.
 - Self-referential arithmetic assignment lowering is now explicitly bounded by slot-proof guardrails: proven static-slot shapes can route through compound-slot instructions, while dynamic `with`/proxy-observable assignment semantics stay on generic assignment-reference paths (`docs/performance/ir-arithmetic-self-assignment-compound-slot.md`, `docs/adrs/0107-keep-self-referential-assignment-slot-optimization-slot-proven.md`, `docs/adrs/0108-keep-self-referential-with-assignment-dynamic.md`).
 - Test262-oriented profile support now has first-class runner and manifest coverage, so slow/crash-cluster work can run through a stable profile surface instead of ad-hoc probes (`tools/ProfileRunner/Test262ProfileRunner.cs`, `tools/profile-manifest.json`).
+- `JsArray.SetLength` is now explicitly JsValue-native on the hot path, with the legacy object overload retained only as an obsolete compatibility tripwire while follow-up slices remove remaining object callsites (`src/Asynkron.JsEngine/JsTypes/JsArray.cs`, `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`).
 - RegExp property-escape matcher/cache handling has recent targeted optimization work, which gives roadmap follow-up a concrete runtime hotspot surface to track with profile evidence (`src/Asynkron.JsEngine/JsTypes/JsRegExp.cs`).
+- RegExp runtime ownership boundaries are now explicitly captured for both the bounded instance cache shape and anchored property-escape matcher scope (`docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`, `docs/adrs/0113-keep-anchored-regexp-property-escape-single-codepoint-runtime-owned.md`).
 - Additional 2026-05 evidence slices now document simple numeric expression fast-path tuning and class-definition environment pre-sizing, tightening the current-state link between runtime changes and measured profile outcomes (`docs/performance/ir-arithmetic-simple-numeric-expression-fast-path.md`, `docs/performance/classdef-ir-environment-pre-sizing.md`).
 
 ### What Works Worse
@@ -46,6 +48,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 8. Preserve runtime truth boundaries while improving compact storage readiness and honoring object/array storage ADR constraints (no premature claim that compact storage is the runtime contract).
 9. Continue assignment-lowering slices by prioritizing slot-proven self-referential arithmetic and bitwise paths, while keeping dynamic/no-cache identifier semantics explicitly non-negotiable under ADR 0107/0108.
 10. Keep Test262 profile-runner coverage and profile-manifest entries aligned as new clusters are added, so recurring diagnostics remain reproducible.
+11. Remove remaining obsolete object-overload tripwires only after each callsite migration stays profile-neutral and semantic-safe under ADR 0114 boundaries.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -66,6 +69,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
   - `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`
+  - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
@@ -80,6 +84,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `tools/ProfileRunner/Test262ProfileRunner.cs`
 - RegExp hotspot implementation surface:
   - `src/Asynkron.JsEngine/JsTypes/JsRegExp.cs`
+  - `docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`
+  - `docs/adrs/0113-keep-anchored-regexp-property-escape-single-codepoint-runtime-owned.md`
 - Assignment-lowering optimization proof and semantic guardrails:
   - `docs/performance/ir-arithmetic-self-assignment-compound-slot.md`
   - `docs/adrs/0107-keep-self-referential-assignment-slot-optimization-slot-proven.md`

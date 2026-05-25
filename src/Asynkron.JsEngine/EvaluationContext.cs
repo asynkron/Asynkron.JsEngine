@@ -47,7 +47,7 @@ public sealed class EvaluationContext(
     /// </summary>
     private readonly Stack<Symbol> _labelStack = new();
 
-    private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new();
+    private readonly Stack<PendingClassFieldInitialization> _pendingClassFieldInitializers = new(4);
 
     /// <summary>
     ///     Tracks the active private name scopes (innermost first) so private member

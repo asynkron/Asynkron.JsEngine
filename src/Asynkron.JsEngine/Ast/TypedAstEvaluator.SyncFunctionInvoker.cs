@@ -375,6 +375,14 @@ public static partial class TypedAstEvaluator
 
         public bool IsArrowFunction { get; }
 
+        internal bool CanUseArrayIterationSingleArgumentFastPath =>
+            IsArrowFunction &&
+            _parameterNames.Length <= 1 &&
+            !_hasParameterExpressions &&
+            !IsAsyncLike &&
+            !_function.IsGenerator &&
+            HasOnlySimpleIdentifierParameters(_function);
+
         internal bool HasHomeObject => _homeObject is not null;
 
         public RealmState RealmState { get; }

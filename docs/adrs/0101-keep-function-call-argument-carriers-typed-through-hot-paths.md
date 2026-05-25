@@ -49,6 +49,16 @@ callbacks, including ordinary functions that can inspect `arguments`, rest
 parameters, and callbacks with index or array parameters, continue through the
 full three-argument path.
 
+Issue `autrun-dis4ox6n39q8-5cc99c3db3` / PR #1955 applied the same typed-call
+boundary lesson to recursive one-argument JavaScript calls. The `fib` profile
+showed repeated `SyncFunctionInvoker` self-calls still entering the generic
+single-argument callable helper before returning to the typed invoker. The
+accepted slice routed only `SyncFunctionInvoker` calls with an available
+`EvaluationContext` directly to `InvokeWithContext1` from both the
+expression-program call executor and the shared single-argument helper, while
+leaving host functions, eval, debug-aware host functions, spread calls, class
+constructor rejection, and other arities on their existing paths.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -74,7 +84,13 @@ For sync-function invocation and simple IR activation:
    carrier. Ordinary functions, rest parameters, parameter expressions,
    callbacks with explicit index/array parameters, async functions, and
    generators must keep the observable full-argument path unless a separate
-   proof establishes a narrower safe shape.
+   proof establishes a narrower safe shape; and
+8. when bypassing shared callable dispatch for a single-argument typed
+   JavaScript call, keep the shortcut keyed to the concrete
+   `SyncFunctionInvoker` identity plus an available call context. Do not widen a
+   recursive `fib` win into a generic one-argument shortcut for host functions,
+   direct eval, debug-aware host functions, spread calls, constructor rejection,
+   or unproven callable shapes.
 
 `TwoValueArgs`, `ThreeValueArgs`, and future arity-specific struct carriers
 remain valid only when the concrete struct type is preserved through the generic
@@ -89,6 +105,10 @@ interface-typed hot-path boundary.
 - Future arity-specific invocation work should preserve concrete argument-list
   types through `CallableInvokeHelpers`, `SyncFunctionInvoker`, parameter
   binding, and simple activation setup.
+- Recursive typed JavaScript call sites may skip the generic helper layer only
+  after profiling shows that layer is the selected hot owner. The direct
+  `InvokeWithContext1` path is an arity-specific typed-function optimization,
+  not a replacement for generic callable semantics.
 - Array iteration may use narrower argument carriers only after the invoker
   owns an explicit callback-shape predicate. Do not infer safety from callback
   length alone if `arguments`, rest, parameter expressions, async/generator

@@ -348,6 +348,12 @@ useful lesson is to make operator-facing workflow examples both `rtk`-aligned
 and copy/paste-safe from the repo root, while keeping the slice limited to the
 owned stale line.
 
+Issue #1924 / PR #1929 repeated the same workflow-doc drift inside the
+Test262 triage proof rule. The durable fix was intentionally tiny: update the
+agent-facing focused proof examples from bare `dotnet test` to
+`rtk dotnet test`, without changing Test262 policy, source code, recurrence
+infrastructure, or broader proof guidance.
+
 Issue #1666 / PR #1674 clarified the remaining ambiguity in that same workflow
 guidance: `rtk make quality` is the canonical local build/test evidence gate for
 recurring-child runs, but it is not permission to skip the mandatory pre-PR

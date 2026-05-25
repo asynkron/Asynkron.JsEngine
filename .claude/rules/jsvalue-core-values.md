@@ -14,6 +14,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
   - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
   - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
+  - `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`
 
 ## Rules
 
@@ -81,6 +82,13 @@ When working inside the core engine, keep JavaScript values represented as
     accessor shape. Pair this with a focused proof on the shared helper, because
     array stringification and other callers inherit the behavior from that
     helper.
+13. When a private completion carrier temporarily stores JavaScript return or
+    throw payloads across control-flow cleanup, keep that carrier typed as
+    `JsValue` end to end. Use a separate presence flag for "no pending payload"
+    and reset the payload slot with `JsValue.Undefined`; do not use `object?`,
+    `null`, or `JsValue.FromObjectUnsafe(...)` as a private save/restore bridge
+    unless the path is an explicit public, host interop, debugger, or diagnostic
+    boundary.
 
 ## Why
 
@@ -203,3 +211,14 @@ Future object-carrier string-coercion migrations must preserve the legacy
 exotic-object branch precedence while moving the helper to `JsValue`. Related
 ADR:
 `docs/adrs/0141-keep-htmldda-string-coercion-precedence-in-jsops.md`.
+
+Issue `autrun-dis251ifyqog-d9eb7698a5` / PR #1934 migrated
+`GeneratorPendingCompletion.Value` from `object?` to `JsValue`. The old pending
+completion path saved generator return and throw payloads as untyped objects
+while `finally` executed, then restored them through a defensive
+`pending.Value is JsValue ... JsValue.FromObjectUnsafe(pending.Value)` bridge.
+That bridge was not a compatibility boundary; it was a private completion
+payload slot that already captured `JsValue` values. Future completion-carrier
+migrations should preserve a separate pending flag, keep the payload slot
+typed as `JsValue`, and reset it with `JsValue.Undefined`. Related ADR:
+`docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`.

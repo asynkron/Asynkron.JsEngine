@@ -595,7 +595,7 @@ internal static class JsOps
             JsValueKind.Symbol => throw StandardLibrary.ThrowTypeError(
                 "Cannot convert a Symbol value to a string", context, realmState),
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,
-            JsValueKind.Object => value.ObjectValue.ToJsString(context, realmState),
+            JsValueKind.Object => ToJsStringFromObjectValue(value.ObjectValue, context, realmState),
             _ => value.ObjectValue?.ToString() ?? string.Empty
         };
     }
@@ -619,9 +619,66 @@ internal static class JsOps
                 _ => string.Empty
             },
             JsValueKind.BigInt => value.ObjectValue is JsBigInt bi ? bi.ToString() : string.Empty,
-            JsValueKind.Object => value.ObjectValue.ToJsString(context, realm ?? context?.RealmState),
+            JsValueKind.Object => ToJsStringFromObjectValue(value.ObjectValue, context, realm ?? context?.RealmState),
             _ => string.Empty
         };
+    }
+
+    private static string ToJsStringFromObjectValue(object? value, EvaluationContext? context, RealmState? realmState)
+    {
+        while (true)
+        {
+            switch (value)
+            {
+                case Symbol or JsSymbol:
+                    throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
+                case IIsHtmlDda:
+                    return "undefined";
+                case IJsPropertyAccessor accessor:
+                    {
+                        var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);
+                        if (context?.IsThrow == true)
+                        {
+                            throw new ThrowSignal(context.FlowValue);
+                        }
+
+                        if (primitive.Kind == JsValueKind.Object)
+                        {
+                            throw StandardLibrary.ThrowTypeError("Cannot convert object to primitive value", context, realmState);
+                        }
+
+                        return ToJsString(in primitive, context, realmState);
+                    }
+                case IJsCallable:
+                    return "function() { [native code] }";
+                case string s:
+                    return s;
+                case double d:
+                    return ToCanonicalNumberString(d);
+                case float f:
+                    return ToCanonicalNumberString(f);
+                case decimal m:
+                    return m.ToString(CultureInfo.InvariantCulture);
+                case int i:
+                    return i.ToString(CultureInfo.InvariantCulture);
+                case uint ui:
+                    return ui.ToString(CultureInfo.InvariantCulture);
+                case long l:
+                    return l.ToString(CultureInfo.InvariantCulture);
+                case ulong ul:
+                    return ul.ToString(CultureInfo.InvariantCulture);
+                case short s16:
+                    return s16.ToString(CultureInfo.InvariantCulture);
+                case ushort us16:
+                    return us16.ToString(CultureInfo.InvariantCulture);
+                case byte b8:
+                    return b8.ToString(CultureInfo.InvariantCulture);
+                case sbyte sb8:
+                    return sb8.ToString(CultureInfo.InvariantCulture);
+                default:
+                    return Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty;
+            }
+        }
     }
 
     /// <summary>

@@ -141,6 +141,7 @@ internal static class JsValueExtensions
         }
     }
 
+    [Obsolete("Use JsOps JsValue overloads in core runtime paths", true)]
     public static string ToJsStringForArray(this object? value, EvaluationContext? context = null, RealmState? realm = null)
     {
         while (true)

@@ -559,6 +559,7 @@ public sealed class JsAstParser(
             if (Match(TokenType.Number))
             {
                 var token = Previous();
+                EnsureNumericLiteralAllowed(token);
                 var value = Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? token.Lexeme;
                 return (value, false, token);
             }
@@ -2608,7 +2609,7 @@ public sealed class JsAstParser(
             if (Match(TokenType.Number))
             {
                 var token = Previous();
-                EnsureNumericLiteralAllowed();
+                EnsureNumericLiteralAllowed(token);
                 expr = new LiteralExpression(CreateSourceReference(token), new JsValue((double)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
@@ -2616,7 +2617,7 @@ public sealed class JsAstParser(
             if (Match(TokenType.BigInt))
             {
                 var token = Previous();
-                EnsureNumericLiteralAllowed();
+                EnsureNumericLiteralAllowed(token);
                 expr = new LiteralExpression(CreateSourceReference(token), new JsValue((JsBigInt)token.Literal!));
                 return ApplyCallSuffix(expr, allowCallSuffix);
             }
@@ -2868,11 +2869,36 @@ public sealed class JsAstParser(
             return new ClassExpression(definition.Source ?? CreateSourceReference(classToken), null, definition);
         }
 
-        // Legacy octal literals are now rejected at lexer level (always, not just strict mode)
-        // This method is kept as a no-op for backwards compatibility with callers
-        private static void EnsureNumericLiteralAllowed()
+        private void EnsureNumericLiteralAllowed(Token token)
         {
-            // No-op: legacy octals are rejected by the lexer
+            if (!InStrictContext || token.Type != TokenType.Number)
+            {
+                return;
+            }
+
+            if (IsLegacyOctalIntegerLiteral(token.Lexeme))
+            {
+                throw new ParseException("Legacy octal literals are not allowed in strict mode. Use 0o prefix for octal literals.", token, source);
+            }
+        }
+
+        private static bool IsLegacyOctalIntegerLiteral(string lexeme)
+        {
+            if (lexeme.Length < 2 || lexeme[0] != '0')
+            {
+                return false;
+            }
+
+            for (var i = 1; i < lexeme.Length; i++)
+            {
+                var ch = lexeme[i];
+                if (ch < '0' || ch > '7')
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private ExpressionNode ParseCallSuffix(ExpressionNode expression)
@@ -3461,6 +3487,7 @@ public sealed class JsAstParser(
             if (Match(TokenType.Number))
             {
                 var token = Previous();
+                EnsureNumericLiteralAllowed(token);
                 var value = Convert.ToString(token.Literal, CultureInfo.InvariantCulture) ?? string.Empty;
                 return (value, false, CreateSourceReference(token));
             }

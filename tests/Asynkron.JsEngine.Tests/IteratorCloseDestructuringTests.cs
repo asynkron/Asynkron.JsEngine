@@ -42,10 +42,10 @@ public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : 
               ({ nextCount, returnCount, caught });
               """);
 
-        var summary = Assert.IsType<JsObject>(result.GetValue());
-        Assert.Equal(1d, summary.Get("nextCount").AsNumber);
-        Assert.Equal(1d, summary.Get("returnCount").AsNumber);
-        Assert.Equal("default boom", summary.Get("caught").AsString.ToString());
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["nextCount"]);
+        Assert.Equal(1d, summary["returnCount"]);
+        Assert.Equal("default boom", summary["caught"]);
     }
 
     [Theory]

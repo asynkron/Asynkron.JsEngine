@@ -415,3 +415,11 @@ was to verify `.claude/rules/ecmascript-proxy-realm-errors.md`,
 `.claude/rules/proper-tail-calls.md` first, then keep the knowledge pass scoped
 to compaction instead of duplicating the accepted proxy, control-flow, and
 tail-call rules.
+
+Issue `autrun-dis251iagv80-00c9769c91` / PR #1933 repeated that roadmap-link
+pattern for ADR 0140, ADR 0141, and ADR 0142. The accepted semantic homes were
+already `.claude/rules/performance-profiling-guardrails.md` for trampoline and
+destructuring profile lessons, plus `.claude/rules/jsvalue-core-values.md` for
+HTMLDDA string-coercion precedence. Future learn passes for roadmap refreshes
+should record that overlap and avoid creating duplicate ADR/rule artifacts when
+the delivery only surfaced already-accepted evidence in `docs/roadmap.md`.

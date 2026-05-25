@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -23,7 +24,7 @@ public sealed class IntlNumberFormatTests(ITestOutputHelper output) : InternalTe
             """);
 
         var array = Assert.IsType<JsArray>(result);
-        Assert.Equal(array.GetElement(1).ToJsString(), array.GetElement(0).ToJsString());
+        Assert.Equal(JsOps.ToJsString(array.GetElement(1)), JsOps.ToJsString(array.GetElement(0)));
         Assert.True(array.GetElement(2).AsBoolean());
     }
 

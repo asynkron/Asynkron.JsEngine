@@ -51,14 +51,10 @@ maintenance pass, keep the slice repo-local and reviewable:
 3. Capture a cheap baseline signal before editing. Prefer evidence such as
    `rtk make -n quality`, a targeted `rg` check, `git diff --check`, or another
    narrow command tied directly to the chosen slice.
-   For issue details, comments, prior stage output, and logs, use supplied
-   Faktorial Source Context first. If more evidence is needed, query full issue
-   details/comments from the Faktorial HTTP API issue/dashboard endpoint (for
-   example `/api/issues/<issue>`), then use the compact summary endpoint
-   (`/api/logs/<issue>/summary`), and use narrow searches over
-   `.faktorial/logs/ghNNNN.log` only when API summaries are still insufficient.
-   Do not run the host `faktorial` daemon binary for issue/log/state reads from
-   an agent. Treat missing `gh` auth as an environment detail, not a blocker.
+   For recurring-child context reads and Faktorial precedence/fallback order,
+   follow `.claude/rules/agent-context-issues.md` and
+   `.claude/rules/recurring-maintenance-child-runs.md` instead of duplicating
+   those details in this operational checklist.
 4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a
@@ -71,6 +67,9 @@ maintenance pass, keep the slice repo-local and reviewable:
    roadmap/docs claims), verify each cited path exists before finalizing. If a
    planned ADR/report path is missing, cite a maintained existing evidence
    surface instead of keeping the broken reference.
+8. Keep in-flight progress updates plain and bounded. Reserve machine-readable
+   structured schema output for the final build-stage result only, so interim
+   status notes are not misclassified as failed stage outcomes.
 
 Use a compact evidence shape in the issue update so reviewers can compare
 before/after quickly:

@@ -54,6 +54,14 @@ scope cleanup chains.
     function environment so a later generator `return()` can close it, and
     remove or mark that state closed after normal exhaustion or explicit
     close.
+11. For execution-plan array binding destructuring, keep iterator step throws
+    on the same abrupt-completion path as context-reported throws. If
+    `IteratorDriverState.Next(context)` throws `ThrowSignal`, capture the
+    thrown value, run `IteratorClose(context, preserveExistingThrow: true)` for
+    an active not-done iterator, let a close-time throw replace the original
+    only when the close path reports one, dispose the driver, and route through
+    `HandleAbruptCompletion`. Do not rethrow a step `ThrowSignal` directly past
+    destructuring cleanup.
 
 ## Why
 
@@ -108,3 +116,13 @@ remaining discoverable for later generator `return()` cleanup. The durable rule
 is to distinguish suspension from abrupt completion and keep active
 array-pattern iterator state scoped to the function environment until
 exhaustion, resume cleanup, or explicit close.
+
+Issue #1837 / PR #1860 fixed Test262 destructuring iterator error/close crashes
+after execution-plan array binding paths handled context-reported throws but
+could bypass iterator close when `next()` surfaced failure as `ThrowSignal`.
+The durable rule is that destructuring step failure must normalize both throw
+shapes before cleanup: preserve the original thrown value, run `IteratorClose`
+for active not-done iterators, honor a close-time throw if one occurs, dispose
+driver state, and only then route the final throw through execution-plan
+abrupt-completion handling. Related ADR:
+`docs/adrs/0129-keep-destructuring-step-throw-iterator-close-spec-ordered.md`.

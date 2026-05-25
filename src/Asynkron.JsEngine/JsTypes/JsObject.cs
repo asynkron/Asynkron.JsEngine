@@ -593,8 +593,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             _state.Descriptors.Clear();
             _state.PrivateBrands.Clear();
             _state.PrivateFields.Clear();
-            _state.PropertyInsertionOrder.Clear();
-            _state.PropertyInsertionNodes.Clear();
+            _state.ClearPropertyInsertionOrder();
 
             foreach (var kv in original._state.Storage)
             {
@@ -638,8 +637,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             foreach (var key in original._state.PropertyInsertionOrder)
             {
-                var node = _state.PropertyInsertionOrder.AddLast(key);
-                _state.PropertyInsertionNodes[key] = node;
+                _state.TrackPropertyInsertion(key);
             }
         }
 
@@ -1142,8 +1140,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     internal void SeedIntrinsicFunctionKeys(bool includePrototype)
     {
         var state = State;
-        state.PropertyInsertionOrder.Clear();
-        state.PropertyInsertionNodes.Clear();
+        state.ClearPropertyInsertionOrder();
         SeedOwnPropertyInsertion("length");
         SeedOwnPropertyInsertion("name");
         if (includePrototype)
@@ -1192,6 +1189,26 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         state.Storage[name] = value;
         TrackArrayIndexWriteIfNeeded(name);
     }
+
+    internal void DefineKnownNewDefaultDataProperty(string name, JsValue value)
+    {
+        if (!CanStoreImplicitDefaultDataProperty(name))
+        {
+            DefineDefaultDataProperty(name, value);
+            return;
+        }
+
+        MarkMutated();
+        var state = State;
+        if (!IsInternalKey(name))
+        {
+            state.TrackKnownNewPropertyInsertion(name);
+        }
+
+        state.Storage.AddKnownNew(name, value);
+        TrackArrayIndexWriteIfNeeded(name);
+    }
+
 
     private bool CanStoreImplicitDefaultDataProperty(string name)
     {
@@ -2343,21 +2360,12 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         var state = State;
-        if (!state.PropertyInsertionNodes.ContainsKey(name))
-        {
-            var node = state.PropertyInsertionOrder.AddLast(name);
-            state.PropertyInsertionNodes[name] = node;
-        }
+        state.TrackPropertyInsertion(name);
     }
 
     private void RemoveFromInsertionOrder(string name)
     {
-        var state = _state;
-        if (state is not null && state.PropertyInsertionNodes.TryGetValue(name, out var node))
-        {
-            state.PropertyInsertionOrder.Remove(node);
-            state.PropertyInsertionNodes.Remove(name);
-        }
+        _state?.RemovePropertyInsertion(name);
     }
 
     private IEnumerable<string> EnumerateOwnKeysInOrder(bool includeSymbols, bool includeNonEnumerable)
@@ -2518,14 +2526,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     private sealed class JsObjectState
     {
+        private const int PropertyInsertionKeySetThreshold = 8;
+        private HashSet<string>? _propertyInsertionKeys;
+
         internal readonly Dictionary<string, PropertyDescriptor> Descriptors = new(StringComparer.Ordinal);
         internal readonly HashSet<object> PrivateBrands = new(ReferenceEqualityComparer<object>.Instance);
         internal readonly Dictionary<string, object?> PrivateFields = new(StringComparer.Ordinal);
 
-        internal readonly Dictionary<string, LinkedListNode<string>> PropertyInsertionNodes =
-            new(StringComparer.Ordinal);
-
-        internal readonly LinkedList<string> PropertyInsertionOrder = [];
+        internal readonly List<string> PropertyInsertionOrder = [];
         internal readonly HybridDictionary<JsValue> Storage = new();
 
         /// <summary>
@@ -2533,5 +2541,76 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         /// Updated when descriptors are added/removed, avoiding iteration on every check.
         /// </summary>
         internal bool HasNumericDescriptorKey;
+
+        internal void ClearPropertyInsertionOrder()
+        {
+            PropertyInsertionOrder.Clear();
+            _propertyInsertionKeys?.Clear();
+        }
+
+        internal void TrackPropertyInsertion(string name)
+        {
+            if (_propertyInsertionKeys is not null)
+            {
+                if (_propertyInsertionKeys.Add(name))
+                {
+                    PropertyInsertionOrder.Add(name);
+                }
+
+                return;
+            }
+
+            foreach (var existing in PropertyInsertionOrder)
+            {
+                if (string.Equals(existing, name, StringComparison.Ordinal))
+                {
+                    return;
+                }
+            }
+
+            PropertyInsertionOrder.Add(name);
+            if (PropertyInsertionOrder.Count > PropertyInsertionKeySetThreshold)
+            {
+                _propertyInsertionKeys = new HashSet<string>(PropertyInsertionOrder, StringComparer.Ordinal);
+            }
+        }
+
+        internal void TrackKnownNewPropertyInsertion(string name)
+        {
+            if (_propertyInsertionKeys is not null)
+            {
+                _propertyInsertionKeys.Add(name);
+            }
+
+            PropertyInsertionOrder.Add(name);
+            if (_propertyInsertionKeys is null && PropertyInsertionOrder.Count > PropertyInsertionKeySetThreshold)
+            {
+                _propertyInsertionKeys = new HashSet<string>(PropertyInsertionOrder, StringComparer.Ordinal);
+            }
+        }
+
+        internal void RemovePropertyInsertion(string name)
+        {
+            if (_propertyInsertionKeys is not null)
+            {
+                if (_propertyInsertionKeys.Remove(name))
+                {
+                    PropertyInsertionOrder.Remove(name);
+                }
+
+                return;
+            }
+
+            for (var i = 0; i < PropertyInsertionOrder.Count; i++)
+            {
+                if (!string.Equals(PropertyInsertionOrder[i], name, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                PropertyInsertionOrder.RemoveAt(i);
+                return;
+            }
+        }
     }
 }

@@ -256,4 +256,33 @@ public sealed class ObjectLiteralSemanticsRegressionTests(ITestOutputHelper outp
         Assert.True(array.GetElement(3).AsBoolean());
         Assert.Equal("called", array.GetElement(4).AsString());
     }
+
+    [Fact]
+    public async Task ObjectLiteral_DuplicateStaticDataPropertyKeepsSingleKeyOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var obj = { a: 1, b: 2, a: 3 };
+            [obj.a, Object.keys(obj).join(",")];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(3.0, array.GetElement(0).AsDouble());
+        Assert.Equal("a,b", array.GetElement(1).AsString());
+    }
+
+    [Fact]
+    public async Task ObjectLiteral_StaticPropertyAfterComputedCollisionKeepsSingleKeyOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var key = "a";
+            var obj = { [key]: 1, b: 2, a: 3 };
+            [obj.a, Object.keys(obj).join(",")];
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal(3.0, array.GetElement(0).AsDouble());
+        Assert.Equal("a,b", array.GetElement(1).AsString());
+    }
 }

@@ -45,6 +45,9 @@ maintenance pass, keep the slice repo-local and reviewable:
 1. Check active sibling child log summaries before choosing a slice so this
    run intentionally avoids overlapping sibling work; record the sibling check
    in the issue update.
+   If sibling summaries or other issue context are unavailable, record that
+   lookup as unavailable evidence and continue from maintained repository docs
+   and local code context instead of blocking the run.
 2. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.

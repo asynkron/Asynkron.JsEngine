@@ -114,7 +114,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
             obj.TryGetProperty(key, receiver, out var value);
-            var entry = new JsArray([key, value], realmState);
+            var entry = new JsArray([new JsValue(key), value], realmState);
             entries.Push(JsValue.FromJsArray(entry));
         }
 

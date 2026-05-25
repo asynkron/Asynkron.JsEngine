@@ -247,7 +247,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             }
 
             var key = entry.Key;
-            var pair = new JsArray([key, GetByKey(key)]);
+            var pair = new JsArray(new JsValue[] { key, GetByKey(key) });
             entries.Add(JsValue.FromJsArray(pair));
         }
 

@@ -96,6 +96,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   (for example a targeted `rg` over the owned rule file) so review can confirm
   both non-duplication and the exact wording delta without reopening broad
   history.
+- If that overlap check shows the semantic home already covers the selected
+  slice, treat the run as evidence-only: keep the issue update evidence
+  complete, explain why no wording delta was needed, and do not invent a
+  mechanical docs change just to produce file churn.
 - Keep recurring-child progress updates plain and bounded while work is in
   flight. Reserve machine-readable structured schema output for the final build
   result only; avoid emitting final-response-shaped interim status messages

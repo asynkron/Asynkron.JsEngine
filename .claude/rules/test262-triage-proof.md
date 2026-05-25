@@ -50,6 +50,12 @@ on the current worktree before changing implementation or harness code.
    slice, include strict and non-strict variants when the issue listed both,
    and document that the wrapper exists to classify the exact rows without
    executing the noisy generated pack.
+10. If a focused Test262 proof fails before execution with
+    `NETSDK1022 Duplicate 'Compile' items` under
+    `tests/Asynkron.JsEngine.Tests.Test262/Generated`, treat stale generated
+    harness output as proof-environment friction. Remove only that generated
+    output and rerun the exact same focused proof before changing engine,
+    generated source, harness policy, or issue ownership.
 
 ## Why
 
@@ -78,6 +84,13 @@ not current failures until reproved.
 
 Future agents should treat old Test262 batch summaries as suspects to reprove,
 not as confirmed current failures.
+
+Issue #1842 repeated this boundary for `Statements_try_dstr`. The initial
+focused proof failed at project evaluation with duplicate `Compile` items under
+`tests/Asynkron.JsEngine.Tests.Test262/Generated`; after clearing only that
+stale generated output, the same `Name=Statements_try_dstr` proof passed 186/186
+on current main. That failure was not source evidence and did not justify a
+destructuring, try/catch, iterator-close, or Test262 harness patch.
 
 Issue #1031 / PR #1103 applied the green-proof closeout path to
 `Expressions_class_asyncGenMethodStatic`: current `origin/main` already passed

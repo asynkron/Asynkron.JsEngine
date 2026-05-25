@@ -159,3 +159,12 @@ pinning.
   correct closeout is a bounded proof/test coverage artifact, not a broad
   runtime or Test262 harness change, when the generated method group is the
   noisy part and the exact rows are green.
+- Issue #1842 reused the evidence-only closeout for `Statements_try_dstr`
+  iterator close/getter error rows. The issue body named a plausible
+  destructuring/try owner surface, but the current-main proof passed the whole
+  issue-supplied method group 186/186 after clearing stale
+  `tests/Asynkron.JsEngine.Tests.Test262/Generated` output that had caused
+  `NETSDK1022 Duplicate 'Compile' items` before tests executed. The correct
+  closeout was no source, generated Test262, or harness-policy change: stale
+  generated harness output is proof friction, and a green focused rerun wins
+  over the old crash-batch summary.

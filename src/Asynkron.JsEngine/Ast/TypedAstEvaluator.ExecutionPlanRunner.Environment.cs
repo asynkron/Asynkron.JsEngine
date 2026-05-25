@@ -282,6 +282,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
                     _callable,
                     _isStrict);
+                executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                    isLexicalBinding: false);
                 parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
                     isLexicalBinding: false);
                 if (!ReferenceEquals(parameterEnvironment, functionEnvironment))

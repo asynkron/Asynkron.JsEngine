@@ -1418,12 +1418,14 @@ public static partial class TypedAstEvaluator
             {
                 // Create arguments object per ES2024 9.2.12 steps 17-20
                 // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
-                if (_argumentsObjectNeeded && _needsArgumentsBinding)
+                if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
                     var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment, RealmState,
                         this,
                         _isStrict);
+                    executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                        isLexicalBinding: false);
                     parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
                         isLexicalBinding: false);
                     if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
@@ -1881,6 +1883,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsGenerator ||
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
+                _argumentsObjectNeeded ||
                 _usesArguments ||
                 _needsArgumentsBinding ||
                 _hasCapturedActivationInClosure ||

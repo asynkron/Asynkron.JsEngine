@@ -18,8 +18,9 @@ public sealed class JsRopeString
     // Threshold: if total length is small, just concatenate directly
     private const int DirectConcatThreshold = 64;
 
-    // Maximum tree depth before we force flattening to avoid stack overflow
-    private const int MaxDepth = 32;
+    // Flattening uses an explicit stack, so repeated append loops can keep a
+    // deeper rope without risking recursive stack overflow.
+    private const int MaxDepth = 32_768;
     private readonly int _depth;
 
     private readonly object _left; // string or JsRopeString

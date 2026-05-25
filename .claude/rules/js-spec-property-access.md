@@ -61,6 +61,15 @@ This applies to generic binding target programs for nested array/object binding,
 defaults, exhausted iterators, and name inference. Prove this class with the
 owning focused Test262 method group rather than a broad suite run.
 
+For `catch` parameter destructuring, a binding-time throw is a replacement
+throw raised while the current catch environment and try/catch frame are active.
+Run that throw through the IR abrupt-completion path from the catch instruction
+instead of jumping directly to the catch instruction's `Next`. That preserves
+iterator-close/finally cleanup for the active destructuring iterator and lets
+the replacement throw bubble to an outer handler. WHY: issue #1753 / PR #1795
+fixed `Statements_try_dstr` crashes where a catch-array default initializer
+throw skipped the cleanup/outer-catch path for the thrown iterable.
+
 For class-method parameter destructuring with array-pattern defaults, abrupt
 default initializers must preserve both observable outcomes: the original
 JavaScript throw reaches the caller, and the active iterator's `return()` hook
@@ -82,6 +91,63 @@ super-reference validation before any observable property-key work:
 
 This applies even when the operation always throws. The throw does not erase the
 observable ordering before it.
+
+## Descriptor Delete Semantics
+
+For ordinary JavaScript `delete obj.prop` and `delete obj[key]`, preserve the
+descriptor-aware delete result and interpret it with the active strictness:
+
+- configurable own data and accessor descriptors must be removed and return
+  `true`;
+- non-configurable own descriptors must remain present and return `false`;
+- strict mode must convert a failed descriptor delete into a JavaScript
+  `TypeError`;
+- sloppy mode must expose the non-throwing `false` completion;
+- do not use internal force-delete helpers to implement ordinary JavaScript
+  `delete`.
+
+Pair descriptor-shape coverage with strict/sloppy coverage when touching this
+area. The issue #1751 / PR #1790 incident showed that data/accessor
+configurability and strictness are separate axes: tests that cover only simple
+object-literal properties can miss descriptor-backed delete crashes.
+
+## Computed Member Nullish Read Order
+
+For expression bytecode that lowers ordinary computed reads such as
+`base[key]`, keep the observable steps split:
+
+- evaluate the base expression;
+- evaluate the computed key expression;
+- require the base to be object-coercible;
+- resolve the property key only after the nullish-base check succeeds;
+- then perform the property read.
+
+For nullish bases, the key expression's side effects must still happen, but
+property-key conversion must not happen after the `TypeError`. For optional
+computed reads such as `base?.[key]`, keep the separate optional-chain contract:
+a nullish base short-circuits before the key expression runs.
+
+Do not repair this class of issue by routing computed member reads through the
+legacy AST evaluator. The expression bytecode compiler/runner owns the
+spec-ordered split and must carry the metadata needed to distinguish ordinary
+nullish TypeError behavior from optional chaining.
+
+## Compound Indexed Assignment Nullish Order
+
+For expression bytecode that lowers compound indexed assignments such as
+`base[key] *= rhs`, keep the reference steps separate and ordered:
+
+- evaluate the base expression;
+- evaluate the computed key expression;
+- require the base to be object-coercible before converting the key;
+- resolve the property key exactly once;
+- read the old value, evaluate the RHS, apply the compound operator, and write
+  the result back through the captured reference.
+
+When the base is not at the top of the expression-program stack, use an explicit
+operation that checks the correct stack depth instead of reordering the stack by
+running `ToPropertyKey` first. Do not repair this class of issue by routing the
+compound assignment through the legacy AST evaluator.
 
 ## Nullable Throw State
 
@@ -209,6 +275,15 @@ strong enough until it asserted the caught `Error|boom` and a single
 proofs must verify both completion preservation and iterator cleanup, because
 either half can pass while the other half regresses.
 
+Issue #1753 / PR #1795 fixed `Statements_try_dstr` crashes in catch-parameter
+array destructuring. `ApplyBindingTargetProgram` correctly reported the default
+initializer throw through `EvaluationContext`, but the catch slow path treated
+the throw as if it could advance to the catch body's next instruction. The
+durable lesson is that catch-binding throws replace the caught value while still
+needing the active catch/try frame to unwind through ordinary IR abrupt
+completion, including IteratorClose, before an outer catch observes the
+replacement error.
+
 Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
 bytecode. Before `super()` initializes a derived constructor's `this`, the
 `super` reference check must throw before the computed property key can run.
@@ -216,6 +291,29 @@ After initialization, the key may run, but `delete super[...]` still throws
 `ReferenceError`. The durable lesson is to keep super-reference validation,
 computed-key evaluation, and the operation-specific throw as separate ordered
 steps.
+
+Issue #1751 / PR #1790 added descriptor-backed delete regressions after the
+compliance-gap run reported crashes in strict/sloppy delete-expression cases.
+The durable lesson is that ordinary JavaScript delete must honor descriptor
+configurability first, then let strictness decide whether a failed delete is a
+JavaScript `TypeError` or a sloppy `false` completion. Internal force-delete
+helpers are not ordinary delete semantics.
+
+Issue #1752 / PR #1791 fixed Test262
+`computed-reference-null-or-undefined.js` after ordinary expression bytecode
+computed reads on `null` or `undefined` could crash the host instead of
+throwing a JavaScript `TypeError`. The durable lesson is that ordinary
+`base[key]` and optional `base?.[key]` have different nullish-base ordering:
+ordinary reads evaluate the key expression before the nullish-base `TypeError`
+but must not convert the key afterward, while optional reads skip the key
+entirely when the base short-circuits.
+
+Issue #1829 fixed compound indexed assignment ordering for nullish bases. The
+durable lesson is that `base[key] op= rhs` has the same observable key/base
+boundary as computed member access, but the bytecode stack shape is different:
+the compiler must check the base at the correct stack depth before
+`ToPropertyKey`, then reuse the resolved key for both the old-value read and
+final writeback.
 
 Issue #806 / PR #999 fixed the `Intl.NumberFormat`
 `constructor-locales-hasproperty` fixture after `Array.prototype.push` stored

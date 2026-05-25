@@ -28,25 +28,39 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    `arguments`, and nested-arrow direct eval. Arrow functions inherit the
    enclosing activation's `arguments`; nested non-arrow functions are the
    boundary.
-6. When optimizing arity-specific sync calls, keep struct argument carriers on
+6. Keep `argumentsObjectNeeded` separate from `NeedsArgumentsBinding`.
+   `argumentsObjectNeeded` is the spec activation decision for creating and
+   protecting the arguments object/binding; `NeedsArgumentsBinding` is an
+   optimization guard for whether ordinary execution can observe that binding.
+   Do not gate arguments-object creation solely on `NeedsArgumentsBinding`, and
+   do not let hoisted `var arguments` replace an existing non-lexical
+   `arguments` object binding with `undefined`.
+7. When optimizing arity-specific sync calls, keep struct argument carriers on
    concrete generic paths until parameter binding consumes them. Do not pass
    `TwoValueArgs`, `ThreeValueArgs`, or similar readonly struct lists through
    `IReadOnlyList`-typed hot helper parameters or locals, because that boxes the
    struct and reintroduces the allocation the optimization is trying to remove.
-7. When binding parameters into an activation that already has slot storage,
+8. When binding parameters into an activation that already has slot storage,
    update the planned parameter slots directly. Do not call
    `DefineParameterFast` as a closure mirror for those parameters; it appends a
    new binding and can reintroduce per-invocation `JsSlot[]` growth. Use
    `DefineParameterFast` only for dictionary/no-slot fallback paths or real
    appended activation bindings.
-8. When pre-sizing function or parameter environments, count only activation
+9. When pre-sizing function or parameter environments, count only activation
    bindings that the runner will append on that exact path. Capacity reservations
    may avoid `GrowSlots`, but they must not change logical slot count, binding
    order, or whether a binding exists.
-9. Keep activation fast-path assertions tied to stable behavior, negative
+10. Keep activation fast-path assertions tied to stable behavior, negative
    fallback signals, or measured allocation evidence. Do not require optional
    activation trace logs when the optimized path may validly skip creating an
    activation object or omit the trace.
+11. When skipping concrete `JsArgumentsObject` materialization for performance,
+    keep the optimization guarded by both `argumentsObjectNeeded` and
+    `NeedsArgumentsBinding`. The former owns the spec-shaped activation
+    decision; the latter owns whether the binding/object can be observed on the
+    current path. Do not replace this with a direct body scan, and do not weaken
+    direct eval, parameter-default, dynamic-scope, nested-arrow, or hoisted
+    `var arguments` proofs.
 
 ## Why
 
@@ -66,6 +80,21 @@ looks for syntactic `arguments` in the immediate body misses direct eval and
 nested arrows, both of which can observe the enclosing function's binding. The
 durable rule is to prove the observable-binding decision, not just allocation
 avoidance.
+
+Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.
+
+Issue #1750 / PR #1789, reviewed again during the #gh1806 red-main learn pass,
+showed the inverse lazy-arguments trap directly:
+`function f() { return typeof arguments; var arguments = 42; }` still needs the
+sloppy function arguments object at the return point even though the later
+`var arguments` declaration is unreachable and has no executed initializer. The
+runtime must create/protect the spec arguments object from
+`argumentsObjectNeeded`, define it in the body/execution environment when slot
+layout could otherwise shadow it, and preserve that binding during var hoisting.
+Future work in this area should prove both the internal hoisting regression
+(`HoistingTests.VarDeclaration_ShouldNotOverride_ArgumentsObject_BeforeReturn`)
+and the activation proof pack, then use focused Test262 coverage when the
+failing file is available.
 
 Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.
 
@@ -124,3 +153,15 @@ activation fast-path work. The repair kept the semantic proof focused by
 asserting stable negative fast-path signals instead of the optional trace.
 Future activation tests should prove the behavior that must stay true and avoid
 turning diagnostics into contractual runtime output.
+
+Issue `autrun-dirquxckeg74-0fe6957821` / PR #1811 optimized the `classdef`
+profile by skipping `JsArgumentsObject` allocation for functions where
+`argumentsObjectNeeded` is spec-eligible but `NeedsArgumentsBinding` proves the
+binding is unobservable. The durable lesson is that lazy materialization is a
+profile-owned activation optimization, not a simplification of the arguments
+semantics split from ADR 0100. Future work should preserve the two-decision
+shape and prove the observable-binding cases explicitly before claiming an
+arguments-object allocation win.
+
+Related ADR:
+`docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`.

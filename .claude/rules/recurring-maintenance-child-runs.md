@@ -84,6 +84,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
   for guidance that already has an owned home.
+- When overlap spans a cross-cutting rule and accepted helper-specific ADRs,
+  keep the detailed decisions in the ADRs and add a short ownership note to the
+  rule instead of copying every helper boundary into the rule body.
 - When a persistent ADR/rule compaction child updates an existing semantic
   home, record baseline and final evidence from the same overlap check command
   (for example a targeted `rg` over the owned rule file) so review can confirm
@@ -257,6 +260,15 @@ the issue update should still show baseline/final output from one stable
 overlap-check command. This keeps the run auditable as an intentional
 compaction pass rather than an unproven wording edit.
 
+Issue #1814 / PR #1819 applied that compaction pattern to overlapping
+`JsValue` object-carrier guidance. The accepted ADRs for array length helpers,
+Array prototype result helpers, and number receiver extraction already owned
+their helper-specific boundaries, while `.claude/rules/jsvalue-core-values.md`
+owned the cross-cutting migration policy. The durable lesson is to clarify that
+ownership split in the existing rule and leave accepted ADR detail intact,
+rather than creating another ADR or duplicating every helper-specific decision
+in the rule.
+
 Issue #1534 added an output-boundary lesson from recurring-child runtime
 evidence: when interim progress messages mimic final structured responses, the
 issue log can record false `success=false` stage events before implementation
@@ -277,6 +289,13 @@ contract requires `rtk`-prefixed shell commands and `rtk make quality` is the
 canonical local gate. Future documentation-maintenance children should treat
 stale command examples as workflow drift and fix them in the owned doc instead
 of leaving operators to reconcile conflicting playbooks.
+
+Issue #1816 / PR #1818 repeated the same command-example drift on the secondary
+development-rules playbook: the Test Timeouts snippet still showed an
+unwrapped `dotnet test` invocation with no internal test project path. The
+useful lesson is to make operator-facing workflow examples both `rtk`-aligned
+and copy/paste-safe from the repo root, while keeping the slice limited to the
+owned stale line.
 
 Issue #1666 / PR #1674 clarified the remaining ambiguity in that same workflow
 guidance: `rtk make quality` is the canonical local build/test evidence gate for

@@ -3,6 +3,18 @@
 When working inside the core engine, keep JavaScript values represented as
 `JsValue` until an explicitly intentional boundary requires another shape.
 
+## Ownership
+
+- This rule is the semantic home for cross-cutting core-runtime
+  `JsValue`/object-carrier migration policy.
+- Use this file for shared migration rules and proof expectations that apply to
+  multiple helper clusters.
+- Keep helper-specific carrier boundaries in their accepted ADRs instead of
+  duplicating those decisions here:
+  - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
+  - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
+  - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
+
 ## Rules
 
 1. Do not introduce new `object?` helper parameters, return values, or local
@@ -50,6 +62,13 @@ When working inside the core engine, keep JavaScript values represented as
     `JsValue` and delete caller-side `JsValue.FromObjectUnsafe(...)` rewraps.
     Keep adjacent async, promise, or host-interop helpers separate unless the
     selected slice proves that boundary too.
+11. When replacing untyped `JsValue.TryGetObject(out object?)` extraction, audit
+    the old payload surface before narrowing to a concrete runtime type. If the
+    old object-carrier branch accepted interface-backed host or object-like
+    payloads, split the typed extraction into a concrete branch and an explicit
+    interface fallback, for example `TryGetObject<JsObject>` followed by
+    `TryGetObject<IJsPropertyAccessor>`. Do not silently collapse a previous
+    accessor-compatible path to `JsObject` only.
 
 ## Why
 
@@ -132,3 +151,24 @@ collection migrations should canonicalize storage keys at the owning `Set`/
 `Get`/`Has`/`Delete` boundary and prove both lookup behavior and observable
 stored-key behavior. Related ADR:
 `docs/adrs/0115-keep-jsmap-key-storage-jsvalue-native.md`.
+
+Issue `autrun-dirph7vxdbdc-edfa353492` / PR #1798 migrated the internal Array
+prototype `ReduceLike`/`SomeLike` result helpers from `object?` to `JsValue` and
+removed caller-side `JsValue.FromObjectUnsafe(...)` rewraps in `reduce`,
+`reduceRight`, and `some`. The old boundary did not preserve host interop or
+compatibility; it only converted JavaScript values and primitive booleans
+through CLR object carriers before returning to `JsValue` host methods. Future
+Array prototype helper migrations should keep the helper result typed once the
+selected callsites all require `JsValue`, and prove cleanup with a focused
+legacy-signature/wrapper search. Related ADR:
+`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`.
+
+Issue `autrun-dirquxdu7e2w-b1e0d8c752` / PR #1810 migrated
+`NumberPrototype.RequireNumberReceiver` away from untyped object extraction.
+Review feedback showed the important compatibility edge: replacing
+`TryGetObject(out object?)` with only `TryGetObject<JsObject>` would remove
+non-`JsObject` payloads that still implement `IJsPropertyAccessor` and were
+accepted by the old path. Future object-extraction migrations should use typed
+`JsValue` access without narrowing away interface-backed object semantics.
+Related ADR:
+`docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`.

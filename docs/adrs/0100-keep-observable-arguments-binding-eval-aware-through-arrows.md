@@ -19,13 +19,33 @@ body or arrow default parameter still observes the enclosing ordinary or
 generator function activation. Nested non-arrow functions remain a boundary
 because they own their own `arguments` semantics.
 
+Issue #1750 / PR #1789 exposed a second boundary in the opposite direction.
+The #gh1806 red-main repair and learn pass rechecked the same merged delivery
+from local main-verification evidence and kept this ADR as the canonical record.
+A sloppy function can need the spec-created arguments object even when
+`NeedsArgumentsBinding` would otherwise say the binding is not observable from
+executed code. In `function f() { return typeof arguments; var arguments = 42;
+}`, the unreachable `var arguments` declaration still participates in function
+declaration instantiation, but it must not replace the arguments object with
+`undefined` before the return observes it. The repair created the arguments
+object from the spec `argumentsObjectNeeded` decision, wrote the binding into
+the body/execution environment as well as parameter/function environments, and
+made var hoisting preserve an existing `arguments` binding.
+
 ## Decision
 
-Keep `NeedsArgumentsBinding` as the single activation-time question for whether
-an ordinary/generator function must materialize an observable `arguments`
-binding.
+Keep the spec `argumentsObjectNeeded` decision separate from the optimization
+question answered by `NeedsArgumentsBinding`.
 
-That decision must include:
+`argumentsObjectNeeded` owns whether an ordinary/generator activation must
+create the arguments object and reserve/protect the `arguments` binding during
+function declaration instantiation. It must be honored even when the only
+syntactic occurrence is a hoisted `var arguments` declaration with no executed
+initializer.
+
+`NeedsArgumentsBinding` owns whether lazy-allocation and fast-call optimizations
+can skip materializing an observable binding for ordinary execution. That
+decision must include:
 
 1. direct syntactic `arguments` references in the function body;
 2. `arguments` references in parameter defaults or binding patterns;
@@ -38,20 +58,29 @@ Do not decide lazy arguments creation from only direct body identifier scans, an
 do not treat all nested functions equally. The relevant semantic split is
 lexical-arrow inheritance versus non-arrow function activation ownership.
 
+Do not let var hoisting overwrite an already-created non-lexical `arguments`
+binding with `undefined`. Function declarations named `arguments` remain a
+separate sloppy-function declaration-instantiation behavior and can still
+override as covered by existing hoisting tests.
+
 ## Consequences
 
 - Function activation optimization can still skip arguments-object allocation
   for non-observable calls, but the skip must be guarded by the eval-aware
   observable-binding decision.
+- Fast activation paths must bail out when `argumentsObjectNeeded` is true
+  unless they can prove the same body-environment binding and hoist-preservation
+  semantics as the full activation path.
 - Dynamic-scope and arguments-reference visitors must traverse nested arrows
   while preserving non-arrow function boundaries.
 - Regression proof for future activation work should include ordinary body
   references, parameter defaults, direct eval in the function body, direct eval
-  in parameter defaults, nested-arrow `arguments` references, and nested-arrow
-  direct eval for both ordinary and generator functions.
+  in parameter defaults, nested-arrow `arguments` references, nested-arrow
+  direct eval for both ordinary and generator functions, and sloppy
+  `return typeof arguments; var arguments = ...` hoisting.
 - This complements ADR 0099: ADR 0099 owns activation slot-shape metadata,
-  while this ADR owns the semantic condition for creating the observable
-  `arguments` binding.
+  while this ADR owns the semantic conditions for creating and preserving the
+  `arguments` binding/object across activation environments.
 
 ## Related
 

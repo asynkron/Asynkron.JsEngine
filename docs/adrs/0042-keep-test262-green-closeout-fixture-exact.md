@@ -128,3 +128,22 @@ pinning.
   correct closeout was evidence-only: no `IntlNumberFormatConstructor`,
   `IntlNumberFormatter`, Test262 harness, or regression-test patch was
   warranted without a current failing row.
+- Issue #1827 repeated the no-source-change closeout for
+  `Intl.supportedValuesOf` and `Intl[@@toStringTag]` crash rows. Investigation
+  correctly identified `IntlHelper`, `IntlUtilities`, Intl object metadata, and
+  generated Test262 filters as plausible owner surfaces, and one early
+  overlapping run canceled a `supportedValuesOf` currency/DisplayNames row.
+  The bounded focused rerun on current `origin/main` passed the combined
+  `FullyQualifiedName~Intl_supportedValuesOf|FullyQualifiedName~Intl_toStringTag`
+  filter 52/52, and the delivery branch had no source or test diff. The
+  correct closeout was evidence-only: no Intl runtime, object descriptor,
+  Test262 harness, or regression-test patch is warranted unless a current
+  focused row fails reproducibly.
+- Issue #1826 reused this decision for generated RegExp Unicode property
+  escape crash rows. The issue-listed emoji, Script, and Script_Extensions
+  fixture set passed 28/28 on current main, while the broad
+  `Name=RegExp_propertyEscapes_generated` filter was killed after roughly three
+  minutes because it selected broader known generated-RegExp offenders outside
+  the issue slice. The correct closeout was evidence-only: no `JsRegExp`,
+  generated Unicode data, or Test262 harness patch is warranted unless an exact
+  listed row or tightly owned neighboring fixture fails reproducibly.

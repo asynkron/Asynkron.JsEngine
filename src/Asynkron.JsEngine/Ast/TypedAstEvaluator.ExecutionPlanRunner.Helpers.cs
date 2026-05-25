@@ -853,6 +853,7 @@ public static partial class TypedAstEvaluator
                                 stack[stackIndex - 1] = GetProgramComputedPropertyValue(
                                     target,
                                     targetWasShortCircuited,
+                                    operation.ShortCircuitOnNullishTarget,
                                     propertyKey,
                                     context,
                                     out var resultWasShortCircuited);
@@ -1861,6 +1862,7 @@ public static partial class TypedAstEvaluator
                 currentValue = GetProgramComputedPropertyValue(
                     target,
                     targetWasShortCircuited: false,
+                    shortCircuitOnNullishTarget: false,
                     new JsValue(resolvedName),
                     context,
                     out _);
@@ -2477,6 +2479,7 @@ public static partial class TypedAstEvaluator
         private static JsValue GetProgramComputedPropertyValue(
             JsValue target,
             bool targetWasShortCircuited,
+            bool shortCircuitOnNullishTarget,
             JsValue propertyKey,
             EvaluationContext context,
             out bool resultWasShortCircuited)
@@ -2484,7 +2487,7 @@ public static partial class TypedAstEvaluator
             if (!TryPrepareProgramPropertyRead(
                     target,
                     targetWasShortCircuited,
-                    shortCircuitOnNullishTarget: false,
+                    shortCircuitOnNullishTarget,
                     context,
                     out resultWasShortCircuited))
             {

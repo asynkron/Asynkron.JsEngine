@@ -45,6 +45,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- For Test262 regression-pack inventory docs, compare both the backing
+  `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/` files and
+  `rtk ./tools/run-test262-regressions.sh --list` before editing. New named
+  packs can be added by earlier feature work without the static docs list being
+  refreshed.
 - When a docs slice mirrors a command inventory already maintained in another
   repo document, compare both surfaces plus the backing filesystem inventory
   before editing. Update only the stale surface and keep the peer document as
@@ -142,6 +147,13 @@ seven subsystem packs (`annexb`, `array-prototype`, `intl`, `language`,
 `proxy`, `regexp`, `temporal`) plus `full`. The directory listing was the
 baseline signal, the updated "Available packs" list was the final signal, and
 no build, Test262, or recurrence-infrastructure work was needed.
+
+Issue #1881 / PR #1900 repeated the same inventory drift after the
+`gh1832-private-accessor-logical-assignment` regression pack existed on disk
+and in `rtk ./tools/run-test262-regressions.sh --list`, but was missing from
+`agents/how-to-build-and-test.md`. Future Test262 named-pack docs slices should
+prove both the pack-file inventory and runner `--list` output so feature-added
+packs do not silently disappear from the agent-facing static inventory.
 
 Issue #1431 / PR #1434 was the same docs/filesystem drift pattern on the
 top-level README demo list. `README.md` still omitted `EventQueueDemo`, pointed

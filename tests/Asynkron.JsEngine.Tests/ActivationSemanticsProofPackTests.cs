@@ -16,7 +16,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleSyncFunction_UsesIrActivationFastPath()
+    public async Task SimpleSyncFunction_DoesNotUseCallerBinaryOrSimpleReturnFastPaths()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""

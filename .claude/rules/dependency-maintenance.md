@@ -32,6 +32,10 @@ unless the issue explicitly asks for a major migration.
   against the intended no-diff outcome. Do not commit transient command
   artifacts from metadata gathering, such as curl cookie jars or numeric
   scratch files, as a substitute for a real dependency change.
+- Keep dependency-maintenance deliveries out of unrelated proof packs, runtime
+  tests, or quality-gate repairs. If verification exposes a flaky or brittle
+  non-dependency test, record or route it separately unless the dependency
+  change itself caused the failure.
 
 ## Why
 
@@ -87,3 +91,12 @@ test-infrastructure sweeps should check sibling test project files for the same
 package before declaring a dependency slice complete, while still keeping the
 slice to the compatible package and avoiding unrelated Test262 or collector
 migrations.
+
+Issue #1755 / PR #1763 refreshed only the NodeHostDemo README dependency drift
+signal for 2026-05-25: Express 4 remained current on `latest-4`, Express 5
+remained a dedicated migration, and Polka 1.x remained on `next`. Review had to
+remove an unrelated `ActivationSemanticsProofPackTests` weakening from the
+delivery branch before the dependency slice was accepted. Future dependency
+sweeps should keep any activation proof-pack or other unrelated quality repair
+on its owning issue, even when it is discovered while proving the maintenance
+run.

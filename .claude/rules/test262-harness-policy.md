@@ -42,3 +42,12 @@ focused proof
 passed 24/24 after the harness-policy change. Future agents may not treat that
 exception as permission to widen other Test262 directories without the same
 proof shape and a new ADR.
+
+Issue #1742 / PR #1767 added another exact fixture-specific timeout for
+`built-ins/Function/prototype/toString/built-in-function-object.js`. The row
+exercises `Function.prototype.toString` over the whole built-in function object
+inventory and was classified as harness timeout/resource pressure, not a native
+source display correctness bug. Keep this as an exact path override with both
+bare and `test/`-prefixed path regression coverage; do not widen all
+`Function.prototype.toString` fixtures or edit native function source metadata
+without a fresh semantic failure.

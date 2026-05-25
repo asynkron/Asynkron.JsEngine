@@ -254,6 +254,13 @@ issue log can record false `success=false` stage events before implementation
 completes. The durable policy is to keep interim updates plain and bounded, and
 emit structured schema output only for the actual final build response.
 
+Issue #1757 / PR #1761 applied that output-boundary policy to the operational
+checklist in `agents/how-to-build-and-test.md` after the same issue log shape
+showed schema-like interim status entries during a recurring-child run. The
+delivery also reverted an out-of-scope activation test assertion change, which
+confirms future recurring-child fixes should keep process guidance docs-only
+when the selected slice is operational documentation.
+
 Issue #1650 / PR #1652 was a recurring documentation child that found
 `agents/how-to-worktrees.md` still teaching unwrapped `git`, `gh`, and
 `dotnet build && dotnet test` examples even though the repo-level agent

@@ -110,3 +110,14 @@ the durable lesson is to let the private helper own the typed return value and
 return it directly from the host/constructor callsite. `Array.fromAsync` stayed
 out of scope because its promise/async path is a separate boundary that needs
 its own focused proof.
+
+Issue `autrun-dirl74f4ybwo-4a2a4b907a` / PR #1765 migrated the internal
+`JsArray.SetLength` helper boundary by adding a `JsValue` overload and marking
+the legacy `SetLength(object?, ...)` overload obsolete with `error: true`.
+Array length assignment already receives `JsValue` values from core property
+assignment paths, so routing through `JsValue.FromObjectUnsafe(...)` only kept
+an accidental object-carrier entry point alive. Future array length work should
+preserve `TrySetArrayLength(...)` as the spec-owned conversion/failure path, but
+keep the public helper boundary typed to `JsValue` and prove accidental object
+binding is gone with the focused `SetLength(object?)` signature search. Related
+ADR: `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`.

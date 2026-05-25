@@ -173,7 +173,7 @@ public static partial class TypedAstEvaluator
 
                 if (context.IsThrow)
                 {
-                    return HandleEnterCatchThrowSlow(runner, instruction, context, out returnValue);
+                    return HandleEnterCatchThrowSlow(runner, context, out returnValue);
                 }
             }
 
@@ -185,7 +185,6 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleEnterCatchThrowSlow(
             ExecutionPlanRunner runner,
-            EnterCatchInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {
@@ -195,11 +194,21 @@ public static partial class TypedAstEvaluator
             {
                 if (runner._programCounter == runner._currentInstructionIndex)
                 {
-                    runner._programCounter = instruction.Next;
+                    if (runner.TryCatchStateRef.TryStack.Count > 0)
+                    {
+                        runner.TryCatchStateRef.TryStack.Pop();
+                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                        {
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+                    }
                 }
-
-                returnValue = default;
-                return InstructionResult.Continue;
+                else
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
             }
 
             runner.TryCatchStateRef.TryStack.Clear();

@@ -6,6 +6,70 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.IteratorRuntime)]
 public sealed class IteratorCloseDestructuringTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CatchArrayDestructuring_DefaultThrow_ClosesIterator_AndBubblesOutward(bool strict)
+    {
+        await using var engine = CreateEngine();
+        var strictPrefix = strict ? "\"use strict\";\n" : string.Empty;
+        var result = await engine.Evaluate(
+            $$"""
+              {{strictPrefix}}
+              var nextCount = 0;
+              var returnCount = 0;
+              var iterator = {
+                next() {
+                  nextCount++;
+                  return { done: false, value: undefined };
+                },
+                return() {
+                  returnCount++;
+                  return { done: true };
+                }
+              };
+              var iterable = { [Symbol.iterator]() { return iterator; } };
+              var caught;
+              try {
+                try {
+                  throw iterable;
+                } catch ([x = (() => { throw new Error("default boom"); })()]) {
+                  caught = "inner catch";
+                }
+              } catch (err) {
+                caught = err && err.message;
+              }
+              ({ nextCount, returnCount, caught });
+              """);
+
+        var summary = Assert.IsType<JsObject>(result);
+        Assert.Equal(1d, summary["nextCount"]);
+        Assert.Equal(1d, summary["returnCount"]);
+        Assert.Equal("default boom", summary["caught"]);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CatchArrayDestructuring_NestedPatternDefault_WorksInBothModes(bool strict)
+    {
+        await using var engine = CreateEngine();
+        var strictPrefix = strict ? "\"use strict\";\n" : string.Empty;
+        var result = await engine.Evaluate(
+            $$"""
+              {{strictPrefix}}
+              var value = -1;
+              try {
+                throw [[undefined]];
+              } catch ([[x = 7]]) {
+                value = x;
+              }
+              value;
+              """);
+
+        Assert.Equal(7d, result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task DestructuringAssignment_IteratorCloseNonObjectThrows()
     {

@@ -18,8 +18,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     private readonly List<MapEntryRecord> _insertionOrder = [];
 
     // Use Dictionary for O(1) lookups
-    private readonly Dictionary<object, JsValue> _map = new(SameValueZeroComparer.Instance);
-    private readonly Dictionary<object, MapEntryRecord> _entryRecords = new(SameValueZeroComparer.Instance);
+    private readonly Dictionary<JsValue, JsValue> _map = new(SameValueZeroComparer.JsValueInstance);
+    private readonly Dictionary<JsValue, MapEntryRecord> _entryRecords = new(SameValueZeroComparer.JsValueInstance);
 
     private readonly JsObject _properties = new();
 
@@ -31,14 +31,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
     }
 
-    // Track null/undefined keys separately (can't be dictionary keys)
-    private bool _hasNullKey;
-    private bool _hasUndefinedKey;
-    private JsValue _nullValue;
-    private JsValue _undefinedValue;
-    private MapEntryRecord? _nullEntry;
-    private MapEntryRecord? _undefinedEntry;
-
     /// <summary>
     ///     Indicates whether this Map is "plain" - i.e., has no custom properties,
     ///     no modified prototype, and can use fast-path optimizations.
@@ -48,7 +40,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// <summary>
     ///     Gets the number of key-value pairs in the Map.
     /// </summary>
-    public int Size => _map.Count + (_hasNullKey ? 1 : 0) + (_hasUndefinedKey ? 1 : 0);
+    public int Size => _map.Count;
 
     internal int EntryCount => _insertionOrder.Count;
 
@@ -127,11 +119,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public IJsPropertyAccessor? PrototypeAccessor =>
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
-    internal KeyValuePair<object?, JsValue> GetEntry(int index)
+    internal KeyValuePair<JsValue, JsValue> GetEntry(int index)
     {
         var entry = _insertionOrder[index];
-        var value = GetByObjectKey(entry.Key);
-        return new KeyValuePair<object?, JsValue>(entry.Key, value);
+        var value = GetByKey(entry.Key);
+        return new KeyValuePair<JsValue, JsValue>(entry.Key, value);
     }
 
     /// <summary>
@@ -144,20 +136,10 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     }
 
     /// <summary>
-    ///     Internal method to get value by object key (used by iteration methods).
+    ///     Internal method to get value by key (used by iteration methods).
     /// </summary>
-    private JsValue GetByObjectKey(object? key)
+    private JsValue GetByKey(JsValue key)
     {
-        if (key is null)
-        {
-            return _hasNullKey ? _nullValue : JsValue.Undefined;
-        }
-
-        if (ReferenceEquals(key, Symbol.Undefined))
-        {
-            return _hasUndefinedKey ? _undefinedValue : JsValue.Undefined;
-        }
-
         return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
@@ -166,44 +148,14 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsMap Set(JsValue key, JsValue value)
     {
-        // Handle null key
-        if (key.IsNull)
+        if (!_map.ContainsKey(key))
         {
-            if (!_hasNullKey)
-            {
-                _hasNullKey = true;
-                _nullEntry = new MapEntryRecord(null);
-                _insertionOrder.Add(_nullEntry);
-            }
-
-            _nullValue = value;
-            return this;
-        }
-
-        // Handle undefined key
-        if (key.IsUndefined)
-        {
-            if (!_hasUndefinedKey)
-            {
-                _hasUndefinedKey = true;
-                _undefinedEntry = new MapEntryRecord(Symbol.Undefined);
-                _insertionOrder.Add(_undefinedEntry);
-            }
-
-            _undefinedValue = value;
-            return this;
-        }
-
-        // Regular key - extract object for dictionary storage
-        var keyObj = JsValueExtractor.Extract(key);
-        if (!_map.ContainsKey(keyObj))
-        {
-            var entry = new MapEntryRecord(keyObj);
+            var entry = new MapEntryRecord(key);
             _insertionOrder.Add(entry);
-            _entryRecords[keyObj] = entry;
+            _entryRecords[key] = entry;
         }
 
-        _map[keyObj] = value;
+        _map[key] = value;
         return this;
     }
 
@@ -212,21 +164,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsValue Get(JsValue key)
     {
-        // Handle null key
-        if (key.IsNull)
-        {
-            return _hasNullKey ? _nullValue : JsValue.Undefined;
-        }
-
-        // Handle undefined key
-        if (key.IsUndefined)
-        {
-            return _hasUndefinedKey ? _undefinedValue : JsValue.Undefined;
-        }
-
-        // Regular key - use dictionary
-        var keyObj = JsValueExtractor.Extract(key);
-        return _map.TryGetValue(keyObj, out var value) ? value : JsValue.Undefined;
+        return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
     /// <summary>
@@ -234,21 +172,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Has(JsValue key)
     {
-        // Handle null key
-        if (key.IsNull)
-        {
-            return _hasNullKey;
-        }
-
-        // Handle undefined key
-        if (key.IsUndefined)
-        {
-            return _hasUndefinedKey;
-        }
-
-        // Regular key - use dictionary
-        var keyObj = JsValueExtractor.Extract(key);
-        return _map.ContainsKey(keyObj);
+        return _map.ContainsKey(key);
     }
 
     /// <summary>
@@ -257,46 +181,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Delete(JsValue key)
     {
-        // Handle null key
-        if (key.IsNull)
-        {
-            if (!_hasNullKey)
-            {
-                return false;
-            }
-
-            _hasNullKey = false;
-            _nullValue = JsValue.Undefined;
-            _nullEntry?.Delete();
-            _nullEntry = null;
-            // Don't remove from _insertionOrder — ForEach uses index-based iteration
-            // and removing would shift indices, corrupting the loop.
-            return true;
-        }
-
-        // Handle undefined key
-        if (key.IsUndefined)
-        {
-            if (!_hasUndefinedKey)
-            {
-                return false;
-            }
-
-            _hasUndefinedKey = false;
-            _undefinedValue = JsValue.Undefined;
-            _undefinedEntry?.Delete();
-            _undefinedEntry = null;
-            return true;
-        }
-
-        // Regular key - use dictionary
-        var keyObj = JsValueExtractor.Extract(key);
-        if (!_map.Remove(keyObj))
+        if (!_map.Remove(key))
         {
             return false;
         }
 
-        if (_entryRecords.Remove(keyObj, out var entry))
+        if (_entryRecords.Remove(key, out var entry))
         {
             entry.Delete();
         }
@@ -314,12 +204,6 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         _map.Clear();
         _insertionOrder.Clear();
         _entryRecords.Clear();
-        _hasNullKey = false;
-        _nullValue = JsValue.Undefined;
-        _hasUndefinedKey = false;
-        _undefinedValue = JsValue.Undefined;
-        _nullEntry = null;
-        _undefinedEntry = null;
     }
 
     /// <summary>
@@ -339,23 +223,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             }
 
             var key = entry.Key;
-
-            // Handle null key
-            if (key is null)
-            {
-                callback.Invoke([_nullValue, JsValue.Null, _cachedJsValue], thisArg);
-                continue;
-            }
-
-            // Handle undefined key (stored as Symbol.Undefined sentinel)
-            if (ReferenceEquals(key, Symbol.Undefined))
-            {
-                callback.Invoke([_undefinedValue, JsValue.Undefined, _cachedJsValue], thisArg);
-                continue;
-            }
-
-            var value = GetByObjectKey(key);
-            callback.Invoke([value, JsValue.FromObjectUnsafe(key), _cachedJsValue], thisArg);
+            var value = GetByKey(key);
+            callback.Invoke([value, key, _cachedJsValue], thisArg);
         }
     }
 
@@ -373,19 +242,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
             }
 
             var key = entry.Key;
-            if (key is null)
-            {
-                entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Null, _nullValue])));
-            }
-            else if (ReferenceEquals(key, Symbol.Undefined))
-            {
-                entries.Add(JsValue.FromJsArray(new JsArray([JsValue.Undefined, _undefinedValue])));
-            }
-            else
-            {
-                var pair = new JsArray([JsValue.FromObjectUnsafe(key), GetByObjectKey(key)]);
-                entries.Add(JsValue.FromJsArray(pair));
-            }
+            var pair = new JsArray([key, GetByKey(key)]);
+            entries.Add(JsValue.FromJsArray(pair));
         }
 
         return new JsArray(entries);
@@ -404,19 +262,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 continue;
             }
 
-            var key = entry.Key;
-            if (key is null)
-            {
-                keys.Add(JsValue.Null);
-            }
-            else if (ReferenceEquals(key, Symbol.Undefined))
-            {
-                keys.Add(JsValue.Undefined);
-            }
-            else
-            {
-                keys.Add(JsValue.FromObjectUnsafe(key));
-            }
+            keys.Add(entry.Key);
         }
 
         return new JsArray(keys);
@@ -435,27 +281,15 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
                 continue;
             }
 
-            var key = entry.Key;
-            if (key is null)
-            {
-                values.Add(_nullValue);
-            }
-            else if (ReferenceEquals(key, Symbol.Undefined))
-            {
-                values.Add(_undefinedValue);
-            }
-            else
-            {
-                values.Add(GetByObjectKey(key));
-            }
+            values.Add(GetByKey(entry.Key));
         }
 
         return new JsArray(values);
     }
 
-    private sealed class MapEntryRecord(object? key)
+    private sealed class MapEntryRecord(JsValue key)
     {
-        internal object? Key { get; } = key;
+        internal JsValue Key { get; } = key;
         internal bool IsAlive { get; private set; } = true;
 
         internal void Delete()

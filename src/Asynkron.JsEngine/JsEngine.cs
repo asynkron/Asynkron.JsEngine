@@ -503,6 +503,15 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             typedProgram = typedProgram with { IsStrict = true };
         }
+        
+        var invalidPrivateName = PrivateNameValidator.FindInvalidPrivateName(
+            typedProgram.Body,
+            ImmutableArray<PrivateNameScope>.Empty);
+        if (invalidPrivateName is not null)
+        {
+            throw new ParseException(
+                $"Private field '{invalidPrivateName}' must be declared in an enclosing class");
+        }
 
         typedProgram = _typedConstantTransformer.Transform(typedProgram);
 

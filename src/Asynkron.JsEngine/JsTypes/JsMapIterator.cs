@@ -37,7 +37,7 @@ internal sealed class JsMapIterator : JsIteratorBase
 
             var entry = _map.GetEntry(entryIndex);
 
-            var key = JsValue.FromObjectUnsafe(entry.Key);
+            var key = entry.Key;
             var value = entry.Value;
 
             var result = _kind switch

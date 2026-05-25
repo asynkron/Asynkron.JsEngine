@@ -120,3 +120,11 @@ pinning.
   checks stayed green and the delivery branch had no source diff, so no
   `TypedArrayPrototype`, `TypedArrayBase`, `JsArrayBuffer`, pool, or Test262
   harness/cache change was warranted.
+- Issue #1747 repeated the no-source-change form for the Intl.NumberFormat
+  `roundingPriority` mixed-options crash rows. The issue-listed strict and
+  sloppy `intl402/NumberFormat/test-option-roundingPriority-mixed-options.js`
+  rows passed on current main, and the neighboring
+  `Intl402 & NumberFormat & roundingPriority` focused slice also passed. The
+  correct closeout was evidence-only: no `IntlNumberFormatConstructor`,
+  `IntlNumberFormatter`, Test262 harness, or regression-test patch was
+  warranted without a current failing row.

@@ -18,6 +18,7 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 {
     private bool _isConstructor = true;
     private string? _nativeSourceDisplayName;
+    private string? _nativeFunctionSource;
 
     // Cached JsValue to avoid repeated struct creation
     private readonly JsValue _cachedJsValue;
@@ -154,21 +155,27 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
 
     internal string GetNativeFunctionSource()
     {
-        var displayName = _nativeSourceDisplayName;
-        return string.IsNullOrEmpty(displayName)
-            ? "function () { [native code] }"
-            : $"function {displayName}() {{ [native code] }}";
+        return _nativeFunctionSource ??= BuildNativeFunctionSource(_nativeSourceDisplayName);
     }
 
     internal void SetNativeSourceDisplayName(string displayName)
     {
         _nativeSourceDisplayName = TryBuildNativeSourceDisplayName(displayName);
+        _nativeFunctionSource = null;
     }
 
     internal void CloneNativeSourceDisplayMetadataFrom(HostFunction original)
     {
         ArgumentNullException.ThrowIfNull(original);
         _nativeSourceDisplayName = original._nativeSourceDisplayName;
+        _nativeFunctionSource = original._nativeFunctionSource;
+    }
+
+    private static string BuildNativeFunctionSource(string? displayName)
+    {
+        return string.IsNullOrEmpty(displayName)
+            ? "function () { [native code] }"
+            : $"function {displayName}() {{ [native code] }}";
     }
 
     public void PreventExtensions()

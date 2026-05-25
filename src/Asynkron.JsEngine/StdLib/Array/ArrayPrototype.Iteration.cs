@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 
@@ -25,7 +26,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var mapped = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            var mapped = InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
             CreateDataPropertyOrThrowJsValue(result, k, mapped, Realm, "Array.prototype.map");
         }
 
@@ -50,7 +51,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var keep = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            var keep = InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
             if (!keep.IsTruthy)
             {
                 continue;
@@ -90,10 +91,23 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
         }
 
         return JsValue.Undefined;
+    }
+
+    private static JsValue InvokeArrayIterationCallback(
+        IJsCallable callback,
+        JsValue value,
+        long index,
+        JsValue array,
+        JsValue thisArg)
+    {
+        var args = new ThreeValueArgs(value, new JsValue((double)index), array);
+        return callback is TypedAstEvaluator.SyncFunctionInvoker typedFunction
+            ? typedFunction.InvokeWithContext<ThreeValueArgs>(args, thisArg, null)
+            : callback.Invoke(args, thisArg);
     }
 
     [JsHostMethod("find", Length = 1d)]
@@ -131,7 +145,7 @@ public sealed partial class ArrayPrototype
                 continue;
             }
 
-            var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            var result = InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
             if (!result.IsTruthy)
             {
                 return JsValue.False;
@@ -180,7 +194,7 @@ public sealed partial class ArrayPrototype
             // candidate is already a JsValue from TryGetProperty
             var value = accessor.TryGetProperty(key, out var candidate) ? candidate : JsValue.Undefined;
 
-            var match = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
+            var match = InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
             if (match.IsTruthy)
             {
                 return (k, value);

@@ -24,6 +24,9 @@ public sealed class JsRegExp
     // large string allocations). ~1200 entries max (600 properties x 2 for negate).
     private static readonly ConcurrentDictionary<(string Expression, bool Negate), string>
         PropertyEscapePatternCache = new();
+    private static readonly ConcurrentDictionary<(string Pattern, RegexOptions Options), Regex>
+        RegexInstanceCache = new();
+    private const int RegexInstanceCacheLimit = 512;
     private const byte FlagHasIndices = 1 << 0;
     private const byte FlagGlobal = 1 << 1;
     private const byte FlagIgnoreCase = 1 << 2;
@@ -1505,7 +1508,20 @@ public sealed class JsRegExp
 
     private Regex EnsureRegex()
     {
-        return _compiledRegex ??= new Regex(CapLargeQuantifiers(_normalizedPattern), _regexOptions);
+        if (_compiledRegex is not null)
+        {
+            return _compiledRegex;
+        }
+
+        var cappedPattern = CapLargeQuantifiers(_normalizedPattern);
+        if (RegexInstanceCache.Count > RegexInstanceCacheLimit)
+        {
+            RegexInstanceCache.Clear();
+        }
+
+        return _compiledRegex = RegexInstanceCache.GetOrAdd(
+            (cappedPattern, _regexOptions),
+            static key => new Regex(key.Pattern, key.Options));
     }
 
     private bool IsLegacyGlobalNonWhitespacePlus()

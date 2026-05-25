@@ -132,3 +132,14 @@ collection migrations should canonicalize storage keys at the owning `Set`/
 `Get`/`Has`/`Delete` boundary and prove both lookup behavior and observable
 stored-key behavior. Related ADR:
 `docs/adrs/0115-keep-jsmap-key-storage-jsvalue-native.md`.
+
+Issue `autrun-dirph7vxdbdc-edfa353492` / PR #1798 migrated the internal Array
+prototype `ReduceLike`/`SomeLike` result helpers from `object?` to `JsValue` and
+removed caller-side `JsValue.FromObjectUnsafe(...)` rewraps in `reduce`,
+`reduceRight`, and `some`. The old boundary did not preserve host interop or
+compatibility; it only converted JavaScript values and primitive booleans
+through CLR object carriers before returning to `JsValue` host methods. Future
+Array prototype helper migrations should keep the helper result typed once the
+selected callsites all require `JsValue`, and prove cleanup with a focused
+legacy-signature/wrapper search. Related ADR:
+`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`.

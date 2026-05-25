@@ -33,6 +33,14 @@ For issue #771, the only fixture-specific policy is a 90 second execution
 timeout for `built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js`; ordinary
 Test262 fixtures keep the default 30 second timeout.
 
+Issue #1742 reused this policy for
+`built-ins/Function/prototype/toString/built-in-function-object.js`. The row was
+classified as a focused Test262 harness timeout/resource-pressure case around a
+large built-in function object inventory, not a `Function.prototype.toString`
+native source display correctness failure. The delivery therefore added only an
+exact 90 second timeout override plus helper regressions for both bare and
+`test/`-prefixed path shapes.
+
 ## Consequences
 
 - Future Test262 harness fixes should not assume one canonical path shape when
@@ -41,5 +49,10 @@ Test262 fixtures keep the default 30 second timeout.
   way to hide runtime performance problems.
 - Review-bounce repairs should add direct harness-helper regression coverage
   for the missed path shape before returning to review.
+- A slow fixture that exercises a broad built-in inventory may receive a narrow
+  exact-path timeout only after focused evidence rules out a semantic runtime
+  failure; do not widen neighboring Test262 method groups as a shortcut.
 - This ADR is caused by issue #771 / PR #948 and complements
   `.claude/rules/test262-harness-policy.md`.
+- Issue #1742 / PR #1767 extends the same decision for the exact
+  `built-ins/Function/prototype/toString/built-in-function-object.js` fixture.

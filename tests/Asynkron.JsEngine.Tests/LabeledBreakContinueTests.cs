@@ -112,6 +112,28 @@ public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : Intern
     }
 
     [Fact(Timeout = 2000)]
+    public async Task LabeledContinueToOuterLabelThroughNestedLabelParses()
+    {
+        var source = @"
+            function f() {
+                outer: inner: for (var i = 0; i < 2; i++) {
+                    for (var j = 0; j < 3; j++) {
+                        if (j === 1) {
+                            continue outer;
+                        }
+                    }
+                }
+            }
+            'ok';
+        ";
+
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal("ok", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task UnlabeledBreakOnlyExitsInnerLoop()
     {
         var source = @"

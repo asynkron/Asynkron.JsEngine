@@ -228,6 +228,11 @@ internal static class ControlFlowSyntaxValidator
 
     private static LabelTargetKind GetLabelTargetKind(StatementNode statement)
     {
+        while (statement is LabeledStatement labeledStatement)
+        {
+            statement = labeledStatement.Statement;
+        }
+
         return statement switch
         {
             WhileStatement => LabelTargetKind.Iteration,

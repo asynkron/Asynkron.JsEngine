@@ -23,10 +23,11 @@ on the current worktree before changing implementation or harness code.
 5. Use the focused proof result to decide the next stage: implementation only
    after a current failing repro; learn/closeout when the exact issue proof is
    already green and no source change is needed.
-6. A focused internal regression can still be the right closeout when the issue
-   names a concrete prior crash shape and current main already passes the
-   Test262 group. Keep that change test-only, mirror one exact reported fixture
-   shape, and state explicitly that no runtime or harness fix was needed.
+6. Focused internal regressions can still be the right closeout when the issue
+   names concrete prior crash shapes and current main already passes the
+   Test262 proof. Keep that change test-only, mirror the reported observable
+   fixture shape or related edge-case cluster, and state explicitly that no
+   runtime or harness fix was needed.
 7. If the generated Test262 method group is much broader than the crash entries
    listed on the issue, noisy, or prone to the local inactivity guard, prove
    the exact issue-listed fixture files or file patterns first. Use the method
@@ -209,3 +210,14 @@ harness and base-realm caches disabled (28/28), and reran the callback/iteration
 subset with `JSENGINE_DEBUG_POOL_GUARDS=true` (28/28). That evidence was enough
 to stop without changing `TypedArrayPrototype`, `TypedArrayBase`,
 `JsArrayBuffer`, object pools, or Test262 harness cache/agent code.
+
+Issue #1744 / PR #1768 repeated the same test-only closeout shape for
+`WeakSet.prototype.add` rows. The reported crash list named a small related
+edge-case cluster: duplicate return-this, non-registered symbol acceptance,
+registered symbol rejection, incompatible receiver TypeError, and constructor
+non-callability. The delivery added focused internal `WeakSetTests` coverage
+for those observable cases and the retry confirmed the focused WeakSet suite
+passed 26/26 after aligning assertions with current `ThrowSignal` wording. That
+does not create a new WeakSet architecture decision; it reinforces that stale
+Test262 crash closeouts may pin the exact observable cluster locally while
+leaving runtime and harness code untouched when no current failing proof exists.

@@ -83,6 +83,27 @@ super-reference validation before any observable property-key work:
 This applies even when the operation always throws. The throw does not erase the
 observable ordering before it.
 
+## Computed Member Nullish Read Order
+
+For expression bytecode that lowers ordinary computed reads such as
+`base[key]`, keep the observable steps split:
+
+- evaluate the base expression;
+- evaluate the computed key expression;
+- require the base to be object-coercible;
+- resolve the property key only after the nullish-base check succeeds;
+- then perform the property read.
+
+For nullish bases, the key expression's side effects must still happen, but
+property-key conversion must not happen after the `TypeError`. For optional
+computed reads such as `base?.[key]`, keep the separate optional-chain contract:
+a nullish base short-circuits before the key expression runs.
+
+Do not repair this class of issue by routing computed member reads through the
+legacy AST evaluator. The expression bytecode compiler/runner owns the
+spec-ordered split and must carry the metadata needed to distinguish ordinary
+nullish TypeError behavior from optional chaining.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -216,6 +237,15 @@ After initialization, the key may run, but `delete super[...]` still throws
 `ReferenceError`. The durable lesson is to keep super-reference validation,
 computed-key evaluation, and the operation-specific throw as separate ordered
 steps.
+
+Issue #1752 / PR #1791 fixed Test262
+`computed-reference-null-or-undefined.js` after ordinary expression bytecode
+computed reads on `null` or `undefined` could crash the host instead of
+throwing a JavaScript `TypeError`. The durable lesson is that ordinary
+`base[key]` and optional `base?.[key]` have different nullish-base ordering:
+ordinary reads evaluate the key expression before the nullish-base `TypeError`
+but must not convert the key afterward, while optional reads skip the key
+entirely when the base short-circuits.
 
 Issue #806 / PR #999 fixed the `Intl.NumberFormat`
 `constructor-locales-hasproperty` fixture after `Array.prototype.push` stored

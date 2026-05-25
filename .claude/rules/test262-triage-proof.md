@@ -92,6 +92,15 @@ stale generated output, the same `Name=Statements_try_dstr` proof passed 186/186
 on current main. That failure was not source evidence and did not justify a
 destructuring, try/catch, iterator-close, or Test262 harness patch.
 
+Issue #1843 repeated the no-source-change closeout for legacy
+`Statements_while` rows. The issue body correctly identified while-loop
+completion and side-effect semantics as the plausible owner surface, but the
+build-stage focused Release reruns for the exact `S12.6.2_A8.js` and
+`S12.6.2_A9.js` filters both passed 2/2 on the current worktree. A plausible
+loop-runtime owner is still triage context only; do not patch loop emitters,
+completion bookkeeping, or Test262 harness behavior when the exact reported
+rows are green.
+
 Issue #1031 / PR #1103 applied the green-proof closeout path to
 `Expressions_class_asyncGenMethodStatic`: current `origin/main` already passed
 the reported Test262 method group, so the delivery added only a focused

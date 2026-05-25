@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -284,5 +285,62 @@ public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : Intern
 
         // 00, 01, 02, 10, 11 (break outer)
         Assert.Equal("00,01,02,10,11,", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task LabeledConstDeclarationThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAsync<ParseException>(async () =>
+            await engine.Evaluate("""
+                                  label: const x = 1;
+                                  """));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task LabeledClassDeclarationThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAsync<ParseException>(async () =>
+            await engine.Evaluate("""
+                                  label: class C {}
+                                  """));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task StrictModeLabeledFunctionDeclarationThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAsync<ParseException>(async () =>
+            await engine.Evaluate("""
+                                  'use strict';
+                                  label: function f() {}
+                                  """));
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task SloppyModeLabeledFunctionDeclarationIsAllowed()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           label: function f() { return 42; }
+                                           f();
+                                           """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task LabeledGeneratorDeclarationThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAsync<ParseException>(async () =>
+            await engine.Evaluate("""
+                                  label: function* g() { yield 1; }
+                                  """));
     }
 }

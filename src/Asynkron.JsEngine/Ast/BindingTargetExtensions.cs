@@ -118,10 +118,17 @@ public static partial class TypedAstEvaluator
         EvaluationContext context,
         HashSet<Symbol>? lexicalNames = null)
     {
+        var functionVarEnvironment = environment.GetVarEnvironment();
+
         // Fast path for simple identifier binding (most common case)
         if (target is IdentifierBinding id)
         {
             if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(id.Name) == true)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(id.Name, Symbol.Arguments) && functionVarEnvironment.HasBinding(id.Name))
             {
                 return;
             }
@@ -135,6 +142,11 @@ public static partial class TypedAstEvaluator
         target.WalkBindingTargets(identifier =>
         {
             if (!context.CurrentScope.IsStrict && lexicalNames?.Contains(identifier.Name) == true)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(identifier.Name, Symbol.Arguments) && functionVarEnvironment.HasBinding(identifier.Name))
             {
                 return;
             }

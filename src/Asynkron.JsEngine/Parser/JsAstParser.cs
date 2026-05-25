@@ -720,9 +720,11 @@ public sealed class JsAstParser(
             Consume(TokenType.Colon, "Expected ':' after label.");
 
             if (Check(TokenType.Const) || Check(TokenType.Class) ||
-                (Check(TokenType.Let) && (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
-                                          CheckAhead(TokenType.LeftBrace) ||
-                                          (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)))))
+                (Check(TokenType.Let) && (InStrictContext ||
+                                          (!HasLineTerminatorAfterCurrentToken() &&
+                                           (CheckAhead(TokenType.LeftBracket) ||
+                                            CheckAhead(TokenType.LeftBrace) ||
+                                            (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)))))))
             {
                 throw new ParseException("Lexical declarations are not allowed in labeled statements.", Peek(),
                     source);

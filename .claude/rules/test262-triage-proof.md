@@ -245,6 +245,16 @@ and formatter ownership, but once the exact current proof and a small adjacent
 semantic slice are green, stop without changing Intl runtime, Test262 harness,
 or nearby regression tests unless a current failing row is reproduced.
 
+Issue #1825 repeated the no-source-change closeout for a stale
+`DecodeURI` four-byte percent-decoding crash report. The URI decoder was the
+right owner surface to inspect, and existing URI percent-decoding rules already
+covered the shared `decodeURI` / `decodeURIComponent` UTF-8 invariants, but the
+build-stage proof on current main passed `Name=DecodeURI` 110/110 in Release.
+Future URI Test262 crash issues should still check the shared decoder and the
+focused URI rule, but a prior four-byte crash report is not enough to edit
+`GlobalHelper` or Test262 harness policy after the current focused method group
+is green.
+
 Issue #1827 repeated the evidence-only closeout for `Intl.supportedValuesOf`
 and `Intl[@@toStringTag]` crash rows. The issue named plausible `IntlHelper`,
 `IntlUtilities`, object metadata, and generated Test262 owner surfaces, and an
@@ -268,3 +278,15 @@ RegExp property-escape issues should still inspect `JsRegExp` and Unicode
 property data ownership, but once the exact listed rows are green, treat a broad
 method-group hang as proof friction rather than permission to edit RegExp
 runtime, generated Unicode data, or Test262 harness code.
+
+Issue #1828 repeated the same no-source-change boundary for
+`language/expressions/call/trailing-comma.js`. The parser owner surface already
+accepted ordinary call trailing commas while keeping dynamic `import(...)`
+argument validation strict. A prior focused-ish `FullyQualifiedName~trailing-comma`
+run passed 1150 selected rows in 46.5s, while the exact file filter
+`FullyQualifiedName~language/expressions/call/trailing-comma.js` timed out under
+a 180s guard before producing final rows. Future call-expression Test262 crash
+reports should inspect `ParseArgumentList` and call-target lowering as context,
+but do not patch parser, expression bytecode, or harness timeout policy from a
+stale crash row when the current evidence shows green adjacent coverage and
+bounded proof friction rather than a deterministic failing fixture.

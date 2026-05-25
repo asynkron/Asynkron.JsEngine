@@ -65,7 +65,6 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private RealmState? ErrorRealm => RealmState.Current ?? _realm;
     private RealmState? CurrentOperationRealm => RealmState.Current ?? _realm;
-    private RealmState? RevokedProxyErrorRealm => _realm ?? RealmState.Current;
 
     private static JsValue ToJsObjectValue(IJsObjectLike value)
     {
@@ -190,7 +189,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
         _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
-            realm: RevokedProxyErrorRealm);
+            realm: ErrorRealm);
 
         if (Target is not IJsCallable callableTarget)
         {
@@ -211,7 +210,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     internal JsValue Construct(IReadOnlyList<JsValue> arguments, IJsCallable newTarget)
     {
         _ = Handler ?? throw StandardLibrary.ThrowTypeError("Cannot perform operation on a revoked Proxy",
-            realm: RevokedProxyErrorRealm);
+            realm: ErrorRealm);
 
         if (TryGetTrap("construct", out var trap))
         {

@@ -40,6 +40,13 @@ iterator-close regression was too weak when it only observed iterator
 parameter binding must both close the active iterator exactly once and preserve
 the original JavaScript throw for the caller.
 
+Issue #1753 / PR #1795 fixed `Statements_try_dstr` crashes in catch-parameter
+array destructuring. The binding target program could raise a replacement
+JavaScript throw while evaluating a catch default initializer, but the catch
+slow path advanced as though the catch binding had completed. That bypassed the
+active try/catch abrupt-completion routing needed for iterator close/finally
+cleanup and for the replacement throw to reach an outer catch.
+
 ## Decision
 
 Compiled object destructuring binding must keep the spec ordering explicit:
@@ -71,6 +78,14 @@ defaults and iterator cleanup. If a default initializer abruptly completes while
 an array pattern is consuming an iterator, keep the original throw as the
 observable completion and run `IteratorClose` once for the active iterator.
 
+Catch-parameter destructuring must treat a binding-time throw as a replacement
+throw raised inside the active catch instruction. After a catch binding program
+sets `EvaluationContext` to throw, clear the local context state and route the
+replacement value through the runner's abrupt-completion machinery so the
+current catch/try frame can unwind, active destructuring iterators can close,
+and outer handlers can observe the replacement error. Do not jump directly to
+the catch body's next instruction after a binding throw.
+
 Tasks scheduled while `JsEngine.Evaluate` is still executing its synchronous
 script/module prefix should be deferred until the prefix completes. Flushing the
 deferred queue after synchronous evaluation preserves top-level JavaScript
@@ -92,10 +107,15 @@ ordering while still allowing the event loop to drain pending work afterward.
 - Class-method destructuring regressions for abrupt defaults must assert both
   sides of the obligation: the thrown JavaScript error still reaches user code,
   and the iterator's `return()` hook ran exactly once.
+- Catch destructuring regressions for abrupt defaults must assert both sides:
+  the active iterator's `return()` hook runs once, and an outer catch receives
+  the replacement error instead of the inner catch body executing.
 - Event-loop work scheduled during synchronous top-level evaluation must not run
   until the synchronous prefix has completed.
 - Regression proof should include an internal ordering test with computed source
   key, `with` binding lookup, source getter, and default initializer, plus the
   focused `Name=Destructuring_binding` Test262 group. For declaration binding
   throw propagation, prove the focused `Name=Statements_variable_dstr` Test262
-  group.
+  group. For catch destructuring abrupt defaults, prove the focused
+  `Name=Statements_try_dstr` Test262 group or a fixture-equivalent internal
+  catch-array regression in both strict and sloppy modes.

@@ -61,6 +61,15 @@ This applies to generic binding target programs for nested array/object binding,
 defaults, exhausted iterators, and name inference. Prove this class with the
 owning focused Test262 method group rather than a broad suite run.
 
+For `catch` parameter destructuring, a binding-time throw is a replacement
+throw raised while the current catch environment and try/catch frame are active.
+Run that throw through the IR abrupt-completion path from the catch instruction
+instead of jumping directly to the catch instruction's `Next`. That preserves
+iterator-close/finally cleanup for the active destructuring iterator and lets
+the replacement throw bubble to an outer handler. WHY: issue #1753 / PR #1795
+fixed `Statements_try_dstr` crashes where a catch-array default initializer
+throw skipped the cleanup/outer-catch path for the thrown iterable.
+
 For class-method parameter destructuring with array-pattern defaults, abrupt
 default initializers must preserve both observable outcomes: the original
 JavaScript throw reaches the caller, and the active iterator's `return()` hook
@@ -229,6 +238,15 @@ strong enough until it asserted the caught `Error|boom` and a single
 `return()` call together. The durable lesson is that abrupt destructuring
 proofs must verify both completion preservation and iterator cleanup, because
 either half can pass while the other half regresses.
+
+Issue #1753 / PR #1795 fixed `Statements_try_dstr` crashes in catch-parameter
+array destructuring. `ApplyBindingTargetProgram` correctly reported the default
+initializer throw through `EvaluationContext`, but the catch slow path treated
+the throw as if it could advance to the catch body's next instruction. The
+durable lesson is that catch-binding throws replace the caught value while still
+needing the active catch/try frame to unwind through ordinary IR abrupt
+completion, including IteratorClose, before an outer catch observes the
+replacement error.
 
 Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
 bytecode. Before `super()` initializes a derived constructor's `this`, the

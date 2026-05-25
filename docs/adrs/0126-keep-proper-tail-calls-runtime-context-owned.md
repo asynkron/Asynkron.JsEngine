@@ -26,8 +26,8 @@ The issue also exposed nearby context hazards:
 - expression-stack side state, including optional-chain short-circuit flags,
   must be reset when a trampoline frame is reused;
 - tail evaluation must not bypass active scheduled `finally` cleanup;
-- revoked proxies need the proxy's realm for the thrown TypeError, not whatever
-  caller context happens to be current;
+- revoked proxy realm-sensitive errors must preserve the realm selected by the
+  specific proxy operation;
 - tail-call proof has to include call-depth behavior and semantic receiver /
   realm / cleanup checks, not only a passing broad Test262 lane.
 
@@ -56,10 +56,12 @@ frame still has to run. Tail-call optimization must preserve completion and
 cleanup ordering first; stack reuse is only valid after the cleanup boundary is
 respected.
 
-Realm-sensitive throw paths remain owned by the object or callable that raises
-the error. A revoked proxy call in tail position must still throw from the
-proxy's realm, so tail-call routing must not replace that error with a caller
-realm error.
+Realm-sensitive throw paths remain owned by the object or callable operation
+that raises the error. Tail-call routing must not replace that operation's
+selected proxy error realm with a generic caller or callee realm. Issue #1864 /
+PR #1890 later narrowed this for revoked proxy `[[Call]]` and `[[Construct]]`:
+their null-handler `TypeError` uses the current execution realm when one
+exists, not a proxy-creation-realm-first helper.
 
 ## Consequences
 
@@ -81,6 +83,7 @@ realm error.
 ## Related
 
 - `.claude/rules/proper-tail-calls.md`
+- `.claude/rules/ecmascript-proxy-realm-errors.md`
 - `.claude/rules/function-activation-proof-pack.md`
 - `.claude/rules/expression-bytecode-call-targets.md`
 - `.claude/rules/ir-control-flow-cleanup.md`

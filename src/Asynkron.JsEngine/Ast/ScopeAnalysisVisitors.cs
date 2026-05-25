@@ -395,19 +395,24 @@ internal sealed class NonParameterCalleeDetector : AstVisitor
     [ThreadStatic] private static NonParameterCalleeDetector? _instance;
 
     private HashSet<Symbol>? _parameterNames;
+    private Symbol? _functionName;
     public bool Found { get; private set; }
 
-    private void Reset(HashSet<Symbol> parameterNames)
+    private void Reset(HashSet<Symbol> parameterNames, Symbol? functionName)
     {
         Found = false;
         ShouldStop = false;
         _parameterNames = parameterNames;
+        _functionName = functionName;
     }
 
-    public static bool ContainsNonParameterCallee(BlockStatement block, HashSet<Symbol> parameterNames)
+    public static bool ContainsNonParameterCallee(
+        BlockStatement block,
+        HashSet<Symbol> parameterNames,
+        Symbol? functionName)
     {
         var detector = _instance ??= new NonParameterCalleeDetector();
-        detector.Reset(parameterNames);
+        detector.Reset(parameterNames, functionName);
         detector.Visit(block);
         return detector.Found;
     }
@@ -415,10 +420,11 @@ internal sealed class NonParameterCalleeDetector : AstVisitor
     protected override void VisitCallExpression(CallExpression node)
     {
         if (node.Callee is IdentifierExpression calleeId &&
-            !_parameterNames!.Contains(calleeId.Name))
+            !_parameterNames!.Contains(calleeId.Name) &&
+            _functionName is not null &&
+            ReferenceEquals(calleeId.Name, _functionName))
         {
-            // The callee is an identifier that's not a parameter - this is a call
-            // to a closure-captured function (like recursive calls or outer variables)
+            // Self-recursive non-parameter identifier calls can observe execution context reuse.
             Found = true;
             ShouldStop = true;
             return;
@@ -430,6 +436,48 @@ internal sealed class NonParameterCalleeDetector : AstVisitor
     // Don't traverse into nested functions - they have their own scope
     protected override void VisitFunctionExpression(FunctionExpression node) { }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
+    protected override void VisitClassExpression(ClassExpression node) { }
+    protected override void VisitClassDeclaration(ClassDeclaration node) { }
+}
+
+/// <summary>
+/// Visitor that detects function declarations whose names conflict with parameter names
+/// (or the implicit sloppy-mode arguments binding).
+/// </summary>
+internal sealed class FunctionDeclarationParameterConflictDetector : AstVisitor
+{
+    [ThreadStatic] private static FunctionDeclarationParameterConflictDetector? _instance;
+
+    private HashSet<Symbol>? _parameterNames;
+    public bool Found { get; private set; }
+
+    private void Reset(HashSet<Symbol> parameterNames)
+    {
+        Found = false;
+        ShouldStop = false;
+        _parameterNames = parameterNames;
+    }
+
+    public static bool ContainsConflict(BlockStatement block, HashSet<Symbol> parameterNames)
+    {
+        var detector = _instance ??= new FunctionDeclarationParameterConflictDetector();
+        detector.Reset(parameterNames);
+        detector.Visit(block);
+        return detector.Found;
+    }
+
+    protected override void VisitFunctionDeclaration(FunctionDeclaration node)
+    {
+        if (_parameterNames!.Contains(node.Name))
+        {
+            Found = true;
+            ShouldStop = true;
+            return;
+        }
+    }
+
+    // Don't traverse into nested functions/classes; their declarations are not in this function's scope.
+    protected override void VisitFunctionExpression(FunctionExpression node) { }
     protected override void VisitClassExpression(ClassExpression node) { }
     protected override void VisitClassDeclaration(ClassDeclaration node) { }
 }

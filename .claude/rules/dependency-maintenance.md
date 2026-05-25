@@ -25,6 +25,11 @@ unless the issue explicitly asks for a major migration.
   package files unchanged. If the existing dated note is already current for
   the same signal, do not manufacture a repository diff just to make the run
   non-empty.
+- When `npm outdated --json` reports a `wanted` version, compare the committed
+  `package.json` range and `package-lock.json` package version before treating
+  it as committed dependency drift. If both committed files already resolve the
+  wanted safe line, record the command as local install-state evidence instead
+  of rewriting the manifest or lockfile.
 - Record the baseline and final dependency signals in the issue context:
   `outdated`, `audit`, installed versions, and the project build or demo proof
   that owns the dependency.
@@ -120,3 +125,11 @@ The accepted proof boundary was to record that unchanged environment blocker,
 keep the dependency diff to the two PackageReference updates, and rely on the
 canonical internal quality gate for source-level verification instead of
 folding a Test262 harness/runtime migration into the routine dependency sweep.
+
+Issue #1880 / PR #1899 refreshed the NodeHostDemo dependency drift note for the
+2026-05-25 recurrence after `npm --prefix examples/NodeHostDemo outdated --json`
+reported `express` with `wanted` `4.22.2` and `latest` `5.2.1`. The committed
+`package.json` already selected `^4.22.2` and `package-lock.json` already locked
+`express` to `4.22.2`, so the actionable lesson was to document the signal as
+local install-state evidence while continuing to defer Express 5 and Polka
+`1.0.0-next.28` to dedicated compatibility passes.

@@ -191,7 +191,7 @@ public static partial class StandardLibrary
         return Math.Min((long)index, length);
     }
 
-    internal static object? ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
+    internal static JsValue ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {
         var accessor = EnsureArrayLikeReceiver(thisValue, methodName, realm);
@@ -248,7 +248,7 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    internal static object? SomeLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
+    internal static JsValue SomeLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName)
     {
         var (accessor, length, callback, thisArg) =
@@ -266,11 +266,11 @@ public static partial class StandardLibrary
             var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
             if (result.IsTruthy)
             {
-                return true;
+                return JsValue.True;
             }
         }
 
-        return false;
+        return JsValue.False;
     }
 
     internal static bool SameValueZero(JsValue x, JsValue y)

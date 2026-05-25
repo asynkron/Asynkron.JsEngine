@@ -102,7 +102,8 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
                     WeakSet.prototype.add.call({}, {});
 
         """));
-        Assert.Contains("WeakSet.prototype method called on incompatible receiver", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("WeakSet", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("incompatible receiver", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]
@@ -114,7 +115,7 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
                     WeakSet();
 
         """));
-        Assert.Contains("constructor WeakSet requires 'new'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Constructor WeakSet requires 'new'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 2000)]

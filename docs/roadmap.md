@@ -30,6 +30,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Recent compliance and helper-surface slices tightened spec-order and runtime-boundary ownership in hot paths: Array reduce/reduceRight/some result helpers are JsValue-native, computed-member nullish read order is explicitly spec-ordered, and descriptor-backed delete strictness behavior is runtime-owned with focused regression proof (`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`, `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`, `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`).
 - Recent lazy `JsArgumentsObject` materialization follow-through for class definitions is now explicitly captured with profile evidence and a durable activation-owned ADR boundary, so recurring maintenance runs can reference an already-settled seam without re-reading PR history (`docs/performance/classdef-lazy-arguments-object.md`, `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`).
 - Tail-call completion handling now explicitly preserves restart semantics through branch-expression and `finally` completion handoff paths, with a durable ADR boundary for follow-up optimization work (`docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`).
+- Sync IR call trampoline eligibility is now explicitly executor-exact and evidence-pinned, keeping recursive-call optimization claims narrow while preserving runtime correctness boundaries (`docs/performance/fib-trampoline-eligibility.md`, `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncIrCallTrampoline.cs`).
+- Scope-entry lexical TDZ slot-index stamping is now plan-owned and runtime-consumed before symbol fallback, reducing repeated lookup cost on proven shapes while keeping dynamic semantics guarded (`docs/performance/destructuring-lexical-slot-tdz.md`, `docs/adrs/0142-keep-scope-entry-tdz-slot-marking-plan-owned.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Handlers.Scope.cs`).
+- HTMLDDA string coercion precedence is now explicitly guardrailed so `IIsHtmlDda` classification remains ordered before callable/accessor object string coercion paths (`docs/adrs/0141-keep-htmldda-string-coercion-precedence-in-jsops.md`, `src/Asynkron.JsEngine/Runtime/JsOps.cs`).
 - Break/continue static validation now shares one label-aware validator path, reducing drift between statement owners while keeping syntax-rejection behavior explicit and test-owned (`docs/adrs/0138-keep-break-continue-static-validation-shared-and-label-aware.md`, `src/Asynkron.JsEngine/Ast/ControlFlowSyntaxValidator.cs`).
 - Revoked proxy `apply`/`construct` behavior now explicitly routes TypeError creation through the current realm with operation-specific messaging, tightening cross-realm correctness boundaries for future runtime slices (`docs/adrs/0137-keep-revoked-proxy-apply-construct-errors-current-realm.md`).
 
@@ -60,6 +63,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 14. Keep tail-call/completion follow-up slices focused on preserving branch/finally restart semantics while removing only proven non-observable overhead.
 15. Continue control-flow syntax validation maintenance by extending shared label-aware coverage instead of reintroducing split break/continue validator paths.
 16. Preserve proxy revoked-operation realm correctness while expanding nearby proxy/runtime proof packs in narrow, operation-specific slices.
+17. Continue sync IR call trampoline follow-through by prioritizing evidence-backed recursive-call overhead reductions without widening executor eligibility beyond ADR 0140 constraints.
+18. Continue destructuring follow-through by targeting binding-pattern and iterator-protocol overhead only where lexical slot indices are proven, while preserving dynamic fallback semantics under ADR 0142 guardrails.
+19. Keep JsOps coercion maintenance explicit: preserve HTMLDDA precedence ordering while optimizing adjacent string-conversion paths only with focused regression proof under ADR 0141 boundaries.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -78,6 +84,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/json-compact-serialization.md`
   - `docs/performance/stringops-rope-append-fast-path.md`
   - `docs/performance/classdef-lazy-arguments-object.md`
+  - `docs/performance/fib-trampoline-eligibility.md`
+  - `docs/performance/destructuring-lexical-slot-tdz.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -91,6 +99,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0137-keep-revoked-proxy-apply-construct-errors-current-realm.md`
   - `docs/adrs/0138-keep-break-continue-static-validation-shared-and-label-aware.md`
   - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
+  - `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`
+  - `docs/adrs/0141-keep-htmldda-string-coercion-precedence-in-jsops.md`
+  - `docs/adrs/0142-keep-scope-entry-tdz-slot-marking-plan-owned.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

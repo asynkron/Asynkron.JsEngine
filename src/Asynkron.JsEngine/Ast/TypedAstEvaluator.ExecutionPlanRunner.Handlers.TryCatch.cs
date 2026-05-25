@@ -173,7 +173,7 @@ public static partial class TypedAstEvaluator
 
                 if (context.IsThrow)
                 {
-                    return HandleEnterCatchThrowSlow(runner, instruction, context, out returnValue);
+                    return HandleEnterCatchThrowSlow(runner, context, out returnValue);
                 }
             }
 
@@ -185,7 +185,6 @@ public static partial class TypedAstEvaluator
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static InstructionResult HandleEnterCatchThrowSlow(
             ExecutionPlanRunner runner,
-            EnterCatchInstruction instruction,
             EvaluationContext context,
             out JsValue returnValue)
         {

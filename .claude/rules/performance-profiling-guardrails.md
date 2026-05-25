@@ -83,6 +83,14 @@ optimization.
     single-argument host-call shortcut or a user-visible function-name
     heuristic. Pin descriptor, prototype, proxy, extensibility, length
     writability, and maximum-length fallback behavior with focused tests.
+15. For repeated string append optimizations, prove whether the selected
+    `stringops` cost is append-loop flattening, consumer flattening, or another
+    string built-in before changing the rope or addition path. Keep primitive
+    `string + string` slot compound-add shortcuts limited to operands already
+    tagged as JavaScript strings, and keep object coercion, BigInt, symbols,
+    and mixed operands on the generic addition path. Do not lower the rope
+    flattening depth or force append-loop flattening without current CPU
+    evidence and a consumer correctness proof.
 
 ## Why
 
@@ -203,3 +211,16 @@ maximum length. The durable lesson is that call-boundary fast paths must stay
 profile-owned and runtime-guarded; the semantic owner still has to be the
 receiver runtime type. Related ADR:
 `docs/adrs/0116-keep-array-push-single-arg-host-call-shortcut-runtime-guarded.md`.
+
+Issue `autrun-dirph659s868-e8df189b62` / PR #1799 selected `stringops` from the
+benchmark table and proved the hot owner with a `stringops` CPU call tree:
+repeated `result += "x"` reached `JsRopeString.Flatten` through the slow
+compound-add path because the rope depth guard flattened every 32 appends. The
+accepted slice kept flattening consumer-driven by raising the explicit-stack
+rope depth limit and adding a primitive string/string compound-add fast path,
+while leaving object coercion, BigInt, symbols, and mixed operands on generic
+addition. The durable lesson is that string append fast paths must stay
+profile-owned and primitive-tag guarded; widening them into coercive addition
+or append-loop flattening changes JavaScript semantics and the cost model.
+Related ADR:
+`docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`.

@@ -2334,6 +2334,39 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ComputedMemberRead_NullishBase_ThrowsTypeError_AndPreservesKeyEvaluation()
+    {
+        var result = await _engine.Evaluate("""
+            function run(base) {
+                let keyEvaluated = 0;
+                try {
+                    base[(keyEvaluated++, { toString() { throw new Error('must not convert'); } })];
+                    return "no-throw";
+                } catch (e) {
+                    return [e instanceof TypeError, keyEvaluated, e.name].join("|");
+                }
+            }
+
+            [run(null), run(undefined)].join(",");
+            """);
+
+        Assert.Equal("true|1|TypeError,true|1|TypeError", result.ToString());
+    }
+
+    [Fact]
+    public async Task OptionalComputedMemberRead_NullishBase_DoesNotEvaluateKey()
+    {
+        var result = await _engine.Evaluate("""
+            let keyEvaluated = 0;
+            let base = null;
+            let value = base?.[(keyEvaluated++, 'x')];
+            [value === undefined, keyEvaluated].join("|");
+            """);
+
+        Assert.Equal("true|0", result.ToString());
+    }
+
+    [Fact]
     public async Task CatchDestructuring_UsesEnterCatchBindingProgram()
     {
         var plan = await GetFunctionPlan("""

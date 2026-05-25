@@ -2027,6 +2027,15 @@ internal static class ExpressionProgramCompiler
             return false;
         }
 
+        if (!shortCircuitOnNullishTarget)
+        {
+            // Preserve evaluation order for computed reads:
+            // evaluate key expression, then require object-coercible base,
+            // then resolve property key.
+            builder.Add(PackedExpressionOp.RequireObjectCoercible(Depth: 1));
+            builder.Add(PackedExpressionOp.ResolvePropertyKey);
+        }
+
         builder.Add(PackedExpressionOp.GetComputedProperty(shortCircuitOnNullishTarget));
         failureReason = null;
         return true;

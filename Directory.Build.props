@@ -3,5 +3,6 @@
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
     <LangVersion>preview</LangVersion>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <RunRoslynatorAnalyzers Condition="'$(RunRoslynatorAnalyzers)' == ''">false</RunRoslynatorAnalyzers>
   </PropertyGroup>
 </Project>

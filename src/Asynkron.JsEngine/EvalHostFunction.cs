@@ -448,7 +448,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 if (isDirectEval &&
                     varEnv.IsParameterEnvironment &&
-                    varEnv.HasOwnBinding(name))
+                    varEnv.HasOwnBinding(name) &&
+                    !string.Equals(name.Name, "arguments", StringComparison.Ordinal))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
@@ -466,7 +467,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // restriction doesn't apply to them.
                 if (isDirectEval &&
                     environment is { IsParameterEnvironment: true, IsArrowFunctionEnvironment: false } &&
-                    ReferenceEquals(name, Symbol.Arguments) &&
+                    string.Equals(name.Name, "arguments", StringComparison.Ordinal) &&
                     environment.HasOwnBinding(Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
@@ -481,13 +482,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // slot itself as a lexical conflict.
                 var skipArgumentsLexicalCollision =
                     isDirectEval &&
-                    environment.IsParameterEnvironment &&
-                    ReferenceEquals(name, Symbol.Arguments);
+                    !isStrictEval &&
+                    string.Equals(name.Name, "arguments", StringComparison.Ordinal);
 
                 var hasGlobalLexical =
-                    (!skipArgumentsLexicalCollision && HasLexicalInChain(lexicalEnv, name)) ||
-                    (!skipArgumentsLexicalCollision && HasLexicalInChain(varEnv, name)) ||
-                    globalLexicalRecord.HasGlobalLexicalDeclaration(name);
+                    !skipArgumentsLexicalCollision &&
+                    (HasLexicalInChain(lexicalEnv, name) ||
+                     HasLexicalInChain(varEnv, name) ||
+                     globalLexicalRecord.HasGlobalLexicalDeclaration(name));
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
                 // that collide with existing lexical bindings on the path to the var
                 // environment, except for simple catch parameters (Annex B.3.3.3).
@@ -507,6 +509,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 foreach (var name in varDeclaredNames)
                 {
+                    if (isDirectEval &&
+                        !isStrictEval &&
+                        string.Equals(name.Name, "arguments", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
                     var hasLexical = varEnv.HasOwnLexicalBinding(name) || varEnv.HasBodyLexicalName(name) ||
                                      globalLexicalRecord.HasGlobalLexicalDeclaration(name);
 

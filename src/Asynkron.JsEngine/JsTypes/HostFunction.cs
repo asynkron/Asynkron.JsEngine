@@ -164,6 +164,11 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         _nativeFunctionSource = null;
     }
 
+    internal bool HasNativeSourceDisplayName(string displayName)
+    {
+        return string.Equals(_nativeSourceDisplayName, displayName, StringComparison.Ordinal);
+    }
+
     internal void CloneNativeSourceDisplayMetadataFrom(HostFunction original)
     {
         ArgumentNullException.ThrowIfNull(original);

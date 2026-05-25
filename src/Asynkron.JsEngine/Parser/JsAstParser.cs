@@ -718,6 +718,35 @@ public sealed class JsAstParser(
             var labelToken = Advance();
             var label = Symbol.Intern(labelToken.Lexeme);
             Consume(TokenType.Colon, "Expected ':' after label.");
+
+            if (Check(TokenType.Const) || Check(TokenType.Class) ||
+                (Check(TokenType.Let) && (InStrictContext || CheckAhead(TokenType.LeftBracket) ||
+                                          CheckAhead(TokenType.LeftBrace) ||
+                                          (CheckAheadBindingIdentifier() && !CheckAhead(TokenType.Let)))))
+            {
+                throw new ParseException("Lexical declarations are not allowed in labeled statements.", Peek(),
+                    source);
+            }
+
+            if (Check(TokenType.Async) && CheckAheadOnSameLine(TokenType.Function))
+            {
+                throw new ParseException("Labeled async function declarations are not allowed.", Peek(), source);
+            }
+
+            if (Check(TokenType.Function))
+            {
+                if (InStrictContext)
+                {
+                    throw new ParseException("Labeled function declarations are not allowed in strict mode.", Peek(),
+                        source);
+                }
+
+                if (PeekNext().Type == TokenType.Star)
+                {
+                    throw new ParseException("Labeled generator declarations are not allowed.", Peek(), source);
+                }
+            }
+
             var statement = ParseStatement(false);
             return new LabeledStatement(CreateSourceReference(labelToken), label, statement);
         }

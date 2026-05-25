@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
                                      !simpleCatchParameterNames.Contains(Symbol.Arguments);
             var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
             var argumentsObjectNeededBySpec = !argumentsIsParam && !canSkipForBodyDecl;
-            var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
+            var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec;
             if (needsArgumentsObject)
             {
                 blockedFunctionVarNames.Add(Symbol.Arguments);
@@ -282,6 +282,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var argumentsObject = _function.CreateArgumentsObject(_arguments, executionEnvironment, _realmState,
                     _callable,
                     _isStrict);
+                executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                    isLexicalBinding: false);
                 parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
                     isLexicalBinding: false);
                 if (!ReferenceEquals(parameterEnvironment, functionEnvironment))

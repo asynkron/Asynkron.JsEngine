@@ -97,4 +97,18 @@ public sealed class HoistingTests(ITestOutputHelper output) : InternalTestBase(o
         ");
         Assert.Equal("function", result);
     }
+
+    [Fact]
+    public async Task VarDeclaration_ShouldNotOverride_ArgumentsObject_BeforeReturn()
+    {
+        await using var engine = new JsEngine();
+        var result = await engine.Evaluate(@"
+            function f() {
+                return typeof arguments;
+                var arguments = 42;
+            }
+            f(1, 2, 3)
+        ");
+        Assert.Equal("object", result);
+    }
 }

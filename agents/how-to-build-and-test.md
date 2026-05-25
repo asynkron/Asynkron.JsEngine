@@ -176,7 +176,7 @@ rtk dotnet run --project examples/NodeHostDemo
 - Runner: `rtk ./tools/run-test262-regressions.sh`
 - This pack is intentionally Test262-only and excludes non-Test262 regressions such as `Asynkron.JsEngine.Tests.Array_indexOf_OnlyCallsHasPropertyOnPrototypeAfterLengthZeroed`.
 - Smaller subsystem packs live under `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/`.
-- Available packs: `full`, `annexb`, `array-prototype`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
+- Available packs: `full`, `annexb`, `array-prototype`, `gh1832-private-accessor-logical-assignment`, `intl`, `language`, `proxy`, `regexp`, `temporal`.
 - Named-pack inventory (`--list`) comes from those files in
   `regression-packs/`; it is a static inventory of runnable pack names, not a
   snapshot of current failures.

@@ -143,6 +143,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   edit, pair it with a code-size signal such as `rtk cloc --vcs=git
   --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
   out of scope unless the exact deletion no longer compiles.
+- When the code-reduction slice targets duplicated smoke-test fixtures rather
+  than dead helpers, extract only the invariant fixture body and leave semantic
+  differences explicit through named parameters or separate call sites. Prove
+  every affected fixture variant with a focused test filter; line-count
+  reduction alone is not behavioral proof.
 
 ## Why
 
@@ -447,3 +452,11 @@ turning from declaration-only to no matches, and showed the C# line count drop.
 Future code-reduction children should reuse that narrow evidence shape instead
 of widening a dead-helper cleanup into formatter behavior, tests, or scheduler
 policy.
+
+Issue `autrun-dis4ox67wxio-f9e609a6f1` / PR #1953 applied code reduction to
+duplicated JS smoke fixtures instead of a dead helper. The safe slice extracted
+the shared resizable TypedArray fixture script while keeping the indexed-loop
+and `for...of` traversal differences visible at the two test call sites, then
+proved both tests with one focused filter. Future fixture-dedup slices should
+follow ADR 0147: shared setup belongs in the builder, semantic differences stay
+named, and every affected fixture variant remains in the proof command.

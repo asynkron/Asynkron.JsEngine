@@ -2852,6 +2852,7 @@ public static partial class TypedAstEvaluator
             }
 
             _tailRestartArguments = arguments;
+            _tailRestartThisValue = thisValue;
             _tailRestartRequested = true;
             return true;
         }
@@ -2871,6 +2872,11 @@ public static partial class TypedAstEvaluator
             _scriptCompletionValue = JsValue.Unit;
             _completedWithRawSyncReturn = false;
 
+            if (_isStrict)
+            {
+                RebindStrictTailRestartThis(_tailRestartThisValue);
+            }
+
             var parameterSlots = activationSlots.ParameterSlotIndices;
             for (var i = 0; i < parameterSlots.Length; i++)
             {
@@ -2881,6 +2887,22 @@ public static partial class TypedAstEvaluator
 
             _programCounter = _plan.EntryPoint;
             return true;
+        }
+
+        private void RebindStrictTailRestartThis(JsValue thisValue)
+        {
+            if (_executionEnvironment is null ||
+                !_executionEnvironment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out var thisEnvironment, out _))
+            {
+                return;
+            }
+
+            thisEnvironment._thisValue = thisValue;
+            thisEnvironment._hasThisValue = true;
+            if (thisEnvironment.TryGetSlotIndex(Symbol.This, out var thisSlotIndex))
+            {
+                thisEnvironment.SetSlotDirect(thisSlotIndex, thisValue);
+            }
         }
 
         private int ExecuteProgramConstruct(

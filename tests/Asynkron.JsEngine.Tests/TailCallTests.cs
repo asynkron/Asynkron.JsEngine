@@ -73,4 +73,32 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal("done|0,1,2,3", result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_RebindsMemberReceiverOnRestart()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const first = { id: "first" };
+            const second = { id: "second" };
+            function f(n) {
+                "use strict";
+                try {
+                    if (n === 0) {
+                        return this.id;
+                    }
+
+                    return second.f(n - 1);
+                } catch (e) {
+                    return "catch";
+                }
+            }
+
+            first.f = f;
+            second.f = f;
+            first.f(1);
+            """);
+
+        Assert.Equal("second", result);
+    }
 }

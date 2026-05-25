@@ -80,6 +80,11 @@ public static partial class TypedAstEvaluator
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
+        if (callable is SyncFunctionInvoker typedFunction && callingContext is not null)
+        {
+            return typedFunction.InvokeWithContext1(argument, thisValue, callingContext);
+        }
+
         var args = new SingleValueArgs(argument);
         return InvokeCallableJsValueGeneric(callable, args, thisValue, callingContext, callingEnvironment);
     }

@@ -236,4 +236,89 @@ public sealed class LogicalAssignmentOperatorsTests(ITestOutputHelper output) : 
                                            """);
         Assert.Equal(double.Parse(initialValue, System.Globalization.CultureInfo.InvariantCulture), result);
     }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "1")]
+    [InlineData("||=", "0")]
+    [InlineData("??=", "null")]
+    public async Task LogicalAssignment_PrivateAccessor_UsesSetterWhenAssignmentBranchRuns(
+        string op,
+        string initialValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                           class C {
+                                               #value = {{initialValue}};
+                                               setterCalls = 0;
+                                               rhsCalls = 0;
+
+                                               get #slot() {
+                                                   return this.#value;
+                                               }
+
+                                               set #slot(value) {
+                                                   this.setterCalls++;
+                                                   this.#value = value;
+                                               }
+
+                                               evaluateRhs() {
+                                                   this.rhsCalls++;
+                                                   return 7;
+                                               }
+
+                                               run() {
+                                                   let expressionValue = (this.#slot {{op}} this.evaluateRhs());
+                                                   return expressionValue + "," + this.#value + "," + this.setterCalls + "," + this.rhsCalls;
+                                               }
+                                           }
+
+                                           new C().run();
+
+                                           """);
+        Assert.Equal("7,7,1,1", result);
+    }
+
+    [Theory(Timeout = 2000)]
+    [InlineData("&&=", "0", "0")]
+    [InlineData("||=", "1", "1")]
+    [InlineData("??=", "1", "1")]
+    public async Task LogicalAssignment_PrivateAccessor_ShortCircuitSkipsRhsAndSetter(
+        string op,
+        string initialValue,
+        string expectedValue)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+
+                                           class C {
+                                               #value = {{initialValue}};
+                                               setterCalls = 0;
+                                               rhsCalls = 0;
+
+                                               get #slot() {
+                                                   return this.#value;
+                                               }
+
+                                               set #slot(value) {
+                                                   this.setterCalls++;
+                                                   this.#value = value;
+                                               }
+
+                                               evaluateRhs() {
+                                                   this.rhsCalls++;
+                                                   return 7;
+                                               }
+
+                                               run() {
+                                                   let expressionValue = (this.#slot {{op}} this.evaluateRhs());
+                                                   return expressionValue + "," + this.#value + "," + this.setterCalls + "," + this.rhsCalls;
+                                               }
+                                           }
+
+                                           new C().run();
+
+                                           """);
+        Assert.Equal($"{expectedValue},{expectedValue},0,0", result);
+    }
 }

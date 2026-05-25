@@ -113,8 +113,11 @@ outside activation setup by routing array iteration callbacks through
 `ThreeValueArgs`. The reusable lesson is unchanged: the struct is only
 allocation-free while it stays concrete through the hot callback path.
 
-Issue #1758 / PR #1762 showed the proof-pack trace-log trap directly: the
-quality gate failed because
+Issue #1754 / PR #1759 first corrected the proof-pack trace-log trap by
+renaming the affected test to match its stable negative fast-path assertions
+after focused attempts to require a positive activation trace log failed.
+Issue #1758 / PR #1762 then confirmed the same trap through a quality-gate
+failure because
 `ActivationSemanticsProofPackTests.SimpleSyncFunction_UsesIrActivationFastPath`
 required an activation trace log that was no longer guaranteed after valid
 activation fast-path work. The repair kept the semantic proof focused by

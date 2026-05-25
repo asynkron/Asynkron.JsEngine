@@ -29,6 +29,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Recent string-append rope follow-through reduced `stringops` cost while keeping flattening consumer-driven and runtime-owned; the remaining gap is explicitly tracked in evidence rather than inferred (`docs/performance/stringops-rope-append-fast-path.md`, `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`).
 - Recent compliance and helper-surface slices tightened spec-order and runtime-boundary ownership in hot paths: Array reduce/reduceRight/some result helpers are JsValue-native, computed-member nullish read order is explicitly spec-ordered, and descriptor-backed delete strictness behavior is runtime-owned with focused regression proof (`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`, `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`, `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`).
 - Recent lazy `JsArgumentsObject` materialization follow-through for class definitions is now explicitly captured with profile evidence and a durable activation-owned ADR boundary, so recurring maintenance runs can reference an already-settled seam without re-reading PR history (`docs/performance/classdef-lazy-arguments-object.md`, `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`).
+- Tail-call completion handling now explicitly preserves restart semantics through branch-expression and `finally` completion handoff paths, with a durable ADR boundary for follow-up optimization work (`docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`).
+- Break/continue static validation now shares one label-aware validator path, reducing drift between statement owners while keeping syntax-rejection behavior explicit and test-owned (`docs/adrs/0138-keep-break-continue-static-validation-shared-and-label-aware.md`, `src/Asynkron.JsEngine/Ast/ControlFlowSyntaxValidator.cs`).
+- Revoked proxy `apply`/`construct` behavior now explicitly routes TypeError creation through the current realm with operation-specific messaging, tightening cross-realm correctness boundaries for future runtime slices (`docs/adrs/0137-keep-revoked-proxy-apply-construct-errors-current-realm.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -54,6 +57,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 11. Remove remaining obsolete object-overload tripwires only after each callsite migration stays profile-neutral and semantic-safe under ADR 0114 boundaries.
 12. Continue `stringops` follow-up by isolating remaining append-loop versus consumer-flattening cost with profile-backed slices under ADR 0120 constraints.
 13. Keep compliance-oriented runtime slices narrow and evidence-first for computed-member nullish ordering and descriptor-delete strictness boundaries while expanding nearby proof packs only after focused checks pass.
+14. Keep tail-call/completion follow-up slices focused on preserving branch/finally restart semantics while removing only proven non-observable overhead.
+15. Continue control-flow syntax validation maintenance by extending shared label-aware coverage instead of reintroducing split break/continue validator paths.
+16. Preserve proxy revoked-operation realm correctness while expanding nearby proxy/runtime proof packs in narrow, operation-specific slices.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -82,6 +88,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`
   - `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`
   - `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`
+  - `docs/adrs/0137-keep-revoked-proxy-apply-construct-errors-current-realm.md`
+  - `docs/adrs/0138-keep-break-continue-static-validation-shared-and-label-aware.md`
+  - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
@@ -106,6 +115,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Active diagnostics/runtime implementation surfaces:
   - `src/Asynkron.JsEngine/Execution/StatementInstructionStorageDiagnostics.cs`
   - `src/Asynkron.JsEngine/Execution/StatementInstructionDiagnosticsCodec.cs`
+  - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`
+  - `src/Asynkron.JsEngine/Ast/ControlFlowSyntaxValidator.cs`
 
 ## Baseline Notes
 - Historical Test262 counts in `docs/remaining-test262-gaps.md` are directional context only and must not be treated as current regression results.

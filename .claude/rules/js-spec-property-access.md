@@ -92,6 +92,25 @@ super-reference validation before any observable property-key work:
 This applies even when the operation always throws. The throw does not erase the
 observable ordering before it.
 
+## Descriptor Delete Semantics
+
+For ordinary JavaScript `delete obj.prop` and `delete obj[key]`, preserve the
+descriptor-aware delete result and interpret it with the active strictness:
+
+- configurable own data and accessor descriptors must be removed and return
+  `true`;
+- non-configurable own descriptors must remain present and return `false`;
+- strict mode must convert a failed descriptor delete into a JavaScript
+  `TypeError`;
+- sloppy mode must expose the non-throwing `false` completion;
+- do not use internal force-delete helpers to implement ordinary JavaScript
+  `delete`.
+
+Pair descriptor-shape coverage with strict/sloppy coverage when touching this
+area. The issue #1751 / PR #1790 incident showed that data/accessor
+configurability and strictness are separate axes: tests that cover only simple
+object-literal properties can miss descriptor-backed delete crashes.
+
 ## Computed Member Nullish Read Order
 
 For expression bytecode that lowers ordinary computed reads such as
@@ -255,6 +274,13 @@ After initialization, the key may run, but `delete super[...]` still throws
 `ReferenceError`. The durable lesson is to keep super-reference validation,
 computed-key evaluation, and the operation-specific throw as separate ordered
 steps.
+
+Issue #1751 / PR #1790 added descriptor-backed delete regressions after the
+compliance-gap run reported crashes in strict/sloppy delete-expression cases.
+The durable lesson is that ordinary JavaScript delete must honor descriptor
+configurability first, then let strictness decide whether a failed delete is a
+JavaScript `TypeError` or a sloppy `false` completion. Internal force-delete
+helpers are not ordinary delete semantics.
 
 Issue #1752 / PR #1791 fixed Test262
 `computed-reference-null-or-undefined.js` after ordinary expression bytecode

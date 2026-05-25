@@ -821,7 +821,6 @@ public static partial class TypedAstEvaluator
             // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
             if (IsAsyncLike && !IsClassConstructor)
             {
-                RealmState.ReturnContext(context);
                 try
                 {
                     RealmState.Logger?.LogInformation(
@@ -852,7 +851,6 @@ public static partial class TypedAstEvaluator
 
             if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
             {
-                RealmState.ReturnContext(context);
                 throw new NotSupportedException(
                     $"IR plan generation failed for function: {_planSeed.FailureReason}");
             }
@@ -1021,13 +1019,8 @@ public static partial class TypedAstEvaluator
                         callingContext.SetThrow(signal.ThrownValue);
                         return signal.ThrownValue;
                     }
-                    finally
-                    {
-                        RealmState.ReturnContext(context);
-                    }
                 }
 
-                RealmState.ReturnContext(context);
                 throw new NotSupportedException(
                     $"IR plan generation failed for function: {failureReason}");
             }
@@ -1821,7 +1814,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
-                RealmState.ReturnContext(context);
+                // Context lifetime is owned by InvokeWithContextSlow; returning it here
+                // causes double-return pool corruption on the IR fast path.
             }
         }
 

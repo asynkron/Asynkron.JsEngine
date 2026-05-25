@@ -170,6 +170,75 @@ public sealed class DeleteOperatorTests(ITestOutputHelper output) : InternalTest
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Delete_ConfigurableDataProperty_ReturnsTrueAndRemovesProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const obj = {};
+            Object.defineProperty(obj, "prop", {
+                value: 123,
+                configurable: true
+            });
+
+            const deleted = delete obj.prop;
+            deleted && !Object.prototype.hasOwnProperty.call(obj, "prop");
+            """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Delete_ConfigurableAccessorProperty_ReturnsTrueAndRemovesProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const obj = {};
+            Object.defineProperty(obj, "prop", {
+                get() { return 1; },
+                configurable: true
+            });
+
+            const deleted = delete obj.prop;
+            deleted && !Object.prototype.hasOwnProperty.call(obj, "prop");
+            """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Delete_StrictModeNonConfigurableAccessor_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAsync<JsException>(
+            async () => await engine.Evaluate("""
+                "use strict";
+                const obj = {};
+                Object.defineProperty(obj, "prop", {
+                    get() { return 1; },
+                    configurable: false
+                });
+                delete obj.prop;
+                """));
+        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Delete_SloppyModeNonConfigurableAccessor_ReturnsFalse()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const obj = {};
+            Object.defineProperty(obj, "prop", {
+                get() { return 1; },
+                configurable: false
+            });
+            delete obj.prop;
+            """);
+
+        Assert.False((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Delete_SuperReference_ChecksThisBeforeComputedProperty()
     {
         await using var engine = CreateEngine();

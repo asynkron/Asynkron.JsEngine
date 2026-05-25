@@ -24,6 +24,13 @@ around the interactive shell command that invokes make; the Makefile itself
 should use normal tool variables so non-agent environments can run the same
 targets.
 
+Issue #1830 / PR #1850 exposed a second build-gate stability boundary after the
+feature fix was otherwise ready. The quality run failed while building
+`tests/Asynkron.JsEngine.Tests.csproj` with `MSBUILD : error MSB4166: Child node
+"2" exited prematurely`. The repair kept the same `quality` lifecycle but added
+`DOTNET_BUILD_STABILITY_ARGS ?= /m:1 /nr:false` to `build-internal` so quality
+builds run single-node and without MSBuild node reuse.
+
 ## Decision
 
 Keep `make quality` as an explicit two-step contract:
@@ -39,10 +46,18 @@ The usual guidance to avoid `dotnet test --no-build` still applies to ad hoc
 test runs. The `test-internal-no-build` target is a narrow quality-gate
 exception because the build step is explicit and immediately precedes it.
 
+Keep `build-internal` stable before fast. Quality build invocations should use
+the shared `DOTNET_BUILD_STABILITY_ARGS` variable, whose default serializes
+MSBuild and disables node reuse. Callers may override the variable explicitly
+when doing local experiments, but the default gate should not re-enable parallel
+MSBuild nodes without a current proof under the same quality-run environment.
+
 ## Consequences
 
 - Future Makefile edits must preserve the build-before-no-build relationship in
   the `quality` target.
+- Future `build-internal` project additions must include
+  `$(DOTNET_BUILD_STABILITY_ARGS)` on their `dotnet build` invocation.
 - Makefile commands should route through configurable tool variables such as
   `DOTNET ?= dotnet` and `GIT ?= git` rather than embedding `rtk` or another
   local agent wrapper in the repository contract.

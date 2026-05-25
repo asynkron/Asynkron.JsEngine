@@ -466,7 +466,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // restriction doesn't apply to them.
                 if (isDirectEval &&
                     environment is { IsParameterEnvironment: true, IsArrowFunctionEnvironment: false } &&
-                    ReferenceEquals(name, Symbol.Arguments))
+                    ReferenceEquals(name, Symbol.Arguments) &&
+                    environment.HasOwnBinding(Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         "Cannot declare 'arguments' in direct eval inside a function with non-simple parameters.",

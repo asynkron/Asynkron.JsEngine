@@ -194,9 +194,16 @@ public static partial class TypedAstEvaluator
                     newIterationEnv.SetSlotMap(instruction.SlotMap);
                 }
 
-                // Mark lexical bindings as uninitialized (TDZ) using SlotMap for O(log n) lookup
-                // instead of O(n) linear search via FindSlotIndex
-                if (instruction.LexicalBindings is { Count: > 0 } && !instruction.SlotMap.IsEmpty)
+                // Mark lexical bindings as uninitialized (TDZ). Plans stamped after slot
+                // assignment carry direct indices so hot loop scopes avoid set/dictionary probes.
+                if (!instruction.LexicalSlotIndices.IsDefaultOrEmpty)
+                {
+                    foreach (var slotIndex in instruction.LexicalSlotIndices)
+                    {
+                        newIterationEnv.SetSlotLexicalUninitialized(slotIndex);
+                    }
+                }
+                else if (instruction.LexicalBindings is { Count: > 0 } && !instruction.SlotMap.IsEmpty)
                 {
                     foreach (var binding in instruction.LexicalBindings)
                     {

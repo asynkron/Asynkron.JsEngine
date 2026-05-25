@@ -87,7 +87,8 @@ internal sealed record CompactPushEnvironmentPayload(
     bool AllowPooling,
     ImmutableHashSet<Symbol> LexicalBindings,
     ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings,
-    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames);
+    ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
+    ImmutableArray<int> LexicalSlotIndices);
 
 internal sealed class StatementDiagnosticsExpressionProgramTable
 {
@@ -352,7 +353,8 @@ internal static class StatementInstructionDiagnosticsCodec
                     pushEnvironment.AllowPooling,
                     pushEnvironment.LexicalBindings ?? ImmutableHashSet<Symbol>.Empty,
                     pushEnvironment.FlatSlotMappings,
-                    pushEnvironment.SlotNames);
+                    pushEnvironment.SlotNames,
+                    pushEnvironment.LexicalSlotIndices);
                 encoded = new CompactStatementInstruction(
                     new CompactStatementHeader(
                         EncodedStatementOpcode.PushEnvironment,
@@ -475,7 +477,8 @@ internal static class StatementInstructionDiagnosticsCodec
                         pushEnvironment.AllowPooling,
                         pushEnvironment.LexicalBindings ?? ImmutableHashSet<Symbol>.Empty,
                         pushEnvironment.FlatSlotMappings,
-                        pushEnvironment.SlotNames)
+                        pushEnvironment.SlotNames,
+                        pushEnvironment.LexicalSlotIndices)
                 }
             },
             _ => encoded
@@ -683,7 +686,8 @@ internal static class StatementInstructionDiagnosticsCodec
             AllowPooling: false,
             ImmutableHashSet<Symbol>.Empty,
             ImmutableArray<(int SlotIndex, int FlatSlotId)>.Empty,
-            ImmutableArray<(Symbol Name, int SlotIndex)>.Empty);
+            ImmutableArray<(Symbol Name, int SlotIndex)>.Empty,
+            ImmutableArray<int>.Empty);
         return new PushEnvironmentInstruction(
             Next: header.NextOrTarget,
             PerIterationBindings: pushPayload.PerIterationBindings,
@@ -693,6 +697,7 @@ internal static class StatementInstructionDiagnosticsCodec
             AllowPooling: pushPayload.AllowPooling,
             LexicalBindings: pushPayload.LexicalBindings,
             FlatSlotMappings: pushPayload.FlatSlotMappings,
-            SlotNames: pushPayload.SlotNames);
+            SlotNames: pushPayload.SlotNames,
+            LexicalSlotIndices: pushPayload.LexicalSlotIndices);
     }
 }

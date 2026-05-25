@@ -831,6 +831,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
             .Add(Symbol.Intern("slotB"), 1);
         var flatSlotMappings = ImmutableArray.Create((SlotIndex: 0, FlatSlotId: 17), (SlotIndex: 1, FlatSlotId: 21));
         var slotNames = ImmutableArray.Create((Name: Symbol.Intern("slotA"), SlotIndex: 0), (Name: Symbol.Intern("slotB"), SlotIndex: 1));
+        var lexicalSlotIndices = ImmutableArray.Create(0, 1);
         var instruction = new PushEnvironmentInstruction(
             Next: 7,
             PerIterationBindings: perIteration,
@@ -840,7 +841,8 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
             AllowPooling: true,
             LexicalBindings: lexicalBindings,
             FlatSlotMappings: flatSlotMappings,
-            SlotNames: slotNames);
+            SlotNames: slotNames,
+            LexicalSlotIndices: lexicalSlotIndices);
 
         var boundary = CompactStatementStorage.CreateBoundary([instruction]);
         Assert.Contains(boundary.SupportedKindClassifications, entry => entry.Kind == InstructionKind.PushEnvironment);
@@ -856,6 +858,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(instruction.LexicalBindings, decodedPush.LexicalBindings);
         Assert.Equal(instruction.FlatSlotMappings, decodedPush.FlatSlotMappings);
         Assert.Equal(instruction.SlotNames, decodedPush.SlotNames);
+        Assert.Equal(instruction.LexicalSlotIndices, decodedPush.LexicalSlotIndices);
         Assert.Equal(instruction.SlotMap, decodedPush.SlotMap);
         Assert.Null(decodedPush.SourceBlock);
     }

@@ -127,6 +127,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   the slice. If a planned ADR or report citation does not exist, either cite the
   maintained evidence surface that does exist or keep the roadmap claim
   boundary-only without the missing file reference.
+- When a recurring roadmap child starts from issue or investigation context that
+  says `docs/roadmap.md` is missing, re-check the file on the current branch
+  before treating creation as the slice. If latest main already has the roadmap,
+  turn the slice into a bounded refresh of the existing document or an
+  evidence-only closeout instead of recreating a stale "missing file" premise.
 
 ## Why
 
@@ -383,3 +388,10 @@ roadmap still needed to describe constant-folding follow-up boundaries, but the
 durable evidence had to be limited to existing ADRs, reports, and rule files.
 Without this rule, future roadmap children can accidentally turn directional
 claims into broken evidence trails by naming planned or guessed ADR files.
+
+Issue `autrun-dirtf03idm34-94f651a981` exposed a stale roadmap premise: the
+issue investigation described `docs/roadmap.md` as missing, while the current
+branch already contained a maintained roadmap from prior recurring slices. The
+durable lesson is to re-check the current branch before acting on a "missing
+roadmap" claim, so recurring children refresh or close out against live repo
+state instead of preserving obsolete context.

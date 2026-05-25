@@ -98,6 +98,13 @@ optimization.
     call, or another shape) and update the executor before accepting broader
     eligibility. Non-tail recursive operand calls must stay on ordinary
     invocation instead of paying repeated failed trampoline setup.
+17. For lexical scope-entry TDZ performance work, prove that the selected
+    profile is paying repeated scope-entry metadata work before changing the
+    runner. If slot layout is already known by lowering or stamping, carry
+    direct lexical slot-index payloads on the environment-push instruction and
+    let the runtime mark TDZ state by index. Keep symbol/set iteration and
+    `SlotMap` probing as an unstamped diagnostic or compatibility fallback, not
+    the ordinary hot path.
 
 ## Why
 
@@ -242,3 +249,15 @@ branch expressions and non-final return-expression calls before frame setup.
 The durable lesson is that trampoline performance work must match eligibility
 to executable shapes, not merely to the presence of recursive calls. Related
 ADR: `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`.
+
+Issue `autrun-dirzemwhwz7s-0f70b9a325` / PR #1915 selected `destructuring`
+from the benchmark table and proved the hot owner with a `destructuring` CPU
+call tree: repeated block/loop scope entry was still iterating lexical binding
+sets and probing `SlotMap` for TDZ marking even though slot layout was already
+known. The accepted slice added direct lexical slot-index payloads to
+`PushEnvironmentInstruction` for stamped block and loop scopes, leaving the
+symbol/set path only for unstamped diagnostic or compatibility records. The
+durable lesson is that scope-entry TDZ performance work should be profile-owned
+and plan-owned: compute slot-index metadata before execution and keep the runner
+on an index-marking path for known layouts. Related ADR:
+`docs/adrs/0142-keep-scope-entry-tdz-slot-marking-plan-owned.md`.

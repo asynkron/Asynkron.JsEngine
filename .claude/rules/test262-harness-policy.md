@@ -51,3 +51,12 @@ source display correctness bug. Keep this as an exact path override with both
 bare and `test/`-prefixed path regression coverage; do not widen all
 `Function.prototype.toString` fixtures or edit native function source metadata
 without a fresh semantic failure.
+
+Issue #1745 / PR #1769 reused the same exact-path policy for
+`intl402/Locale/invalid-tag-throws.js`. The fixture stresses invalid-language-tag
+validation enough to need the extended Test262 execution budget after focused
+evidence classified the row as harness timeout/resource pressure. Keep this as
+an exact path override with both bare and `test/`-prefixed path regression
+coverage; do not widen all `Intl.Locale` fixtures or change BCP-47 validation
+semantics unless a current proof reproduces a semantic failure outside the
+harness budget.

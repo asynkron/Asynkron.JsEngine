@@ -41,6 +41,13 @@ native source display correctness failure. The delivery therefore added only an
 exact 90 second timeout override plus helper regressions for both bare and
 `test/`-prefixed path shapes.
 
+Issue #1745 reused this policy for
+`intl402/Locale/invalid-tag-throws.js`. The row was classified as a focused
+Test262 harness timeout/resource-pressure case around invalid-language-tag
+validation, not an `Intl.Locale` BCP-47 semantic failure. The delivery therefore
+added only an exact 90 second timeout override plus helper regressions for both
+bare and `test/`-prefixed path shapes.
+
 ## Consequences
 
 - Future Test262 harness fixes should not assume one canonical path shape when
@@ -56,3 +63,5 @@ exact 90 second timeout override plus helper regressions for both bare and
   `.claude/rules/test262-harness-policy.md`.
 - Issue #1742 / PR #1767 extends the same decision for the exact
   `built-ins/Function/prototype/toString/built-in-function-object.js` fixture.
+- Issue #1745 / PR #1769 extends the same decision for the exact
+  `intl402/Locale/invalid-tag-throws.js` fixture.

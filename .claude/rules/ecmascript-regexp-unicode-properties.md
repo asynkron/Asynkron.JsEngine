@@ -39,7 +39,14 @@ generator and prove the generated resolver behavior through focused tests.
    regex. Profile Unicode data warm-up, RegExp construction, sample string
    construction, positive match, and negated match as separate phases so agents
    do not confuse one-time resolver initialization with per-pattern cost.
-9. Do not put normal lexer identifier classification on
+9. Keep exact single-codepoint anchored property escapes in the same narrow
+   `JsRegExp` runtime matcher family as one-or-more anchored property escapes.
+   Accept `^\p{...}$` and `^\P{...}$` only when the pattern remains `u`-only,
+   non-global, non-sticky, capture-free, and whole-input. The non-quantified
+   shape must require exactly one consumed Unicode code point; do not treat it
+   as equivalent to `+`, and decline all mixed RegExp shapes back to the normal
+   bridge.
+10. Do not put normal lexer identifier classification on
    `UnicodePropertyData.Resolve(...)` or other RegExp Unicode-property resolver
    paths. Parser hot paths such as `UnicodeIdentifier` should classify
    ECMAScript `ID_Start` / `ID_Continue` directly, with explicit compatibility
@@ -90,3 +97,11 @@ paid expanded .NET regex construction cost for large property ranges. Future
 agents should recognize the narrow anchored matcher before normalization and
 measure warm-up, compile, sample-build, and positive/negated match phases
 separately before claiming a RegExp property-escape performance repair.
+
+Issue #1743 / PR #1766 exposed the cardinality side of that same anchored
+matcher boundary. Generated Unicode property escape fixtures include exact
+single-codepoint checks such as `/^\p{Extended_Pictographic}$/u`, not only
+one-or-more full-string checks. Future agents should keep the single-codepoint
+form runtime-owned but prove that it consumes exactly one Unicode code point,
+including astral code points represented by surrogate pairs, instead of falling
+back to expanded .NET regex patterns or accidentally accepting repeated matches.

@@ -113,6 +113,22 @@ public sealed class HexadecimalLiteralTests(ITestOutputHelper output) : Internal
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Legacy_Octal_Literal_SloppyMode_ParsesAndEvaluates()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("[00, 01, 070, 077].join(',');");
+        Assert.Equal("0,1,56,63", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Legacy_Octal_Literal_StrictMode_IsRejected()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAsync<ParseException>(() => engine.Evaluate("'use strict'; 070;"));
+        Assert.Contains("Legacy octal literals are not allowed in strict mode", ex.Message);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Hexadecimal_BigInt_ParsesCorrectly()
     {
         await using var engine = CreateEngine();

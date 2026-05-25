@@ -27,6 +27,7 @@ internal static class JsValueExtensions
         };
     }
 
+    [Obsolete("Use JsOps JsValue overloads in core runtime paths", true)]
     public static double ToNumber(this object? value)
     {
         return value switch
@@ -74,6 +75,7 @@ internal static class JsValueExtensions
         };
     }
 
+    [Obsolete("Use JsOps JsValue overloads in core runtime paths", true)]
     public static string ToJsString(this object? value, EvaluationContext? context = null, RealmState? realm = null)
     {
         while (true)

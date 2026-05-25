@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -970,7 +971,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         // Register an async delay function
         engine.SetGlobalAsyncFunction("delay", async args =>
         {
-            var ms = (int)args.GetArgument(0).ToNumber();
+            var ms = (int)JsOps.ToNumber(args.GetArgument(0));
             var value = args.GetArgument(1);
             await Task.Delay(ms);
             return value;

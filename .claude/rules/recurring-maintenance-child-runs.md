@@ -235,6 +235,15 @@ Faktorial issue/dashboard API before relying on compact summaries, because
 compact logs are stage history and can omit acceptance criteria, comments, or
 human direction that should steer the bounded slice.
 
+Issue #1756 / PR #1760 moved the unavailable sibling/context fallback from
+semantic policy into the runnable operational checklist in
+`agents/how-to-build-and-test.md`. The incident showed that agents can treat a
+missing sibling summary, missing issue context, or unavailable helper as a
+blocker even when the maintained repo docs and local code context are enough
+for a bounded documentation slice. Future recurring-child runs should record
+the failed lookup as unavailable evidence, continue from the durable in-repo
+context, and preserve the Source Context/API-before-raw-logs ordering.
+
 Issue #1715 / PR #1721 added the related quality-gate edge case. The delivery
 commit was already present, the available prior quality artifact was truncated,
 and current local `rtk git diff --check` plus `rtk make quality` passed. The

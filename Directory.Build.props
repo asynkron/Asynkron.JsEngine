@@ -3,5 +3,7 @@
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
     <LangVersion>preview</LangVersion>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- Keep command-line builds bounded; IDE builds can still run analyzers live. -->
+    <RunAnalyzers Condition="'$(RunAnalyzers)' == '' and '$(BuildingInsideVisualStudio)' != 'true'">false</RunAnalyzers>
   </PropertyGroup>
 </Project>

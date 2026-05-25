@@ -29,6 +29,8 @@ public abstract partial class Test262Test
         "language/literals/regexp/S7.8.5_A2.1_T2.js";
     private const string RegExpLiteralCharsEscapeRoundTripTest =
         "language/literals/regexp/S7.8.5_A2.4_T2.js";
+    private const string IntlLocaleInvalidTagThrowsTest =
+        "intl402/Locale/invalid-tag-throws.js";
     private const string FunctionPrototypeToStringBuiltInFunctionObjectTest =
         "built-ins/Function/prototype/toString/built-in-function-object.js";
 
@@ -630,6 +632,7 @@ try {
             RegExpLiteralFirstCharEscapeRoundTripTest or
             RegExpLiteralCharsRoundTripTest or
             RegExpLiteralCharsEscapeRoundTripTest or
+            IntlLocaleInvalidTagThrowsTest or
             FunctionPrototypeToStringBuiltInFunctionObjectTest
             ? TimeSpan.FromSeconds(90)
             : TimeSpan.FromSeconds(30);

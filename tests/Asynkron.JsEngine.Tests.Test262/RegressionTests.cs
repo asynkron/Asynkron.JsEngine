@@ -181,6 +181,15 @@ public class RegressionTests
         Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
     }
 
+    [TestCase("intl402/Locale/invalid-tag-throws.js")]
+    [TestCase("test/intl402/Locale/invalid-tag-throws.js")]
+    public void IntlLocaleInvalidTagFixture_UsesExtendedExecutionTimeout(string fileName)
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+    }
+
     [TestCase("built-ins/Function/prototype/toString/built-in-function-object.js")]
     [TestCase("test/built-ins/Function/prototype/toString/built-in-function-object.js")]
     public void FunctionPrototypeToStringBuiltInFunctionObject_UsesExtendedExecutionTimeout(string fileName)

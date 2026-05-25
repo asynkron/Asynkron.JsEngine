@@ -123,6 +123,16 @@ optimization.
     and non-default property shapes. Preserve generic duplicate suppression,
     insertion order, descriptor promotion, and the ordinary
     `DefineDefaultDataProperty` fallback.
+19. For recursive typed JavaScript call dispatch work, prove that the selected
+    profile is paying generic callable-helper overhead before bypassing shared
+    dispatch. Single-argument `SyncFunctionInvoker` calls may route directly to
+    `InvokeWithContext1` only when the call context is already available and the
+    callable identity is the typed JavaScript invoker. Keep host functions,
+    direct eval, debug-aware host functions, spread calls, constructor
+    rejection, and uncommon arities on their existing semantic paths. Because
+    `fib`-style timings are noisy, report repeated before/after selected-profile
+    runs plus the follow-up CPU profile shape instead of claiming a win from one
+    benchmark row.
 
 ## Why
 
@@ -234,6 +244,18 @@ and generators on the full path. The durable lesson is that callback-arity
 performance work needs both profile ownership and an observability predicate,
 not just callback length or benchmark pressure. Related ADR:
 `docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
+
+Issue `autrun-dis4ox6n39q8-5cc99c3db3` / PR #1955 selected `fib` from the
+benchmark table, then confirmed with a CPU call tree that recursive
+single-argument typed JavaScript calls were still passing through
+`ExecuteProgramCall -> InvokeCallableSingleArg -> InvokeCallableJsValueGeneric`
+before reaching `SyncFunctionInvoker`. The accepted slice bypassed that generic
+helper layer only for `SyncFunctionInvoker` calls with an available context and
+left host/eval/debug/spread/constructor/multi-argument paths untouched. The
+durable lesson is that recursive typed-call dispatch optimizations should be
+profile-owned and arity-specific, with repeated timing evidence because the
+selected profile is noisy. Detailed measurement note:
+`docs/performance/fib-single-argument-typed-call-dispatch.md`.
 
 Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 optimized repeated Test262
 matcher execution by caching equivalent .NET `Regex` instances after RegExp

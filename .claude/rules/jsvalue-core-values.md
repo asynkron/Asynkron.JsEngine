@@ -39,6 +39,10 @@ When working inside the core engine, keep JavaScript values represented as
    overload explicitly. Wrap host primitives at the callsite with
    `new JsValue(...)`, `JsValue.FromJsArray(...)`, or another typed helper so
    overload resolution cannot silently fall back through `FromObjectUnsafe`.
+   For C# collection expressions or array literals that combine host primitives
+   and `JsValue` values, force the element type with `new JsValue(...)` members
+   or `new JsValue[] { ... }` so constructor overload resolution stays on the
+   `IEnumerable<JsValue>` path.
 7. For JavaScript collection storage (`Set`, `Map`, weak collections, or
    collection-like helpers), migrate the owning storage and equality comparer
    together. A `JsValue`-backed collection must use `JsValue`-native
@@ -100,6 +104,16 @@ object conversion when it already had JavaScript values. Future array/object
 carrier migrations should use the same bounded quarantine pattern: expose
 callers with the compiler, migrate only the selected cluster, and keep the
 before/after signature search as proof that accidental internal binding is gone.
+
+Issue `autrun-dirzigpmcp40-968f785da0` / PR #1914 found that guarded `JsArray`
+legacy overloads can still be selected by mixed collection expressions such as
+`[key, value]` where one element is a host string and another is already a
+`JsValue`. The fix kept `Object.entries` and `JsMap.Entries()` pair arrays on
+the `JsValue` path by typing the host string with `new JsValue(key)` and typing
+the map pair literal as `new JsValue[] { key, GetByKey(key) }`. Future
+`JsArray` caller migrations should audit mixed literals, not just direct
+`object?` arguments, because collection-expression inference can otherwise
+route core runtime values through the obsolete object-carrier constructor.
 
 Issue `autrun-dir1jb469ky8-1d5d23090a` / PR #1704 migrated `JsSet` storage from
 `object?` plus separate `null`/`undefined` tracking to `List<JsValue>` and

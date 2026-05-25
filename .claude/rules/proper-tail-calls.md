@@ -51,6 +51,12 @@ tail restart behavior, keep runtime context ownership explicit.
     may include both stack-depth and proxy-realm rows, but a dictionary restart
     fix must not claim or mask the proxy row unless the proxy operation's realm
     proof also passes.
+12. Keep FunctionCode activation isolation split from tail-call eligibility.
+    If recursive FunctionCode shapes can observe hoistable declaration state,
+    arguments/parameter conflicts, or reused activation contexts, reject the
+    unsafe pooling/trampoline shape. Do not use a broad recursive or
+    script-mode opt-out that breaks already-proven strict same-function tail
+    calls.
 
 ## Why
 
@@ -94,8 +100,18 @@ parameters and no extra hoisted body environment. The same issue's
 failure, which is why future agents must keep stack-depth eligibility and proxy
 realm ownership split.
 
+Issue #1866 / PR #1921 exposed the inverse risk while fixing Test262
+`FunctionCode` execution-context residuals. Broad script-mode or recursive IR
+guards made the FunctionCode rows pass but regressed
+`TailCallTests.StrictSameFunctionTailCall_DoesNotGrowCallDepth` into stack
+overflow. The final fix kept activation isolation for recursive shapes that can
+observe hoistable FunctionCode state, while preserving strict same-function
+tail-call eligibility and adding the same recursive guard to the sync IR
+trampoline.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
 - `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`
 - `docs/adrs/0144-keep-dictionary-tail-restarts-strict-and-simple.md`
+- `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`

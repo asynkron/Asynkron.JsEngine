@@ -61,6 +61,13 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     current path. Do not replace this with a direct body scan, and do not weaken
     direct eval, parameter-default, dynamic-scope, nested-arrow, or hoisted
     `var arguments` proofs.
+12. When changing script-mode FunctionCode IR gating, invocation-environment
+    pooling, or recursive activation reuse, prove both sides of the boundary:
+    `Name=FunctionCode` for declaration/parameter/arguments instantiation
+    semantics and the focused strict same-function tail-call test for stack
+    stability. Function declaration conflicts with parameters or `arguments`
+    are activation-isolation signals; they are not permission to disable all
+    strict recursive IR fast paths.
 
 ## Why
 
@@ -165,3 +172,14 @@ arguments-object allocation win.
 
 Related ADR:
 `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`.
+
+Issue #1866 / PR #1921 fixed Test262 `FunctionCode` execution-context rows by
+treating function-declaration/parameter conflicts and recursive observable
+activation reuse as narrow fast-path eligibility signals. The repair bounced
+through a quality-gate stack overflow when the guard became too broad and
+blocked strict same-function tail-call handling. The durable activation lesson
+is to prove FunctionCode instantiation semantics and tail-call stack behavior
+together whenever recursive activation reuse or script-mode IR gating changes.
+
+Related ADR:
+`docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`.

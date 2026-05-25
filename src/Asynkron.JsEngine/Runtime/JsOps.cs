@@ -632,6 +632,8 @@ internal static class JsOps
             {
                 case Symbol or JsSymbol:
                     throw StandardLibrary.ThrowTypeError("Cannot convert a Symbol value to a string", context, realmState);
+                case IIsHtmlDda:
+                    return "undefined";
                 case IJsPropertyAccessor accessor:
                     {
                         var primitive = ToPrimitive(JsValue.FromObjectUnsafe(accessor), ToPrimitiveHint.String, context);

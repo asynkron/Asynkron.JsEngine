@@ -909,7 +909,7 @@ public static partial class TypedAstEvaluator
             var hasFunctionCodeIrSeam =
                 context.ExecutionKind == ExecutionKind.Script &&
                 _allowIdentifierCache &&
-                (_hasNonParameterCalleeCall || _hasFunctionDeclarationParameterConflict);
+                _hasFunctionDeclarationParameterConflict;
 
             var canUseIrPlan =
                 !_function.IsGenerator &&

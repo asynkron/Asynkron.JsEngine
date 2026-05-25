@@ -88,6 +88,18 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BigIntModuloKeepsDividendSign()
+    {
+        await using var engine = CreateEngine();
+        var negativeDividend = await engine.Evaluate("-17n % 5n;");
+        var negativeDivisor = await engine.Evaluate("17n % -5n;");
+        Assert.IsType<JsBigInt>(negativeDividend);
+        Assert.IsType<JsBigInt>(negativeDivisor);
+        Assert.Equal(new JsBigInt(-2), negativeDividend);
+        Assert.Equal(new JsBigInt(2), negativeDivisor);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task BigIntExponentiation()
     {
         await using var engine = CreateEngine();
@@ -325,6 +337,24 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
         await using var engine = CreateEngine();
         var exception =
             await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n / 5;"));
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntCannotMixWithNumberInModulo_BigIntLeftOperand()
+    {
+        await using var engine = CreateEngine();
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10n % 5;"));
+        Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task BigIntCannotMixWithNumberInModulo_NumberLeftOperand()
+    {
+        await using var engine = CreateEngine();
+        var exception =
+            await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("10 % 5n;"));
         Assert.Contains("Cannot mix BigInt and other types", exception.Message, StringComparison.Ordinal);
     }
 

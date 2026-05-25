@@ -2759,7 +2759,14 @@ public static partial class TypedAstEvaluator
 
                         case 1:
                             var singleArgument = stack[calleeIndex + 1];
-                            if (!TryInvokeArrayPushSingleFast(callable, thisValue, singleArgument, out result))
+                            if (callable is SyncFunctionInvoker typedFunction)
+                            {
+                                result = typedFunction.InvokeWithContext1(
+                                    singleArgument,
+                                    thisValue,
+                                    context);
+                            }
+                            else if (!TryInvokeArrayPushSingleFast(callable, thisValue, singleArgument, out result))
                             {
                                 result = InvokeCallableSingleArg(
                                     callable,

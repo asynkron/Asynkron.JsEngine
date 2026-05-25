@@ -51,6 +51,73 @@ public sealed class WeakSetTests(ITestOutputHelper output) : InternalTestBase(ou
     }
 
     [Fact(Timeout = 2000)]
+    public async Task WeakSet_Add_Returns_Original_Receiver_When_Value_Already_Exists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   let ws = new WeakSet();
+                                                   let obj = { id: 1 };
+                                                   ws.add(obj);
+                                                   ws.add(obj) === ws;
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WeakSet_Add_Accepts_NonRegistered_Symbol_Value()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                   let ws = new WeakSet();
+                                                   let sym = Symbol("private");
+                                                   ws.add(sym);
+                                                   ws.has(sym);
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WeakSet_Add_Rejects_Registered_Symbol_Value()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+
+                    let ws = new WeakSet();
+                    ws.add(Symbol.for("shared"));
+
+        """));
+        Assert.Contains("Invalid value used in weak set", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WeakSet_Add_Rejects_Incompatible_Receiver()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+
+                    WeakSet.prototype.add.call({}, {});
+
+        """));
+        Assert.Contains("WeakSet.prototype method called on incompatible receiver", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task WeakSet_Is_Not_Callable_Without_New()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+
+                    WeakSet();
+
+        """));
+        Assert.Contains("constructor WeakSet requires 'new'", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task WeakSet_Has_Checks_Value_Existence()
     {
         await using var engine = CreateEngine();

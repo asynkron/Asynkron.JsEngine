@@ -140,6 +140,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     private JsValue GetByKey(JsValue key)
     {
+        key = CanonicalizeKey(key);
         return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
@@ -148,6 +149,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsMap Set(JsValue key, JsValue value)
     {
+        key = CanonicalizeKey(key);
         if (!_map.ContainsKey(key))
         {
             var entry = new MapEntryRecord(key);
@@ -164,6 +166,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public JsValue Get(JsValue key)
     {
+        key = CanonicalizeKey(key);
         return _map.TryGetValue(key, out var value) ? value : JsValue.Undefined;
     }
 
@@ -172,6 +175,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Has(JsValue key)
     {
+        key = CanonicalizeKey(key);
         return _map.ContainsKey(key);
     }
 
@@ -181,6 +185,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public bool Delete(JsValue key)
     {
+        key = CanonicalizeKey(key);
         if (!_map.Remove(key))
         {
             return false;
@@ -296,5 +301,12 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         {
             IsAlive = false;
         }
+    }
+
+    private static JsValue CanonicalizeKey(JsValue key)
+    {
+        return key.IsNumber && key.NumberValue == 0d
+            ? JsValue.Zero
+            : key;
     }
 }

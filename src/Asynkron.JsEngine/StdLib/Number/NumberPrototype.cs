@@ -113,9 +113,9 @@ public sealed partial class NumberPrototype
         }
 
         // Check if it's a Number object (with __value__ property that is a number)
-        if (receiver.TryGetObject(out object? obj))
+        if (receiver.TryGetObject<JsObject>(out var obj))
         {
-            if (obj is JsObject jsObj && jsObj.TryGetProperty("__value__", out var inner))
+            if (obj.TryGetProperty("__value__", out var inner))
             {
                 // Only accept if the __value__ is a number (Number wrapper objects)
                 // Other wrapper types (String, Boolean) also use __value__ but should not be accepted
@@ -124,14 +124,15 @@ public sealed partial class NumberPrototype
                     return innerNum;
                 }
             }
+        }
 
-            if (obj is IJsPropertyAccessor accessor && accessor.TryGetProperty("__value__", out var innerVal))
+        if (receiver.TryGetObject<IJsPropertyAccessor>(out var accessor) &&
+            accessor.TryGetProperty("__value__", out var innerVal))
+        {
+            // Only accept if the __value__ is a number
+            if (innerVal.TryGetDouble(out var innerNum))
             {
-                // Only accept if the __value__ is a number
-                if (innerVal.TryGetDouble(out var innerNum))
-                {
-                    return innerNum;
-                }
+                return innerNum;
             }
         }
 

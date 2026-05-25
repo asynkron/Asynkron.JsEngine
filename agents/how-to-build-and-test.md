@@ -103,8 +103,8 @@ change was required.
 
 For docs-only maintenance, do not run full builds, Test262, package installs,
 or broad audits unless the edit directly depends on them. The canonical local
-quality gate remains `make quality`, which builds and tests the internal suite
-only.
+quality gate invocation remains `rtk make quality`, which runs the `make quality`
+target that builds and tests the internal suite only.
 
 ## ECMAScript Test262 Suite
 

@@ -64,6 +64,7 @@ public static partial class TypedAstEvaluator
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
+        private readonly bool _hasHoistableDeclarations;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -125,6 +126,7 @@ public static partial class TypedAstEvaluator
             var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
                 .GetOrCreateCache()
                 .HasHoistableDeclarations;
+            _hasHoistableDeclarations = hasHoistableDeclarations;
             var hasFunctionDeclarations = hoistPlan.HasFunctionDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
@@ -922,7 +924,8 @@ public static partial class TypedAstEvaluator
             var hasFunctionCodeIrSeam =
                 context.ExecutionKind == ExecutionKind.Script &&
                 _allowIdentifierCache &&
-                (_hasFunctionDeclarationParameterConflict || _hasNonParameterCalleeCall);
+                (_hasFunctionDeclarationParameterConflict ||
+                 (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
 
             var canUseIrPlan =
                 !_function.IsGenerator &&

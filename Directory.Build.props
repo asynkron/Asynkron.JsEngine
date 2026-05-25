@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
+    <MicrosoftExtensionsLoggingAbstractionsVersion>10.0.8</MicrosoftExtensionsLoggingAbstractionsVersion>
     <LangVersion>preview</LangVersion>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <!-- Keep command-line builds bounded; IDE builds can still run analyzers live. -->

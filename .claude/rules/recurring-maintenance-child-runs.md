@@ -290,6 +290,13 @@ canonical local gate. Future documentation-maintenance children should treat
 stale command examples as workflow drift and fix them in the owned doc instead
 of leaving operators to reconcile conflicting playbooks.
 
+Issue #1816 / PR #1818 repeated the same command-example drift on the secondary
+development-rules playbook: the Test Timeouts snippet still showed an
+unwrapped `dotnet test` invocation with no internal test project path. The
+useful lesson is to make operator-facing workflow examples both `rtk`-aligned
+and copy/paste-safe from the repo root, while keeping the slice limited to the
+owned stale line.
+
 Issue #1666 / PR #1674 clarified the remaining ambiguity in that same workflow
 guidance: `rtk make quality` is the canonical local build/test evidence gate for
 recurring-child runs, but it is not permission to skip the mandatory pre-PR

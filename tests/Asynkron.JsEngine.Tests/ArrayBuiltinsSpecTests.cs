@@ -77,6 +77,39 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayIterationCallbacks_SingleParameterArrowKeepsValueSemantics()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            [1, 2, 3].map(value => value * 3).join(",");
+        """);
+
+        Assert.Equal("3,6,9", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayIterationCallbacks_PreserveObservableExtraArguments()
+    {
+        await using var engine = CreateEngine();
+
+        var result = Assert.IsType<JsObject>(await engine.Evaluate("""
+            const values = [5, 6];
+            ({
+              index: values.map((value, index) => index).join(","),
+              rest: values.map((...args) => args.length).join(","),
+              argumentsLength: values.map(function(value) { return arguments.length; }).join(","),
+              arrayIdentity: values.map((value, index, array) => array === values).join(",")
+            });
+        """));
+
+        Assert.Equal("0,1", result["index"]);
+        Assert.Equal("3,3", result["rest"]);
+        Assert.Equal("3,3", result["argumentsLength"]);
+        Assert.Equal("true,true", result["arrayIdentity"]);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_push_UsesInheritedNumericSetter()
     {
         await using var engine = CreateEngine();

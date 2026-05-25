@@ -104,6 +104,15 @@ public sealed partial class ArrayPrototype
         JsValue array,
         JsValue thisArg)
     {
+        if (callback is TypedAstEvaluator.SyncFunctionInvoker
+            {
+                CanUseArrayIterationSingleArgumentFastPath: true
+            } singleArgTypedFunction)
+        {
+            var singleArg = new SingleValueArgs(value);
+            return singleArgTypedFunction.InvokeWithContext<SingleValueArgs>(singleArg, thisArg, null);
+        }
+
         var args = new ThreeValueArgs(value, new JsValue((double)index), array);
         return callback is TypedAstEvaluator.SyncFunctionInvoker typedFunction
             ? typedFunction.InvokeWithContext<ThreeValueArgs>(args, thisArg, null)

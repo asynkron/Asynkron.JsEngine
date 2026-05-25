@@ -38,6 +38,17 @@ iteration helpers previously created three-element argument-array literals for
 generic callback helper so those three callback arguments stay concrete until
 the callable consumes them.
 
+Issue `autrun-dis3ezcjxsm0-238752b986` / PR #1949 refined that array-iteration
+callback path from the `classdef` profile. The callback hot path still paid to
+materialize the `(value, index, array)` carrier even for simple arrow callbacks
+such as `value => value * 3` that cannot observe the index or array arguments.
+The accepted slice added a conservative callback-shape predicate and used
+`SingleValueArgs` only for non-async, non-generator arrow callbacks with zero or
+one simple identifier parameter and no parameter expressions. Observable
+callbacks, including ordinary functions that can inspect `arguments`, rest
+parameters, and callbacks with index or array parameters, continue through the
+full three-argument path.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -57,7 +68,13 @@ For sync-function invocation and simple IR activation:
    obsolete helper methods, local return hooks, and private pool fields in the
    same cleanup slice; and
 6. keep the generic fallback for uncommon or unsafe callable shapes rather than
-   widening the simple activation predicate.
+   widening the simple activation predicate; and
+7. when reducing an array-iteration callback arity, prove that the callback
+   shape cannot observe omitted arguments before replacing the spec callback
+   carrier. Ordinary functions, rest parameters, parameter expressions,
+   callbacks with explicit index/array parameters, async functions, and
+   generators must keep the observable full-argument path unless a separate
+   proof establishes a narrower safe shape.
 
 `TwoValueArgs`, `ThreeValueArgs`, and future arity-specific struct carriers
 remain valid only when the concrete struct type is preserved through the generic
@@ -72,6 +89,10 @@ interface-typed hot-path boundary.
 - Future arity-specific invocation work should preserve concrete argument-list
   types through `CallableInvokeHelpers`, `SyncFunctionInvoker`, parameter
   binding, and simple activation setup.
+- Array iteration may use narrower argument carriers only after the invoker
+  owns an explicit callback-shape predicate. Do not infer safety from callback
+  length alone if `arguments`, rest, parameter expressions, async/generator
+  execution, or extra formal parameters can observe the omitted values.
 - Dynamic-call cleanup should scan both the public/private helper methods and
   the backing pool fields. A no-caller search for `ReturnArgumentArray` is not
   enough if `ObjectPool<object?[]>` fields remain allocated and named as a

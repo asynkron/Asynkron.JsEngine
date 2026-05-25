@@ -75,6 +75,68 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_InConditionalBranchDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function countdown(n, acc) {
+                "use strict";
+                return n === 0 ? acc : countdown(n - 1, acc + 1);
+            }
+
+            countdown(1500, 0);
+            """);
+
+        Assert.Equal(1500d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_InFinallyReturnDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let callCount = 0;
+            function countdown(n) {
+                "use strict";
+                if (n === 0) {
+                    callCount++;
+                    return;
+                }
+
+                try {
+                } finally {
+                    return countdown(n - 1);
+                }
+            }
+
+            countdown(1500);
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_FinallyReturnOverridesPendingRestart()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function countdown(n) {
+                "use strict";
+                try {
+                    return n === 0 ? 0 : countdown(n - 1);
+                } finally {
+                    return 42;
+                }
+            }
+
+            countdown(2);
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_RebindsMemberReceiverOnRestart()
     {
         await using var engine = CreateEngine();

@@ -264,19 +264,30 @@ public static partial class TypedAstEvaluator
 
         private bool HandleAbruptCompletion(AbruptKind kind, JsValue value)
         {
-            return HandleAbruptCompletionCore(kind, value, -1, hasControlTarget: false);
+            return HandleAbruptCompletionCore(kind, value, -1, hasControlTarget: false, hasTailRestart: false);
+        }
+
+        private bool HandleAbruptCompletion(AbruptKind kind, JsValue value, bool hasTailRestart)
+        {
+            return HandleAbruptCompletionCore(kind, value, -1, hasControlTarget: false, hasTailRestart);
         }
 
         private bool HandleAbruptCompletion(AbruptKind kind, int controlTarget)
         {
-            return HandleAbruptCompletionCore(kind, JsValue.Undefined, controlTarget, hasControlTarget: true);
+            return HandleAbruptCompletionCore(
+                kind,
+                JsValue.Undefined,
+                controlTarget,
+                hasControlTarget: true,
+                hasTailRestart: false);
         }
 
         private bool HandleAbruptCompletionCore(
             AbruptKind kind,
             JsValue value,
             int controlTarget,
-            bool hasControlTarget)
+            bool hasControlTarget,
+            bool hasTailRestart)
         {
             // Clear any previous restored environment
             TryCatchStateRef.RestoredEnvironmentFromTry = null;
@@ -349,7 +360,7 @@ public static partial class TypedAstEvaluator
                         frame.FinallyScheduled = true;
                         frame.PendingCompletion = hasControlTarget
                             ? PendingCompletion.FromTarget(kind, controlTarget)
-                            : PendingCompletion.FromValue(kind, value);
+                            : PendingCompletion.FromValue(kind, value, hasTailRestart: hasTailRestart);
                         BeginFinallyCompletionValue(frame);
 
                         // Restore to the environment that was active when entering the try block.
@@ -364,9 +375,18 @@ public static partial class TypedAstEvaluator
                     // inside a finally block, the new completion replaces the pending one.
                     // Jump to EndFinally to exit the finally block — continuing to execute
                     // remaining finally instructions would re-enter call loops and hang.
+                    if (frame.PendingCompletion.HasTailRestart && !hasTailRestart)
+                    {
+                        ClearTailRestartRequest();
+                    }
+
                     frame.PendingCompletion = hasControlTarget
                         ? PendingCompletion.FromTarget(kind, controlTarget, originatedInFinally: true)
-                        : PendingCompletion.FromValue(kind, value, originatedInFinally: true);
+                        : PendingCompletion.FromValue(
+                            kind,
+                            value,
+                            originatedInFinally: true,
+                            hasTailRestart: hasTailRestart);
                     if (frame.EndFinallyIndex >= 0)
                     {
                         _programCounter = frame.EndFinallyIndex;

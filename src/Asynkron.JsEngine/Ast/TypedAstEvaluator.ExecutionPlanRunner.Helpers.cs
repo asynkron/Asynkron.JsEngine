@@ -1249,7 +1249,7 @@ public static partial class TypedAstEvaluator
                                     spreadMaskConstants,
                                     environment,
                                     context,
-                                    tailPosition && programCounter == operationCount - 1);
+                                    tailPosition && IsExpressionProgramTailCallPosition(program, programCounter));
                                 programCounter++;
                                 break;
                             }
@@ -1297,6 +1297,30 @@ public static partial class TypedAstEvaluator
                     ReleaseExpressionBuffers(stackBuffer!, flagBuffer!, stackIndex, rentedFromPool);
                 }
             }
+        }
+
+        private static bool IsExpressionProgramTailCallPosition(ExpressionProgram program, int programCounter)
+        {
+            var operationCount = program.OperationCount;
+            if (programCounter == operationCount - 1)
+            {
+                return true;
+            }
+
+            var next = programCounter + 1;
+            var remainingJumpDepth = operationCount;
+            while (next >= 0 && next < operationCount && remainingJumpDepth-- > 0)
+            {
+                var operation = program.GetOperation(next);
+                if (operation.Kind != ExpressionOpKind.Jump)
+                {
+                    return false;
+                }
+
+                next = operation.Target;
+            }
+
+            return next == operationCount;
         }
 
         private bool TryEvaluateSimpleNumericExpressionProgram(
@@ -2837,7 +2861,7 @@ public static partial class TypedAstEvaluator
             if (_isScriptMode ||
                 _isAsync ||
                 _isGenerator ||
-                _plan?.ActivationSlots is null ||
+                _plan?.ActivationSlots is not { ParameterSlotIndices.IsDefault: false } ||
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined)
@@ -2854,6 +2878,7 @@ public static partial class TypedAstEvaluator
             _tailRestartArguments = arguments;
             _tailRestartThisValue = thisValue;
             _tailRestartRequested = true;
+            _tailRestartVersion++;
             return true;
         }
 
@@ -2861,7 +2886,7 @@ public static partial class TypedAstEvaluator
         {
             if (!_tailRestartRequested ||
                 _tailRestartArguments is not { } arguments ||
-                _plan?.ActivationSlots is not { } activationSlots ||
+                _plan?.ActivationSlots is not { ParameterSlotIndices.IsDefault: false } activationSlots ||
                 _executionEnvironment is null)
             {
                 return false;
@@ -2887,6 +2912,13 @@ public static partial class TypedAstEvaluator
 
             _programCounter = _plan.EntryPoint;
             return true;
+        }
+
+        private void ClearTailRestartRequest()
+        {
+            _tailRestartRequested = false;
+            _tailRestartArguments = null;
+            _tailRestartThisValue = JsValue.Undefined;
         }
 
         private void RebindStrictTailRestartThis(JsValue thisValue)

@@ -154,9 +154,8 @@ public static partial class TypedAstEvaluator
                                    _allowIdentifierCache &&
                                    hasSimpleParams;
 
-            // Can pool invocation environment if simple function AND no inner functions that would capture it
-            _canPoolInvocationEnvironment = isSimpleFunction &&
-                                            !ContainsInnerFunctionExpression(function);
+            // Initialize; finalize after recursive/non-parameter callee analysis below.
+            _canPoolInvocationEnvironment = false;
 
             // Cache the function description to avoid string allocation per call
             _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
@@ -188,6 +187,18 @@ public static partial class TypedAstEvaluator
                     ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
                 _hasNonParameterCalleeCall = ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
             }
+
+            // Recursive/self-call-like shapes must get a fresh activation per invocation.
+            if (_hasNonParameterCalleeCall)
+            {
+                _canUseFastPathBase = false;
+                _canUseSimpleIrActivationFastBase = false;
+            }
+
+            // Pool only when fast/simple and proven non-recursive for identifier callees.
+            _canPoolInvocationEnvironment = isSimpleFunction &&
+                                            !ContainsInnerFunctionExpression(function) &&
+                                            !_hasNonParameterCalleeCall;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
             _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             _topLevelLexicalNames = hoistPlan.TopLevelLexicalNames;
@@ -321,7 +332,8 @@ public static partial class TypedAstEvaluator
             // If parent uses fast path but child uses IR, scope IDs won't match and variable
             // lookup via scope chain will fail. By forcing parent to IR, we ensure consistent scope IDs.
             _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null &&
-                                  !ContainsInnerFunctionExpression(function);
+                                  !ContainsInnerFunctionExpression(function) &&
+                                  !_hasNonParameterCalleeCall;
             _canUseSimpleIrActivationFastBase = canUseFastPathForStrictness &&
                                                 !function.IsAsync &&
                                                 !_wasAsyncFunction &&
@@ -332,7 +344,8 @@ public static partial class TypedAstEvaluator
                                                 hasSimpleParams &&
                                                 !_hasCapturedActivationInClosure &&
                                                 _lexicalThisEnvironment is null &&
-                                                !ContainsInnerFunctionExpression(function);
+                                                !ContainsInnerFunctionExpression(function) &&
+                                                !_hasNonParameterCalleeCall;
             if (planSeed.Plan is { SimpleReturnParameterBinary: { } parameterBinary } plan &&
                 CanUseSimpleIrActivationPlanShape(plan))
             {
@@ -909,7 +922,7 @@ public static partial class TypedAstEvaluator
             var hasFunctionCodeIrSeam =
                 context.ExecutionKind == ExecutionKind.Script &&
                 _allowIdentifierCache &&
-                _hasFunctionDeclarationParameterConflict;
+                (_hasFunctionDeclarationParameterConflict || _hasNonParameterCalleeCall);
 
             var canUseIrPlan =
                 !_function.IsGenerator &&

@@ -62,6 +62,9 @@ public static partial class TypedAstEvaluator
         private readonly ActivationSlotShape? _activationSlots;
         private readonly bool _hasSimpleReturnParameterBinaryFastPath;
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
+        private readonly bool _hasNonParameterCalleeCall;
+        private readonly bool _hasFunctionDeclarationParameterConflict;
+        private readonly bool _hasHoistableDeclarations;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -123,6 +126,7 @@ public static partial class TypedAstEvaluator
             var hasHoistableDeclarations = ((IAstCacheable<HoistableDeclarationsPlan>)function.Body)
                 .GetOrCreateCache()
                 .HasHoistableDeclarations;
+            _hasHoistableDeclarations = hasHoistableDeclarations;
             var hasFunctionDeclarations = hoistPlan.HasFunctionDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
@@ -152,9 +156,8 @@ public static partial class TypedAstEvaluator
                                    _allowIdentifierCache &&
                                    hasSimpleParams;
 
-            // Can pool invocation environment if simple function AND no inner functions that would capture it
-            _canPoolInvocationEnvironment = isSimpleFunction &&
-                                            !ContainsInnerFunctionExpression(function);
+            // Initialize; finalize after recursive/non-parameter callee analysis below.
+            _canPoolInvocationEnvironment = false;
 
             // Cache the function description to avoid string allocation per call
             _functionDescription = function.Name is { } funcName ? $"function {funcName.Name}" : "anonymous function";
@@ -162,6 +165,42 @@ public static partial class TypedAstEvaluator
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
             _parameterNames = parameterNames;
+            if (parameterNames.Length == 0)
+            {
+                var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                {
+                    Symbol.Arguments
+                };
+                _hasFunctionDeclarationParameterConflict =
+                    ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
+                _hasNonParameterCalleeCall =
+                    ContainsNonParameterCalleeIdentifier(function, new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+            }
+            else
+            {
+                var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                foreach (var parameterName in parameterNames)
+                {
+                    parameterNameSet.Add(parameterName);
+                }
+
+                parameterNameSet.Add(Symbol.Arguments);
+                _hasFunctionDeclarationParameterConflict =
+                    ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
+                _hasNonParameterCalleeCall = ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
+            }
+
+            // Recursive/self-call-like shapes must get a fresh activation per invocation.
+            if (_hasNonParameterCalleeCall)
+            {
+                _canUseFastPathBase = false;
+                _canUseSimpleIrActivationFastBase = false;
+            }
+
+            // Pool only when fast/simple and proven non-recursive for identifier callees.
+            _canPoolInvocationEnvironment = isSimpleFunction &&
+                                            !ContainsInnerFunctionExpression(function) &&
+                                            !_hasNonParameterCalleeCall;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
             _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
             _topLevelLexicalNames = hoistPlan.TopLevelLexicalNames;
@@ -295,7 +334,8 @@ public static partial class TypedAstEvaluator
             // If parent uses fast path but child uses IR, scope IDs won't match and variable
             // lookup via scope chain will fail. By forcing parent to IR, we ensure consistent scope IDs.
             _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null &&
-                                  !ContainsInnerFunctionExpression(function);
+                                  !ContainsInnerFunctionExpression(function) &&
+                                  !_hasNonParameterCalleeCall;
             _canUseSimpleIrActivationFastBase = canUseFastPathForStrictness &&
                                                 !function.IsAsync &&
                                                 !_wasAsyncFunction &&
@@ -306,7 +346,8 @@ public static partial class TypedAstEvaluator
                                                 hasSimpleParams &&
                                                 !_hasCapturedActivationInClosure &&
                                                 _lexicalThisEnvironment is null &&
-                                                !ContainsInnerFunctionExpression(function);
+                                                !ContainsInnerFunctionExpression(function) &&
+                                                !_hasNonParameterCalleeCall;
             if (planSeed.Plan is { SimpleReturnParameterBinary: { } parameterBinary } plan &&
                 CanUseSimpleIrActivationPlanShape(plan))
             {
@@ -821,7 +862,6 @@ public static partial class TypedAstEvaluator
             // This routes async functions through ExecutionPlanRunner with _asyncStepMode=true
             if (IsAsyncLike && !IsClassConstructor)
             {
-                RealmState.ReturnContext(context);
                 try
                 {
                     RealmState.Logger?.LogInformation(
@@ -852,7 +892,6 @@ public static partial class TypedAstEvaluator
 
             if (!_function.IsGenerator && !IsAsyncFunction && _planSeed.Failure is not null)
             {
-                RealmState.ReturnContext(context);
                 throw new NotSupportedException(
                     $"IR plan generation failed for function: {_planSeed.FailureReason}");
             }
@@ -882,9 +921,17 @@ public static partial class TypedAstEvaluator
             // Sync callables can use the IR runner whenever they have a lowered plan or an explicit
             // lowering failure to surface. That keeps captured with-closures on the no-slot IR path
             // and prevents silent re-entry into legacy AST execution.
+            var hasFunctionCodeIrSeam =
+                context.ExecutionKind == ExecutionKind.Script &&
+                _allowIdentifierCache &&
+                (_hasFunctionDeclarationParameterConflict ||
+                 (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
+
             var canUseIrPlan =
                 !_function.IsGenerator &&
                 !IsAsyncFunction &&
+                // Keep IR for non-script function contexts; block known function-code seams in script mode.
+                !hasFunctionCodeIrSeam &&
                 (_allowIdentifierCache || !_closure.HasWithObjectInChain() || plan is not null || failureReason is not null);
             if (canUseIrPlan)
             {
@@ -1021,13 +1068,8 @@ public static partial class TypedAstEvaluator
                         callingContext.SetThrow(signal.ThrownValue);
                         return signal.ThrownValue;
                     }
-                    finally
-                    {
-                        RealmState.ReturnContext(context);
-                    }
                 }
 
-                RealmState.ReturnContext(context);
                 throw new NotSupportedException(
                     $"IR plan generation failed for function: {failureReason}");
             }
@@ -1821,7 +1863,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
-                RealmState.ReturnContext(context);
+                // Context lifetime is owned by InvokeWithContextSlow; returning it here
+                // causes double-return pool corruption on the IR fast path.
             }
         }
 
@@ -2556,6 +2599,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             return slotCount > 0 ? slotCount : 0;
         }
+
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private int ComputeActivationMinimumCapacity()

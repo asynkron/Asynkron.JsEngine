@@ -190,6 +190,7 @@ public static partial class TypedAstEvaluator
                     invoker._function.IsGenerator ||
                     invoker._function.IsDefaultDerivedConstructor ||
                     invoker._hasParameterExpressions ||
+                    invoker._hasNonParameterCalleeCall ||
                     !HasOnlySimpleIdentifierParameters(invoker._function) ||
                     invoker._usesArguments ||
                     invoker._needsArgumentsBinding ||

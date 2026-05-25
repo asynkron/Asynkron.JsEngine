@@ -106,6 +106,16 @@ public static partial class TypedAstEvaluator
     internal static bool ContainsNonParameterCalleeIdentifier(FunctionExpression function,
         HashSet<Symbol> parameterNames)
     {
-        return NonParameterCalleeDetector.ContainsNonParameterCallee(function.Body, parameterNames);
+        return NonParameterCalleeDetector.ContainsNonParameterCallee(
+            function.Body,
+            parameterNames,
+            function.Name);
+    }
+
+    internal static bool ContainsFunctionDeclarationParameterConflict(
+        FunctionExpression function,
+        HashSet<Symbol> parameterNames)
+    {
+        return FunctionDeclarationParameterConflictDetector.ContainsConflict(function.Body, parameterNames);
     }
 }

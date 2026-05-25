@@ -165,4 +165,19 @@ public sealed class SymbolTests(ITestOutputHelper output) : InternalTestBase(out
                                            """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Symbol_IsTruthy_InConditionalExpressions()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let sym = Symbol();
+                                                       let left = sym ? 1 : 2;
+                                                       let right = !sym ? 1 : 2;
+                                                       left === 1 && right === 2;
+
+                                           """);
+        Assert.True((bool)result!);
+    }
 }

@@ -518,6 +518,9 @@ internal readonly struct PackedExpressionOp
 
     public bool IsPrototypeMutation => (Flags & Flag0) != 0;
 
+    public bool IsKnownNewObjectProperty =>
+        Kind == ExpressionOpKind.DefineObjectProperty && (Flags & Flag2) != 0;
+
     public bool IsConstructorFunction => (Flags & Flag0) != 0;
 
     public bool ShortCircuitOnNullishTarget => (Flags & Flag1) != 0;
@@ -722,13 +725,15 @@ internal readonly struct PackedExpressionOp
     public static PackedExpressionOp DefineObjectProperty(
         int propertyNameIndex,
         bool IsPrototypeMutation = false,
-        bool AllowNameInference = false)
+        bool AllowNameInference = false,
+        bool IsKnownNewProperty = false)
     {
         return new PackedExpressionOp(
             ExpressionOpKind.DefineObjectProperty,
             int0: propertyNameIndex,
             flags: (byte)((IsPrototypeMutation ? Flag0 : 0) |
-                          (AllowNameInference ? Flag1 : 0)));
+                          (AllowNameInference ? Flag1 : 0) |
+                          (IsKnownNewProperty ? Flag2 : 0)));
     }
 
     public static PackedExpressionOp DefineComputedObjectProperty(bool AllowNameInference = false)

@@ -2104,6 +2104,12 @@ public static partial class TypedAstEvaluator
                 ApplyObjectLiteralAnonymousFunctionName(propertyValue, propertyName);
             }
 
+            if (defineProperty.IsKnownNewObjectProperty)
+            {
+                targetObject.DefineKnownNewDefaultDataProperty(propertyName, propertyValue);
+                return;
+            }
+
             targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
         }
 

@@ -334,6 +334,12 @@ public static partial class TypedAstEvaluator
                 return HandleSimpleVariableDeclarationYieldSlow(runner, ref environment, context, out returnValue);
             }
 
+            if (isAnonymousFunctionDefinition &&
+                varValue is { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(instruction.TargetSymbol.Name);
+            }
+
             if (instruction.VarKind == VariableKind.Var)
             {
                 environment.EnsureFunctionScopedVarBinding(instruction.TargetSymbol, context);

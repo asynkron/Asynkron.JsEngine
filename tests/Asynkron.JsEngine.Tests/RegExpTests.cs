@@ -90,6 +90,28 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task AnchoredUnicodePropertyEscape_ExactSingleCodePoint_MatchesExactlyOne()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const emoji = String.fromCodePoint(0x1F600);
+                                                       const re = /^\p{Extended_Pictographic}$/u;
+                                                       [
+                                                         re.test(emoji),
+                                                         re.test(emoji + emoji),
+                                                         re.test("A")
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.True(values.Items[0].AsBoolean());
+        Assert.False(values.Items[1].AsBoolean());
+        Assert.False(values.Items[2].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

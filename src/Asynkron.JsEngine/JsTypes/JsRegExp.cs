@@ -1646,10 +1646,29 @@ public sealed class JsRegExp
 
         var endBrace = pattern.IndexOf('}', 4);
         if (endBrace < 0 ||
-            endBrace + 2 >= pattern.Length ||
-            pattern[endBrace + 1] != '+' ||
-            pattern[endBrace + 2] != '$' ||
-            endBrace + 3 != pattern.Length)
+            endBrace + 1 >= pattern.Length)
+        {
+            return null;
+        }
+
+        var requireSingleCodePoint = false;
+        if (pattern[endBrace + 1] == '$')
+        {
+            if (endBrace + 2 != pattern.Length)
+            {
+                return null;
+            }
+
+            requireSingleCodePoint = true;
+        }
+        else if (pattern[endBrace + 1] == '+' &&
+                 endBrace + 2 < pattern.Length &&
+                 pattern[endBrace + 2] == '$' &&
+                 endBrace + 3 == pattern.Length)
+        {
+            requireSingleCodePoint = false;
+        }
+        else
         {
             return null;
         }
@@ -1662,7 +1681,7 @@ public sealed class JsRegExp
                 $"Invalid regular expression: invalid unicode property escape \\{pattern[2]}{{{propertyExpression}}}.");
         }
 
-        return new AnchoredPropertyEscapeMatcher(ranges, pattern[2] == 'P');
+        return new AnchoredPropertyEscapeMatcher(ranges, pattern[2] == 'P', requireSingleCodePoint);
     }
 
     private sealed class AnchoredPropertyEscapeMatcher
@@ -1671,11 +1690,16 @@ public sealed class JsRegExp
         private readonly bool _negate;
         private readonly bool _matchesAllCodePoints;
         private readonly bool _useLinearRangeScan;
+        private readonly bool _requireSingleCodePoint;
 
-        public AnchoredPropertyEscapeMatcher((int Start, int End)[] ranges, bool negate)
+        public AnchoredPropertyEscapeMatcher(
+            (int Start, int End)[] ranges,
+            bool negate,
+            bool requireSingleCodePoint)
         {
             _ranges = ranges;
             _negate = negate;
+            _requireSingleCodePoint = requireSingleCodePoint;
             _matchesAllCodePoints = ranges.Length == 1 && ranges[0] is { Start: 0, End: 0x10FFFF };
             _useLinearRangeScan = ranges.Length <= 8;
         }
@@ -1689,15 +1713,33 @@ public sealed class JsRegExp
 
             if (_matchesAllCodePoints)
             {
-                return !_negate;
+                if (_negate)
+                {
+                    return false;
+                }
+
+                if (_requireSingleCodePoint)
+                {
+                    var singleIndex = 0;
+                    ReadCodePoint(input, ref singleIndex);
+                    return singleIndex == input.Length;
+                }
+
+                return true;
             }
 
-            for (var index = 0; index < input.Length;)
+            var index = 0;
+            while (index < input.Length)
             {
                 var codePoint = ReadCodePoint(input, ref index);
                 if (ContainsCodePoint(codePoint) == _negate)
                 {
                     return false;
+                }
+
+                if (_requireSingleCodePoint)
+                {
+                    return index == input.Length;
                 }
             }
 

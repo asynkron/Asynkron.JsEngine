@@ -7,8 +7,8 @@ on the current worktree before changing implementation or harness code.
 ## Rules
 
 1. Start with the issue-supplied narrow proof command, usually:
-   `dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=<MethodGroup>"`.
-2. If directory-form `dotnet test` fails because the SDK cannot resolve the
+   `rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=<MethodGroup>"`.
+2. If directory-form `rtk dotnet test` fails because the SDK cannot resolve the
    test project from a folder argument, rerun the exact same focused proof
    against
    `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`.

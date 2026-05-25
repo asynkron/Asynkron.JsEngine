@@ -254,3 +254,15 @@ Future URI Test262 crash issues should still check the shared decoder and the
 focused URI rule, but a prior four-byte crash report is not enough to edit
 `GlobalHelper` or Test262 harness policy after the current focused method group
 is green.
+
+Issue #1827 repeated the evidence-only closeout for `Intl.supportedValuesOf`
+and `Intl[@@toStringTag]` crash rows. The issue named plausible `IntlHelper`,
+`IntlUtilities`, object metadata, and generated Test262 owner surfaces, and an
+early overlapping run showed one `Intl.supportedValuesOf` row canceled during a
+large currency/DisplayNames loop. The bounded focused rerun on current
+`origin/main` then passed the combined filter
+`FullyQualifiedName~Intl_supportedValuesOf|FullyQualifiedName~Intl_toStringTag`
+52/52 with no repository diff. Future Intl crash-list issues should treat owner
+lookup and transient cancellation as context only after a bounded current proof
+passes; do not change Intl runtime, object `@@toStringTag` descriptors, or the
+Test262 harness without a reproducible failing row.

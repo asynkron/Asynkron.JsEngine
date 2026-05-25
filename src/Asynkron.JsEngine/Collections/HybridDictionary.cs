@@ -127,6 +127,18 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
+    public void AddKnownNew(string key, TValue value)
+    {
+        if (_dictionary is not null)
+        {
+            _dictionary.Add(key, value);
+            return;
+        }
+
+        AddInternal(key, value);
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
     public bool ContainsKey(string key)
     {
         if (_dictionary is not null)

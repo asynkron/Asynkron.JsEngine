@@ -2091,6 +2091,8 @@ internal static class ExpressionProgramCompiler
         out string? failureReason)
     {
         builder.Add(PackedExpressionOp.CreateObject);
+        HashSet<string>? knownStaticNames = null;
+        var unknownPropertyNameSeen = false;
 
         foreach (var member in expression.Members)
         {
@@ -2124,12 +2126,21 @@ internal static class ExpressionProgramCompiler
                             return false;
                         }
 
+                        var isPrototypeMutation = member.Kind == ObjectMemberKind.Property &&
+                                                  member.Parameter is null &&
+                                                  string.Equals(propertyName, "__proto__", StringComparison.Ordinal);
+                        var isKnownNewProperty = false;
+                        if (!isPrototypeMutation && !unknownPropertyNameSeen)
+                        {
+                            knownStaticNames ??= new HashSet<string>(StringComparer.Ordinal);
+                            isKnownNewProperty = knownStaticNames.Add(propertyName);
+                        }
+
                         builder.Add(PackedExpressionOp.DefineObjectProperty(
                             builder.InternString(propertyName),
-                            IsPrototypeMutation: member.Kind == ObjectMemberKind.Property &&
-                                                 member.Parameter is null &&
-                                                 string.Equals(propertyName, "__proto__", StringComparison.Ordinal),
-                            AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value)));
+                            IsPrototypeMutation: isPrototypeMutation,
+                            AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value),
+                            IsKnownNewProperty: isKnownNewProperty));
                         break;
                     }
 
@@ -2160,6 +2171,7 @@ internal static class ExpressionProgramCompiler
 
                     builder.Add(PackedExpressionOp.DefineComputedObjectProperty(
                         AllowNameInference: IsAnonymousFunctionDefinitionForNameInference(member.Value)));
+                    unknownPropertyNameSeen = true;
                     break;
 
                 case ObjectMemberKind.Method:
@@ -2181,6 +2193,12 @@ internal static class ExpressionProgramCompiler
                             builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                             IsConstructorFunction: false));
                         builder.Add(PackedExpressionOp.DefineObjectMethod(builder.InternString(methodName)));
+                        if (!unknownPropertyNameSeen)
+                        {
+                            knownStaticNames ??= new HashSet<string>(StringComparer.Ordinal);
+                            knownStaticNames.Add(methodName);
+                        }
+
                         break;
                     }
 
@@ -2200,6 +2218,7 @@ internal static class ExpressionProgramCompiler
                         builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                         IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectMethod);
+                    unknownPropertyNameSeen = true;
                     break;
 
                 case ObjectMemberKind.Getter:
@@ -2228,6 +2247,12 @@ internal static class ExpressionProgramCompiler
                         builder.Add(PackedExpressionOp.DefineObjectAccessor(
                             builder.InternString(accessorName),
                             accessorKind));
+                        if (!unknownPropertyNameSeen)
+                        {
+                            knownStaticNames ??= new HashSet<string>(StringComparer.Ordinal);
+                            knownStaticNames.Add(accessorName);
+                        }
+
                         break;
                     }
 
@@ -2247,6 +2272,7 @@ internal static class ExpressionProgramCompiler
                         builder.InternObject(FunctionLiteralDescriptor.Create(member.Function)),
                         IsConstructorFunction: false));
                     builder.Add(PackedExpressionOp.DefineComputedObjectAccessor(accessorKind));
+                    unknownPropertyNameSeen = true;
                     break;
 
                 case ObjectMemberKind.Spread:
@@ -2262,6 +2288,7 @@ internal static class ExpressionProgramCompiler
                     }
 
                     builder.Add(PackedExpressionOp.ObjectSpread);
+                    unknownPropertyNameSeen = true;
                     break;
 
                 default:

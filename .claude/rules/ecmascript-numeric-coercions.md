@@ -222,6 +222,13 @@ extraction owns `-0` to `+0` canonicalization for Map/Set storage; individual
 grouping or prototype methods should not grow separate signed-zero patches that
 let stored-key representation drift from lookup semantics.
 
+Issue `autrun-diro77wbl75s-869c762677` / PR #1784 repeated the same failure
+mode during the `JsMap` `object`-key to `JsValue`-key migration. The
+`SameValueZero` comparer made lookup work, but the stored insertion-order key
+still needed canonicalization at `JsMap` storage boundaries. Future collection
+storage rewrites should treat direct map methods and grouped/iterator surfaces
+as one signed-zero proof cluster instead of proving lookup equality alone.
+
 Issue #802 / PR #995 fixed `Math.sumPrecise([])` after the empty finite-value
 path reused the default positive-zero return even though the operation's empty
 iterable identity is negative zero. The recurrence is why aggregate Math

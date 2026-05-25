@@ -233,3 +233,14 @@ Intl.NumberFormat crash-list issues should classify exact rows and small
 adjacent semantic packs before touching formatter, digit-option, cache, or
 harness code; a plausible locale/signDisplay theory is not source evidence
 after the current focused proof stays green.
+
+Issue #1747 repeated the no-source-change closeout for
+`Intl.NumberFormat` `roundingPriority` mixed-options rows. The old crash list
+named the strict and sloppy
+`intl402/NumberFormat/test-option-roundingPriority-mixed-options.js` fixtures,
+but the build-stage proof on current main passed the exact fixture filter
+2/2 and a neighboring `Intl402 & NumberFormat & roundingPriority` slice 4/4.
+Future Intl.NumberFormat crash-batch issues should still inspect option parsing
+and formatter ownership, but once the exact current proof and a small adjacent
+semantic slice are green, stop without changing Intl runtime, Test262 harness,
+or nearby regression tests unless a current failing row is reproduced.

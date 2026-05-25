@@ -24,6 +24,12 @@ and keep `arguments` handling path-specific.
    `TestVariableDeclarations.DirectEvalVarArgumentsInSloppyFunction_ShouldBeAllowed`
    and the external fixture is
    `language/statements/variable/12.2.1-11.js` under `Statements_variable`.
+6. Keep arrow parameter environments out of ordinary-function-only
+   `arguments` collision rules. Arrows can have a parameter named `arguments`,
+   but they do not create their own arguments object. Direct-eval fixes in this
+   area must prove the exact arrow-parameter rows first and must not remove the
+   existing arrow exception from the non-simple-parameter guard unless a current
+   focused proof shows the exception is wrong.
 
 ## Why
 
@@ -35,6 +41,13 @@ collision. Future work in this area should start at direct eval declaration
 instantiation and prove the strict/sloppy and parameter-environment split
 explicitly, rather than changing parser strictness or generic declaration
 execution.
+
+Issue #1918 / PR #1920 revisited the same surface for direct eval in arrow
+parameter environments named `arguments`. The exact reported `EvalCode_direct`
+rows and the broader method group were already green on current main, so the
+durable lesson is to preserve the existing ordinary-function versus arrow
+environment split and to stop on current focused proof instead of broadening
+direct-eval collision logic from a stale Test262 batch report.
 
 Related ADR:
 `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`.

@@ -91,6 +91,13 @@ optimization.
     and mixed operands on the generic addition path. Do not lower the rope
     flattening depth or force append-loop flattening without current CPU
     evidence and a consumer correctness proof.
+16. For sync IR trampoline performance work, separate semantically tail-position
+    calls from calls the current trampoline executor can actually complete.
+    Before widening eligibility, prove the selected profile's call shape
+    (final return-expression call, non-final operand call, branch-condition
+    call, or another shape) and update the executor before accepting broader
+    eligibility. Non-tail recursive operand calls must stay on ordinary
+    invocation instead of paying repeated failed trampoline setup.
 
 ## Why
 
@@ -224,3 +231,14 @@ profile-owned and primitive-tag guarded; widening them into coercive addition
 or append-loop flattening changes JavaScript semantics and the cost model.
 Related ADR:
 `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`.
+
+Issue `autrun-dirtf01zpmv4-17122917c9` / PR #1909 selected `fib` from the
+benchmark table and proved the hot owner with a `fib` CPU call tree: ordinary
+recursive invocation dominated, but repeated failed `SyncIrCallTrampoline`
+setup still appeared under non-tail recursive operands such as
+`fib(n - 1) + fib(n - 2)`. The accepted slice made trampoline eligibility
+purpose-aware, keeping final return-expression calls eligible while rejecting
+branch expressions and non-final return-expression calls before frame setup.
+The durable lesson is that trampoline performance work must match eligibility
+to executable shapes, not merely to the presence of recursive calls. Related
+ADR: `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`.

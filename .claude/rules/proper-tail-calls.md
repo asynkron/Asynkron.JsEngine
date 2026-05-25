@@ -37,6 +37,11 @@ tail restart behavior, keep runtime context ownership explicit.
    ordering and completion override, conditional-expression branch calls,
    strict member-call receiver rebinding, and relevant realm-sensitive proxy
    coverage.
+9. Keep sync IR trampoline eligibility aligned with executable trampoline
+   shapes. For the current trampoline, expression-program calls are eligible
+   only when they are the final operation in a return-purpose expression
+   program; branch-condition calls and non-final operand calls must use
+   ordinary invocation unless the executor is widened first.
 
 ## Why
 
@@ -61,6 +66,16 @@ through scheduled `finally`. The rule exists so future fixes preserve
 completion replacement semantics instead of treating a stale restart flag as a
 surviving return.
 
+Issue `autrun-dirtf01zpmv4-17122917c9` / PR #1909 exposed the performance
+failure mode on the same surface. The `fib` profile spent time repeatedly
+entering `SyncIrCallTrampoline` for non-tail recursive operands such as
+`fib(n - 1) + fib(n - 2)`, even though the trampoline executor can only complete
+final return-expression calls. The fix kept tail-recursive eligibility intact
+but rejected branch expressions and non-final return-expression calls before
+frame setup. The durable lesson is that semantic tail-position rules and
+executor eligibility are related but not interchangeable.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
+- `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`

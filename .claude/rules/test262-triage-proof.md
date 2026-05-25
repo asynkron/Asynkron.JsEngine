@@ -37,11 +37,12 @@ on the current worktree before changing implementation or harness code.
 8. If a stale Test262 crash slice is suspected to be stress-sensitive rather
    than plainly still failing, keep the proof bounded to representative
    issue-listed rows before editing source. Run a normal focused proof, repeat
-   the same filter in a small loop, rerun with the Test262 harness/base-realm
-   caches disabled when cache contamination is suspected, and enable
-   `JSENGINE_DEBUG_POOL_GUARDS=true` for pooled-state suspects. If all of those
-   focused stress checks stay green, close out without runtime or harness
-   changes.
+   the same filter in a small loop, rerun a small neighboring semantic pack
+   when adjacent rows exercise the same suspected owner surface, rerun with the
+   Test262 harness/base-realm caches disabled when cache contamination is
+   suspected, and enable `JSENGINE_DEBUG_POOL_GUARDS=true` for pooled-state
+   suspects. If all of those focused stress checks stay green, close out
+   without runtime or harness changes.
 
 ## Why
 
@@ -221,3 +222,14 @@ passed 26/26 after aligning assertions with current `ThrowSignal` wording. That
 does not create a new WeakSet architecture decision; it reinforces that stale
 Test262 crash closeouts may pin the exact observable cluster locally while
 leaving runtime and harness code untouched when no current failing proof exists.
+
+Issue #1746 repeated the no-source-change closeout for a suspected
+stress-sensitive `Intl.NumberFormat.prototype.format` crash slice. The reported
+rows covered `signDisplay` plus locale-sensitive `ko-KR`/`zh-TW` and rounding
+interactions, making `IntlNumberFormatter` a plausible owner surface. The build
+stage still stopped after the four exact issue-listed rows and a neighboring
+NumberFormat signDisplay/roundingPriority subset passed on current main. Future
+Intl.NumberFormat crash-list issues should classify exact rows and small
+adjacent semantic packs before touching formatter, digit-option, cache, or
+harness code; a plausible locale/signDisplay theory is not source evidence
+after the current focused proof stays green.

@@ -132,6 +132,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before treating creation as the slice. If latest main already has the roadmap,
   turn the slice into a bounded refresh of the existing document or an
   evidence-only closeout instead of recreating a stale "missing file" premise.
+- When a roadmap refresh only links already-accepted ADR/rule boundaries into
+  `docs/roadmap.md`, the learn pass should inventory the existing semantic
+  rule homes before creating another knowledge artifact. If the proxy,
+  control-flow, tail-call, or other domain rule already captures the lesson,
+  record that overlap and avoid duplicate ADR/rule churn.
 
 ## Why
 
@@ -395,3 +400,12 @@ branch already contained a maintained roadmap from prior recurring slices. The
 durable lesson is to re-check the current branch before acting on a "missing
 roadmap" claim, so recurring children refresh or close out against live repo
 state instead of preserving obsolete context.
+
+Issue `autrun-dirzat33gjzc-e6a91380e8` / PR #1910 refreshed the roadmap with
+ADR 0137, ADR 0138, and ADR 0139 boundaries after those decisions and their
+domain rules already existed. The learn-stage lesson was not another ADR; it
+was to verify `.claude/rules/ecmascript-proxy-realm-errors.md`,
+`.claude/rules/ecmascript-labeled-statements.md`, and
+`.claude/rules/proper-tail-calls.md` first, then keep the knowledge pass scoped
+to compaction instead of duplicating the accepted proxy, control-flow, and
+tail-call rules.

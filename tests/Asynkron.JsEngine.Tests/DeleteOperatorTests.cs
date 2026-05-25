@@ -209,17 +209,23 @@ public sealed class DeleteOperatorTests(ITestOutputHelper output) : InternalTest
     public async Task Delete_StrictModeNonConfigurableAccessor_ThrowsTypeError()
     {
         await using var engine = CreateEngine();
-        var ex = await Assert.ThrowsAsync<JsException>(
-            async () => await engine.Evaluate("""
-                "use strict";
-                const obj = {};
-                Object.defineProperty(obj, "prop", {
-                    get() { return 1; },
-                    configurable: false
-                });
+        var result = await engine.Evaluate("""
+            "use strict";
+            const obj = {};
+            Object.defineProperty(obj, "prop", {
+                get() { return 1; },
+                configurable: false
+            });
+
+            try {
                 delete obj.prop;
-                """));
-        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
+                false;
+            } catch (e) {
+                e instanceof TypeError;
+            }
+            """);
+
+        Assert.True((bool)result!);
     }
 
     [Fact(Timeout = 2000)]

@@ -101,8 +101,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   complete, explain why no wording delta was needed, and do not invent a
   mechanical docs change just to produce file churn.
 - Keep recurring-child progress updates plain and bounded while work is in
-  flight. Reserve machine-readable structured schema output for the final build
-  result only; avoid emitting final-response-shaped interim status messages
+  flight. Reserve machine-readable structured schema output for the actual
+  final stage result only; avoid emitting final-response-shaped interim status
+  messages
   that can be misclassified as failed stage outcomes in issue logs.
 - When a recurring documentation slice updates agent/operator workflow commands,
   align command examples with the current agent invocation contract and
@@ -289,7 +290,7 @@ Issue #1534 added an output-boundary lesson from recurring-child runtime
 evidence: when interim progress messages mimic final structured responses, the
 issue log can record false `success=false` stage events before implementation
 completes. The durable policy is to keep interim updates plain and bounded, and
-emit structured schema output only for the actual final build response.
+emit structured schema output only for the actual final stage response.
 
 Issue #1757 / PR #1761 applied that output-boundary policy to the operational
 checklist in `agents/how-to-build-and-test.md` after the same issue log shape
@@ -297,6 +298,12 @@ showed schema-like interim status entries during a recurring-child run. The
 delivery also reverted an out-of-scope activation test assertion change, which
 confirms future recurring-child fixes should keep process guidance docs-only
 when the selected slice is operational documentation.
+
+Issue #1882 refined the same policy to be stage-neutral: schema-shaped output
+belongs only in the actual final stage response, not just in build-stage
+handoffs. The evidence was investigate-stage progress updates that resembled a
+final structured reply and polluted run-state interpretation before
+implementation finished.
 
 Issue #1650 / PR #1652 was a recurring documentation child that found
 `agents/how-to-worktrees.md` still teaching unwrapped `git`, `gh`, and

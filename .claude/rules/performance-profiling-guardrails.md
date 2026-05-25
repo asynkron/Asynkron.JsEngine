@@ -105,6 +105,15 @@ optimization.
     let the runtime mark TDZ state by index. Keep symbol/set iteration and
     `SlotMap` probing as an unstamped diagnostic or compatibility fallback, not
     the ordinary hot path.
+18. For object-literal known-new property optimizations, keep freshness as a
+    compiler-carried proof and keep the storage shortcut owned by `JsObject`.
+    A static property may skip duplicate checks only while all earlier literal
+    keys are statically known and distinct. Stop the known-new proof after
+    computed keys, spreads, or other unknown key-producing members, and exclude
+    `__proto__` prototype mutation, accessors, methods, duplicate static names,
+    and non-default property shapes. Preserve generic duplicate suppression,
+    insertion order, descriptor promotion, and the ordinary
+    `DefineDefaultDataProperty` fallback.
 
 ## Why
 
@@ -261,3 +270,17 @@ durable lesson is that scope-entry TDZ performance work should be profile-owned
 and plan-owned: compute slot-index metadata before execution and keep the runner
 on an index-marking path for known layouts. Related ADR:
 `docs/adrs/0142-keep-scope-entry-tdz-slot-marking-plan-owned.md`.
+
+Issue `autrun-dis251i1ddvc-f6f277664b` / PR #1941 selected `objectcreation`
+again after ADR 0106 moved ordinary object-literal properties onto implicit
+default-data storage. The CPU call tree showed the remaining cost was duplicate
+bookkeeping below `DefineDefaultDataProperty -> TrackPropertyInsertion`. The
+accepted slice added a compiler proof for static properties that are known-new
+at that literal program point, then let `JsObject` own the optimized
+`DefineKnownNewDefaultDataProperty` write and small-object insertion-order
+tracking. The durable lesson is that object-literal freshness is not a generic
+runtime assumption: computed keys, spreads, duplicate names, accessors, methods,
+and `__proto__` must keep the conservative path unless the compiler can prove a
+later static data property cannot overwrite an earlier or unknown key. Related
+ADR:
+`docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`.

@@ -4,7 +4,6 @@
   "Namespace": "Asynkron.JsEngine.Tests.Test262",
   "Parallel": true,
   "ExcludedFeatures": [
-    "tail-call-optimization",
     "import-defer",
     "source-phase-imports",
     "import-attributes"
@@ -13,13 +12,5 @@
 
   ],
   "ExcludedDirectories": [],
-  "ExcludedFiles": [
-    "**/legacy-octal-integer.js",
-    "**/legacy-octal-escape-sequence.js",
-    "**/legacy-non-octal-escape-sequence-8-non-strict.js",
-    "**/legacy-non-octal-escape-sequence-9-non-strict.js",
-    "**/language/comments/S7.4_A5.js",
-    "**/language/comments/S7.4_A6.js",
-    "**/language/statements/function/S13_A15_T4.js"
-  ]
+  "ExcludedFiles": []
 }

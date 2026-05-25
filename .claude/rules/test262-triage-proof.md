@@ -110,6 +110,18 @@ owner map as investigation context only; do not patch `WithEmitter`,
 `JsEnvironment`, object-environment lookup, or the Test262 harness unless a
 current focused `with` row fails reproducibly.
 
+Issue #1867 repeated this boundary for the legacy direct-eval variable
+statement fixture `language/statements/variable/12.2.1-11.js`. The issue body
+correctly pointed at `EvalHostFunction` and the `var arguments;` collision
+surface, but that semantic decision was already covered by issue #1834, ADR
+0132, and `.claude/rules/ecmascript-direct-eval-declaration-instantiation.md`.
+The build-stage proof passed both the issue-supplied `Name=Statements_variable`
+filter 115/115 and the exact fixture filter 1/1, plus the focused internal
+`TestVariableDeclarations.DirectEvalVarArgumentsInSloppyFunction_ShouldBeAllowed`
+test. Keep this as an evidence-only closeout pattern: do not reopen direct eval
+declaration-instantiation or generic var binding code when the current exact
+fixture and the existing semantic regression are already green.
+
 Issue #1031 / PR #1103 applied the green-proof closeout path to
 `Expressions_class_asyncGenMethodStatic`: current `origin/main` already passed
 the reported Test262 method group, so the delivery added only a focused

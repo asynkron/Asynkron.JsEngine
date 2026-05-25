@@ -245,7 +245,11 @@ public static partial class TypedAstEvaluator
                     switch (instruction)
                     {
                         case BranchInstruction branch:
-                            if (!CanRunExpression(invoker, branch.ConditionProgram, activationSlots))
+                            if (!CanRunExpression(
+                                    invoker,
+                                    branch.ConditionProgram,
+                                    activationSlots,
+                                    ExpressionPurpose.Branch))
                             {
                                 return false;
                             }
@@ -253,7 +257,11 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
-                            if (!CanRunExpression(invoker, returnProgram, activationSlots))
+                            if (!CanRunExpression(
+                                    invoker,
+                                    returnProgram,
+                                    activationSlots,
+                                    ExpressionPurpose.Return))
                             {
                                 return false;
                             }
@@ -280,7 +288,8 @@ public static partial class TypedAstEvaluator
             private static bool CanRunExpression(
                 SyncFunctionInvoker invoker,
                 ExpressionProgram program,
-                ActivationSlotShape activationSlots)
+                ActivationSlotShape activationSlots,
+                ExpressionPurpose purpose)
             {
                 if (program.IsEmpty)
                 {
@@ -363,7 +372,9 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.Call:
                             if (operation.SpreadMaskConstantIndex >= 0 ||
                                 !operation.HasExplicitThis ||
-                                tagIndex < operation.ArgumentCount + 2)
+                                tagIndex < operation.ArgumentCount + 2 ||
+                                purpose != ExpressionPurpose.Return ||
+                                pc != program.OperationCount - 1)
                             {
                                 return false;
                             }

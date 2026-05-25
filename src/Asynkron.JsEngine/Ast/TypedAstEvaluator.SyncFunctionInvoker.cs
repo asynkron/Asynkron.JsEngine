@@ -792,6 +792,7 @@ public static partial class TypedAstEvaluator
             {
                 context.CallDepth = callingContext.CallDepth;
                 context.MaxCallDepth = callingContext.MaxCallDepth;
+                context.DisableSyncIrCallTrampoline = callingContext.DisableSyncIrCallTrampoline;
             }
 
             // Track Function.caller (Annex B) for non-strict functions.
@@ -799,9 +800,11 @@ public static partial class TypedAstEvaluator
             var previousCaller = _currentCaller;
             var previouslyExecuting = t_currentlyExecuting;
             var previousEvaluationContext = EvaluationContext.Current;
+            var previousRealm = global::Asynkron.JsEngine.Runtime.RealmState.Current;
             _currentCaller = t_currentlyExecuting;
             t_currentlyExecuting = this;
             EvaluationContext.Current = context;
+            global::Asynkron.JsEngine.Runtime.RealmState.Current = RealmState;
             try
             {
 
@@ -1707,6 +1710,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 // Restore Function.caller tracking (Annex B).
                 EvaluationContext.Current = previousEvaluationContext;
+                global::Asynkron.JsEngine.Runtime.RealmState.Current = previousRealm;
                 _currentCaller = previousCaller;
                 t_currentlyExecuting = previouslyExecuting;
             }

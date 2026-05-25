@@ -457,6 +457,19 @@ public static partial class TypedAstEvaluator
                    TryCatchStateRef.TryStack.Peek().FinallyScheduled;
         }
 
+        private bool HasActiveFinallyFrame()
+        {
+            foreach (var frame in TryCatchStateRef.TryStack)
+            {
+                if (frame.FinallyIndex >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Attempts to get the EndFinally jump target for the current try frame.
         /// Returns true if we're inside a scheduled finally block that has an EndFinally target,

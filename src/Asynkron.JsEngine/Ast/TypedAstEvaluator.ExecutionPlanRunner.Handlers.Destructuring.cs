@@ -168,6 +168,15 @@ public static partial class TypedAstEvaluator
             {
                 var thrown = context.FlowValue;
                 context.Clear();
+                if (state.Iterator is not null && !state.Done)
+                {
+                    state.Iterator.IteratorClose(context, preserveExistingThrow: true);
+                    if (context.IsThrow)
+                    {
+                        thrown = context.FlowValue;
+                        context.Clear();
+                    }
+                }
                 state.Dispose();
                 if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                 {
@@ -182,6 +191,28 @@ public static partial class TypedAstEvaluator
             if (instruction.TargetSymbol is not null)
             {
                 BindDestructuringValue(environment, instruction.TargetSymbol, value, instruction.VarKind, context);
+                if (context.ShouldStopEvaluation)
+                {
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (state.Iterator is not null && !state.Done)
+                    {
+                        state.Iterator.IteratorClose(context, preserveExistingThrow: true);
+                        if (context.IsThrow)
+                        {
+                            thrown = context.FlowValue;
+                            context.Clear();
+                        }
+                    }
+                    state.Dispose();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
             }
 
             runner._programCounter = instruction.Next;
@@ -216,6 +247,15 @@ public static partial class TypedAstEvaluator
                 {
                     var thrown = context.FlowValue;
                     context.Clear();
+                    if (state.Iterator is not null && !state.Done)
+                    {
+                        state.Iterator.IteratorClose(context, preserveExistingThrow: true);
+                        if (context.IsThrow)
+                        {
+                            thrown = context.FlowValue;
+                            context.Clear();
+                        }
+                    }
                     state.Dispose();
                     if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
                     {

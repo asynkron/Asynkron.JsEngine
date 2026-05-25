@@ -90,6 +90,42 @@ public sealed class DestructuringIteratorTests(ITestOutputHelper output) : Inter
     }
 
     [Fact]
+    public async Task ForDeclarationArrayDestructuringClosesIteratorOnStepThrow()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var original = {};
+            var caught = null;
+            var closed = false;
+            var iterable = {};
+            iterable[Symbol.iterator] = function() {
+              return {
+                next: function() {
+                  throw original;
+                },
+                return: function() {
+                  closed = true;
+                  return {};
+                }
+              };
+            };
+
+            try {
+              for (const [x] = iterable; ; ) {
+                break;
+              }
+            } catch (e) {
+              caught = e;
+            }
+
+            caught === original && closed === true;
+            """);
+
+        Assert.True(JsOps.ToBoolean(JsValue.FromObjectUnsafe(result)));
+    }
+
+    [Fact]
     public async Task ArrayPatternIteratorThrowsOriginalError()
     {
         await using var engine = CreateEngine();

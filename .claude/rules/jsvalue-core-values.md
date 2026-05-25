@@ -3,6 +3,18 @@
 When working inside the core engine, keep JavaScript values represented as
 `JsValue` until an explicitly intentional boundary requires another shape.
 
+## Ownership
+
+- This rule is the semantic home for cross-cutting core-runtime
+  `JsValue`/object-carrier migration policy.
+- Use this file for shared migration rules and proof expectations that apply to
+  multiple helper clusters.
+- Keep helper-specific carrier boundaries in their accepted ADRs instead of
+  duplicating those decisions here:
+  - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
+  - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
+  - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
+
 ## Rules
 
 1. Do not introduce new `object?` helper parameters, return values, or local

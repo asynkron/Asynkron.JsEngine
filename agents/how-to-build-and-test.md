@@ -71,6 +71,9 @@ maintenance pass, keep the slice repo-local and reviewable:
    roadmap/docs claims), verify each cited path exists before finalizing. If a
    planned ADR/report path is missing, cite a maintained existing evidence
    surface instead of keeping the broken reference.
+8. Keep in-flight progress updates plain and bounded. Reserve machine-readable
+   structured schema output for the final build-stage result only, so interim
+   status notes are not misclassified as failed stage outcomes.
 
 Use a compact evidence shape in the issue update so reviewers can compare
 before/after quickly:

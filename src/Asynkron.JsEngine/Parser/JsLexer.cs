@@ -729,36 +729,34 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
             }
         }
 
-        // Legacy octal literals are not supported (AnnexB feature)
-        // Reject literals like 010, 077, etc. Only 0o notation is supported.
+        // Legacy octal integer literals (Annex B) are lexed in sloppy and strict modes alike.
+        // Strict-mode rejection is handled by parser context validation.
         if (source[_start] == '0' && IsDigit(Peek()))
         {
-            var ch = Peek();
-            // Check if this looks like a legacy octal (0 followed by octal digits)
-            if (IsOctalDigit(ch))
+            var idx = _current;
+            var isPureOctal = true;
+            while (idx < source.Length && IsDigit(source[idx]))
             {
-                var idx = _current;
-                var isPureOctal = true;
-                while (idx < source.Length && IsDigit(source[idx]))
+                if (source[idx] is '8' or '9')
                 {
-                    if (source[idx] is '8' or '9')
-                    {
-                        isPureOctal = false;
-                        break;
-                    }
-
-                    idx++;
+                    isPureOctal = false;
+                    break;
                 }
 
-                // If it's a pure octal (no 8 or 9), and not followed by . e E n, throw
-                if (isPureOctal && idx > _current)
+                idx++;
+            }
+
+            if (isPureOctal && idx > _current && (idx >= source.Length || source[idx] is not ('.' or 'e' or 'E' or 'n')))
+            {
+                while (IsDigit(Peek()))
                 {
-                    if (idx >= source.Length || source[idx] is not ('.' or 'e' or 'E' or 'n'))
-                    {
-                        throw new ParseException(
-                            $"Legacy octal literals are not allowed. Use 0o prefix for octal literals on line {_line} column {_column}.");
-                    }
+                    Advance();
                 }
+
+                var legacyOctalSpan = source.AsSpan(_start, _current - _start);
+                var legacyOctalValue = (double)ParseIntegerLiteral(legacyOctalSpan, 8, false);
+                AddToken(TokenType.Number, legacyOctalValue);
+                return;
             }
         }
 

@@ -77,6 +77,37 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_push_UsesInheritedNumericSetter()
+    {
+        await using var engine = CreateEngine();
+
+        var result = Assert.IsType<JsObject>(await engine.Evaluate("""
+            var setterCalls = 0;
+            try {
+              Object.defineProperty(Array.prototype, "0", {
+                set(value) { setterCalls += value; },
+                configurable: true
+              });
+              const arr = [];
+              const length = arr.push(7);
+              ({
+                length,
+                setterCalls,
+                ownZero: Object.prototype.hasOwnProperty.call(arr, "0"),
+                storedLength: arr.length
+              });
+            } finally {
+              delete Array.prototype[0];
+            }
+        """));
+
+        Assert.Equal(1d, result["length"]);
+        Assert.Equal(7d, result["setterCalls"]);
+        Assert.False(Assert.IsType<bool>(result["ownZero"]));
+        Assert.Equal(1d, result["storedLength"]);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_indexOf_ObservesPropertiesAddedDuringIteration()
     {
         await using var engine = CreateEngine();

@@ -121,3 +121,14 @@ preserve `TrySetArrayLength(...)` as the spec-owned conversion/failure path, but
 keep the public helper boundary typed to `JsValue` and prove accidental object
 binding is gone with the focused `SetLength(object?)` signature search. Related
 ADR: `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`.
+
+Issue `autrun-diro77wbl75s-869c762677` / PR #1784 migrated `JsMap` key storage
+from extracted CLR `object` keys plus `null`/`undefined` side channels to
+`JsValue` keys with `SameValueZeroComparer.JsValueInstance`. The deterministic
+quality regression showed that a `JsValue`-native comparer alone is not the
+whole storage contract: numeric `-0` could still remain in the insertion-order
+record and become observable through `Map.groupBy` or iterators. Future keyed
+collection migrations should canonicalize storage keys at the owning `Set`/
+`Get`/`Has`/`Delete` boundary and prove both lookup behavior and observable
+stored-key behavior. Related ADR:
+`docs/adrs/0115-keep-jsmap-key-storage-jsvalue-native.md`.

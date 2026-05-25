@@ -18,6 +18,15 @@ environment cleanup. If the exact command now passes and the worktree is clean,
 stop without inventing a nearby implementation patch and report the issue as
 stale or transient.
 
+For fan-in or repair-lane issues whose shared signal is a merge conflict, prove
+the current source-issue state and branch diff before doing repair work. Use
+Faktorial issue/API/log context first, then compare the named source branches
+against the current local `origin/main`; do not treat local branch existence,
+stale Source Context, or an old failed merge/deploy signal as proof of a live
+conflict. If the source issues have already progressed and the source branches
+carry no remaining implementation diff, close the fan-in task as evidence-only
+rather than creating an unrelated source patch.
+
 ## Naming Convention
 
 - **GitHub issue work**: `AgentContext: issue/NNN` (e.g., `AgentContext: issue/465`)
@@ -100,3 +109,11 @@ command and it passed with no changed paths. That incident confirms that
 truncated failure excerpts must still be reproved before source edits, and a
 clean exact-command pass should close as stale/transient evidence rather than a
 nearby repair.
+
+Issue #1773 was a fan-in task for the shared signal
+`repair_kind:merge_conflict` across source issues #1745 and #1756. By the time
+the fan-in lane reached build/learn, both source repairs had already progressed
+and local source-branch comparisons against `origin/main` had no remaining
+implementation diff. The durable lesson is that a fan-in conflict signal is a
+trigger to reprove current source-issue and branch-diff state, not permission to
+invent a nearby patch or reopen already-absorbed source work.

@@ -41,4 +41,13 @@ public sealed class SwitchCompletionSimpleTests(ITestOutputHelper output)
         output.WriteLine($"case a: 7; case b: 8: {r}");
         Assert.Equal(8.0, r);
     }
+
+    [Fact]
+    public async Task Test5_EmptySwitch_NoCrash_ReturnsUndefined()
+    {
+        await using var engine = new JsEngine();
+        var r = await engine.Evaluate("eval('1; switch (\"a\") { }')");
+        output.WriteLine($"empty switch: {r}");
+        Assert.True(r is null || ReferenceEquals(r, Asynkron.JsEngine.Ast.Symbol.Undefined));
+    }
 }

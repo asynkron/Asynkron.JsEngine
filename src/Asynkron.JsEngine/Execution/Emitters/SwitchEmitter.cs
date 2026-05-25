@@ -74,6 +74,8 @@ internal static class SwitchEmitter
         var matchIndexSymbol = Symbol.Synthetic("__switch_match");
         var doneSymbol = Symbol.Synthetic("__switch_done");
 
+        var switchIsStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
+
         // Outer block statements (discriminant, match vars - these capture outer scope)
         var outerStatements = ImmutableArray.CreateBuilder<StatementNode>();
 
@@ -148,7 +150,7 @@ internal static class SwitchEmitter
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
             var setMatchStatement = new ExpressionStatement(statement.Source, setMatch, true);
             innerStatements.Add(new IfStatement(statement.Source, combinedTest,
-                new BlockStatement(statement.Source, [setMatchStatement], statement.Cases[0].Body.IsStrict),
+                new BlockStatement(statement.Source, [setMatchStatement], switchIsStrict),
                 null));
         }
 
@@ -163,7 +165,7 @@ internal static class SwitchEmitter
             // SuppressCompletionValue: matching phase assignments shouldn't affect switch completion
             var setDefaultStatement = new ExpressionStatement(statement.Source, setDefaultMatch, true);
             innerStatements.Add(new IfStatement(statement.Source, stillUnmatched,
-                new BlockStatement(statement.Source, [setDefaultStatement], statement.Cases[0].Body.IsStrict),
+                new BlockStatement(statement.Source, [setDefaultStatement], switchIsStrict),
                 null));
         }
 
@@ -275,12 +277,11 @@ internal static class SwitchEmitter
         ctx.SuppressIfCompletionReset = previousSuppressFlag;
 
         // Create inner block (switch scope) containing all case body statements
-        var isStrict = statement.Cases.Length > 0 && statement.Cases[0].Body.IsStrict;
-        var innerBlock = new BlockStatement(statement.Source, innerStatements.ToImmutable(), isStrict);
+        var innerBlock = new BlockStatement(statement.Source, innerStatements.ToImmutable(), switchIsStrict);
         outerStatements.Add(innerBlock);
 
         // Outer block contains discriminant setup + inner block
-        var lowered = new BlockStatement(statement.Source, outerStatements.ToImmutable(), isStrict);
+        var lowered = new BlockStatement(statement.Source, outerStatements.ToImmutable(), switchIsStrict);
 
         // Create BreakableExitInstruction first (we build bottom-up)
         // This pops the breakable stack when exiting the switch (normal exit or break)

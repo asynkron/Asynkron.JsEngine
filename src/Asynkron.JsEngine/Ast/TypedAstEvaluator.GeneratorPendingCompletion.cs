@@ -7,6 +7,6 @@ public static partial class TypedAstEvaluator
         public bool HasValue { get; set; }
         public bool IsThrow { get; set; }
         public bool IsReturn { get; set; }
-        public object? Value { get; set; }
+        public JsValue Value { get; set; } = JsValue.Undefined;
     }
 }

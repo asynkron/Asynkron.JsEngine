@@ -619,21 +619,19 @@ public static partial class TypedAstEvaluator
 
         if (isGenerator && pending?.HasValue == true)
         {
-            var pendingValueJs = pending.Value is JsValue pjs ? pjs : JsValue.FromObjectUnsafe(pending.Value);
-
             if (pending.IsThrow)
             {
-                context.SetThrow(pendingValueJs);
+                context.SetThrow(pending.Value);
             }
             else if (pending.IsReturn)
             {
-                context.SetReturn(pendingValueJs);
+                context.SetReturn(pending.Value);
             }
 
             pending.HasValue = false;
             pending.IsThrow = false;
             pending.IsReturn = false;
-            pending.Value = null;
+            pending.Value = JsValue.Undefined;
         }
         else
         {

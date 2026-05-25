@@ -122,6 +122,16 @@ test. Keep this as an evidence-only closeout pattern: do not reopen direct eval
 declaration-instantiation or generic var binding code when the current exact
 fixture and the existing semantic regression are already green.
 
+Issue #1918 repeated the direct-eval closeout pattern for arrow-function
+parameter environments named `arguments`. The issue listed four
+`EvalCode_direct` rows around `var arguments` plus assignment in arrow
+parameter/default contexts, but the build-stage proof passed the exact reported
+rows 4/4 and the full `Name=EvalCode_direct` method group 336/336 on current
+main. Treat future direct-eval arrow/arguments batch reports the same way:
+record the plausible `EvalHostFunction` owner surface, but stop without runtime
+or harness changes when the current exact rows are already green and the
+semantic rule/ADR coverage already exists.
+
 Issue #1031 / PR #1103 applied the green-proof closeout path to
 `Expressions_class_asyncGenMethodStatic`: current `origin/main` already passed
 the reported Test262 method group, so the delivery added only a focused

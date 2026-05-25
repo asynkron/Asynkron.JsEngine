@@ -28,6 +28,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Additional 2026-05 evidence slices now document simple numeric expression fast-path tuning and class-definition environment pre-sizing, tightening the current-state link between runtime changes and measured profile outcomes (`docs/performance/ir-arithmetic-simple-numeric-expression-fast-path.md`, `docs/performance/classdef-ir-environment-pre-sizing.md`).
 - Recent string-append rope follow-through reduced `stringops` cost while keeping flattening consumer-driven and runtime-owned; the remaining gap is explicitly tracked in evidence rather than inferred (`docs/performance/stringops-rope-append-fast-path.md`, `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`).
 - Recent compliance and helper-surface slices tightened spec-order and runtime-boundary ownership in hot paths: Array reduce/reduceRight/some result helpers are JsValue-native, computed-member nullish read order is explicitly spec-ordered, and descriptor-backed delete strictness behavior is runtime-owned with focused regression proof (`docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`, `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`, `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`).
+- Recent lazy `JsArgumentsObject` materialization follow-through for class definitions is now explicitly captured with profile evidence and a durable activation-owned ADR boundary, so recurring maintenance runs can reference an already-settled seam without re-reading PR history (`docs/performance/classdef-lazy-arguments-object.md`, `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -70,6 +71,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/ir-arithmetic-binary-fast-path.md`
   - `docs/performance/json-compact-serialization.md`
   - `docs/performance/stringops-rope-append-fast-path.md`
+  - `docs/performance/classdef-lazy-arguments-object.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -79,6 +81,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0119-keep-computed-member-nullish-read-order-spec-ordered.md`
   - `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`
   - `docs/adrs/0121-keep-descriptor-delete-result-semantics-strictness-owned.md`
+  - `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

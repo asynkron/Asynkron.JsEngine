@@ -145,16 +145,22 @@ resolver and runs the framework code unchanged. The host still only supplies
 the native edges: package resolution, `http`, `querystring`, and enough
 request/response behavior for Polka's router.
 
-## Dependency drift note (2026-05-24 signal)
+## Dependency drift note (2026-05-25 signal)
 
-The demo intentionally stays on the Express 4 line for now. On 2026-05-24,
+The demo intentionally stays on the Express 4 line for now. On 2026-05-25,
 `npm view express version dist-tags.latest dist-tags.latest-4` reported
 `express@5.2.1` on the `latest` tag and `express@4.22.2` on the `latest-4`
 tag; moving to Express 5 should be a dedicated compatibility pass because it
 can change framework routing and middleware behavior.
 
+For this recurring run, `npm --prefix examples/NodeHostDemo outdated --json`
+reported `express` with `wanted` `4.22.2` and `latest` `5.2.1`. The committed
+`package.json` and `package-lock.json` already resolve the selected line
+(`^4.22.2` and lockfile `4.22.2`), so this is treated as local install-state
+evidence rather than committed dependency drift.
+
 Polka is current on its stable npm tag: `polka@0.5.2` is both the installed
-range target and `latest`. On the same 2026-05-24 signal,
+range target and `latest`. On the same 2026-05-25 signal,
 `npm view polka version dist-tags.latest dist-tags.next` reported `next` as
 `1.0.0-next.28`, so this demo should not move to Polka 1.x without an explicit
 pre-release compatibility pass.

@@ -79,7 +79,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
         ProgramNode program;
         try
         {
-            program = engine.ParseProgram(functionSource, options: scriptGoalOptions);
+            program = engine.ParseProgram(functionSource, options: scriptGoalOptions, validatePrivateNames: false);
         }
         catch (ParseException parseException)
         {

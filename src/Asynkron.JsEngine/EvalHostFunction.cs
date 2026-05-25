@@ -175,7 +175,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         ProgramNode program;
         try
         {
-            program = Engine.ParseProgram(code, forceStrict);
+            program = Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
         }
         catch (ParseException parseException)
         {

@@ -494,7 +494,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         bool forceStrict = false,
         bool allowTopLevelAwait = false,
         bool allowHtmlComments = true,
-        IJsEngineOptions? options = null)
+        IJsEngineOptions? options = null,
+        bool validatePrivateNames = true)
     {
         var typedProgram =
             ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options ?? Options);
@@ -502,6 +503,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         if (forceStrict && !typedProgram.IsStrict)
         {
             typedProgram = typedProgram with { IsStrict = true };
+        }
+        
+        if (validatePrivateNames)
+        {
+            var invalidPrivateName = PrivateNameValidator.FindInvalidPrivateName(
+                typedProgram.Body,
+                ImmutableArray<PrivateNameScope>.Empty);
+            if (invalidPrivateName is not null)
+            {
+                throw new ParseException(
+                    $"Private field '{invalidPrivateName}' must be declared in an enclosing class");
+            }
         }
 
         typedProgram = _typedConstantTransformer.Transform(typedProgram);

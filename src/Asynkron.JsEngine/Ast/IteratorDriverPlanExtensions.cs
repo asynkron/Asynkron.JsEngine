@@ -215,7 +215,7 @@ public static partial class TypedAstEvaluator
 
                 context.ThrowIfCancellationRequested();
 
-                object? nextResult = null;
+                var nextResult = JsValue.Undefined;
                 if (state.IteratorObject is not null)
                 {
                     var throwBeforeNext = context.IsThrow;
@@ -353,13 +353,7 @@ public static partial class TypedAstEvaluator
                     throw new ThrowSignal(thrown);
                 }
 
-                // Unwrap JsValue struct if present (only for iterator protocol path)
-                if (nextResult is JsValue jsVal)
-                {
-                    nextResult = jsVal.Kind == JsValueKind.Object ? jsVal.ObjectValue : null;
-                }
-
-                if (nextResult is IJsObjectLike resultObj)
+                if (nextResult.TryGetObject<IJsObjectLike>(out var resultObj))
                 {
                     var done = resultObj.TryGetProperty("done", out var doneValue) &&
                                JsOps.ToBoolean(doneValue);
@@ -479,7 +473,7 @@ public static partial class TypedAstEvaluator
                         reusableIterationEnvironment, loopEnvironment, useIterationSlots, logger);
 
                     // OPTIMIZATION: For simple identifier bindings, write directly to slot
-                    var nextJsValue = JsValue.FromObjectUnsafe(nextResult);
+                    var nextJsValue = nextResult;
                     if (cachedVarVariable.IsValid)
                     {
                         // Fastest path: pre-resolved JsVariable for 'var' bindings

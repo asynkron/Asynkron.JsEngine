@@ -99,6 +99,7 @@ public static partial class TypedAstEvaluator
         private bool _tailRestartRequested;
         private JsValue[]? _tailRestartArguments;
         private JsValue _tailRestartThisValue;
+        private int _tailRestartVersion;
         private JsValue[]? _expressionStackBuffer;
         private ulong[]? _expressionFlagBuffer;
         private int _expressionBufferLeaseCount;

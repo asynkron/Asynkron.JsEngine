@@ -246,7 +246,7 @@ public static partial class TypedAstEvaluator
         private static InstructionResult HandleEndFinally(
             ExecutionPlanRunner runner,
             ExecutionInstruction instr,
-            ref JsEnvironment _,
+            ref JsEnvironment environment,
             EvaluationContext __,
             out JsValue returnValue)
         {
@@ -272,10 +272,26 @@ public static partial class TypedAstEvaluator
 
             if (pending.Kind == AbruptKind.Return)
             {
-                if (runner.HandleAbruptCompletion(AbruptKind.Return, pending.Value))
+                if (runner.HandleAbruptCompletion(AbruptKind.Return, pending.Value, pending.HasTailRestart))
                 {
                     returnValue = default;
                     return InstructionResult.Continue;
+                }
+
+                if (pending.HasTailRestart && runner.TryRestartTailCall())
+                {
+                    if (runner._executionEnvironment is { } executionEnvironment)
+                    {
+                        environment = executionEnvironment;
+                    }
+
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                if (!pending.HasTailRestart)
+                {
+                    runner.ClearTailRestartRequest();
                 }
 
                 returnValue = runner.CompleteReturn(pending.Value);

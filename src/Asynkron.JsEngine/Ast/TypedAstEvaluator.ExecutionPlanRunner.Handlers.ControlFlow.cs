@@ -154,6 +154,8 @@ public static partial class TypedAstEvaluator
             out JsValue returnValue)
         {
             var instruction = Unsafe.As<ReturnInstruction>(instr);
+            var tailRestartVersionBeforeReturn = runner._tailRestartVersion;
+            var isInsideScheduledFinally = runner.IsInsideScheduledFinally();
             var returnVal = instruction.AwaitedProgram is { } awaitedProgram
                 ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
                 : instruction.ReturnProgram is { } returnProgram
@@ -161,8 +163,10 @@ public static partial class TypedAstEvaluator
                         returnProgram,
                         environment,
                         context,
-                        tailPosition: !runner.HasActiveFinallyFrame())
+                        tailPosition: !runner.HasActiveFinallyFrame() || isInsideScheduledFinally)
                     : JsValue.Undefined;
+            var hasTailRestart = runner._tailRestartRequested &&
+                                 runner._tailRestartVersion != tailRestartVersionBeforeReturn;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
             {
@@ -182,11 +186,26 @@ public static partial class TypedAstEvaluator
                 returnVal = pendingReturn;
             }
 
-            var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
-            if (runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
+            if (runner.HandleAbruptCompletion(AbruptKind.Return, returnVal, hasTailRestart))
             {
-                if (wasInsideScheduledFinally)
+                if (isInsideScheduledFinally)
                 {
+                    if (hasTailRestart && runner.TryRestartTailCall())
+                    {
+                        if (runner._executionEnvironment is { } executionEnvironment)
+                        {
+                            environment = executionEnvironment;
+                        }
+
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    if (!hasTailRestart)
+                    {
+                        runner.ClearTailRestartRequest();
+                    }
+
                     returnValue = runner.CompleteReturn(returnVal);
                     return InstructionResult.Return;
                 }

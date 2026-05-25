@@ -130,22 +130,24 @@ public static partial class TypedAstEvaluator
             JsValue Value,
             int TargetIndex,
             int ResumeTarget,
-            bool OriginatedInFinally)
+            bool OriginatedInFinally,
+            bool HasTailRestart)
         {
             public static PendingCompletion None { get; } =
-                new(AbruptKind.None, JsValue.Undefined, -1, -1, false);
+                new(AbruptKind.None, JsValue.Undefined, -1, -1, false, false);
 
             public static PendingCompletion FromNormal(int resumeTarget)
             {
-                return new PendingCompletion(AbruptKind.None, JsValue.Undefined, -1, resumeTarget, false);
+                return new PendingCompletion(AbruptKind.None, JsValue.Undefined, -1, resumeTarget, false, false);
             }
 
             public static PendingCompletion FromValue(
                 AbruptKind kind,
                 JsValue value,
-                bool originatedInFinally = false)
+                bool originatedInFinally = false,
+                bool hasTailRestart = false)
             {
-                return new PendingCompletion(kind, value, -1, -1, originatedInFinally);
+                return new PendingCompletion(kind, value, -1, -1, originatedInFinally, hasTailRestart);
             }
 
             public static PendingCompletion FromTarget(
@@ -153,7 +155,7 @@ public static partial class TypedAstEvaluator
                 int targetIndex,
                 bool originatedInFinally = false)
             {
-                return new PendingCompletion(kind, JsValue.Undefined, targetIndex, -1, originatedInFinally);
+                return new PendingCompletion(kind, JsValue.Undefined, targetIndex, -1, originatedInFinally, false);
             }
         }
 

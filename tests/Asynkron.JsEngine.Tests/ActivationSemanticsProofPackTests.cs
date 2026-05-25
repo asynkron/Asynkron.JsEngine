@@ -29,8 +29,9 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        // Activation trace may be optimized away when no activation object is needed.
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),

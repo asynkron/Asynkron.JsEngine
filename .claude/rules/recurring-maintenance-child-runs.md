@@ -277,6 +277,12 @@ the issue update should still show baseline/final output from one stable
 overlap-check command. This keeps the run auditable as an intentional
 compaction pass rather than an unproven wording edit.
 
+Issue #1879 / PR #1896 closed the follow-up evidence-only edge case for that
+same persistent-compaction flow. When the stable overlap check shows the owned
+semantic home already covers the selected slice, the right delivery is complete
+issue-update evidence plus an explicit no-wording-delta rationale, not a
+mechanical documentation tweak created only to produce changed files.
+
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,
 Array prototype result helpers, and number receiver extraction already owned

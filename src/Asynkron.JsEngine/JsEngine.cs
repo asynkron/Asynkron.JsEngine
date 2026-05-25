@@ -581,8 +581,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     {
         // Parse errors propagate as ParseException to the .NET caller.
         // There's no JS code running yet that could catch the error.
-        var program = ParseProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
-        if (ControlFlowSyntaxValidator.TryGetFirstIllegalControlFlow(program.Body, out var message, out var illegalSource))
+        var parsedProgram = ParseTypedProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
+        if (ControlFlowSyntaxValidator.TryGetFirstIllegalControlFlow(parsedProgram.Body, out var message, out var illegalSource))
         {
             if (illegalSource is not null)
             {
@@ -602,7 +602,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             throw new ParseException(message);
         }
 
-        return program;
+        return ParseProgram(source, forceStrict, allowTopLevelAwait, allowHtmlComments, options);
     }
 
     private CancellationToken CreateEvaluationCancellationToken(CancellationToken cancellationToken,

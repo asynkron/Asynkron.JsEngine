@@ -19,6 +19,53 @@ public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : Intern
     }
 
     [Fact(Timeout = 2000)]
+    public async Task NestedFunctionDeclarationBreakThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAsync<Asynkron.JsEngine.Parser.ParseException>(async () =>
+        {
+            await engine.Evaluate("function f() { break; }");
+        });
+
+        Assert.Contains("Illegal break statement.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task FunctionExpressionContinueThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAsync<Asynkron.JsEngine.Parser.ParseException>(async () =>
+        {
+            await engine.Evaluate("const f = function () { continue; };");
+        });
+
+        Assert.Contains("Illegal continue statement.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task NestedFunctionLabeledBreakTargetsOwnLoop()
+    {
+        var source = @"
+            function run() {
+                outer: while (true) {
+                    function inner() {
+                        outer: while (true) {
+                            break outer;
+                        }
+                        return 42;
+                    }
+                    return inner();
+                }
+            }
+            run();
+        ";
+
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task LabeledBreakExitsOuterLoop()
     {
         var source = @"

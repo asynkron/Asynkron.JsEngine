@@ -10,11 +10,14 @@ internal static class ControlFlowSyntaxValidator
         out string message,
         out SourceReference? source)
     {
-        var labelStack = new Stack<(Symbol Label, LabelTargetKind Kind)>();
+        var validator = new ControlFlowVisitor();
         foreach (var statement in statements)
         {
-            if (TryGetFirstIllegalControlFlow(statement, labelStack, 0, 0, out message, out source))
+            validator.Visit(statement);
+            if (validator.HasError)
             {
+                message = validator.ErrorMessage;
+                source = validator.ErrorSource;
                 return true;
             }
         }
@@ -24,163 +27,203 @@ internal static class ControlFlowSyntaxValidator
         return false;
     }
 
-    private static bool TryGetFirstIllegalControlFlow(
-        StatementNode statement,
-        Stack<(Symbol Label, LabelTargetKind Kind)> labels,
-        int iterationDepth,
-        int switchDepth,
-        out string message,
-        out SourceReference? source)
+    private sealed class ControlFlowVisitor : AstVisitor
     {
-        while (true)
+        private readonly Stack<(Symbol Label, LabelTargetKind Kind)> _labels = new();
+        private string _errorMessage = string.Empty;
+        private SourceReference? _errorSource;
+        private int _iterationDepth;
+        private int _switchDepth;
+
+        internal bool HasError => ShouldStop;
+        internal string ErrorMessage => _errorMessage;
+        internal SourceReference? ErrorSource => _errorSource;
+
+        protected override void VisitBreakStatement(BreakStatement node)
         {
-            switch (statement)
+            if (node.Label is null)
             {
-                case BreakStatement breakStatement:
-                    if (breakStatement.Label is null)
-                    {
-                        if (iterationDepth == 0 && switchDepth == 0)
-                        {
-                            message = "Illegal break statement.";
-                            source = breakStatement.Source;
-                            return true;
-                        }
+                if (_iterationDepth == 0 && _switchDepth == 0)
+                {
+                    SetError("Illegal break statement.", node.Source);
+                }
 
-                        break;
-                    }
-
-                    if (!TryResolveLabel(labels, breakStatement.Label, requireIteration: false))
-                    {
-                        message = $"Undefined label '{breakStatement.Label.Name}' for break statement.";
-                        source = breakStatement.Source;
-                        return true;
-                    }
-
-                    break;
-                case ContinueStatement continueStatement:
-                    if (continueStatement.Label is null)
-                    {
-                        if (iterationDepth == 0)
-                        {
-                            message = "Illegal continue statement.";
-                            source = continueStatement.Source;
-                            return true;
-                        }
-
-                        break;
-                    }
-
-                    if (!TryResolveLabel(labels, continueStatement.Label, requireIteration: true))
-                    {
-                        message = $"Undefined iteration label '{continueStatement.Label.Name}' for continue statement.";
-                        source = continueStatement.Source;
-                        return true;
-                    }
-
-                    break;
-                case BlockStatement block:
-                    foreach (var inner in block.Statements)
-                    {
-                        if (TryGetFirstIllegalControlFlow(inner, labels, iterationDepth, switchDepth, out message,
-                                out source))
-                        {
-                            return true;
-                        }
-                    }
-
-                    break;
-                case IfStatement ifStatement:
-                    if (TryGetFirstIllegalControlFlow(ifStatement.Then, labels, iterationDepth, switchDepth,
-                            out message, out source))
-                    {
-                        return true;
-                    }
-
-                    if (ifStatement.Else is not null &&
-                        TryGetFirstIllegalControlFlow(ifStatement.Else, labels, iterationDepth, switchDepth,
-                            out message, out source))
-                    {
-                        return true;
-                    }
-
-                    break;
-                case WhileStatement whileStatement:
-                    statement = whileStatement.Body;
-                    iterationDepth++;
-                    continue;
-                case DoWhileStatement doWhileStatement:
-                    statement = doWhileStatement.Body;
-                    iterationDepth++;
-                    continue;
-                case ForStatement forStatement:
-                    statement = forStatement.Body;
-                    iterationDepth++;
-                    continue;
-                case ForEachStatement forEachStatement:
-                    statement = forEachStatement.Body;
-                    iterationDepth++;
-                    continue;
-                case SwitchStatement switchStatement:
-                    foreach (var @case in switchStatement.Cases)
-                    {
-                        if (TryGetFirstIllegalControlFlow(@case.Body, labels, iterationDepth, switchDepth + 1,
-                                out message, out source))
-                        {
-                            return true;
-                        }
-                    }
-
-                    break;
-                case TryStatement tryStatement:
-                    if (TryGetFirstIllegalControlFlow(tryStatement.TryBlock, labels, iterationDepth, switchDepth,
-                            out message, out source))
-                    {
-                        return true;
-                    }
-
-                    if (tryStatement.Catch is { Body: not null } catchClause &&
-                        TryGetFirstIllegalControlFlow(catchClause.Body, labels, iterationDepth, switchDepth,
-                            out message, out source))
-                    {
-                        return true;
-                    }
-
-                    if (tryStatement.Finally is not null &&
-                        TryGetFirstIllegalControlFlow(tryStatement.Finally, labels, iterationDepth, switchDepth,
-                            out message, out source))
-                    {
-                        return true;
-                    }
-
-                    break;
-                case WithStatement withStatement:
-                    statement = withStatement.Body;
-                    continue;
-                case LabeledStatement labeledStatement:
-                    var targetKind = GetLabelTargetKind(labeledStatement.Statement);
-                    labels.Push((labeledStatement.Label, targetKind));
-                    var invalid = TryGetFirstIllegalControlFlow(
-                        labeledStatement.Statement,
-                        labels,
-                        iterationDepth,
-                        switchDepth,
-                        out message,
-                        out source);
-                    labels.Pop();
-                    if (invalid)
-                    {
-                        return true;
-                    }
-
-                    break;
+                return;
             }
 
-            break;
+            if (!TryResolveLabel(_labels, node.Label, requireIteration: false))
+            {
+                SetError($"Undefined label '{node.Label.Name}' for break statement.", node.Source);
+            }
         }
 
-        message = string.Empty;
-        source = null;
-        return false;
+        protected override void VisitContinueStatement(ContinueStatement node)
+        {
+            if (node.Label is null)
+            {
+                if (_iterationDepth == 0)
+                {
+                    SetError("Illegal continue statement.", node.Source);
+                }
+
+                return;
+            }
+
+            if (!TryResolveLabel(_labels, node.Label, requireIteration: true))
+            {
+                SetError($"Undefined iteration label '{node.Label.Name}' for continue statement.", node.Source);
+            }
+        }
+
+        protected override void VisitWhileStatement(WhileStatement node)
+        {
+            VisitExpression(node.Condition);
+            if (ShouldStop)
+            {
+                return;
+            }
+
+            _iterationDepth++;
+            Visit(node.Body);
+            _iterationDepth--;
+        }
+
+        protected override void VisitDoWhileStatement(DoWhileStatement node)
+        {
+            _iterationDepth++;
+            Visit(node.Body);
+            _iterationDepth--;
+            if (!ShouldStop)
+            {
+                VisitExpression(node.Condition);
+            }
+        }
+
+        protected override void VisitForStatement(ForStatement node)
+        {
+            if (node.Initializer is not null)
+            {
+                Visit(node.Initializer);
+            }
+
+            if (!ShouldStop && node.Condition is not null)
+            {
+                VisitExpression(node.Condition);
+            }
+
+            if (!ShouldStop && node.Increment is not null)
+            {
+                VisitExpression(node.Increment);
+            }
+
+            if (ShouldStop)
+            {
+                return;
+            }
+
+            _iterationDepth++;
+            Visit(node.Body);
+            _iterationDepth--;
+        }
+
+        protected override void VisitForEachStatement(ForEachStatement node)
+        {
+            VisitBindingTarget(node.Target);
+            if (!ShouldStop)
+            {
+                VisitExpression(node.Iterable);
+            }
+
+            if (ShouldStop)
+            {
+                return;
+            }
+
+            _iterationDepth++;
+            Visit(node.Body);
+            _iterationDepth--;
+        }
+
+        protected override void VisitSwitchStatement(SwitchStatement node)
+        {
+            VisitExpression(node.Discriminant);
+            if (ShouldStop)
+            {
+                return;
+            }
+
+            _switchDepth++;
+            foreach (var caseNode in node.Cases)
+            {
+                if (ShouldStop)
+                {
+                    break;
+                }
+
+                if (caseNode.Test is not null)
+                {
+                    VisitExpression(caseNode.Test);
+                }
+
+                if (!ShouldStop)
+                {
+                    VisitBlockStatement(caseNode.Body);
+                }
+            }
+
+            _switchDepth--;
+        }
+
+        protected override void VisitLabeledStatement(LabeledStatement node)
+        {
+            var targetKind = GetLabelTargetKind(node.Statement);
+            _labels.Push((node.Label, targetKind));
+            Visit(node.Statement);
+            _labels.Pop();
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            VisitFunctionBoundary(() => base.VisitFunctionExpression(node));
+        }
+
+        protected override void VisitClassDeclaration(ClassDeclaration node)
+        {
+            VisitFunctionBoundary(() => base.VisitClassDeclaration(node));
+        }
+
+        protected override void VisitClassExpression(ClassExpression node)
+        {
+            VisitFunctionBoundary(() => base.VisitClassExpression(node));
+        }
+
+        private void VisitFunctionBoundary(Action visit)
+        {
+            var savedIterationDepth = _iterationDepth;
+            var savedSwitchDepth = _switchDepth;
+            var savedLabels = _labels.ToArray();
+
+            _iterationDepth = 0;
+            _switchDepth = 0;
+            _labels.Clear();
+            visit();
+            _labels.Clear();
+
+            for (var index = savedLabels.Length - 1; index >= 0; index--)
+            {
+                _labels.Push(savedLabels[index]);
+            }
+
+            _iterationDepth = savedIterationDepth;
+            _switchDepth = savedSwitchDepth;
+        }
+
+        private void SetError(string message, SourceReference? source)
+        {
+            _errorMessage = message;
+            _errorSource = source;
+            ShouldStop = true;
+        }
     }
 
     private static LabelTargetKind GetLabelTargetKind(StatementNode statement)

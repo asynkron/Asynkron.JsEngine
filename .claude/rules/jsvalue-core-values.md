@@ -50,6 +50,13 @@ When working inside the core engine, keep JavaScript values represented as
     `JsValue` and delete caller-side `JsValue.FromObjectUnsafe(...)` rewraps.
     Keep adjacent async, promise, or host-interop helpers separate unless the
     selected slice proves that boundary too.
+11. When replacing untyped `JsValue.TryGetObject(out object?)` extraction, audit
+    the old payload surface before narrowing to a concrete runtime type. If the
+    old object-carrier branch accepted interface-backed host or object-like
+    payloads, split the typed extraction into a concrete branch and an explicit
+    interface fallback, for example `TryGetObject<JsObject>` followed by
+    `TryGetObject<IJsPropertyAccessor>`. Do not silently collapse a previous
+    accessor-compatible path to `JsObject` only.
 
 ## Why
 
@@ -143,3 +150,13 @@ Array prototype helper migrations should keep the helper result typed once the
 selected callsites all require `JsValue`, and prove cleanup with a focused
 legacy-signature/wrapper search. Related ADR:
 `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`.
+
+Issue `autrun-dirquxdu7e2w-b1e0d8c752` / PR #1810 migrated
+`NumberPrototype.RequireNumberReceiver` away from untyped object extraction.
+Review feedback showed the important compatibility edge: replacing
+`TryGetObject(out object?)` with only `TryGetObject<JsObject>` would remove
+non-`JsObject` payloads that still implement `IJsPropertyAccessor` and were
+accepted by the old path. Future object-extraction migrations should use typed
+`JsValue` access without narrowing away interface-backed object semantics.
+Related ADR:
+`docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`.

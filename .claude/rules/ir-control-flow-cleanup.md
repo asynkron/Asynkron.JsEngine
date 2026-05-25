@@ -62,6 +62,11 @@ scope cleanup chains.
     only when the close path reports one, dispose the driver, and route through
     `HandleAbruptCompletion`. Do not rethrow a step `ThrowSignal` directly past
     destructuring cleanup.
+12. For classic `for (let ...)` statements, closures created from the loop test,
+    increment, and body must capture the loop-head lexical binding, while loop
+    exit restores the shadowed outer binding. Do not flatten the head binding
+    into the outer scope or treat test/increment expressions as outside the
+    loop-head environment to fix a close/cleanup symptom.
 
 ## Why
 
@@ -126,3 +131,11 @@ for active not-done iterators, honor a close-time throw if one occurs, dispose
 driver state, and only then route the final throw through execution-plan
 abrupt-completion handling. Related ADR:
 `docs/adrs/0129-keep-destructuring-step-throw-iterator-close-spec-ordered.md`.
+
+Issue #1838 / PR #1863 pinned the Test262
+`language/statements/for/scope-head-lex-close.js` shape after current main
+already passed the focused row. The useful lesson was not a source repair: keep
+the classic `for` loop-head lexical binding as the captured environment for
+closures created in condition, increment, and body, and separately prove that
+the outer binding is restored after exit. Related ADR:
+`docs/adrs/0130-keep-for-statement-lexical-head-closures-bound-to-loop-head.md`.

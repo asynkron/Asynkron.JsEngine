@@ -162,7 +162,40 @@ public static partial class TypedAstEvaluator
             }
 
             // Get next value from iterator
-            var (value, _) = state.Next(context);
+            JsValue value;
+            try
+            {
+                (value, _) = state.Next(context);
+            }
+            catch (ThrowSignal signal)
+            {
+                if (!context.IsThrow)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                }
+
+                var thrown = context.FlowValue;
+                context.Clear();
+                if (state.Iterator is not null && !state.Done)
+                {
+                    state.Iterator.IteratorClose(context, preserveExistingThrow: true);
+                    if (context.IsThrow)
+                    {
+                        thrown = context.FlowValue;
+                        context.Clear();
+                    }
+                }
+
+                state.Dispose();
+                if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+
+                runner.TryCatchStateRef.TryStack.Clear();
+                throw new ThrowSignal(thrown);
+            }
 
             if (context.IsThrow)
             {
@@ -241,7 +274,41 @@ public static partial class TypedAstEvaluator
 
             while (true)
             {
-                var (value, done) = state.Next(context);
+                JsValue value;
+                bool done;
+                try
+                {
+                    (value, done) = state.Next(context);
+                }
+                catch (ThrowSignal signal)
+                {
+                    if (!context.IsThrow)
+                    {
+                        context.SetThrow(signal.ThrownValue);
+                    }
+
+                    var thrown = context.FlowValue;
+                    context.Clear();
+                    if (state.Iterator is not null && !state.Done)
+                    {
+                        state.Iterator.IteratorClose(context, preserveExistingThrow: true);
+                        if (context.IsThrow)
+                        {
+                            thrown = context.FlowValue;
+                            context.Clear();
+                        }
+                    }
+
+                    state.Dispose();
+                    if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                    {
+                        returnValue = default;
+                        return InstructionResult.Continue;
+                    }
+
+                    runner.TryCatchStateRef.TryStack.Clear();
+                    throw new ThrowSignal(thrown);
+                }
 
                 if (context.IsThrow)
                 {

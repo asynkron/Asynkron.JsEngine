@@ -34,4 +34,22 @@ public sealed class PrivateNameEarlyErrorTests(ITestOutputHelper output) : Inter
 
         Assert.Equal(42.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task DirectEvalInsideClassMethod_InheritsPrivateNameScope()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+                                           class C {
+                                               #x = 42;
+                                               getViaEval() {
+                                                   return eval("this.#x");
+                                               }
+                                           }
+                                           new C().getViaEval();
+                                           """);
+
+        Assert.Equal(42.0, result);
+    }
 }

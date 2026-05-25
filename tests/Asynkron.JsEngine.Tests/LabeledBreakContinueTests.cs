@@ -9,6 +9,16 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class LabeledBreakContinueTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 2000)]
+    public async Task TopLevelBreakThrowsParseException()
+    {
+        await using var engine = CreateEngine();
+        await Assert.ThrowsAsync<Asynkron.JsEngine.Parser.ParseException>(async () =>
+        {
+            await engine.Evaluate("break;");
+        });
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task LabeledBreakExitsOuterLoop()
     {
         var source = @"

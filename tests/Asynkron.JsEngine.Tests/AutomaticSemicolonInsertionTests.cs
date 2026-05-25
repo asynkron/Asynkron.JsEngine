@@ -248,6 +248,21 @@ public sealed class AutomaticSemicolonInsertionTestsBase(ITestOutputHelper outpu
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BreakWithLineTerminatorDoesNotConsumeLabel()
+    {
+        await using var engine = CreateEngine();
+        await Assert.ThrowsAsync<ParseException>(async () =>
+        {
+            await engine.Evaluate(@"
+                outer: for (let i = 0; i < 2; i = i + 1) {
+                    break
+                    outer;
+                }
+            ");
+        });
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task IfStatementWithoutBraces()
     {
         await using var engine = CreateEngine();

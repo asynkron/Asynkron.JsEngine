@@ -315,7 +315,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         // Check for illegal return (from scanner) and illegal break/continue (needs separate check with label tracking)
         var hasIllegalReturn = (validationFlags & EvalValidationFlags.ContainsIllegalReturn) != 0;
-        var hasIllegalBreakOrContinue = ContainsIllegalBreakOrContinue(program.Body);
+        var hasIllegalBreakOrContinue = ControlFlowSyntaxValidator.TryGetFirstIllegalControlFlow(
+            program.Body,
+            out _,
+            out _);
 
         if (hasIllegalReturn || hasIllegalBreakOrContinue)
         {

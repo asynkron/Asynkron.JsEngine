@@ -132,6 +132,23 @@ legacy AST evaluator. The expression bytecode compiler/runner owns the
 spec-ordered split and must carry the metadata needed to distinguish ordinary
 nullish TypeError behavior from optional chaining.
 
+## Compound Indexed Assignment Nullish Order
+
+For expression bytecode that lowers compound indexed assignments such as
+`base[key] *= rhs`, keep the reference steps separate and ordered:
+
+- evaluate the base expression;
+- evaluate the computed key expression;
+- require the base to be object-coercible before converting the key;
+- resolve the property key exactly once;
+- read the old value, evaluate the RHS, apply the compound operator, and write
+  the result back through the captured reference.
+
+When the base is not at the top of the expression-program stack, use an explicit
+operation that checks the correct stack depth instead of reordering the stack by
+running `ToPropertyKey` first. Do not repair this class of issue by routing the
+compound assignment through the legacy AST evaluator.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -290,6 +307,13 @@ throwing a JavaScript `TypeError`. The durable lesson is that ordinary
 ordinary reads evaluate the key expression before the nullish-base `TypeError`
 but must not convert the key afterward, while optional reads skip the key
 entirely when the base short-circuits.
+
+Issue #1829 fixed compound indexed assignment ordering for nullish bases. The
+durable lesson is that `base[key] op= rhs` has the same observable key/base
+boundary as computed member access, but the bytecode stack shape is different:
+the compiler must check the base at the correct stack depth before
+`ToPropertyKey`, then reuse the resolved key for both the old-value read and
+final writeback.
 
 Issue #806 / PR #999 fixed the `Intl.NumberFormat`
 `constructor-locales-hasproperty` fixture after `Array.prototype.push` stored

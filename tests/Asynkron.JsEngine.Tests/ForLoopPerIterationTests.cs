@@ -118,4 +118,35 @@ public sealed class ForLoopPerIterationTests(ITestOutputHelper output) : Interna
 
         Assert.Equal(10d, result);
     }
+
+    [Fact]
+    public async Task ForLoop_LexicalHeadClosure_RestoresOuterBinding_ScopeHeadLexClose()
+    {
+        // Mirrors test262: language/statements/for/scope-head-lex-close.js
+        const string source = """
+            let probeTest, probeIncr, probeBody;
+            let x = 'outside';
+            let run = true;
+
+            for (
+                let x = 'inside';
+                run && (probeTest = () => x);
+                probeIncr = () => x
+            ) {
+                probeBody = () => x;
+                run = false;
+            }
+
+            [probeBody(), probeIncr(), probeTest(), x];
+            """;
+
+        await using var engine = TestEngineFactory.CreateDebugEngine(
+            new TestLogger(Output, nameof(ForLoopPerIterationTests)));
+        var result = await engine.Evaluate(source);
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("inside", array.GetElement(0).ToObject());
+        Assert.Equal("inside", array.GetElement(1).ToObject());
+        Assert.Equal("inside", array.GetElement(2).ToObject());
+        Assert.Equal("outside", array.GetElement(3).ToObject());
+    }
 }

@@ -354,6 +354,14 @@ agent-facing focused proof examples from bare `dotnet test` to
 `rtk dotnet test`, without changing Test262 policy, source code, recurrence
 infrastructure, or broader proof guidance.
 
+Issue #1925 / PR #1930 closed the adjacent Test262 README ambiguity: the
+operator command is `rtk ./tools/run-test262-regressions.sh`, while the raw
+`dotnet test` line shown underneath is the script's internal runner invocation,
+not a second command agents should copy/paste directly. Future workflow-doc
+slices should make that distinction explicit when documenting wrapper scripts,
+so command examples stay aligned with the repo's `rtk` contract without
+rewriting the wrapper's own internals.
+
 Issue #1666 / PR #1674 clarified the remaining ambiguity in that same workflow
 guidance: `rtk make quality` is the canonical local build/test evidence gate for
 recurring-child runs, but it is not permission to skip the mandatory pre-PR

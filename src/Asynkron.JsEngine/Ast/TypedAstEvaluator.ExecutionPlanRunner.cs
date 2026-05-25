@@ -96,6 +96,9 @@ public static partial class TypedAstEvaluator
         private JsValue _scriptCompletionValue = JsValue.Unit;
         private GeneratorState _state = GeneratorState.Start;
         private bool _rootScopeLogged;
+        private bool _tailRestartRequested;
+        private JsValue[]? _tailRestartArguments;
+        private JsValue _tailRestartThisValue;
         private JsValue[]? _expressionStackBuffer;
         private ulong[]? _expressionFlagBuffer;
         private int _expressionBufferLeaseCount;

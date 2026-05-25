@@ -157,7 +157,11 @@ public static partial class TypedAstEvaluator
             var returnVal = instruction.AwaitedProgram is { } awaitedProgram
                 ? runner.EvaluateAwaitInGenerator(instruction.AwaitStateKey!, awaitedProgram, environment, context)
                 : instruction.ReturnProgram is { } returnProgram
-                    ? runner.EvaluateExpressionProgram(returnProgram, environment, context)
+                    ? runner.EvaluateExpressionProgram(
+                        returnProgram,
+                        environment,
+                        context,
+                        tailPosition: !runner.HasActiveFinallyFrame())
                     : JsValue.Undefined;
 
             if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingReturnResult, environment))
@@ -178,11 +182,6 @@ public static partial class TypedAstEvaluator
                 returnVal = pendingReturn;
             }
 
-            if (runner.TryCompleteRawSyncReturn(returnVal, out returnValue))
-            {
-                return InstructionResult.Return;
-            }
-
             var wasInsideScheduledFinally = runner.IsInsideScheduledFinally();
             if (runner.HandleAbruptCompletion(AbruptKind.Return, returnVal))
             {
@@ -198,6 +197,22 @@ public static partial class TypedAstEvaluator
                 }
                 returnValue = default;
                 return InstructionResult.Continue;
+            }
+
+            if (runner.TryRestartTailCall())
+            {
+                if (runner._executionEnvironment is { } executionEnvironment)
+                {
+                    environment = executionEnvironment;
+                }
+
+                returnValue = default;
+                return InstructionResult.Continue;
+            }
+
+            if (runner.TryCompleteRawSyncReturn(returnVal, out returnValue))
+            {
+                return InstructionResult.Return;
             }
 
             returnValue = runner.CompleteReturn(returnVal);

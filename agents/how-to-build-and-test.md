@@ -45,6 +45,9 @@ maintenance pass, keep the slice repo-local and reviewable:
 1. Check active sibling child log summaries before choosing a slice so this
    run intentionally avoids overlapping sibling work; record the sibling check
    in the issue update.
+   If sibling summaries or other issue context are unavailable, record that
+   lookup as unavailable evidence and continue from maintained repository docs
+   and local code context instead of blocking the run.
 2. Choose exactly one docs, tooling, test-fixture, or workflow simplification
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.
@@ -55,6 +58,9 @@ maintenance pass, keep the slice repo-local and reviewable:
    follow `.claude/rules/agent-context-issues.md` and
    `.claude/rules/recurring-maintenance-child-runs.md` instead of duplicating
    those details in this operational checklist.
+   In Faktorial runs, use supplied Source Context or the HTTP API before raw
+   logs; keep raw-log searches narrow and do not run the host `faktorial`
+   daemon binary for issue, log, or state reads.
 4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
    `faktorial-api adr-next` first and use the returned `adr_id`; if the lesson
    fits an existing durable document, update that file instead of creating a

@@ -2,6 +2,7 @@
 
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -141,6 +142,13 @@ public static partial class TypedAstEvaluator
             {
                 return left.NumberValue + right.NumberValue;
             }
+
+            if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
+            {
+                var result = JsRopeString.Concat(left.ObjectValue!, right.ObjectValue!);
+                return new JsValue(JsValueKind.String, 0.0, result);
+            }
+
             // Return sentinel to indicate slow path needed
             return JsValue.Undefined;
         }

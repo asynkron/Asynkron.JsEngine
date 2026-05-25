@@ -63,7 +63,7 @@ public static partial class TypedAstEvaluator
                                      !simpleCatchParameterNames.Contains(Symbol.Arguments);
             var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
             var argumentsObjectNeededBySpec = !argumentsIsParam && !canSkipForBodyDecl;
-            var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec;
+            var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
             if (needsArgumentsObject)
             {
                 blockedFunctionVarNames.Add(Symbol.Arguments);

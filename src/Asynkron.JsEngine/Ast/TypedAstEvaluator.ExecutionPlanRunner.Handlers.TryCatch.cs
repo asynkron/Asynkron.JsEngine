@@ -195,11 +195,21 @@ public static partial class TypedAstEvaluator
             {
                 if (runner._programCounter == runner._currentInstructionIndex)
                 {
-                    runner._programCounter = instruction.Next;
+                    if (runner.TryCatchStateRef.TryStack.Count > 0)
+                    {
+                        runner.TryCatchStateRef.TryStack.Pop();
+                        if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                        {
+                            returnValue = default;
+                            return InstructionResult.Continue;
+                        }
+                    }
                 }
-
-                returnValue = default;
-                return InstructionResult.Continue;
+                else
+                {
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
             }
 
             runner.TryCatchStateRef.TryStack.Clear();

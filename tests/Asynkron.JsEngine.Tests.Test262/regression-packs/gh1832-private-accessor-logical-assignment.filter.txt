@@ -1,0 +1,10 @@
+# Test262 issue pack: gh1832 private accessor logical assignment rows
+# Source issue: gh1832
+# Rows: 7
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-and.js&FullyQualifiedName~False
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-and.js&FullyQualifiedName~True
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-nullish.js&FullyQualifiedName~False
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-nullish.js&FullyQualifiedName~True
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-or.js&FullyQualifiedName~False
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-or.js&FullyQualifiedName~True
+FullyQualifiedName~Expressions_logicalAssignment&FullyQualifiedName~left-hand-side-private-reference-accessor-property-short-circuit-and.js&FullyQualifiedName~False

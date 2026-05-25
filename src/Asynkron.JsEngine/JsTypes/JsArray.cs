@@ -747,6 +747,29 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return true;
     }
 
+    /// <summary>
+    /// Fast path for the common Array.prototype.push(value) case on plain arrays.
+    /// Falls back whenever Set semantics could observe indexed descriptors,
+    /// prototype traps, extensibility, or non-writable length.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal bool TryPushSingleFast(JsValue value, out JsValue newLength)
+    {
+        newLength = JsValue.Undefined;
+        if (_length == MaxArrayLength ||
+            _properties.HasNumericDescriptorKeys() ||
+            !IsExtensible ||
+            !IsLengthWritable() ||
+            HasIndexedPrototypeOverride(_length))
+        {
+            return false;
+        }
+
+        SetElementFast(_length, value);
+        newLength = new JsValue((double)_length);
+        return true;
+    }
+
     public void SetElement(int index, JsValue value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
@@ -908,6 +931,40 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
             return null;
         }
+    }
+
+    private bool HasIndexedPrototypeOverride(uint index)
+    {
+        var propertyKey = index.ToString(CultureInfo.InvariantCulture);
+        var current = _properties.PrototypeAccessor ?? GetArrayPrototype();
+        var depth = 0;
+        while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
+        {
+            if (current is JsProxy)
+            {
+                return true;
+            }
+
+            if (current.GetOwnPropertyDescriptor(propertyKey) is not null)
+            {
+                return true;
+            }
+
+            IJsPropertyAccessor? next = null;
+            if (current is IJsObjectLike objectLike)
+            {
+                next = objectLike.Prototype;
+            }
+
+            if (next is null && current is IPrototypeAccessorProvider provider)
+            {
+                next = provider.PrototypeAccessor;
+            }
+
+            current = next;
+        }
+
+        return false;
     }
 
     private bool StoreElement(uint index, JsValue value)

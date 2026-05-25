@@ -2713,12 +2713,17 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case 1:
-                            result = InvokeCallableSingleArg(
-                                callable,
-                                stack[calleeIndex + 1],
-                                thisValue,
-                                context,
-                                environment);
+                            var singleArgument = stack[calleeIndex + 1];
+                            if (!TryInvokeArrayPushSingleFast(callable, thisValue, singleArgument, out result))
+                            {
+                                result = InvokeCallableSingleArg(
+                                    callable,
+                                    singleArgument,
+                                    thisValue,
+                                    context,
+                                    environment);
+                            }
+
                             break;
 
                         case 2:
@@ -3047,6 +3052,23 @@ public static partial class TypedAstEvaluator
                     context.CallDepth--;
                 }
             }
+        }
+
+        private static bool TryInvokeArrayPushSingleFast(
+            IJsCallable callable,
+            JsValue thisValue,
+            JsValue argument,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (callable is not HostFunction hostFunction ||
+                !hostFunction.HasNativeSourceDisplayName("push") ||
+                !thisValue.TryGetObject<JsArray>(out var array))
+            {
+                return false;
+            }
+
+            return array.TryPushSingleFast(argument, out result);
         }
 
         private IReadOnlyList<JsValue> MaterializeProgramArguments(

@@ -1156,6 +1156,12 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return descriptor is not { HasWritable: true, Writable: false };
     }
 
+    internal bool SetLength(JsValue value, EvaluationContext? context, bool throwOnWritableFailure = true)
+    {
+        return TrySetArrayLength(true, value, false, true, context, throwOnWritableFailure);
+    }
+
+    [Obsolete("Use SetLength(JsValue, ...) overload", true)]
     internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
     {
         return TrySetArrayLength(true, JsValue.FromObjectUnsafe(value), false, true, context,

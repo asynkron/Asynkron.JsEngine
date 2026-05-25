@@ -475,14 +475,23 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                         environment.RealmState);
                 }
 
+                // In sloppy direct eval inside a function parameter environment,
+                // `var arguments` is only rejected by the dedicated non-simple
+                // parameter guard above. Do not treat the parameter `arguments`
+                // slot itself as a lexical conflict.
+                var skipArgumentsLexicalCollision =
+                    isDirectEval &&
+                    environment.IsParameterEnvironment &&
+                    ReferenceEquals(name, Symbol.Arguments);
+
                 var hasGlobalLexical =
-                    HasLexicalInChain(lexicalEnv, name) ||
-                    HasLexicalInChain(varEnv, name) ||
+                    (!skipArgumentsLexicalCollision && HasLexicalInChain(lexicalEnv, name)) ||
+                    (!skipArgumentsLexicalCollision && HasLexicalInChain(varEnv, name)) ||
                     globalLexicalRecord.HasGlobalLexicalDeclaration(name);
                 // EvalDeclarationInstantiation (18.2.1.3, step 5.d) rejects var names
                 // that collide with existing lexical bindings on the path to the var
                 // environment, except for simple catch parameters (Annex B.3.3.3).
-                if (HasDeclarativeBindingBetween(lexicalEnv, varEnv, name) || hasGlobalLexical)
+                if ((!skipArgumentsLexicalCollision && HasDeclarativeBindingBetween(lexicalEnv, varEnv, name)) || hasGlobalLexical)
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",

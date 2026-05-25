@@ -61,7 +61,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnFunction_NonNumberArgumentsStayOnIrReturnFastPath()
+    public async Task SimpleReturnFunction_NonNumberArgumentsDoNotUseCallerOrReturnFastPaths()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -85,9 +85,9 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
@@ -112,7 +112,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("fast path throw", result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 

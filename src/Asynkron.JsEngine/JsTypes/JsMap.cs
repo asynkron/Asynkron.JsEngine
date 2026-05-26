@@ -119,6 +119,18 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public IJsPropertyAccessor? PrototypeAccessor =>
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name) =>
+        _properties.GetOwnPropertyDescriptor(name);
+
+    public IEnumerable<string> GetOwnPropertyNames() =>
+        _properties.GetOwnPropertyNames();
+
+    public IEnumerable<string> GetEnumerablePropertyNames() =>
+        _properties.GetEnumerablePropertyNames();
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true) =>
+        _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+
     internal KeyValuePair<JsValue, JsValue> GetEntry(int index)
     {
         var entry = _insertionOrder[index];

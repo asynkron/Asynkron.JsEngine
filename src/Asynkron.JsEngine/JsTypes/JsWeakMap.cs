@@ -91,6 +91,18 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public IJsPropertyAccessor? PrototypeAccessor =>
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name) =>
+        _properties.GetOwnPropertyDescriptor(name);
+
+    public IEnumerable<string> GetOwnPropertyNames() =>
+        _properties.GetOwnPropertyNames();
+
+    public IEnumerable<string> GetEnumerablePropertyNames() =>
+        _properties.GetEnumerablePropertyNames();
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true) =>
+        _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+
     /// <summary>
     ///     Sets the value for the key in the WeakMap. Returns the WeakMap object to allow chaining.
     ///     The key must be an object (not a primitive value).

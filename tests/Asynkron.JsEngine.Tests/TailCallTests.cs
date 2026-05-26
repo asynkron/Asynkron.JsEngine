@@ -558,6 +558,34 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaWeakMapCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let wm = new WeakMap();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        wm.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return wm.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaMapValue()
     {
         await using var engine = CreateEngine();
@@ -615,6 +643,34 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaMapCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let map = new Map();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        map.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return map.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaSetValue()
     {
         await using var engine = CreateEngine();
@@ -639,6 +695,34 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
                 return getF()(n - 1);
             }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaSetCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let set = new Set();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        set.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return set.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
             """);
 
         Assert.Equal(1d, result);

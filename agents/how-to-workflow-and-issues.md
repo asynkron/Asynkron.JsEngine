@@ -25,6 +25,14 @@ This step is **critical** - agent investigation findings are lost if not documen
 ## GitHub Issue Logging (persistent working memory)
 - Treat GitHub issues as the long-lived log of progress, research, and reasoning.
 - When running inside Faktorial and Source Context or the Faktorial API is supplied, use that context/API as the authoritative source for issue details, comments, stage history, logs, and write actions. Do not treat missing `gh` CLI auth in that runtime as a blocker.
+- Runtime read order for Faktorial agent runs:
+  - 1) Use supplied Source Context first.
+  - 2) Use supplied Faktorial HTTP API endpoints next.
+  - 3) Prefer compact summaries before raw logs.
+  - 4) Only then consider external GitHub reads if required and allowed.
+- Do not run the host `faktorial` binary for issue, log, or state reads from an agent runtime.
+- Compact summary example:
+  - `curl -fsS "${FAKTORIAL_URL:-http://127.0.0.1:8787}/api/logs/<task-id>/summary"`
 - Use the `gh` CLI patterns below for ordinary local/manual GitHub workflows, or only in Faktorial when explicitly instructed and the runtime context does not provide the needed operation.
 - In Faktorial runs, keep evidence collection output-bounded:
   - Prefer compact helpers or API summaries before opening raw logs or broad state snapshots.

@@ -116,6 +116,39 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // are stored in JsObject's _descriptors dictionary, not in _storage.Keys
         _properties.HasNumericDescriptorKeys();
 
+    internal bool HasDefaultValuesIteratorForFastDestructuring()
+    {
+        EnsureArrayPrototype();
+
+        if (_properties.GetOwnPropertyDescriptor(SymbolKeys.Iterator) is not null)
+        {
+            return false;
+        }
+
+        return _properties.TryGetProperty(SymbolKeys.Iterator, _cachedJsValue, out var iteratorValue) &&
+               iteratorValue.TryGetObject<HostFunction>(out var iteratorFunction) &&
+               iteratorFunction.HasNativeSourceDisplayName("values") &&
+               HasDefaultArrayIteratorNextForFastDestructuring();
+    }
+
+    private bool HasDefaultArrayIteratorNextForFastDestructuring()
+    {
+        var iteratorPrototype = RealmState?.ArrayIteratorPrototype;
+        if (iteratorPrototype is null)
+        {
+            return true;
+        }
+
+        if (iteratorPrototype.TryGetProperty("return", out var returnValue) && !returnValue.IsNullOrUndefined)
+        {
+            return false;
+        }
+
+        return iteratorPrototype.TryGetProperty("next", out var nextValue) &&
+               nextValue.TryGetObject<HostFunction>(out var nextFunction) &&
+               nextFunction.HasNativeSourceDisplayName("next");
+    }
+
     /// <summary>
     /// <para>
     /// Returns an enumerator that iterates through the array elements.

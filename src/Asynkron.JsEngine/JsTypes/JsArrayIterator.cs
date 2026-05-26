@@ -1,5 +1,6 @@
 #region
 
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 
@@ -93,6 +94,66 @@ internal sealed class JsArrayIterator : JsIteratorBase
 
         _done = true;
         return IteratorResultObject.DoneUndefined.AsJsValue;
+    }
+
+    internal bool TryNextValueFast(IJsCallable nextMethod, EvaluationContext context, out JsValue value, out bool done)
+    {
+        value = JsValue.Undefined;
+        done = true;
+
+        if (_kind != ArrayIteratorKind.Values ||
+            nextMethod is not HostFunction hostFunction ||
+            !hostFunction.HasNativeSourceDisplayName("next"))
+        {
+            return false;
+        }
+
+        if (_done)
+        {
+            return true;
+        }
+
+        var typedArray = _accessor as TypedArrayBase;
+        if (typedArray is not null)
+        {
+            if (typedArray.IsDetachedOrOutOfBounds())
+            {
+                throw typedArray.CreateOutOfBoundsTypeError();
+            }
+
+            typedArray.AssertInvariants(nameof(TryNextValueFast));
+        }
+
+        uint length;
+        if (typedArray is not null)
+        {
+            length = (uint)Math.Max(typedArray.Length, 0);
+        }
+        else
+        {
+            if (!_accessor.TryGetProperty("length", out var lenVal))
+            {
+                lenVal = JsValue.Zero;
+            }
+
+            var evalContext = _realm?.CreateContext() ?? context;
+            length = (uint)Math.Min(Math.Max(StandardLibrary.ToLengthOrZero(lenVal, evalContext), 0), uint.MaxValue);
+            if (evalContext.IsThrow)
+            {
+                throw new ThrowSignal(evalContext.FlowValue);
+            }
+        }
+
+        if (_index < length)
+        {
+            value = ProjectIteratorValue(typedArray);
+            _index++;
+            done = false;
+            return true;
+        }
+
+        _done = true;
+        return true;
     }
 
     private JsValue ProjectIteratorValue(TypedArrayBase? typedArray)

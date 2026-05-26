@@ -356,6 +356,11 @@ public static partial class TypedAstEvaluator
             EvaluationContext context,
             BindingMode mode)
         {
+            if (TryBindDenseArrayPatternProgram(binding, value, environment, context, mode))
+            {
+                return;
+            }
+
             if (!TryGetIteratorForDestructuring(value, context, out var iterator, out var enumerator))
             {
                 if (context.ShouldStopEvaluation)
@@ -607,6 +612,64 @@ public static partial class TypedAstEvaluator
                     activeIteratorState?.MarkIteratorClosed();
                 }
             }
+        }
+
+        private bool TryBindDenseArrayPatternProgram(
+            ArrayBindingTargetProgram binding,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode)
+        {
+            if (binding.RestElement is not null ||
+                context.InGeneratorContext ||
+                !value.TryGetObject<JsArray>(out var array) ||
+                array.HasCustomIndexedProperties ||
+                !array.HasDefaultValuesIteratorForFastDestructuring())
+            {
+                return false;
+            }
+
+            var elements = binding.Elements;
+            for (var i = 0; i < elements.Length; i++)
+            {
+                var element = elements[i];
+                if (element is not { Target: IdentifierBindingTargetProgram, DefaultProgram: null } &&
+                    element.Target is not null)
+                {
+                    return false;
+                }
+
+                if (!array.HasOwnIndex((uint)i))
+                {
+                    return false;
+                }
+            }
+
+            for (var i = 0; i < elements.Length; i++)
+            {
+                if (elements[i].Target is not IdentifierBindingTargetProgram identifier)
+                {
+                    continue;
+                }
+
+                ApplyIdentifierBindingProgram(
+                    identifier.Name,
+                    array.GetElement((uint)i),
+                    environment,
+                    context,
+                    mode,
+                    hasInitializer: true,
+                    allowNameInference: false,
+                    skipBlockedBindingLookup: false);
+
+                if (context.ShouldStopEvaluation)
+                {
+                    return true;
+                }
+            }
+
+            return true;
         }
 
         private sealed class ActiveArrayPatternIteratorState(IJsObjectLike iterator) : IActiveIteratorState

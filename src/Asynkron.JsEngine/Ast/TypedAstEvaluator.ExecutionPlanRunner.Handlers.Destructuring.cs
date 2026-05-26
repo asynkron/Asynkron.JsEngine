@@ -43,7 +43,22 @@ public static partial class TypedAstEvaluator
                 }
 
                 NextMethod ??= Iterator.GetIteratorNextCallable(context);
+                if (Iterator is JsArrayIterator arrayIterator &&
+                    arrayIterator.TryNextValueFast(NextMethod, context, out var fastValue, out var fastDone))
+                {
+                    Done = fastDone;
+                    return fastDone ? (JsValue.Undefined, true) : (fastValue, false);
+                }
+
                 var candidate = Iterator.InvokeIteratorNext(NextMethod, context: context);
+                if (candidate.TryGetObject<IteratorResultObject>(out var iteratorResult))
+                {
+                    iteratorResult.Deconstruct(out var resultValue, out var resultDone);
+                    IteratorResultObjectPool.Return(iteratorResult);
+                    Done = resultDone;
+                    return resultDone ? (JsValue.Undefined, true) : (resultValue, false);
+                }
+
                 if (!candidate.TryGetObject<IJsObjectLike>(out var result))
                 {
                     throw StandardLibrary.ThrowTypeError("Iterator result is not an object.", context);

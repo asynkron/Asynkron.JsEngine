@@ -61,6 +61,14 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
         IsCaptured = false;
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal void Deconstruct(out JsValue value, out bool done)
+    {
+        AssertOwnership(nameof(Deconstruct));
+        value = _value;
+        done = _done;
+    }
+
     /// <summary>
     /// Creates an iterator result. For done=true with undefined value, returns a cached singleton.
     /// Uses pooling for non-done results to reduce allocations in hot loops.

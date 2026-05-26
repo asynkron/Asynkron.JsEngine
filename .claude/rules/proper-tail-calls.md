@@ -68,6 +68,12 @@ tail restart behavior, keep runtime context ownership explicit.
     parameters, reset function-scoped `var` and top-level lexical bindings,
     strict `this` rebinding, `new.target` reset/rebinding, and preserved
     `finally` completion ordering.
+15. Keep internal tail-call smoke-test depths guard-sized. When the test only
+    needs to prove stack-depth stability, choose a depth that exceeds the
+    engine's current `MaxCallDepth` guard but stays inside the internal-suite
+    timeout and log-output budget. Do not copy Test262-scale counts such as
+    `100000` into internal smoke tests unless that exact scale is the behavior
+    under test and the focused command is proven under the repository timeout.
 
 ## Why
 
@@ -130,6 +136,15 @@ same delivery also refreshed call-entry state on legacy restarts so `arguments`,
 function-scoped `var`, top-level lexical TDZ, `new.target`, strict `this`, and
 `finally` completion replacement stayed observable as a fresh call.
 
+Issue #2199 / PR #2200 exposed a test-fixture failure mode on the same proof
+surface. Two internal `TailCallTests` used a depth of `100000` only to prove
+that restarts crossed the `MaxCallDepth` guard, which caused a red main-health
+run through repeated `getF` debug logger output and an overlong narrow test.
+Reducing those probes to `1500` preserved proof beyond the current guard of
+`1000` while keeping the focused command and `make quality` green. Future
+tail-call proof additions should size internal smoke depths against the guard,
+not against arbitrary Test262-scale iteration counts.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
@@ -137,3 +152,4 @@ Related ADRs:
 - `docs/adrs/0144-keep-dictionary-tail-restarts-strict-and-simple.md`
 - `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`
 - `docs/adrs/0162-keep-tail-restarts-activation-capture-safe-after-arguments.md`
+- `docs/adrs/0197-keep-tail-call-smoke-depths-guard-sized.md`

@@ -395,6 +395,13 @@ handoffs. The evidence was investigate-stage progress updates that resembled a
 final structured reply and polluted run-state interpretation before
 implementation finished.
 
+Issue #2029 / PR #2035 confirmed the operational checklist mirror must carry
+that same stage-neutral boundary. The semantic home already owned the rule, but
+the checklist wording was easier to read as build-stage-only guidance. Future
+compaction passes should verify both the semantic home and the operational
+mirror with a targeted overlap signal instead of adding a new incident-specific
+rule.
+
 Issue #1650 / PR #1652 was a recurring documentation child that found
 `agents/how-to-worktrees.md` still teaching unwrapped `git`, `gh`, and
 `dotnet build && dotnet test` examples even though the repo-level agent

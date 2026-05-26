@@ -41,6 +41,12 @@ Issue #2150 follows through on that gap by requiring comparable selected-profile
 rows and explicitly separating timing and allocation claims when timing is
 noisy.
 
+The #2150 build-back also exposed a second evidence boundary: the selected
+`stringops` workload currently exercises `split("")`, not the non-empty
+separator branch. The final report therefore had to narrow the profile claim to
+the executed empty-separator split plus dense join path and leave non-empty
+separator behavior backed by focused regression tests.
+
 ## Decision
 
 Keep this follow-up split/join optimization consumer-owned and semantics-first:
@@ -66,7 +72,9 @@ Keep this follow-up split/join optimization consumer-owned and semantics-first:
 6. Performance reports for this class must include comparable selected-profile
    before/after rows when the issue acceptance asks for a reduction claim. If
    timing is noisy, report allocation and timing separately instead of implying
-   a timing win.
+   a timing win. If a selected workload does not execute a changed branch, name
+   that boundary explicitly or add a dedicated workload before claiming profile
+   coverage for that branch.
 
 ## Consequences
 
@@ -82,6 +90,9 @@ Keep this follow-up split/join optimization consumer-owned and semantics-first:
 - Build-stage summaries for performance issues should carry the selected
   profile rows, not leave review to rediscover whether acceptance criterion
   evidence exists.
+- Selected-profile reports must distinguish "this workload executed the path"
+  from "focused regressions prove the path's semantics"; merging the two turns a
+  valid evidence slice into an overclaim.
 
 ## Related
 

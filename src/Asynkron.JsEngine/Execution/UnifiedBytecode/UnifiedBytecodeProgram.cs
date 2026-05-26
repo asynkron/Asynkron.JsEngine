@@ -5,6 +5,7 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 internal enum UnifiedBytecodeOpCode : byte
 {
     LoadSlot,
+    LoadLiteral,
     StoreSlot,
     Binary,
     Return
@@ -16,4 +17,5 @@ internal readonly record struct UnifiedBytecodeInstruction(
 
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
-    int MaxStackDepth);
+    int MaxStackDepth,
+    ImmutableArray<JsTypes.JsValue> LiteralConstants);

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
@@ -34,78 +35,76 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var entryInstruction = plan.Instructions[plan.EntryPoint];
-        if (entryInstruction is ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null })
+        var instructionIndex = plan.EntryPoint;
+        var instructions = plan.Instructions;
+        var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
+        var maxStackDepth = 0;
+
+        while (true)
         {
-            var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>(returnProgram.OperationCount + 1);
-            if (!TryAppendExpressionProgramOps(returnProgram, plan.ActivationSlots, unified, out reason))
+            if ((uint)instructionIndex >= (uint)instructions.Length)
             {
                 program = EmptyProgram();
+                reason = "Linear instruction flow reached an invalid target index.";
                 return false;
             }
 
-            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
-            program = new UnifiedBytecodeProgram(unified.MoveToImmutable(), returnProgram.MaxStackDepth);
-            reason = string.Empty;
-            return true;
-        }
-
-        if (entryInstruction is not SimpleVariableDeclarationInstruction
+            switch (instructions[instructionIndex])
             {
-                InitializerProgram: { } initializerProgram,
-                AwaitedProgram: null,
-                TargetSymbol: { } targetSymbol
-            } declaration)
-        {
-            program = EmptyProgram();
-            reason = "Entrypoint must be a non-awaited ReturnInstruction or a simple local declaration followed by return.";
-            return false;
-        }
+                case SimpleVariableDeclarationInstruction
+                    {
+                        InitializerProgram: { } initializerProgram,
+                        AwaitedProgram: null,
+                        TargetSymbol: { } targetSymbol
+                    } declaration:
+                    if (!TryResolveActivationSlot(targetSymbol, plan.ActivationSlots, out var storeSlot))
+                    {
+                        program = EmptyProgram();
+                        reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
+                        return false;
+                    }
 
-        if ((uint)declaration.Next >= (uint)plan.Instructions.Length ||
-            plan.Instructions[declaration.Next] is not ReturnInstruction { ReturnProgram: { } linearReturnProgram, AwaitedProgram: null })
-        {
-            program = EmptyProgram();
-            reason = "Simple declaration entrypoint must be followed immediately by a non-awaited ReturnInstruction with ReturnProgram.";
-            return false;
-        }
+                    if (!TryAppendExpressionProgramOps(initializerProgram, plan.ActivationSlots, unified, literalConstants, out reason))
+                    {
+                        program = EmptyProgram();
+                        return false;
+                    }
 
-        if (!TryResolveActivationSlot(targetSymbol, plan.ActivationSlots, out var storeSlot))
-        {
-            program = EmptyProgram();
-            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
-            return false;
-        }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
+                    maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                    instructionIndex = declaration.Next;
+                    continue;
 
-        var capacity = initializerProgram.OperationCount + linearReturnProgram.OperationCount + 2;
-        var linearUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>(capacity);
-        if (!TryAppendExpressionProgramOps(initializerProgram, plan.ActivationSlots, linearUnified, out reason))
-        {
-            program = EmptyProgram();
-            return false;
-        }
+                case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
+                    if (!TryAppendExpressionProgramOps(returnProgram, plan.ActivationSlots, unified, literalConstants, out reason))
+                    {
+                        program = EmptyProgram();
+                        return false;
+                    }
 
-        linearUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
-        if (!TryAppendExpressionProgramOps(linearReturnProgram, plan.ActivationSlots, linearUnified, out reason))
-        {
-            program = EmptyProgram();
-            return false;
-        }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+                    maxStackDepth = Math.Max(maxStackDepth, returnProgram.MaxStackDepth);
+                    program = new UnifiedBytecodeProgram(unified.ToImmutable(), maxStackDepth, literalConstants.ToImmutable());
+                    reason = string.Empty;
+                    return true;
 
-        linearUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
-        program = new UnifiedBytecodeProgram(
-            linearUnified.MoveToImmutable(),
-            Math.Max(initializerProgram.MaxStackDepth, linearReturnProgram.MaxStackDepth));
-        reason = string.Empty;
-        return true;
+                default:
+                    program = EmptyProgram();
+                    reason = "Entrypoint must be a linear chain of non-awaited simple local declarations followed by a non-awaited ReturnInstruction.";
+                    return false;
+            }
+        }
     }
 
-    private static UnifiedBytecodeProgram EmptyProgram() => new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0);
+    private static UnifiedBytecodeProgram EmptyProgram() =>
+        new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0, ImmutableArray<JsValue>.Empty);
 
     private static bool TryAppendExpressionProgramOps(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
         out string reason)
     {
         foreach (var operation in expressionProgram.EnumerateOperations())
@@ -129,7 +128,19 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
                     break;
 
-                case ExpressionOpKind.Binary when operation.Operator == BinaryOperator.Add:
+                case ExpressionOpKind.LoadLiteral:
+                    var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
+                    var literalIndex = literalConstants.Count;
+                    literalConstants.Add(literal);
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
+                    break;
+
+                case ExpressionOpKind.Binary when operation.Operator is
+                    BinaryOperator.Add or
+                    BinaryOperator.Subtract or
+                    BinaryOperator.Multiply or
+                    BinaryOperator.Divide or
+                    BinaryOperator.Modulo:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
 

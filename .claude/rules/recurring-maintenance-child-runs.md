@@ -22,6 +22,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   whole checklist outside `agents/how-to-build-and-test.md`.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
+- Treat issue context markers such as `Part of automation template` or
+  `trigger=automation recurrence` as classification for one runnable bounded
+  child delivery, not as a request to design persistent setup or scheduler
+  behavior in this repository.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
 - If canonical quality verification reports a recurring-child docs or rule

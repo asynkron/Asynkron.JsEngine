@@ -283,6 +283,15 @@ setter and record the before/after legacy-setter signal in the delivery
 evidence so reviewers do not have to reconstruct whether the selected slice was
 fully migrated.
 
+Issue `autrun-dis8iqp0agxk-43776f3f25` / PR #1984 applied the same descriptor
+setter migration to `JsArgumentsObject` constructor setup. Even in a tiny
+three-site slice, `length`, internal marker, and mapped `callee` descriptor
+values are core JavaScript data values, not host-interop boundaries. Future
+arguments-object or descriptor cleanup should keep these constructor
+initializers on `JsValue =`, use an explicit conversion only for unavoidable
+legacy object payloads, and prove the slice with a scoped `\bValue\s*=` search
+plus the focused arguments-object tests.
+
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`
 context-aware property-read flow from the legacy object-carrier overload to a
 `JsValue` receiver/return path on `JsObject.TryGetProperty`. The old branches

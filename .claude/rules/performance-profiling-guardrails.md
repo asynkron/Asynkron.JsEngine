@@ -180,6 +180,13 @@ optimization.
     non-integers, `NaN`, infinity, rebound names, class, async, generator,
     private-name, `super`, home-object, and instance-field cases. Pin both the
     positive recurrence and negative fallback behavior with focused tests.
+22. For no-argument literal-return activation work, prove that the selected
+    profile is paying invocation context, environment, or sync trampoline frame
+    setup before bypassing it. Keep literal direct returns owned by
+    `ExecutionPlan` return-shape metadata and the existing simple IR activation
+    guard, not source text or benchmark names. Report repeated focused timing,
+    the CPU owner, and the activation proof-pack result before claiming the
+    shortcut is retained.
 
 ## Why
 
@@ -437,6 +444,16 @@ does not model. The durable lesson is that recurrence shortcuts must be
 executable-shape and runtime-binding guarded, not keyed to `fib`, a function
 name, or the mere presence of self-calls. Related ADR:
 `docs/adrs/0152-keep-simple-numeric-self-recursion-fast-path-shape-and-binding-guarded.md`.
+
+Issue `autrun-dise0lhwhiaw-0099fde2a6` / PR #2027 selected
+`activation-noargs-lite` from the comparison table, then confirmed with a CPU
+call tree that the remaining owner was sync activation and trampoline setup for
+simple literal-return functions. The accepted slice returned the plan-proven
+literal before full context and frame setup, kept dynamic activation cases on
+the existing path, and reported repeated focused timings roughly 56-59% faster
+than the baseline. The durable lesson is that even tiny activation shortcuts
+need profile ownership plus plan-owned semantic guards. Related ADR:
+`docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
 
 Issue `autrun-disb2md7n23s-0c3cde8865` / PR #1999 selected `destructuring`
 again and proved the hot owner with a CPU call tree: dense array binding

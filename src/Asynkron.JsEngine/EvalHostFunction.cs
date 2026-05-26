@@ -689,12 +689,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     insideClassFieldInitializer);
             }
 
-            var result = program.EvaluateProgram(evalEnvironment, Engine.RealmState, CancellationToken.None,
+            return program.EvaluateProgramJsValue(evalEnvironment, Engine.RealmState, CancellationToken.None,
                 ExecutionKind.Eval, false, inheritedPrivateNameScopes: evalPrivateNameScopes);
-
-            return result?.GetType() == typeof(JsValue)
-                ? (JsValue)result
-                : JsValue.FromObjectUnsafe(result);
         }
         catch (ThrowSignal)
         {

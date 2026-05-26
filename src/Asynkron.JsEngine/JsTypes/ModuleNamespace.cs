@@ -335,7 +335,7 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
                string.Equals(name, ToStringTagKey, StringComparison.Ordinal);
     }
 
-    internal IEnumerable<object?> OwnKeys()
+    internal IEnumerable<JsValue> OwnKeys()
     {
         EnsureExportsEvaluatedForList();
         foreach (var name in ExportNames)

@@ -21,20 +21,12 @@ public static partial class TypedAstEvaluator
 
             var hasParameterExpressions = _function.HasParameterExpressions();
             var hoistPlan = ((IAstCacheable<HoistPlan>)_function.Body).GetOrCreateCache();
-            var lexicalNamesRaw = hoistPlan.LexicalNames;
-            var lexicalNames = lexicalNamesRaw.Count == 0
+            var lexicalTemplate = hoistPlan.LexicalTemplate;
+            var simpleCatchParameterTemplate = hoistPlan.SimpleCatchParameterTemplate;
+            var bodyLexicalTemplate = hoistPlan.BodyLexicalTemplate;
+            var bodyLexicalNames = bodyLexicalTemplate.Length == 0
                 ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(lexicalNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
-            var catchParameterNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            var simpleCatchParameterNamesRaw = hoistPlan.SimpleCatchParameterNames;
-            var simpleCatchParameterNames = simpleCatchParameterNamesRaw.Count == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(simpleCatchParameterNamesRaw, ReferenceEqualityComparer<Symbol>.Instance);
-            var bodyLexicalNames = lexicalNames.Count == 0
-                ? lexicalNames
-                : new HashSet<Symbol>(lexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            bodyLexicalNames.ExceptWith(simpleCatchParameterNames);
+                : new HashSet<Symbol>(bodyLexicalTemplate, ReferenceEqualityComparer<Symbol>.Instance);
 
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
@@ -54,7 +46,7 @@ public static partial class TypedAstEvaluator
                 // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting.
                 foreach (var cn in catchParameterNamesRaw)
                 {
-                    if (!simpleCatchParameterNames.Contains(cn))
+                    if (!simpleCatchParameterTemplate.Contains(cn))
                     {
                         blockedFunctionVarNames.Add(cn);
                     }
@@ -73,8 +65,7 @@ public static partial class TypedAstEvaluator
 
             // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB hoisting
             var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
-            var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments) &&
-                                     !simpleCatchParameterNames.Contains(Symbol.Arguments);
+            var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments);
             var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
             var argumentsObjectNeededBySpec = !argumentsIsParam && !canSkipForBodyDecl;
             var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
@@ -330,7 +321,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             if (((IAstCacheable<HoistableDeclarationsPlan>)_function.Body).GetOrCreateCache().HasHoistableDeclarations)
             {
+                var lexicalNames = lexicalTemplate.Length == 0
+                    ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                    : new HashSet<Symbol>(lexicalTemplate, ReferenceEqualityComparer<Symbol>.Instance);
+                // Used to compute body-lexical blocking before this point; clear and reuse as active catch set.
+                var simpleCatchParameterNames = simpleCatchParameterTemplate.Length == 0
+                    ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                    : new HashSet<Symbol>(simpleCatchParameterTemplate, ReferenceEqualityComparer<Symbol>.Instance);
                 simpleCatchParameterNames.Clear();
+                // Track active catch parameters while hoisting (Annex B.3.5/B.3.3.3); start empty.
+                var catchParameterNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
                 _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
                     lexicalNames: lexicalNames,
                     catchParameterNames: catchParameterNames,

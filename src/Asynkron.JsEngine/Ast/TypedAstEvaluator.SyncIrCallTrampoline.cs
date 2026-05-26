@@ -788,7 +788,7 @@ public static partial class TypedAstEvaluator
                 var newLength = checked(Math.Max(oldFrames.Length * 2, required));
                 frames = ArrayPool<SyncIrFrame>.Shared.Rent(newLength);
                 Array.Copy(oldFrames, frames, oldFrames.Length);
-                ClearFrameStorage(oldFrames, depth);
+                ClearFrameSlots(oldFrames, depth);
                 ArrayPool<SyncIrFrame>.Shared.Return(oldFrames, clearArray: false);
             }
 
@@ -874,6 +874,8 @@ public static partial class TypedAstEvaluator
                         Array.Clear(flags);
                     }
                     frames[i].Invoker = null;
+                    frames[i].Plan = default!;
+                    frames[i].ActivationSlots = null;
                     frames[i].ThisValue = JsValue.Undefined;
                     frames[i].ProgramCounter = 0;
                     frames[i].ExpressionActive = false;
@@ -883,6 +885,14 @@ public static partial class TypedAstEvaluator
                     frames[i].ExpressionStackIndex = 0;
                     frames[i].BranchConsequent = -1;
                     frames[i].BranchAlternate = -1;
+                }
+            }
+
+            private static void ClearFrameSlots(SyncIrFrame[] frames, int maxDepth)
+            {
+                for (var i = 0; i < maxDepth; i++)
+                {
+                    frames[i] = default;
                 }
             }
 

@@ -376,7 +376,6 @@ public static partial class TypedAstEvaluator
                                                 !hasHoistableDeclarations &&
                                                 _allowIdentifierCache &&
                                                 hasSimpleParams &&
-                                                !_hasCapturedActivationInClosure &&
                                                 _lexicalThisEnvironment is null &&
                                                 !ContainsInnerFunctionExpression(function) &&
                                                 !_hasNonParameterCalleeCall;
@@ -2304,11 +2303,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
+            JsEnvironment? executionEnvironment = null;
             try
             {
                 context.MarkThisInitialized();
 
-                var executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
                 RealmState.Logger?.LogInformation(
                     "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
@@ -2362,8 +2362,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
-                // Context lifetime is owned by InvokeWithContextSlow; returning it here
-                // causes double-return pool corruption on the IR fast path.
+                // Context lifetime is owned by InvokeWithContextSlow; only the transient
+                // activation environments created above are owned by this fast path.
+                ReturnSimpleIrActivationEnvironment(executionEnvironment);
             }
         }
 
@@ -2428,7 +2429,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _argumentsObjectNeeded ||
                 _usesArguments ||
                 _needsArgumentsBinding ||
-                _hasCapturedActivationInClosure ||
                 !_allowIdentifierCache ||
                 _lexicalThisEnvironment is not null ||
                 _homeObject is not null ||
@@ -2507,10 +2507,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan)
             where TArgs : IReadOnlyList<JsValue>
         {
-            var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
-                _functionDescription);
-            var executionEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict,
-                _function.Source, _functionDescription, isBodyEnvironment: true);
+            var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
+                _functionDescription, logger: RealmState.Logger);
+            var executionEnvironment = JsEnvironmentPool.Rent(functionEnvironment, false, _isStrict,
+                _function.Source, _functionDescription, isBodyEnvironment: true, logger: RealmState.Logger);
 
             var activationSlots = plan.ActivationSlots!;
             var rootLexicals = plan.SafeRootLexicalBindings;
@@ -2541,6 +2541,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             return executionEnvironment;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private void ReturnSimpleIrActivationEnvironment(JsEnvironment? executionEnvironment)
+        {
+            if (executionEnvironment is null)
+            {
+                return;
+            }
+
+            var functionEnvironment = executionEnvironment.Enclosing;
+            JsEnvironmentPool.Return(executionEnvironment, RealmState.Logger);
+            JsEnvironmentPool.Return(functionEnvironment, RealmState.Logger);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

@@ -107,6 +107,15 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     hoist scans can be skipped only when `HoistableDeclarationsPlan` proves no
     hoistable declarations. Do not replace these guards with source scans,
     benchmark-name checks, or runner-local AST predicates.
+16. When pooling or reusing sync IR activation environments, treat pool return
+    as a lifecycle ownership change. Rent and return only transient ordinary
+    sync invocation environments whose lifetime ends with `RunSync` or the
+    simple IR activation fast path. Do not return the caller-owned closure root,
+    script-mode, generator, async, async-generator, or class-constructor
+    activation state, and do not reuse a caller context when private-name scope
+    replay requires a distinct callee context. Pair the allocation win with a
+    captured-closure regression, recursive binding/strict-self fallback tests,
+    and selected-profile before/after allocation evidence.
 
 ## Why
 
@@ -297,3 +306,17 @@ and skip hoist work only from strict-mode or cached-plan facts.
 
 Related ADR:
 `docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`.
+
+Issue #2080 / PR #2121 showed the sync IR activation pooling trap: the
+`closures-lite` and `recursion-lite` allocation gap was largely transient
+activation environment/context setup, but returning every environment created
+during activation would corrupt captured closure state or callee context state.
+The accepted fix pooled only invocation-owned ordinary sync activation
+environments, stopped before the caller closure root, reused the caller context
+only when no private-name scope replay was involved, and pinned the touched
+closure path with a captured counter regression. Future activation pooling work
+should prove ownership and capture boundaries before treating environment
+creation as mechanically returnable.
+
+Related ADR:
+`docs/adrs/0176-keep-sync-ir-activation-environment-pooling-ownership-guarded.md`.

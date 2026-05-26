@@ -2990,11 +2990,13 @@ public static partial class TypedAstEvaluator
             int argumentStartIndex)
         {
             HashSet<object>? visitedObjects = null;
+            HashSet<object>? weakMapKeyCandidates = null;
             for (var outer = _closure; outer is not null; outer = outer.Enclosing)
             {
                 for (var i = 0; i < outer.SlotCount; i++)
                 {
                     ref var slot = ref outer.GetSlotByIndex(i);
+                    AddWeakMapKeyCandidate(slot.Value, ref weakMapKeyCandidates);
                     if (slot.Name is null ||
                         slot.IsUninitialized ||
                         slot.HasSpecialBinding ||
@@ -3003,7 +3005,11 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    if (HasEscapedActivationCapturingClosureValue(slot.Value, environment, ref visitedObjects))
+                    if (HasEscapedActivationCapturingClosureValue(
+                            slot.Value,
+                            environment,
+                            ref visitedObjects,
+                            weakMapKeyCandidates))
                     {
                         return true;
                     }
@@ -3012,10 +3018,13 @@ public static partial class TypedAstEvaluator
 
             for (var i = 0; i < argumentCount; i++)
             {
+                var argument = stack[argumentStartIndex + i];
+                AddWeakMapKeyCandidate(argument, ref weakMapKeyCandidates);
                 if (HasEscapedActivationCapturingClosureValue(
-                        stack[argumentStartIndex + i],
+                        argument,
                         environment,
-                        ref visitedObjects))
+                        ref visitedObjects,
+                        weakMapKeyCandidates))
                 {
                     return true;
                 }
@@ -3024,10 +3033,22 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+        private static void AddWeakMapKeyCandidate(JsValue value, ref HashSet<object>? weakMapKeyCandidates)
+        {
+            if (JsWeakCollectionHelpers.ExtractWeakKeyObject(value) is not { } objectValue)
+            {
+                return;
+            }
+
+            weakMapKeyCandidates ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            weakMapKeyCandidates.Add(objectValue);
+        }
+
         private bool HasEscapedActivationCapturingClosureValue(
             JsValue value,
             JsEnvironment environment,
-            ref HashSet<object>? visitedObjects)
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
         {
             if (value.Kind != JsValueKind.Object)
             {
@@ -3053,6 +3074,24 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
+            visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            if (!visitedObjects.Add(objectValue))
+            {
+                return false;
+            }
+
+            if (objectValue is JsWeakMap weakMap &&
+                weakMapKeyCandidates is { Count: > 0 } &&
+                HasEscapedActivationCapturingClosureInWeakMapValues(
+                    weakMap,
+                    weakMapKeyCandidates,
+                    environment,
+                    ref visitedObjects))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
             // Proxy ownKeys/getOwnPropertyDescriptor can run user code. Tail-restart
             // eligibility checks must stay non-observable, so skip proxy traversal.
             if (objectValue is JsProxy)
@@ -3067,12 +3106,6 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
-            if (!visitedObjects.Add(objectValue))
-            {
-                return false;
-            }
-
             foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
                 var descriptor = accessor.GetOwnPropertyDescriptor(key);
@@ -3082,7 +3115,11 @@ public static partial class TypedAstEvaluator
                 }
 
                 if (descriptor.HasValue &&
-                    HasEscapedActivationCapturingClosureValue(descriptor.JsValue, environment, ref visitedObjects))
+                    HasEscapedActivationCapturingClosureValue(
+                        descriptor.JsValue,
+                        environment,
+                        ref visitedObjects,
+                        weakMapKeyCandidates))
                 {
                     StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;
@@ -3110,7 +3147,8 @@ public static partial class TypedAstEvaluator
                 HasEscapedActivationCapturingClosureValue(
                     JsValue.FromObjectUnsafe(prototypeAccessor),
                     environment,
-                    ref visitedObjects))
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
             {
                 StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                 return true;
@@ -3118,6 +3156,23 @@ public static partial class TypedAstEvaluator
 
             StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
             return false;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInWeakMapValues(
+            JsWeakMap weakMap,
+            HashSet<object> weakMapKeyCandidates,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = weakMap.AnyMappedValueMatches(mappedValue =>
+                HasEscapedActivationCapturingClosureValue(
+                    mappedValue,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
         }
 
         private static IJsPropertyAccessor? GetEscapedClosureScanPrototypeAccessor(object objectValue)

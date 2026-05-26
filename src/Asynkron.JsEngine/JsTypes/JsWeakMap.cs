@@ -19,6 +19,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     // Use ConditionalWeakTable for weak reference semantics.
     // Values are wrapped in a reference type because CWT values must be reference types.
     private readonly ConditionalWeakTable<object, WeakMapValueBox> _entries = new();
+    private readonly List<WeakReference<object>> _entryKeys = [];
     private readonly JsObject _properties = new();
     private readonly JsValue _cachedJsValue;
     public bool IsExtensible => _properties.IsExtensible;
@@ -107,6 +108,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         // Use remove/add to replace the entry while keeping CWT semantics.
         _entries.Remove(keyObj);
         _entries.Add(keyObj, new WeakMapValueBox(value));
+        TrackKnownKey(keyObj);
         return this;
     }
 
@@ -146,7 +148,76 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     public bool Delete(JsValue key)
     {
         var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
-        return keyObj != null && _entries.Remove(keyObj);
+        if (keyObj == null)
+        {
+            return false;
+        }
+
+        var removed = _entries.Remove(keyObj);
+        if (removed)
+        {
+            RemoveKnownKey(keyObj);
+        }
+
+        return removed;
+    }
+
+    internal bool AnyMappedValueMatches(Predicate<JsValue> predicate)
+    {
+        for (var i = _entryKeys.Count - 1; i >= 0; i--)
+        {
+            var keyRef = _entryKeys[i];
+            if (!keyRef.TryGetTarget(out var keyObject))
+            {
+                _entryKeys.RemoveAt(i);
+                continue;
+            }
+
+            if (!_entries.TryGetValue(keyObject, out var valueBox))
+            {
+                _entryKeys.RemoveAt(i);
+                continue;
+            }
+
+            if (predicate(valueBox.Value))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void TrackKnownKey(object keyObject)
+    {
+        for (var i = _entryKeys.Count - 1; i >= 0; i--)
+        {
+            var keyRef = _entryKeys[i];
+            if (!keyRef.TryGetTarget(out var existing))
+            {
+                _entryKeys.RemoveAt(i);
+                continue;
+            }
+
+            if (ReferenceEquals(existing, keyObject))
+            {
+                return;
+            }
+        }
+
+        _entryKeys.Add(new WeakReference<object>(keyObject));
+    }
+
+    private void RemoveKnownKey(object keyObject)
+    {
+        for (var i = _entryKeys.Count - 1; i >= 0; i--)
+        {
+            var keyRef = _entryKeys[i];
+            if (!keyRef.TryGetTarget(out var existing) || ReferenceEquals(existing, keyObject))
+            {
+                _entryKeys.RemoveAt(i);
+            }
+        }
     }
 
     private sealed class WeakMapValueBox

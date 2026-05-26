@@ -59,6 +59,16 @@ expression-program call executor and the shared single-argument helper, while
 leaving host functions, eval, debug-aware host functions, spread calls, class
 constructor rejection, and other arities on their existing paths.
 
+Issue `autrun-dis5yv0qlsr4-6ad7f476ff` / PR #1961 extended the same carrier
+rule to the full reducer callback shape. The `arrayops` profile still showed
+array iteration callbacks as the selected owner after earlier one- and
+three-argument callback work. `Array.prototype.reduce`/`reduceRight` must pass
+all four observable callback arguments `(accumulator, value, index, array)`, so
+the accepted slice introduced `FourValueArgs` and routed typed JavaScript
+callbacks through `InvokeWithContext<FourValueArgs>` instead of allocating a
+temporary `JsValue[]` per callback. The focused proof pinned
+`arguments.length`, index, and array-observability for reduce.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -90,12 +100,16 @@ For sync-function invocation and simple IR activation:
    `SyncFunctionInvoker` identity plus an available call context. Do not widen a
    recursive `fib` win into a generic one-argument shortcut for host functions,
    direct eval, debug-aware host functions, spread calls, constructor rejection,
-   or unproven callable shapes.
+   or unproven callable shapes; and
+9. for reducer callbacks that must expose four spec arguments, use a concrete
+   four-value carrier through the typed invocation path rather than allocating a
+   temporary argument array, and keep the generic fallback for non-typed
+   callables.
 
-`TwoValueArgs`, `ThreeValueArgs`, and future arity-specific struct carriers
-remain valid only when the concrete struct type is preserved through the generic
-path. They should not be treated as allocation-free after crossing an
-interface-typed hot-path boundary.
+`TwoValueArgs`, `ThreeValueArgs`, `FourValueArgs`, and future arity-specific
+struct carriers remain valid only when the concrete struct type is preserved
+through the generic path. They should not be treated as allocation-free after
+crossing an interface-typed hot-path boundary.
 
 ## Consequences
 
@@ -113,6 +127,9 @@ interface-typed hot-path boundary.
   owns an explicit callback-shape predicate. Do not infer safety from callback
   length alone if `arguments`, rest, parameter expressions, async/generator
   execution, or extra formal parameters can observe the omitted values.
+- Reducer callbacks still need the full four-argument carrier when the callback
+  shape can observe `arguments`, index, or the receiver array. The optimization
+  is typed-carrier preservation, not argument omission.
 - Dynamic-call cleanup should scan both the public/private helper methods and
   the backing pool fields. A no-caller search for `ReturnArgumentArray` is not
   enough if `ObjectPool<object?[]>` fields remain allocated and named as a

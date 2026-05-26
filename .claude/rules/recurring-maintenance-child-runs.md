@@ -17,9 +17,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `agents/how-to-build-and-test.md` for the operational build-stage update
   format so child-run updates stay comparable across recurring issues.
 - When a top-level entrypoint such as `README.md` summarizes recurring-child
-  workflow, keep it as a short pointer to the owned playbook and include the
-  sibling-summary check plus stable evidence field names. Do not duplicate the
-  whole checklist outside `agents/how-to-build-and-test.md`.
+  workflow, keep it as a short pointer to the owned surfaces:
+  `agents/how-to-build-and-test.md` for the runnable checklist and `## Build
+  Update` template, and this rule file for recurring-child policy ownership
+  and durable compaction lessons. Include the sibling-summary check plus stable
+  evidence field names, but do not duplicate the whole checklist or policy
+  body in the entrypoint.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - Treat issue context markers such as `Part of automation template` or
@@ -269,6 +272,15 @@ but it did not name sibling-summary checks or the stable `Baseline signal`,
 entrypoint docs should expose those anchors while leaving the detailed
 checklist in `agents/how-to-build-and-test.md`, so operators see the contract
 without maintaining two full copies.
+
+Issue #2098 / PR #2105 closed the follow-up ownership-pointer gap in that same
+top-level README entrypoint. `README.md` pointed at the operational
+maintenance-child checklist and evidence shape, but it did not explicitly name
+`.claude/rules/recurring-maintenance-child-runs.md` as the recurring-child
+policy and durable-compaction home. Future entrypoint docs should preserve that
+split: point runnable checklist/template ownership at
+`agents/how-to-build-and-test.md`, point semantic policy ownership here, and
+avoid turning README into a second policy body.
 
 Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
 was already handling the README stale-link candidate

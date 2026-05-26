@@ -180,8 +180,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         HostFunction arrayFromAsync = null!;
         arrayFromAsync = new HostFunction((thisValue, args) =>
         {
-            var result = ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
-            return JsValue.FromObjectUnsafe(result);
+            return ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
         }, Realm, false);
         AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");

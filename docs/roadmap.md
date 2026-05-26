@@ -82,8 +82,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 22. Continue simple-arrow IR activation follow-through only behind proven lexical-dependency guards, and require focused profile plus semantics proof before widening to broader arrow/function shapes under ADR 0150.
 23. Preserve constructor-family `newTarget` and return-value hook boundaries while pursuing prototype-constructor deduplication so observable constructor semantics remain explicit under ADR 0149.
 24. Continue destructuring and recursive hot-path follow-through only where dense-array shape and simple numeric self-recursion guards are proven; keep any future Promise constructor/combinator spec-order slices evidence-first and cite dedicated Promise evidence surfaces before adding roadmap claims.
-25. Continue activation no-args fast-path follow-through only through plan-owned eligibility widening and focused activation proof-pack evidence under ADR 0159 constraints (tracked in `gh2040`).
-26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in `gh2041`).
+25. Continue activation no-args fast-path follow-through only through plan-owned eligibility widening and focused activation proof-pack evidence under ADR 0159 constraints (tracked in [#2040](https://github.com/asynkron/Asynkron.JsEngine/issues/2040)).
+26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in [#2041](https://github.com/asynkron/Asynkron.JsEngine/issues/2041)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.

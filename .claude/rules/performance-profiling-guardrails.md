@@ -62,6 +62,15 @@ optimization.
    profile before widening either read or write shortcuts. Numeric helpers may
    fast-path only indices `< uint.MaxValue`; `"4294967295"` is an ordinary
    property and must not grow array length.
+9a. For dense array destructuring fast paths, prove the iterator protocol is
+    unobservable before bypassing the generic iterator driver. A direct
+    identifier-only binding shortcut may require dense own elements and the
+    native `Array.prototype.values`, but it must also guard
+    `%ArrayIteratorPrototype%.next` and fall back when
+    `%ArrayIteratorPrototype%.return` is present and non-nullish. Holes,
+    indexed descriptors, defaults, rest elements, nested targets, custom array
+    iterators, and generator/suspending contexts must stay on the semantic
+    iterator path so abrupt completion still performs `IteratorClose`.
 10. For object-literal default data-property optimizations, keep the shortcut at
     the `JsObject` storage boundary and preserve the ordinary descriptor
     fallback. Future `objectcreation` or object-literal work must prove the hot
@@ -409,3 +418,15 @@ does not model. The durable lesson is that recurrence shortcuts must be
 executable-shape and runtime-binding guarded, not keyed to `fib`, a function
 name, or the mere presence of self-calls. Related ADR:
 `docs/adrs/0152-keep-simple-numeric-self-recursion-fast-path-shape-and-binding-guarded.md`.
+
+Issue `autrun-disb2md7n23s-0c3cde8865` / PR #1999 selected `destructuring`
+again and proved the hot owner with a CPU call tree: dense array binding
+declarations were spending most of the selected profile under
+`BindArrayPatternProgram`, iterator lookup, and array iterator `next`. The
+accepted slice added a direct dense `JsArray` identifier-binding path plus
+standard iterator-result reuse, but review required a build-back guard for an
+observable `%ArrayIteratorPrototype%.return`. The durable lesson is that dense
+destructuring fast paths must be profile-owned and iterator-protocol guarded:
+native `values` and dense own elements are not enough if `next` or `return` can
+be observed during normal stepping or abrupt `IteratorClose`. Related ADR:
+`docs/adrs/0154-keep-dense-array-destructuring-fast-path-iterator-observable.md`.

@@ -525,3 +525,11 @@ probes only after proving they are not the owner contract, checking neighboring
 asserted coverage, recording the file-level line-count deletion, and running
 the focused owner test filter. Do not treat every `DebugTest` suffix as dead
 code, and do not claim runtime proof from line-count reduction alone.
+
+Issue #1971 / PR #1976 clarified a persistent ADR/rule compaction child whose
+issue context included automation markers such as `Part of automation template`
+and `trigger=automation recurrence`. Those markers classify a single runnable
+bounded child delivery; they are not a request to design persistent setup,
+scheduler behavior, or recurrence infrastructure inside this repository. Future
+agents should keep that distinction in the existing recurring-child rule instead
+of creating another ADR or one-off rule for the same classification boundary.

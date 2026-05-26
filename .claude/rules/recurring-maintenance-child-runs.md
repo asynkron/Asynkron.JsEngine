@@ -194,6 +194,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   differences explicit through named parameters or separate call sites. Prove
   every affected fixture variant with a focused test filter; line-count
   reduction alone is not behavioral proof.
+- When the code-reduction slice targets duplicated behavioral dispatch in a
+  sensitive runtime path, first look for an existing semantic owner that already
+  handles every case. Prefer delegating to that owner over creating a new helper
+  or reshaping the surrounding feature, and prove the owner surface with a
+  focused test filter plus the usual code-size and diff checks.
 
 ## Why
 
@@ -628,6 +633,16 @@ probes only after proving they are not the owner contract, checking neighboring
 asserted coverage, recording the file-level line-count deletion, and running
 the focused owner test filter. Do not treat every `DebugTest` suffix as dead
 code, and do not claim runtime proof from line-count reduction alone.
+
+Issue `autrun-diskyo8ie1gg-e962a681ea` / PR #2113 applied recurring code
+reduction to duplicated async-generator step settlement. `CreateStepPromise`
+carried the same `Yield`/`Completed`/`Throw`/`Pending` switch already owned by
+`ResolveFromStep`, so the safe reduction was to delegate to that existing
+semantic owner, record the file-level C# line count drop from 233 to 218, run
+`git diff --check`, and prove the async-generator owner surface with
+`AsyncGeneratorTests` (19 tests). Future runtime dispatch reductions should use
+that evidence shape; line-count reduction alone is not enough proof when the
+dispatch path settles promises or other observable runtime behavior.
 
 Issue #1971 / PR #1976 clarified a persistent ADR/rule compaction child whose
 issue context included automation markers such as `Part of automation template`

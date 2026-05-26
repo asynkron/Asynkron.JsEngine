@@ -123,6 +123,19 @@ host-runtime shortcuts.
     `TypedArray_prototype_slice_BigInt` after the slice path trusted the
     species-created result and let BigInt-to-Number copies fall through the
     wrong storage path.
+16e. For expression-program `new` and `super(...)` construction, keep
+    no-spread typed-carrier fast paths separate from spread argument
+    evaluation. A no-spread construct can validate constructability and use
+    arity-specific concrete carriers, but spread `super(...iterable)` must
+    materialize the spread arguments before surfacing the non-constructor
+    super-base `TypeError`; iterable side effects and iterable-thrown errors
+    must remain visible in spec order. WHY: issue #2077 / PR #2093 optimized
+    `classdef` no-spread construction, then review caught that
+    `class extends null` with spread `super(...)` skipped iterator side effects
+    and throw precedence. Future construction optimization should prove both
+    fixed-arity argument/`new.target` observability and spread-super
+    side-effect/throw ordering. Related ADR:
+    `docs/adrs/0171-keep-no-spread-construct-argument-carriers-and-super-spread-order.md`.
 17. For Intl built-ins that coerce call arguments through `ToNumber`, use the
     active evaluation context and propagate abrupt completions before later
     numeric validation such as finite-number checks. Raw `JsValue.AsNumber()`,

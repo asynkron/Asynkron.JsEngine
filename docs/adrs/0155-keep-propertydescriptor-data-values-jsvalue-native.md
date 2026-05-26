@@ -32,6 +32,14 @@ the `PropertyDescriptor` initializer still used `Value = value`. Because the
 compatibility setter delegates to `JsValue.FromObjectUnsafe(value)`, the helper
 still had an object-carrier sink even though the signature compiled cleanly.
 
+Issue `autrun-disf6pjgjrf4-4b2f8950be` / PR #2044 then applied the same
+decision to async-generator intrinsic descriptor setup in
+`TypedAstEvaluator.AsyncGeneratorFunctionInvoker`. Strings, prototypes, and
+constructors moved directly to `JsValue = ...`; the invoker self-reference was
+made explicit with `JsValue.FromObjectUnsafe(this)` instead of preserving
+`Value = this`. That kept async-generator prototype wiring on the same
+core-runtime descriptor contract while leaving descriptor attributes unchanged.
+
 ## Decision
 
 Keep core `PropertyDescriptor` data values on the `JsValue` setter whenever the
@@ -42,8 +50,9 @@ For descriptor cleanup slices:
 
 1. assign `PropertyDescriptor.JsValue` directly when the source value is already
    a `JsValue`;
-2. wrap known JavaScript object instances explicitly, for example with
-   `JsValue.FromJsArray(...)`, instead of passing them through `Value`;
+2. wrap known JavaScript object or callable instances explicitly, for example
+   with `JsValue.FromJsArray(...)` or `JsValue.FromObjectUnsafe(this)` for an
+   unavoidable self-reference, instead of passing them through `Value`;
 3. treat `PropertyDescriptor.Value` as a compatibility bridge, not the normal
    core-runtime data descriptor path;
 4. prove each bounded migration with a before/after search for legacy

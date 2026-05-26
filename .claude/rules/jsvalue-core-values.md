@@ -338,6 +338,19 @@ compilation; include the owner-file `Value = value` /
 `FromObjectUnsafe(value)` search in the delivery evidence. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
 
+Issue `autrun-disf6pjgjrf4-4b2f8950be` / PR #2044 applied the same descriptor
+setter policy to async-generator intrinsic setup in
+`TypedAstEvaluator.AsyncGeneratorFunctionInvoker`. The important lesson is that
+prototype and constructor descriptors created while wiring async-generator
+intrinsics are still core JavaScript data values, not host-interop exceptions:
+strings, prototypes, and constructors should use `JsValue = ...` directly, and
+an invoker self-reference should make the object bridge explicit with
+`JsValue.FromObjectUnsafe(this)` instead of hiding it behind `Value = this`.
+Future async function/generator intrinsic descriptor cleanup should preserve
+writable/enumerable/configurable attributes exactly and prove the selected file
+with a scoped legacy-setter search plus focused async-generator tests. Related
+ADR: `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`
 context-aware property-read flow from the legacy object-carrier overload to a
 `JsValue` receiver/return path on `JsObject.TryGetProperty`. The old branches

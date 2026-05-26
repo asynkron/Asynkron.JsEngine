@@ -80,6 +80,33 @@ dominates eval execution. `EvalHostFunction.Invoke` was sampled at about 4-5%
 of the profiled root, and `GetOrParseProgram` was a dictionary lookup path
 rather than a parse/plan-build path.
 
+## Follow-up: direct-eval call-path fast entrypoint (issue #2149)
+
+This follow-up keeps the existing eval-program cache behavior unchanged and
+targets only one shape: same-engine direct eval with one non-spread argument
+from expression-program execution. That shape now calls an explicit
+`EvalHostFunction` entrypoint directly instead of going through the generic
+callable/context handoff path first.
+
+Fresh selected-profile rows captured for this follow-up:
+
+```text
+baseline (pre-change, this branch): activation-evalscope-lite  asynkron_ms=455  jint_ms=276  Jint 1.65x faster
+final (post-change):                 activation-evalscope-lite  asynkron_ms=418  jint_ms=245  Jint 1.71x faster
+final (post-change, no-build):       activation-evalscope-lite  asynkron_ms=402  jint_ms=219  Jint 1.84x faster
+final (post-change, no-build):       activation-evalscope-lite  asynkron_ms=404  jint_ms=277  Jint 1.46x faster
+```
+
+The run-to-run spread is still high on this local host, so this evidence stays
+bounded to call-path behavior and avoids broad runtime-parity claims. The
+captured post-change rows are consistently below the 455 ms baseline
+(approximately 8-12% faster for Asynkron).
+
+The final focused CPU profile shows the same-engine one-argument direct-eval
+shape flowing through `EvalHostFunction.InvokeDirectSingleArgumentFast ->
+EvalHostFunction.InvokeSingleArgument -> EvalHostFunction.GetOrParseProgram`,
+without the earlier hot `CastHelpers.Box` cost inside the eval fast path.
+
 ## Verification
 
 Completed locally:
@@ -90,7 +117,7 @@ rtk ./tools/profile activation-evalscope-lite --cpu --calltree-depth 40 --calltr
 rtk dotnet build -c Release src/Asynkron.JsEngine/Asynkron.JsEngine.csproj
 rtk dotnet test tests/Asynkron.JsEngine.Tests -c Release --filter "FullyQualifiedName~ActivationSemanticsProofPackTests|FullyQualifiedName~StrictModeEvalTestBomb|FullyQualifiedName~PrivateNameEarlyErrorTests" -- xUnit.MaxParallelThreads=1 -timeout 20000
 rtk ./benchmark.sh activation-evalscope-lite
-rtk ./benchmark.sh --no-build activation-evalscope-lite
+rtk ./benchmark.sh activation-evalscope-lite
 rtk ./benchmark.sh --no-build activation-evalscope-lite
 rtk ./benchmark.sh --no-build activation-evalscope-lite
 rtk ./tools/profile activation-evalscope-lite --cpu --calltree-depth 40 --calltree-width 40

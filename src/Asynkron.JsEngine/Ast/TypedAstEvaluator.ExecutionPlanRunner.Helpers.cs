@@ -2734,6 +2734,7 @@ public static partial class TypedAstEvaluator
 
             var isAsyncCallable = callable is SyncFunctionInvoker { IsAsyncLike: true };
             global::Asynkron.JsEngine.EvalHostFunction? evalHost = null;
+            global::Asynkron.JsEngine.EvalHostFunction? singleArgDirectEvalFastHost = null;
             DebugAwareHostFunction? debugFunction = null;
             JsValue result = JsValue.Undefined;
             JsValue[]? pooledArguments = null;
@@ -2742,10 +2743,18 @@ public static partial class TypedAstEvaluator
             {
                 if (callable is global::Asynkron.JsEngine.EvalHostFunction evalHostFunction)
                 {
-                    evalHost = evalHostFunction;
-                    evalHost.IsDirectCall = call.IsDirectEval &&
-                                            ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
-                    evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
+                    var isSameEngineDirectEval = call.IsDirectEval &&
+                                                 ReferenceEquals(evalHostFunction.Engine, environment.RealmState?.Engine);
+                    if (isSameEngineDirectEval && call.SpreadMaskConstantIndex < 0 && call.ArgumentCount == 1)
+                    {
+                        singleArgDirectEvalFastHost = evalHostFunction;
+                    }
+                    else
+                    {
+                        evalHost = evalHostFunction;
+                        evalHost.IsDirectCall = isSameEngineDirectEval;
+                        evalHost.InClassFieldInitializer = context.InClassFieldInitializer;
+                    }
                 }
 
                 if (callable is DebugAwareHostFunction debugAware)
@@ -2765,7 +2774,15 @@ public static partial class TypedAstEvaluator
 
                         case 1:
                             var singleArgument = stack[calleeIndex + 1];
-                            if (callable is SyncFunctionInvoker typedFunction)
+                            if (singleArgDirectEvalFastHost is not null)
+                            {
+                                result = singleArgDirectEvalFastHost.InvokeDirectSingleArgumentFast(
+                                    singleArgument,
+                                    context,
+                                    environment,
+                                    context.InClassFieldInitializer);
+                            }
+                            else if (callable is SyncFunctionInvoker typedFunction)
                             {
                                 result = typedFunction.InvokeWithContext1(
                                     singleArgument,

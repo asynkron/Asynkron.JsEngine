@@ -3,7 +3,7 @@
 ## Purpose
 This roadmap aligns near-term implementation work with the long-term goal of building a strong Node.js competitor on .NET, while staying explicit about what is currently proven versus what is still directional.
 
-## Current State (2026-05-25)
+## Current State (2026-05-26)
 
 ### What Works Well
 - The engine has a clear fast-path direction: typed AST parse/analyze, lowered statement IR, and expression payloads compiled into `ExpressionProgram` bytecode.
@@ -37,6 +37,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Revoked proxy `apply`/`construct` behavior now explicitly routes TypeError creation through the current realm with operation-specific messaging, tightening cross-realm correctness boundaries for future runtime slices (`docs/adrs/0137-keep-revoked-proxy-apply-construct-errors-current-realm.md`).
 - Objectcreation now has explicit known-new object-literal property fast-path evidence, with compiler-proven boundaries captured in ADR 0145 to keep optimization claims narrow and runtime-safe (`docs/performance/objectcreation-known-new-property-fast-path.md`, `docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`).
 - Classdef now has explicit single-argument array callback fast-path evidence; remaining callback invocation and boxing cost is documented as follow-up work rather than treated as solved (`docs/performance/classdef-array-callback-single-arg.md`).
+- Array iteration callback-argument setup now has explicit dense-array follow-through evidence, keeping callback semantics stable while reducing `arrayops` callback callsite overhead (`docs/performance/arrayops-dense-iteration-callback-args.md`).
+- Recursive one-argument typed call dispatch now has explicit `fib`-profile evidence, narrowing hot-path dispatch cost without widening host-call shortcuts (`docs/performance/fib-single-argument-typed-call-dispatch.md`).
+- Resizable TypedArray smoke coverage now has a shared fixture-policy ADR boundary, reducing cross-suite drift while keeping semantics unchanged (`docs/adrs/0147-keep-resizable-typedarray-smoke-fixtures-shared.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -69,6 +72,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 18. Continue destructuring follow-through by targeting binding-pattern and iterator-protocol overhead only where lexical slot indices are proven, while preserving dynamic fallback semantics under ADR 0142 guardrails.
 19. Keep JsOps coercion maintenance explicit: preserve HTMLDDA precedence ordering while optimizing adjacent string-conversion paths only with focused regression proof under ADR 0141 boundaries.
 20. Keep FunctionCode activation work aligned with ADR 0146: preserve activation isolation as the gate for IR fast-path eligibility, and require focused proof signals before widening activation-path optimization scope.
+21. Keep argument-carrier and callback-argument follow-through aligned to ADR 0101 boundaries, proving one-argument typed-dispatch and dense-array callback changes with narrow profile evidence before widening call-shape shortcuts.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -91,6 +95,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/destructuring-lexical-slot-tdz.md`
   - `docs/performance/objectcreation-known-new-property-fast-path.md`
   - `docs/performance/classdef-array-callback-single-arg.md`
+  - `docs/performance/arrayops-dense-iteration-callback-args.md`
+  - `docs/performance/fib-single-argument-typed-call-dispatch.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -109,6 +115,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0142-keep-scope-entry-tdz-slot-marking-plan-owned.md`
   - `docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`
   - `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`
+  - `docs/adrs/0147-keep-resizable-typedarray-smoke-fixtures-shared.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

@@ -7,9 +7,10 @@ Accepted
 ## Context
 
 Issue #2166 / PR #2173 expanded the unified bytecode prototype past linear
-sync function bodies. A later bounded follow-up (issue #2182) adds one
-canonical while-loop shape. The accepted slice compiles branch-shaped
-`ExecutionPlan`s plus a guarded single-head loop into one `UnifiedBytecodeProgram`:
+sync function bodies. A later bounded follow-up (issue #2182 / PR #2186) adds
+one canonical condition-first loop back-edge IR topology. The accepted slice
+compiles branch-shaped `ExecutionPlan`s plus that guarded single-head loop into
+one `UnifiedBytecodeProgram`:
 
 ```text
 BranchInstruction condition
@@ -18,6 +19,11 @@ BranchInstruction condition
   -> Jump join_pc
   -> alternate bytecode
   -> joined return bytecode
+
+BranchInstruction loop_condition
+  -> JumpIfFalse loop_exit_pc
+  -> supported loop body bytecode
+  -> Jump loop_condition_pc
 ```
 
 The implementation maps IR instruction indices to unified bytecode program
@@ -34,16 +40,19 @@ and the unified VM may not hide unsupported coverage by calling back into
 ## Decision
 
 Keep unified bytecode branch/control-flow expansion compiler-owned and
-fallback-free, with loops still constrained to one proven canonical shape.
+fallback-free, with loops still constrained to one proven condition-first
+back-edge IR shape.
 
 - Compile from the already-lowered `ExecutionPlan`; do not introduce a parallel
   AST-to-unified-bytecode control-flow compiler.
 - Use an IR-instruction-index to bytecode-PC map as the owner of branch target
   identity. Patch forward `Jump` and `JumpIfFalse` operands after target blocks
   are emitted.
-- Permit only one canonical loop back-edge shape: a body instruction with a
-  supported slot write/update `Next` edge that jumps back to an already-active
-  `BranchInstruction` loop head.
+- Permit only one canonical loop back-edge shape: an already-active
+  `BranchInstruction` condition head reached again by a supported body
+  write/update `Next` edge. Source forms such as guarded `while` and
+  condition-only `for` are eligible only when lowering produces this same
+  condition-first topology.
 - Emit branch conditions, local assignment joins, compound assignment joins,
   comparison operators, and returns only as owned unified bytecode operations
   for the currently proven expression-op subset.
@@ -55,8 +64,8 @@ fallback-free, with loops still constrained to one proven canonical shape.
 
 ## Consequences
 
-- Branch plans and one canonical while-loop shape can now prove non-linear
-  control flow without changing production runtime routing.
+- Branch plans and one canonical condition-first loop back-edge shape can now
+  prove non-linear control flow without changing production runtime routing.
 - Loop support is still intentionally narrow. Future loop work needs explicit
   proof for each additional control-flow shape.
 - Unsupported branch coverage remains visible as a compile-time decline rather
@@ -72,6 +81,8 @@ fallback-free, with loops still constrained to one proven canonical shape.
 
 - Issue #2166
 - PR #2173
+- Issue #2182
+- PR #2186
 - ADR 0181: `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - ADR 0186: `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
 - ADR 0189: `docs/adrs/0189-keep-unified-bytecode-linear-expression-packs-flattened.md`

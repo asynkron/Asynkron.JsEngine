@@ -326,7 +326,7 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
                                                        order.join("|") + ":" + parts.length + ":" + parts[0] + ":" + parts[1];
 
                                            """);
-        Assert.Equal("limit|separator:2:a:b,c", result);
+        Assert.Equal("limit|separator:2:a:b", result);
     }
 
     [Fact(Timeout = 2000)]
@@ -339,7 +339,7 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
                                                        parts.join("|");
 
                                            """);
-        Assert.Equal("a|b|c,d", result);
+        Assert.Equal("a|b|c", result);
     }
 
     [Fact(Timeout = 2000)]

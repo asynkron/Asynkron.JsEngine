@@ -1813,29 +1813,43 @@ public sealed partial class StringPrototype
 
         var sepLength = separator.Length;
         var scanIndex = 0;
-        uint splitCount = 0;
-        while (splitCount + 1 < limit)
+        uint segmentCount = 0;
+        while (segmentCount < limit)
         {
             var matchIndex = value.IndexOf(separator, scanIndex, StringComparison.Ordinal);
             if (matchIndex < 0)
             {
+                segmentCount++;
                 break;
             }
 
-            splitCount++;
+            segmentCount++;
+            if (segmentCount == limit)
+            {
+                break;
+            }
+
             scanIndex = matchIndex + sepLength;
         }
 
-        var array = new JsArray(realm, checked((int)(splitCount + 1)));
+        var array = new JsArray(realm, checked((int)segmentCount));
         var startIndex = 0;
-        for (uint emitted = 0; emitted < splitCount; emitted++)
+        for (uint emitted = 0; emitted < segmentCount; emitted++)
         {
             var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
+            if (matchIndex < 0)
+            {
+                array.Push(new JsValue(value.Substring(startIndex)));
+                break;
+            }
+
             array.Push(new JsValue(value.Substring(startIndex, matchIndex - startIndex)));
-            startIndex = matchIndex + sepLength;
+            if (emitted + 1 < segmentCount)
+            {
+                startIndex = matchIndex + sepLength;
+            }
         }
 
-        array.Push(new JsValue(value.Substring(startIndex)));
         return array;
     }
 

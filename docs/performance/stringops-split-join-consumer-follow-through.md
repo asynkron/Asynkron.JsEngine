@@ -28,9 +28,9 @@ stringops                       330        63775.4      166     13416.2  Jint 1.
 
 ## Change
 
-- `SplitBySeparator` now pre-counts bounded matches (`limit - 1` max) and
-  allocates the result `JsArray` to exact segment count before materializing
-  substrings.
+- `SplitBySeparator` now truncates non-empty separator results at `limit`
+  (for example `"a,b,c".split(",", 2) -> ["a", "b"]`) while still allocating
+  the result `JsArray` to the exact emitted segment count.
 - `TryJoinDenseOwnStringArray` now pre-computes the exact output length and
   initializes `StringBuilder` with that capacity after proving the dense
   primitive-string guard.
@@ -70,6 +70,9 @@ stringops                       392        63737.6      184     13416.2  Jint 2.
 
 ## Reading the result
 
+- The selected `stringops` script currently uses `split("")`, so these rows
+  exercise the empty-separator split path and dense join path; non-empty
+  separator split behavior is covered by the focused regression tests above.
 - Allocation moved slightly down (`63775.4 KB -> 63737.6 KB`, about `37.8 KB`
   lower in this run).
 - Timing moved up in this sample (`330 ms -> 392 ms`), so this slice should be

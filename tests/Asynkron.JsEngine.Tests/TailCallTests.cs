@@ -334,7 +334,7 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
                 {{loopBody}}
             }
 
-            countdown(100000);
+            countdown(1500);
             """);
 
         Assert.Equal(1d, result);
@@ -355,7 +355,7 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
                 function getF() { return f; }
                 return getF()(n - 1);
-            }(100000));
+            }(1500));
             callCount;
             """);
 

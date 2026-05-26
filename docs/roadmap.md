@@ -57,6 +57,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Observable arguments setup now has an explicit profile-owned and plan-proven boundary: descriptor/hoist improvements are accepted, while residual lexical-name setup remains an evidence-backed follow-up seam (`docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`, `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`).
 - Jint comparison policy now keeps the comparison version centralized and explicit, so benchmark deltas remain interpretable across optimization slices (`docs/adrs/0174-keep-jint-comparison-version-centralized.md`).
 - Unified bytecode prototype boundaries are now explicitly IR-owned and all-or-nothing under ADR 0181, so production routing still requires separate parity/performance proof before any broader runtime claim (`docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`).
+- 2026-05-26 evidence now explicitly captures two additional guardrails: ADR 0192 keeps unified bytecode branch compilation limited to acyclic control flow in a compiler-owned prototype path, and ADR 0193 keeps class-method simple IR activation super-guarded so methods with `super` dependencies do not take the shortcut (`docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`, `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`, `docs/performance/classdef-homeobject-simple-ir-activation.md`).
 - Async generators still carry a known weaker seam: invoker wiring currently runs through a sync-generator IR step wrapper with ThreadStatic resume callback caches; this remains a bounded follow-up surface rather than a settled runtime contract (`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`).
 
 ### What Works Worse
@@ -103,6 +104,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
 31. Continue direct-eval follow-through after the eval program-cache slice by reducing remaining `activation-evalscope-lite` overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
 32. Continue ADR 0184 stringops split/join consumer follow-through by reducing remaining consumer materialization overhead with comparable selected-profile before/after rows and semantics-first fallback proof (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
+33. Extend unified bytecode prototype proof coverage with one bounded simple-loop lowering/VM parity slice while keeping ADR 0192 acyclic/prototype boundaries explicit (tracked in [#2182](https://github.com/asynkron/Asynkron.JsEngine/issues/2182)).
+34. Reduce remaining `classdef` constructor and `super(...)` dispatch cost in one narrow evidence-backed slice while preserving ADR 0193 super-guarded activation boundaries (tracked in [#2183](https://github.com/asynkron/Asynkron.JsEngine/issues/2183)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -171,6 +174,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0174-keep-jint-comparison-version-centralized.md`
   - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
   - `docs/adrs/0184-keep-stringops-split-join-consumers-guarded-and-observable.md`
+  - `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`
+  - `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

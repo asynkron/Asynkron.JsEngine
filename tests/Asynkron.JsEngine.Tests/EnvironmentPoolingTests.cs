@@ -90,6 +90,26 @@ public sealed class EnvironmentPoolingTests(ITestOutputHelper output) : Internal
     }
 
     [Fact]
+    public async Task CapturedClosureInvocation_PreservesCapturedCounterAcrossPooledActivation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            'use strict';
+            function makeCounter() {
+                let count = 0;
+                return function() {
+                    return ++count;
+                };
+            }
+
+            const counter = makeCounter();
+            counter() + ',' + counter() + ',' + counter();
+            """);
+
+        Assert.Equal("1,2,3", result);
+    }
+
+    [Fact]
     public async Task StrictWrapperLayoutMismatch_RebuildsSlotsSafely()
     {
         await using var engine = CreateEngine();

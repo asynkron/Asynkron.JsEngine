@@ -85,17 +85,15 @@ public static partial class TypedAstEvaluator
 
             JsEnvironment parameterEnvironment;
             JsEnvironment varEnvironment;
-            var functionEnvironment = JsEnvironment.CreateInstance(_closure, true, _isStrict, _function.Source,
-                description);
+            var functionEnvironment = CreateInvocationEnvironment(_closure, true, description);
             functionEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
             if (hasParameterExpressions)
             {
-                parameterEnvironment = JsEnvironment.CreateInstance(functionEnvironment, false, _isStrict, _function.Source,
-                    description, isParameterEnvironment: true);
+                parameterEnvironment = CreateInvocationEnvironment(functionEnvironment, false, description,
+                    isParameterEnvironment: true);
                 parameterEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
 
-                varEnvironment = JsEnvironment.CreateInstance(parameterEnvironment, true, _isStrict, _function.Source,
-                    description);
+                varEnvironment = CreateInvocationEnvironment(parameterEnvironment, true, description);
                 varEnvironment.IsArrowFunctionEnvironment = _function.IsArrow;
             }
             else
@@ -121,9 +119,10 @@ public static partial class TypedAstEvaluator
                         needsArgumentsObject));
             }
 
-            var executionEnvironment = JsEnvironment.CreateInstance(varEnvironment, false, _isStrict,
-                _function.Source, description, isBodyEnvironment: true);
+            var executionEnvironment = CreateInvocationEnvironment(varEnvironment, false, description,
+                isBodyEnvironment: true);
             executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+            _ownsExecutionEnvironment = CanReturnExecutionEnvironmentAfterRunSync();
 
             // Store names that block Annex B.3.3 function-scope hoisting so runtime
             // HandleFunctionDeclaration can skip the var-binding update for these names.
@@ -181,9 +180,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             // Store YieldResumeContext reference in the environment for yield expressions
             var yieldState = YieldStateRef;
 
-            var generatorContext = _realmState.CreateContext(
-                ScopeKind.Function,
-                DetermineGeneratorScopeMode());
+            var generatorContext = _context is not null &&
+                                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                                   _privateNameScope is null
+                ? _context
+                : _realmState.CreateContext(
+                    ScopeKind.Function,
+                    DetermineGeneratorScopeMode());
             generatorContext.InGeneratorContext = _isGenerator;
             using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
                 ? generatorContext.EnterPrivateNameScopes(_capturedPrivateNameScopes)
@@ -472,6 +475,50 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         internal JsEnvironment GetOrCreateExecutionEnvironmentForInternalUse()
         {
             return EnsureExecutionEnvironment();
+        }
+
+        private bool CanReturnExecutionEnvironmentAfterRunSync()
+        {
+            return !_isScriptMode &&
+                   !_isGenerator &&
+                   !_isAsync &&
+                   _callable is not SyncFunctionInvoker { IsClassConstructor: true };
+        }
+
+        private JsEnvironment CreateInvocationEnvironment(
+            JsEnvironment? enclosing,
+            bool isFunctionScope,
+            string description,
+            bool isParameterEnvironment = false,
+            bool isBodyEnvironment = false)
+        {
+            if (!CanReturnExecutionEnvironmentAfterRunSync())
+            {
+                return JsEnvironment.CreateInstance(enclosing, isFunctionScope, _isStrict, _function.Source,
+                    description, isParameterEnvironment: isParameterEnvironment, isBodyEnvironment: isBodyEnvironment);
+            }
+
+            return JsEnvironmentPool.Rent(enclosing, isFunctionScope, _isStrict, _function.Source,
+                description, isParameterEnvironment: isParameterEnvironment, isBodyEnvironment: isBodyEnvironment,
+                logger: _realmState.Logger);
+        }
+
+        private void ReturnOwnedExecutionEnvironment()
+        {
+            if (!_ownsExecutionEnvironment || _executionEnvironment is null)
+            {
+                return;
+            }
+
+            var current = _executionEnvironment;
+            _executionEnvironment = null;
+            _ownsExecutionEnvironment = false;
+            while (current is not null && !ReferenceEquals(current, _closure))
+            {
+                var next = current.Enclosing;
+                JsEnvironmentPool.Return(current, _realmState.Logger);
+                current = next;
+            }
         }
 
         private void LogRootScopeIdOnce()

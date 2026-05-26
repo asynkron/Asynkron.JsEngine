@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -1929,7 +1930,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             if (!_canUseSimpleIrActivationFastBase ||
                 !newTarget.IsUndefined ||
                 IsClassConstructor ||
-                IsArrowFunction ||
+                IsArrowFunction && !CanUseSimpleIrActivationArrowFastPath(plan) ||
                 IsAsyncLike ||
                 _function.IsGenerator ||
                 _function.IsDefaultDerivedConstructor ||
@@ -1951,6 +1952,36 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return CanUseSimpleIrActivationPlanShape(plan);
+        }
+
+        private static bool CanUseSimpleIrActivationArrowFastPath(ExecutionPlan plan)
+        {
+            if (plan.SimpleReturnProgram is not { } returnProgram)
+            {
+                return false;
+            }
+
+            foreach (var operation in returnProgram.EnumerateOperations())
+            {
+                switch (operation.Kind)
+                {
+                    case ExpressionOpKind.LoadThis:
+                    case ExpressionOpKind.LoadNewTarget:
+                    case ExpressionOpKind.LoadNamedSuperCallTarget:
+                    case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    case ExpressionOpKind.EnsureSuperReference:
+                    case ExpressionOpKind.GetNamedSuperProperty:
+                    case ExpressionOpKind.GetComputedSuperProperty:
+                    case ExpressionOpKind.SetNamedSuperProperty:
+                    case ExpressionOpKind.SetComputedSuperProperty:
+                    case ExpressionOpKind.UpdateNamedSuperProperty:
+                    case ExpressionOpKind.UpdateComputedSuperProperty:
+                    case ExpressionOpKind.SuperConstruct:
+                        return false;
+                }
+            }
+
+            return true;
         }
 
         private bool CanUseSimpleIrActivationPlanShape(ExecutionPlan plan)

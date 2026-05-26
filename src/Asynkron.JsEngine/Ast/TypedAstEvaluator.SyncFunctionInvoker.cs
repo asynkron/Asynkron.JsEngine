@@ -820,19 +820,19 @@ public static partial class TypedAstEvaluator
                    ReferenceEquals(currentFunction, this);
         }
 
-        internal static bool TryPrepareLegacySameFunctionTailRestart(
+        internal static bool TryGetLegacySameFunctionTailRestartTarget(
             CallExpression expression,
             JsEnvironment environment,
             EvaluationContext context,
-            out JsValue result)
+            out SyncFunctionInvoker current)
         {
-            result = JsValue.Undefined;
-            var current = t_currentlyExecuting;
-            if (current is null ||
-                !current._isStrict ||
-                current.IsAsyncLike ||
-                current.IsClassConstructor ||
-                !current.HasOnlySimpleLegacyTailRestartParameters() ||
+            current = null!;
+            var executing = t_currentlyExecuting;
+            if (executing is null ||
+                !executing._isStrict ||
+                executing.IsAsyncLike ||
+                executing.IsClassConstructor ||
+                !executing.HasOnlySimpleLegacyTailRestartParameters() ||
                 expression.IsOptional)
             {
                 return false;
@@ -857,26 +857,12 @@ public static partial class TypedAstEvaluator
                 : context.GetIdentifier(environment, calleeId.Name);
             if (context.ShouldStopEvaluation ||
                 !calleeValue.TryGetObject<SyncFunctionInvoker>(out var callable) ||
-                !ReferenceEquals(callable, current))
+                !ReferenceEquals(callable, executing))
             {
                 return false;
             }
 
-            var arguments = new JsValue[expression.Arguments.Length];
-            for (var i = 0; i < expression.Arguments.Length; i++)
-            {
-                arguments[i] = EvaluateDynamicExpressionProgram(
-                    expression.Arguments[i].Expression,
-                    environment,
-                    context,
-                    "Dynamic tail-call argument");
-                if (context.ShouldStopEvaluation)
-                {
-                    return true;
-                }
-            }
-
-            context.SetLegacyTailCallRestart(current, arguments, JsValue.Undefined);
+            current = executing;
             return true;
         }
 

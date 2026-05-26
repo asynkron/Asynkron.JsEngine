@@ -493,12 +493,28 @@ public static partial class TypedAstEvaluator
         EvaluationContext context)
     {
         if (statement.Expression is CallExpression callExpression &&
-            SyncFunctionInvoker.TryPrepareLegacySameFunctionTailRestart(
+            SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget(
                 callExpression,
                 environment,
                 context,
-                out var tailCallValue))
+                out var tailCallTarget))
         {
+            var tailCallValue = JsValue.Undefined;
+            var tailCallArguments = new JsValue[callExpression.Arguments.Length];
+            for (var i = 0; i < callExpression.Arguments.Length; i++)
+            {
+                tailCallArguments[i] = EvaluateDynamicExpressionProgram(
+                    callExpression.Arguments[i].Expression,
+                    environment,
+                    context,
+                    "Dynamic tail-call argument");
+                if (context.ShouldStopEvaluation)
+                {
+                    return tailCallValue;
+                }
+            }
+
+            context.SetLegacyTailCallRestart(tailCallTarget, tailCallArguments, JsValue.Undefined);
             if (!context.ShouldStopEvaluation)
             {
                 context.SetReturn(tailCallValue);

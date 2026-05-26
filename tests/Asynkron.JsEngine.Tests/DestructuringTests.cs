@@ -78,6 +78,8 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
             """);
 
         await engine.Evaluate(program);
+        var result = await engine.Evaluate("bind([2, 3, 4]);");
+        Assert.Equal(4d, result);
 
         var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
@@ -111,6 +113,54 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
             """);
 
         Assert.Equal("TypeError:1", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task CatchDestructuringDoesNotInitializeOuterLexicalSlot()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let observed = "";
+            try {
+                throw { x: 1 };
+            } catch ({ x }) {
+            }
+            try {
+                observed = String(x);
+            } catch (e) {
+                observed = e.name;
+            }
+            let x = 2;
+            observed + ":" + x;
+            """);
+
+        Assert.Equal("ReferenceError:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayDestructuringIrTargetsCarrySlotIndices()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function bind(values) {
+                const [x, ...rest] = values;
+                return x + rest.length;
+            }
+            """);
+
+        await engine.Evaluate(program);
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        Assert.NotNull(cache.Plan);
+
+        var element = Assert.Single(cache.Plan.Instructions.OfType<ArrayDestructuringElementInstruction>());
+        Assert.NotNull(element.TargetSymbol);
+        Assert.True(element.TargetSlotIndex >= 0, "Expected array destructuring element target to use a proven slot.");
+
+        var rest = Assert.Single(cache.Plan.Instructions.OfType<ArrayDestructuringRestInstruction>());
+        Assert.True(rest.RestSlotIndex >= 0, "Expected array destructuring rest target to use a proven slot.");
     }
 
     [Fact(Timeout = 2000)]

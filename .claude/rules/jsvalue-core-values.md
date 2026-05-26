@@ -20,6 +20,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`
   - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
   - `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`
+  - `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`
 
 ## Rules
 
@@ -161,6 +162,15 @@ When working inside the core engine, keep JavaScript values represented as
     `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram`, and
     focused eval/Function/ShadowRealm proof. Related ADR:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
+21. When a private module namespace or property-key enumeration helper feeds
+    JavaScript reflection/object APIs, keep the key sequence typed as
+    `JsValue`. Preserve both string keys and symbol keys at the owner boundary;
+    do not expose `IEnumerable<object?>`, require every consumer to call
+    `JsValue.FromObjectUnsafe(...)`, or filter symbols by raw `JsSymbol`
+    pattern matching. Prove the migration with a scoped legacy-signature search
+    plus focused `Reflect.ownKeys` and `Object.getOwnPropertySymbols` coverage.
+    Related ADR:
+    `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`.
 
 ## Why
 
@@ -442,3 +452,16 @@ callers on `EvaluateProgramJsValue(...)` or a `JsValue`-returning wrapper, while
 preserving public `Evaluate*` unwrapping and leaving module `LastValue` storage
 for a separate focused slice. Related ADR:
 `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
+
+Issue `autrun-disnitlzqrkw-d2a93ff0bf` / PR #2135 migrated
+`ModuleNamespace.OwnKeys()` from `IEnumerable<object?>` to
+`IEnumerable<JsValue>`. The old helper enumerated module namespace property
+keys, but forced `Reflect.ownKeys` to wrap each key with
+`JsValue.FromObjectUnsafe(...)` and forced `Object.getOwnPropertySymbols` to
+pattern-match the raw key carrier as `JsSymbol`. That was not a public or
+interop boundary; it was a private `[[OwnPropertyKeys]]` path feeding
+JavaScript reflection APIs. Future module namespace own-key work should keep
+string export names and `Symbol.toStringTag` typed through the owner helper,
+then prove both mixed string/symbol reflection and symbol-only filtering.
+Related ADR:
+`docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`.

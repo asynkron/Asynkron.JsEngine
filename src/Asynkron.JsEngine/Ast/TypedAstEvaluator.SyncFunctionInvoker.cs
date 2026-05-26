@@ -820,6 +820,87 @@ public static partial class TypedAstEvaluator
                    ReferenceEquals(currentFunction, this);
         }
 
+        internal static bool TryPrepareLegacySameFunctionTailRestart(
+            CallExpression expression,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            var current = t_currentlyExecuting;
+            if (current is null ||
+                !current._isStrict ||
+                current.IsAsyncLike ||
+                current.IsClassConstructor ||
+                !current.HasOnlySimpleLegacyTailRestartParameters() ||
+                expression.IsOptional)
+            {
+                return false;
+            }
+
+            if (expression.Callee is not IdentifierExpression calleeId)
+            {
+                return false;
+            }
+
+            foreach (var argument in expression.Arguments)
+            {
+                if (argument.IsSpread)
+                {
+                    return false;
+                }
+            }
+
+            var calleeValue = calleeId is { SlotIndex: >= 0, ScopeId: >= 0 } &&
+                              environment.TryReadIdentifierWithSlot(calleeId, context, out var slotCallee)
+                ? slotCallee
+                : context.GetIdentifier(environment, calleeId.Name);
+            if (context.ShouldStopEvaluation ||
+                !calleeValue.TryGetObject<SyncFunctionInvoker>(out var callable) ||
+                !ReferenceEquals(callable, current))
+            {
+                return false;
+            }
+
+            var arguments = new JsValue[expression.Arguments.Length];
+            for (var i = 0; i < expression.Arguments.Length; i++)
+            {
+                arguments[i] = EvaluateDynamicExpressionProgram(
+                    expression.Arguments[i].Expression,
+                    environment,
+                    context,
+                    "Dynamic tail-call argument");
+                if (context.ShouldStopEvaluation)
+                {
+                    return true;
+                }
+            }
+
+            context.SetLegacyTailCallRestart(current, arguments, JsValue.Undefined);
+            return true;
+        }
+
+        private bool HasOnlySimpleLegacyTailRestartParameters()
+        {
+            HashSet<Symbol>? seenNames = null;
+            for (var i = 0; i < _function.Parameters.Length; i++)
+            {
+                var parameter = _function.Parameters[i];
+                if (parameter is not { Name: { } name, Pattern: null, DefaultValue: null, IsRest: false })
+                {
+                    return false;
+                }
+
+                seenNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                if (!seenNames.Add(name))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private static double EvaluateSimpleNumericSelfRecursion(
             int input,
             SimpleNumericSelfRecursionFastPath fastPath)
@@ -1673,6 +1754,7 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            IReadOnlyList<JsValue> currentArguments = arguments;
             try
             {
                 // Create arguments object per ES2024 9.2.12 steps 17-20
@@ -1680,7 +1762,7 @@ public static partial class TypedAstEvaluator
                 if (_argumentsObjectNeeded)
                 {
                     // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment, RealmState,
+                    var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment, RealmState,
                         this,
                         _isStrict);
                     executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
@@ -1706,8 +1788,11 @@ public static partial class TypedAstEvaluator
                 // are properly caught and converted to rejected promises.
                 try
                 {
+                LegacyTailCallRestart:
+                    context.ClearReturn();
+
                     // Bind parameters
-                    _function.BindFunctionParameters(arguments, parameterEnvironment, context);
+                    _function.BindFunctionParameters(currentArguments, parameterEnvironment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         if (!context.IsThrow)
@@ -1776,6 +1861,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     finally
                     {
                         JsEnvironment.Current = previousEnvironment;
+                    }
+
+                    if (context.TryConsumeLegacyTailCallRestart(this, out var restartArguments, out var restartThisValue))
+                    {
+                        currentArguments = restartArguments;
+                        if (_isStrict && !IsArrowFunction)
+                        {
+                            functionEnvironment._thisValue = restartThisValue;
+                            functionEnvironment._hasThisValue = true;
+                            functionEnvironment.DefineJsValue(Symbol.This, restartThisValue);
+                        }
+
+                        goto LegacyTailCallRestart;
                     }
 
                     if (context.IsThrow)

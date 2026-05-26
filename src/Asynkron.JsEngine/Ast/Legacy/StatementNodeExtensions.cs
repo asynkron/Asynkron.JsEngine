@@ -492,6 +492,21 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {
+        if (statement.Expression is CallExpression callExpression &&
+            SyncFunctionInvoker.TryPrepareLegacySameFunctionTailRestart(
+                callExpression,
+                environment,
+                context,
+                out var tailCallValue))
+        {
+            if (!context.ShouldStopEvaluation)
+            {
+                context.SetReturn(tailCallValue);
+            }
+
+            return tailCallValue;
+        }
+
         var jsValue = statement.Expression is null
             ? JsValue.Undefined
             : EvaluateDynamicExpressionProgram(

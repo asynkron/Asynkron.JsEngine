@@ -62,6 +62,10 @@ public sealed class EvaluationContext(
     // Fast path for returns - avoids allocating ReturnCompletionSignal
     private JsValue _returnValue;
 
+    private TypedAstEvaluator.SyncFunctionInvoker? _legacyTailCallInvoker;
+    private IReadOnlyList<JsValue>? _legacyTailCallArguments;
+    private JsValue _legacyTailCallThisValue;
+
     /// <summary>
     ///     Scratch slot for JsValue to avoid struct copies in hot paths.
     ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
@@ -553,6 +557,39 @@ public sealed class EvaluationContext(
         IsReturn = false;
         _returnValue = default;
         CurrentSignal = null;
+    }
+
+    internal void SetLegacyTailCallRestart(
+        TypedAstEvaluator.SyncFunctionInvoker invoker,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue)
+    {
+        AssertOwnership(nameof(SetLegacyTailCallRestart));
+        _legacyTailCallInvoker = invoker;
+        _legacyTailCallArguments = arguments;
+        _legacyTailCallThisValue = thisValue;
+    }
+
+    internal bool TryConsumeLegacyTailCallRestart(
+        TypedAstEvaluator.SyncFunctionInvoker invoker,
+        out IReadOnlyList<JsValue> arguments,
+        out JsValue thisValue)
+    {
+        AssertOwnership(nameof(TryConsumeLegacyTailCallRestart));
+        if (!ReferenceEquals(_legacyTailCallInvoker, invoker) ||
+            _legacyTailCallArguments is not { } pendingArguments)
+        {
+            arguments = [];
+            thisValue = JsValue.Undefined;
+            return false;
+        }
+
+        arguments = pendingArguments;
+        thisValue = _legacyTailCallThisValue;
+        _legacyTailCallInvoker = null;
+        _legacyTailCallArguments = null;
+        _legacyTailCallThisValue = JsValue.Undefined;
+        return true;
     }
 
     /// <summary>

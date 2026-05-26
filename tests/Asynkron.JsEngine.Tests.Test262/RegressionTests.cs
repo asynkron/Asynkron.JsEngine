@@ -669,6 +669,74 @@ public class RegressionTests
     }
 
     [Test]
+    public async Task ProxyRevokedTailCallUsesFunctionRealmTypeError()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        var realmEngines = new List<JsEngine>();
+        var obj262 = new JsObject
+        {
+            ["createRealm"] = new HostFunction(_ =>
+            {
+                var realmEngine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+                realmEngines.Add(realmEngine);
+                var realmGlobal = realmEngine.GlobalObject;
+                realmGlobal["global"] = realmGlobal;
+                realmGlobal["evalScript"] = new HostFunction(args => args.Count switch
+                {
+                    > 1 => throw new InvalidOperationException("only script parsing supported"),
+                    > 0 when args[0].IsString => JsValue.FromObjectUnsafe(EvalScript(realmEngine, args[0].AsString())),
+                    _ => JsValue.Undefined,
+                }, realmEngine.RealmState);
+
+                return (JsValue)realmGlobal;
+            })
+        };
+        engine.SetGlobalValue("$262", obj262);
+
+        var result = await engine.Evaluate(
+            """
+            var other = $262.createRealm();
+            var F = other.evalScript(`
+              (function() {
+                var proxyObj = Proxy.revocable(function() {}, {});
+                var proxy = proxyObj.proxy;
+                var revoke = proxyObj.revoke;
+                revoke();
+                return proxy();
+              })
+            `);
+
+            try {
+              F();
+              [false, false, "none"];
+            } catch (e) {
+              [
+                e.constructor === other.global.TypeError,
+                Object.getPrototypeOf(e) === other.global.TypeError.prototype,
+                e.constructor === TypeError
+              ];
+            }
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        Assert.That(values.Items[0].AsBoolean(), Is.True);
+        Assert.That(values.Items[1].AsBoolean(), Is.True);
+        Assert.That(values.Items[2].AsBoolean(), Is.False);
+
+        foreach (var realmEngine in realmEngines)
+        {
+            await realmEngine.DisposeAsync();
+        }
+
+        static object? EvalScript(JsEngine realmEngine, string script)
+        {
+            var result = realmEngine.EvaluateSync(script);
+            realmEngine.DrainMicrotasks();
+            return result;
+        }
+    }
+
+    [Test]
     public void ReflectConstruct_ArrayNewTargetWithNonObjectPrototypeUsesObjectFallbackForNonArrayTarget()
     {
         var realm = new RealmState

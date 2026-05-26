@@ -163,4 +163,28 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal("second", result);
     }
+
+    [Theory(Timeout = 10000)]
+    [InlineData("for (var x = 0; ;) { return countdown(n - 1); }")]
+    [InlineData("var x; for (x = 0; x < 1; ++x) { return countdown(n - 1); }")]
+    public async Task StrictSameFunctionTailCall_InForBodyLegacyFallbackDoesNotGrowCallDepth(string loopBody)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            let callCount = 0;
+            function countdown(n) {
+                "use strict";
+                if (n === 0) {
+                    callCount += 1;
+                    return callCount;
+                }
+
+                {{loopBody}}
+            }
+
+            countdown(100000);
+            """);
+
+        Assert.Equal(1d, result);
+    }
 }

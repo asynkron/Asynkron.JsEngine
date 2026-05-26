@@ -31,6 +31,12 @@ arguments before calling the helper, while `AggregateErrorConstructor` maps the
 shifted `message` and `options` arguments explicitly and keeps only the
 AggregateError-specific `errors` handling locally.
 
+A follow-up code-reduction child, issue `autrun-disf6pig3gd4-944c449a56` / PR
+#2039, applied the same boundary to `SuppressedErrorConstructor`. `SuppressedError`
+uses `(error, suppressed, message, options)`, so it must map `message` and
+`options` locally before calling the shared helper and keep the `error` and
+`suppressed` property definitions local.
+
 Focused proof:
 
 ```bash
@@ -51,8 +57,12 @@ Future Error-constructor refactors should:
    `InitializeError`;
 3. keep `AggregateError`'s shifted `(errors, message, options)` mapping in
    `AggregateErrorConstructor` before calling the shared helper; and
-4. leave `AggregateError` iterable collection and `errors` property definition
-   outside the shared Error initialization helper.
+4. keep `SuppressedError`'s shifted
+   `(error, suppressed, message, options)` mapping in
+   `SuppressedErrorConstructor` before calling the shared helper; and
+5. leave constructor-specific properties, including `AggregateError.errors` and
+   `SuppressedError.error` / `SuppressedError.suppressed`, outside the shared
+   Error initialization helper.
 
 Do not deduplicate Error constructors by passing raw `args` into a generic
 helper that has to infer constructor family from arity or type. The call site
@@ -63,14 +73,17 @@ that owns the constructor grammar should choose `messageArg` and `optionsArg`.
 - Common Error metadata and ES2022 `cause` behavior stay in one implementation.
 - `AggregateError` keeps its spec-visible argument order clear and avoids
   treating `errors` as `message`.
-- Future changes to `message` or `cause` behavior should prove both ordinary
-  Error-family constructors and `AggregateError`.
+- `SuppressedError` keeps its spec-visible argument order clear and avoids
+  treating `error` or `suppressed` as `message`.
+- Future changes to `message` or `cause` behavior should prove ordinary
+  Error-family constructors and shifted-argument constructors such as
+  `AggregateError` and `SuppressedError`.
 - Duplicate-code tools can identify the shared block, but review must preserve
-  the constructor-specific argument mapping and the AggregateError-only
-  iterable path.
+  the constructor-specific argument mapping and properties.
 
 ## Related
 
 - `.claude/rules/ecmascript-error-constructors.md`
 - `src/Asynkron.JsEngine/StdLib/Error/ErrorConstructorBase.cs`
 - `src/Asynkron.JsEngine/StdLib/Error/AggregateErrorConstructor.cs`
+- `src/Asynkron.JsEngine/StdLib/Error/SuppressedErrorConstructor.cs`

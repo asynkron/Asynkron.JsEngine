@@ -69,14 +69,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _backing.DefinePropertyDirect("length",
             new PropertyDescriptor
             {
-                Value = (double)_values.Length,
+                JsValue = (double)_values.Length,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
             });
 
         _backing.DefinePropertyDirect("__arguments__",
-            new PropertyDescriptor { Value = true, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor { JsValue = true, Writable = false, Enumerable = false, Configurable = false });
 
         if (callee is not null)
         {
@@ -84,7 +84,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             {
                 _calleeDescriptor = new PropertyDescriptor
                 {
-                    Value = callee,
+                    JsValue = JsValue.FromObjectUnsafe(callee),
                     Writable = true,
                     Enumerable = false,
                     Configurable = true

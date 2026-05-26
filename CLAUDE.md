@@ -10,6 +10,8 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - Use `/test` to run the internal test suite (not ECMAScript 262 tests)
 - [Build/test commands and demos](agents/how-to-build-and-test.md)
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
+- [CPU and allocation profiling workflow](agents/how-to-profile.md)
+- [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
@@ -20,7 +22,7 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)
-- Quick ProfileRunner/Jint timing matrix: run `./tools/compare-jint-profiles` for the common sync JS profile set, or `./tools/compare-jint-profiles --smoke` for only `fib`, `forloop`, `ir-arithmetic`, `functioncalls`, and `functioncalls-lite`. Use `./tools/compare-jint-profiles --async-smoke-only` to isolate tiny Jint async/await behavior. Do not use `./tools/profile --compare` for this matrix; it runs the separate BenchmarkDotNet Jint comparison suite.
+- Quick ProfileRunner/Jint matrix: run `./benchmark.sh` for timing, `./benchmark.sh --allocations` for timing plus managed allocation comparison, and `./benchmark.sh --smoke` for the short set. See [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md).
 
 ## Debugging & Test Strategies
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)

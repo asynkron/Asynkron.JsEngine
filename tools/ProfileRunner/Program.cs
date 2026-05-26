@@ -20,6 +20,7 @@ var reportExpressionProgramStorage = false;
 var reportStatementInstructionStorage = false;
 var forceTiming = false;
 var forceFreshEnginePerIteration = false;
+var measureAllocations = false;
 var wrapInFunction = false;
 var positionalArgs = new List<string>();
 
@@ -83,6 +84,12 @@ for (var i = 0; i < args.Length; i++)
     if (string.Equals(arg, "--force-timing", StringComparison.OrdinalIgnoreCase))
     {
         forceTiming = true;
+        continue;
+    }
+
+    if (string.Equals(arg, "--measure-allocations", StringComparison.OrdinalIgnoreCase))
+    {
+        measureAllocations = true;
         continue;
     }
 
@@ -233,6 +240,7 @@ async Task RunWithSharedEnginesAsync(
         await EvaluateAsync(engine, parsed);
     }
 
+    var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
@@ -244,7 +252,10 @@ async Task RunWithSharedEnginesAsync(
     }
 
     sw?.Stop();
-    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+    var allocatedBytes = measureAllocations
+        ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
+        : (long?)null;
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
 }
 
 async Task RunWithFreshEnginesAsync(
@@ -276,6 +287,7 @@ async Task RunWithFreshEnginesAsync(
         await EvaluateAsync(warmEngine, parsed);
     }
 
+    var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
@@ -288,7 +300,10 @@ async Task RunWithFreshEnginesAsync(
     }
 
     sw?.Stop();
-    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+    var allocatedBytes = measureAllocations
+        ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
+        : (long?)null;
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
 }
 
 async Task EvaluateAsync(JsEngine engine, ProgramNode parsed)
@@ -311,16 +326,18 @@ void RunWithSharedJintEngine(
     int runsForAverage)
 {
     using var engine = CreateJintEngine();
+    var prepared = Engine.PrepareScript(source);
 
     for (var i = 0; i < warmup; i++)
     {
-        EvaluateJint(engine, source);
+        EvaluateJint(engine, prepared);
     }
 
+    var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
-        EvaluateJint(engine, source);
+        EvaluateJint(engine, prepared);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -328,7 +345,10 @@ void RunWithSharedJintEngine(
     }
 
     sw?.Stop();
-    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+    var allocatedBytes = measureAllocations
+        ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
+        : (long?)null;
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
 }
 
 void RunWithFreshJintEngines(
@@ -338,17 +358,19 @@ void RunWithFreshJintEngines(
     int iterations,
     int runsForAverage)
 {
+    var prepared = Engine.PrepareScript(source);
     for (var i = 0; i < warmup; i++)
     {
         using var warmEngine = CreateJintEngine();
-        EvaluateJint(warmEngine, source);
+        EvaluateJint(warmEngine, prepared);
     }
 
+    var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
         using var engine = CreateJintEngine();
-        EvaluateJint(engine, source);
+        EvaluateJint(engine, prepared);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -356,12 +378,15 @@ void RunWithFreshJintEngines(
     }
 
     sw?.Stop();
-    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage);
+    var allocatedBytes = measureAllocations
+        ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
+        : (long?)null;
+    PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
 }
 
-void EvaluateJint(Engine engine, string source)
+void EvaluateJint(Engine engine, Prepared<Acornima.Ast.Script> script)
 {
-    _ = engine.Evaluate(source).ToObject();
+    _ = engine.Evaluate(script).ToObject();
 }
 
 void RunBytecodeProfile()
@@ -567,9 +592,17 @@ static ExpressionProgram CreateArrayConstructionProgram(int itemCount)
         literalConstants: literals.MoveToImmutable());
 }
 
-void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage)
+long BeginAllocationMeasurement()
 {
-    if (!profile.ShowTiming)
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    return GC.GetTotalAllocatedBytes(precise: true);
+}
+
+void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage, long? allocatedBytes)
+{
+    if (!profile.ShowTiming && allocatedBytes is null)
     {
         Console.WriteLine("Done");
         return;
@@ -580,10 +613,29 @@ void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAvera
         Console.WriteLine();
     }
 
+    if (!profile.ShowTiming)
+    {
+        var allocatedText = allocatedBytes.GetValueOrDefault().ToString(CultureInfo.InvariantCulture);
+        var avgAllocated = runsForAverage > 0 ? allocatedBytes.GetValueOrDefault() / (double)runsForAverage : 0d;
+        var avgAllocatedText = avgAllocated.ToString("F2", CultureInfo.InvariantCulture);
+        Console.WriteLine($"Done; allocated {allocatedText} bytes (avg {avgAllocatedText} bytes per iteration)");
+        return;
+    }
+
     var avgMs = runsForAverage > 0 ? elapsedMs / (double)runsForAverage : 0d;
     var elapsedText = elapsedMs.ToString(CultureInfo.InvariantCulture);
     var avgText = avgMs.ToString("F2", CultureInfo.InvariantCulture);
-    Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration)");
+    if (allocatedBytes is null)
+    {
+        Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration)");
+        return;
+    }
+
+    var allocatedBytesValue = allocatedBytes.GetValueOrDefault();
+    var allocatedTextWithTiming = allocatedBytesValue.ToString(CultureInfo.InvariantCulture);
+    var avgAllocatedWithTiming = runsForAverage > 0 ? allocatedBytesValue / (double)runsForAverage : 0d;
+    var avgAllocatedTextWithTiming = avgAllocatedWithTiming.ToString("F2", CultureInfo.InvariantCulture);
+    Console.WriteLine($"Done in {elapsedText}ms (avg {avgText}ms per iteration); allocated {allocatedTextWithTiming} bytes (avg {avgAllocatedTextWithTiming} bytes per iteration)");
 }
 
 void PrintExpressionProgramStorage(string selectedProfileKey, ProgramNode program)

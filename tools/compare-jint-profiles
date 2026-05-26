@@ -10,6 +10,7 @@ runner_dll="$runner_bin/ProfileRunner.dll"
 build_runner=true
 run_async_smoke=false
 async_smoke_only=false
+report_allocations=false
 runner_cmd=()
 
 smoke_profiles=(
@@ -52,10 +53,13 @@ default_profiles=(
 usage() {
   cat <<'USAGE'
 Usage:
-  ./tools/compare-jint-profiles [--no-build] [--smoke] [--async-smoke|--async-smoke-only] [profile...]
+  ./tools/compare-jint-profiles [--no-build] [--smoke] [--allocations] [--async-smoke|--async-smoke-only] [profile...]
 
 Runs the ProfileRunner timing scripts against Asynkron and Jint and prints one
 repeatable comparison table.
+
+Use --allocations to also measure managed allocated bytes during the measured
+iteration loop for each engine process.
 
 Smoke profiles:
   fib forloop ir-arithmetic functioncalls functioncalls-lite
@@ -93,6 +97,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --smoke)
       profiles=("${smoke_profiles[@]}")
+      shift
+      ;;
+    --allocations|--memory)
+      report_allocations=true
       shift
       ;;
     --async-smoke)
@@ -150,8 +158,12 @@ profile_needs_iife_wrap() {
 run_engine() {
   local engine=$1
   local profile=$2
-  local out status line ms
+  local out status line ms allocated
   local args=("--$engine" "--force-timing")
+
+  if [[ "$report_allocations" == true ]]; then
+    args+=("--measure-allocations")
+  fi
 
   if profile_needs_iife_wrap "$profile"; then
     args+=("--wrap-iife")
@@ -176,7 +188,56 @@ run_engine() {
     return 1
   fi
 
-  printf '%s' "$ms"
+  allocated="n/a"
+  if [[ "$report_allocations" == true ]]; then
+    allocated=$(printf '%s\n' "$line" | sed -n 's/.*allocated \([0-9][0-9]*\) bytes.*/\1/p')
+    if [[ -z "$allocated" ]]; then
+      printf 'ERR'
+      printf '\nCould not parse allocation count for %s %s:\n%s\n' "$engine" "$profile" "$line" >&2
+      return 1
+    fi
+  fi
+
+  printf '%s %s' "$ms" "$allocated"
+}
+
+format_kb() {
+  local bytes=$1
+  if [[ "$bytes" =~ ^[0-9]+$ ]]; then
+    awk -v b="$bytes" 'BEGIN { printf "%.1f", b / 1024 }'
+  else
+    printf '%s' "$bytes"
+  fi
+}
+
+format_delta() {
+  local a=$1
+  local j=$2
+  local label=$3
+
+  if [[ "$a" =~ ^[0-9]+$ && "$j" =~ ^[0-9]+$ && "$a" -gt 0 && "$j" -gt 0 ]]; then
+    awk -v a="$a" -v j="$j" -v label="$label" 'BEGIN {
+      if (a < j) {
+        ratio = j / a
+        if (ratio < 1.10) {
+          printf "Tie"
+        } else {
+          printf "Asynkron %.2fx lower %s", ratio, label
+        }
+      } else if (j < a) {
+        ratio = a / j
+        if (ratio < 1.10) {
+          printf "Tie"
+        } else {
+          printf "Jint %.2fx lower %s", ratio, label
+        }
+      } else {
+        printf "Tie"
+      }
+    }'
+  else
+    printf 'n/a'
+  fi
 }
 
 failed=false
@@ -188,14 +249,23 @@ if [[ ${#profiles[@]} -gt 0 ]]; then
     fi
   done
 
-  printf "%-${profile_width}s %12s %8s  %s\n" "profile" "asynkron_ms" "jint_ms" "delta"
+  if [[ "$report_allocations" == true ]]; then
+    printf "%-${profile_width}s %12s %14s %8s %11s  %-22s %s\n" "profile" "asynkron_ms" "asynkron_kb" "jint_ms" "jint_kb" "time_delta" "alloc_delta"
+  else
+    printf "%-${profile_width}s %12s %8s  %s\n" "profile" "asynkron_ms" "jint_ms" "delta"
+  fi
 
   for profile in "${profiles[@]}"; do
-    a_ms=$(run_engine asynkron "$profile") || failed=true
+    a_result=$(run_engine asynkron "$profile") || failed=true
+    a_ms=${a_result%% *}
+    a_alloc=${a_result#* }
     if [[ "$profile" == test262-* ]]; then
       j_ms="n/a"
+      j_alloc="n/a"
     else
-      j_ms=$(run_engine jint "$profile") || failed=true
+      j_result=$(run_engine jint "$profile") || failed=true
+      j_ms=${j_result%% *}
+      j_alloc=${j_result#* }
     fi
 
     if [[ "$a_ms" =~ ^[0-9]+$ && "$j_ms" =~ ^[0-9]+$ && "$a_ms" -gt 0 && "$j_ms" -gt 0 ]]; then
@@ -222,7 +292,12 @@ if [[ ${#profiles[@]} -gt 0 ]]; then
       delta='n/a'
     fi
 
-    printf "%-${profile_width}s %12s %8s  %s\n" "$profile" "$a_ms" "$j_ms" "$delta"
+    if [[ "$report_allocations" == true ]]; then
+      alloc_delta=$(format_delta "$a_alloc" "$j_alloc" "alloc")
+      printf "%-${profile_width}s %12s %14s %8s %11s  %-22s %s\n" "$profile" "$a_ms" "$(format_kb "$a_alloc")" "$j_ms" "$(format_kb "$j_alloc")" "$delta" "$alloc_delta"
+    else
+      printf "%-${profile_width}s %12s %8s  %s\n" "$profile" "$a_ms" "$j_ms" "$delta"
+    fi
   done
 fi
 

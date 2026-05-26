@@ -9,6 +9,8 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 ## Build, Tests, and Profiling
 - [Build/test commands and demos](agents/how-to-build-and-test.md)
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
+- [CPU and allocation profiling workflow](agents/how-to-profile.md)
+- [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
@@ -19,7 +21,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)
-- Quick ProfileRunner/Jint timing matrix: run `rtk ./tools/compare-jint-profiles` for the common sync JS profile set, or `rtk ./tools/compare-jint-profiles --smoke` for only `fib`, `forloop`, `ir-arithmetic`, `functioncalls`, and `functioncalls-lite`. Use `rtk ./tools/compare-jint-profiles --async-smoke-only` to isolate tiny Jint async/await behavior. Do not use `rtk ./tools/profile --compare` for this matrix; it runs the separate BenchmarkDotNet Jint comparison suite.
+- Quick ProfileRunner/Jint matrix: run `rtk ./benchmark.sh` for timing, `rtk ./benchmark.sh --allocations` for timing plus managed allocation comparison, and `rtk ./benchmark.sh --smoke` for the short set. See [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md).
 
 ## Debugging & Test Strategies
 - [Debugging aids (logger assertions, slot metadata)](agents/how-to-debugging.md)

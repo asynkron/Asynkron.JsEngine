@@ -28,6 +28,11 @@ simple sync functions, before renting a full invocation context or allocating
 sync IR trampoline frames. The existing trampoline still has a guarded literal
 return fallback for call sites that reach it.
 
+This follow-up also adds one guarded no-argument parameter-return shape:
+`return a;` may return `undefined` directly when the lowered plan proves the
+return expression is a single parameter-slot load and the call has zero
+arguments.
+
 The fast path is limited to simple, non-constructor, non-async, non-generator
 functions with the existing simple IR activation plan shape and without dynamic
 activation features such as `arguments`, captured activation environments,
@@ -52,3 +57,10 @@ activation-noargs-lite          265      128  Jint 2.07x faster
 
 Compared with the 634 ms pre-edit Asynkron baseline, the repeated post-edit
 Asynkron samples are about 56-59% faster.
+
+Follow-up sample after widening to the guarded no-argument parameter-return
+shape:
+
+```text
+activation-noargs-lite          457      202  Jint 2.26x faster
+```

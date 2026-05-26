@@ -133,6 +133,42 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnParameterFunction_NoArguments_UsesNoArgsReturnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                return a;
+            }
+
+            probe();
+            """);
+
+        Assert.Equal(Asynkron.JsEngine.Ast.Symbol.Undefined, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnParameterFunction_WithArgument_DoesNotUseNoArgsReturnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                return a;
+            }
+
+            probe(42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains("simple-ir-return-fast-path func=probe argc=0", StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData("""
         function probe(a) {

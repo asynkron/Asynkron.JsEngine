@@ -112,6 +112,26 @@ optimization.
     owner with a CPU profile, then pin descriptor visibility, insertion order,
     extensibility, virtual-provider/private-field exclusions, and later
     `Object.defineProperty` promotion semantics.
+10a. For named-property read performance work, keep shortcuts at the runtime
+     property-access and `JsObject` storage boundaries while preserving
+     observable `[[Get]]` semantics. A direct `JsValueKind.Object` ->
+     `JsObject.TryGetProperty` route may skip generic object-carrier dispatch
+     only when it keeps the original `JsValue` receiver. `JsObject` may return a
+     stored own property directly only when no accessor descriptor owns that
+     name; accessors, virtual providers, prototype traversal, non-`JsObject`
+     property accessors, primitive prototype reads, private-field boundaries,
+     and JavaScript throw propagation stay on semantic fallbacks. Compound `+=`
+     slot shortcuts that evaluate a property RHS must evaluate that RHS exactly
+     once, handle pending awaits/throws through the existing runner paths, and
+     use generic addition when the profiled direct add helper does not apply.
+     Prove retained changes with repeated selected-profile timing and focused
+     tests for own data shadowing, prototype getter receiver binding, and getter
+     read count. WHY: issue `autrun-disqa6r1nle8-d1809e0cbe` / PR #2157 added
+     the `propertyaccess` named-read fast path after the hot subtree was
+     `HandleCompoundAssignmentSlot -> EvaluateExpressionProgram ->
+     GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue ->
+     JsObject.TryGetProperty*`; the win depended on ordinary-object and
+     own-data proofs, not a generic property cache.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only
@@ -419,6 +439,19 @@ descriptors. The durable lesson is that object-literal fast paths must stay
 profile-owned and storage-owned while preserving descriptor materialization and
 promotion semantics. Related ADR:
 `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`.
+
+Issue `autrun-disqa6r1nle8-d1809e0cbe` / PR #2157 selected `propertyaccess`
+from the benchmark table and proved the hot owner with a CPU call tree under
+compound slot assignment, expression-program named property reads, `JsOps`, and
+`JsObject`. The accepted slice kept the shortcut at two runtime-owned
+boundaries: direct ordinary `JsObject` reads with the original `JsValue`
+receiver, and stored own data-property reads that explicitly fall back for
+accessors, virtual providers, and prototypes. The flat-slot compound-add path
+was likewise limited to a proven accumulator slot and a non-awaiting RHS
+expression program. The durable lesson is that named-property read performance
+work must stay profile-owned, storage-owned, and receiver-preserving, with
+focused tests proving accessor/prototype/read-count semantics. Related ADR:
+`docs/adrs/0188-keep-named-property-read-fast-paths-storage-owned-and-receiver-preserving.md`.
 
 Issue `autrun-diqzs4qq1p5s-4e9bf90752` / PR #1696 selected `json` from the
 benchmark table and proved the hot owner with a `json` CPU call tree:

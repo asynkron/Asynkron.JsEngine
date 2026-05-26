@@ -147,6 +147,14 @@ pinning.
   the issue slice. The correct closeout was evidence-only: no `JsRegExp`,
   generated Unicode data, or Test262 harness patch is warranted unless an exact
   listed row or tightly owned neighboring fixture fails reproducibly.
+- Issue #2005 / PR #2016 reused this decision for generated RegExp Unicode
+  property escape punctuation crash rows. The focused current-main filters for
+  `Connector_Punctuation` and `Close_Punctuation` both passed, so the delivery
+  stayed test-only: one internal regression in `RegExpTests.cs` pins anchored
+  and unanchored `General_Category` behavior with positive and negative samples.
+  The correct closeout is focused proof plus regression coverage, not a
+  `JsRegExp`, generated Unicode data, or Test262 harness patch, when the exact
+  generated punctuation rows are already green.
 - Issue #1833 / PR #1854 reused this decision for BigInt modulus crash rows.
   The broad `Name=Expressions_modulus` method group was host-contention-prone,
   so the delivery created

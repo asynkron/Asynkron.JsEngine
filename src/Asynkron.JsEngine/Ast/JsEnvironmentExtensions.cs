@@ -222,7 +222,7 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
-    internal static object? ResolveSuperConstructorForCall(this JsEnvironment environment, SuperBinding binding)
+    internal static bool TryResolveSuperConstructorForCall(this JsEnvironment environment, SuperBinding binding, out JsValue constructorValue)
     {
         if (environment.TryGetObject<IJsObjectLike>(Symbol.ActiveFunction, out var activeFunction))
         {
@@ -230,27 +230,36 @@ public static partial class TypedAstEvaluator
                                           activeFunction.Prototype;
             if (dynamicSuperConstructor is not null)
             {
-                return dynamicSuperConstructor;
+                constructorValue = JsValue.FromObjectUnsafe(dynamicSuperConstructor);
+                return true;
             }
         }
 
         if (binding.Constructor is not null)
         {
-            return binding.Constructor;
+            constructorValue = JsValue.FromObjectUnsafe(binding.Constructor);
+            return true;
         }
 
         if (binding.Prototype is IJsEnvironmentAwareCallable prototypeCallable)
         {
-            return prototypeCallable;
+            constructorValue = JsValue.FromObjectUnsafe(prototypeCallable);
+            return true;
         }
 
         if (environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var newTargetFunction))
         {
-            return (newTargetFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
-                   newTargetFunction.Prototype;
+            var dynamicSuperConstructor = (newTargetFunction as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                          newTargetFunction.Prototype;
+            if (dynamicSuperConstructor is not null)
+            {
+                constructorValue = JsValue.FromObjectUnsafe(dynamicSuperConstructor);
+                return true;
+            }
         }
 
-        return binding.Constructor;
+        constructorValue = JsValue.Undefined;
+        return false;
     }
 
     internal static JsEnvironment ResolveConstructorThisEnvironment(this JsEnvironment environment)

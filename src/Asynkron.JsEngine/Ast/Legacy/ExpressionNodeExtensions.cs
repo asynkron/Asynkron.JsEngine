@@ -3175,16 +3175,16 @@ public static partial class TypedAstEvaluator
                     // dynamically via GetSuperConstructor() which gets activeFunction.[[Prototype]].
                     // For a constructor, the active function is available via NewTarget when it's
                     // a constructor being invoked via 'new'.
-                    var dynamicSuperConstructor = environment.ResolveSuperConstructorForCall(binding);
+                    var hasSuperConstructor = environment.TryResolveSuperConstructorForCall(binding, out var constructorValue);
                     if (environment.TryGetObject<IJsObjectLike>(Symbol.NewTarget, out var activeFunction))
                     {
                         logger?.LogInformation(
                             "Super call: dynamic lookup newTargetType={NewTargetType} protoType={ProtoType}",
                             activeFunction.GetType().Name,
-                            dynamicSuperConstructor?.GetType().Name ?? "null");
+                            hasSuperConstructor ? constructorValue.ObjectValue?.GetType().Name ?? constructorValue.Kind.ToString() : "null");
                     }
 
-                    if (dynamicSuperConstructor is null)
+                    if (!hasSuperConstructor)
                     {
                         throw new InvalidOperationException(
                             $"Super constructor is not available in this context.{context.GetSourceInfo(superExpression.Source)}");
@@ -3194,7 +3194,7 @@ public static partial class TypedAstEvaluator
                         ? JsValue.Undefined
                         : binding.ThisValue;
 
-                    return (JsValue.FromObjectUnsafe(dynamicSuperConstructor), superThis, false);
+                    return (constructorValue, superThis, false);
                 }
             case MemberExpression { Target: SuperExpression } member:
                 {

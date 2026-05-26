@@ -3163,15 +3163,12 @@ public static partial class TypedAstEvaluator
             try
             {
                 var superBindingForCall = environment.ExpectSuperBinding(context);
-                var dynamicSuperConstructor = environment.ResolveSuperConstructorForCall(superBindingForCall);
 
-                if (dynamicSuperConstructor is null)
+                if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
                 {
                     throw new InvalidOperationException(
                         $"Super constructor is not available in this context.{context.GetSourceInfo()}");
                 }
-
-                var constructorValue = JsValue.FromObjectUnsafe(dynamicSuperConstructor);
 
                 JsEnvironment? thisInitializationEnvironment = null;
                 var thisInitializationValue = JsValue.Undefined;

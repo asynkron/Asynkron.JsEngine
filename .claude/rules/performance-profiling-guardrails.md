@@ -134,7 +134,12 @@ optimization.
     tagged as JavaScript strings, and keep object coercion, BigInt, symbols,
     and mixed operands on the generic addition path. Do not lower the rope
     flattening depth or force append-loop flattening without current CPU
-    evidence and a consumer correctness proof.
+    evidence and a consumer correctness proof. When the current owner is
+    `StringPrototype.Split` or another string consumer's result
+    materialization, keep the optimization at that consumer boundary: pre-size
+    result storage only after proving the constructor is capacity-only, avoid
+    intermediate element arrays where observable order is unchanged, and do not
+    turn a split/join hotspot into a rope or generic addition policy change.
 16. For sync IR trampoline performance work, separate semantically tail-position
     calls from calls the current trampoline executor can actually complete.
     Before widening eligibility, prove the selected profile's call shape
@@ -142,6 +147,14 @@ optimization.
     call, or another shape) and update the executor before accepting broader
     eligibility. Non-tail recursive operand calls must stay on ordinary
     invocation instead of paying repeated failed trampoline setup.
+16a. For sync IR trampoline frame-capacity work, prove whether the selected
+     owner is shallow setup, failed eligibility, or real deep-stack growth
+     before changing the initial frame array size. The common shallow path
+     should stay small and growth-driven; do not restore a broad eager frame
+     capacity unless a current profile shows repeated growth is the cost being
+     optimized. Capacity tuning must not change eligibility, active frame
+     count, argument/receiver binding, expression stack state, or fallback
+     behavior.
 17. For lexical scope-entry TDZ performance work, prove that the selected
     profile is paying repeated scope-entry metadata work before changing the
     runner. If slot layout is already known by lowering or stamping, carry
@@ -413,6 +426,17 @@ or append-loop flattening changes JavaScript semantics and the cost model.
 Related ADR:
 `docs/adrs/0120-keep-string-append-rope-flattening-consumer-driven.md`.
 
+Issue #2053 / PR #2067 repeated `stringops` after ADR 0120 and found that the
+current CPU and memory owners had shifted from append-loop flattening to
+consumer-side split/join work, including `CreateArrayFromStrings` list growth
+under `StringPrototype.Split`. The accepted slice pre-sized split result arrays
+and removed the temporary `string[]` for empty-separator split while preserving
+`@@split`, limit, separator conversion, and result array ordering semantics.
+The durable lesson is that a follow-up `stringops` profile can move the owner to
+consumer materialization; future agents must keep that win at the consumer
+instead of reopening rope or addition policy. Related ADR:
+`docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`.
+
 Issue `autrun-dirtf01zpmv4-17122917c9` / PR #1909 selected `fib` from the
 benchmark table and proved the hot owner with a `fib` CPU call tree: ordinary
 recursive invocation dominated, but repeated failed `SyncIrCallTrampoline`
@@ -423,6 +447,17 @@ branch expressions and non-final return-expression calls before frame setup.
 The durable lesson is that trampoline performance work must match eligibility
 to executable shapes, not merely to the presence of recursive calls. Related
 ADR: `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`.
+
+Issue `autrun-disgkh65fjdk-eae1e197e9` / PR #2072 selected
+`activation-params-lite` and found the inverse sync-trampoline cost: the calls
+were shallow and eligible, but `SyncIrCallTrampoline` eagerly allocated backing
+storage for 64 frames before the first push. Reducing the initial capacity to
+four frames kept deep-stack growth intact while cutting repeated selected
+profile timings by about 42% on average. The durable lesson is that trampoline
+capacity work should be profile-owned and capacity-only: optimize the shallow
+startup case without changing eligibility, active frame semantics, or fallback
+behavior. Related ADR:
+`docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`.
 
 Issue `autrun-dirzemwhwz7s-0f70b9a325` / PR #1915 selected `destructuring`
 from the benchmark table and proved the hot owner with a `destructuring` CPU

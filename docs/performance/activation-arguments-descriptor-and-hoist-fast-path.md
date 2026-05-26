@@ -71,11 +71,31 @@ The first focused post-change run improved Asynkron time by about 16% versus the
 both the baseline and first post-change sample, so the improvement clears the
 requested 10% threshold despite local benchmark noise.
 
-A follow-up CPU profile completed after the final pre-size tweak. The previous
-`CreateArgumentsObject -> Dictionary.Resize` and `TrackPropertyInsertion ->
-List.AddWithResize` samples were gone from the filtered call tree; the remaining
-dominant activation setup cost is `HashSet<Symbol>.ConstructFrom` in environment
-lexical-name setup.
+A follow-up CPU profile completed after the final lexical-template setup change.
+AC-3 required explicit before/after evidence for the residual lexical-name owner:
+
+```text
+Before (issue baseline call tree):
+CreateExecutionEnvironment
+  HashSet<Symbol>.ConstructFrom
+  CreateArgumentsObject
+    JsArgumentsObject.ctor
+      JsObject.DefinePropertyInternalDirect
+        Dictionary.Resize
+  HoistVarDeclarations
+```
+
+```text
+After (2026-05-26, this branch, same profile command):
+Call Tree (Total Time) - root: InvokeWithContextSlow
+... TypedAstEvaluator.ExecutionPlanRunner.CreateExecutionEnvironment
+    JsEnvironment.MarkSlotsLexicalUninitialized
+    TypedAstEvaluator.CreateArgumentsObject
+```
+
+The after call tree no longer shows `HashSet<Symbol>.ConstructFrom` in the hot
+activation subtree, so the residual lexical-name construction owner is reduced
+out of the focused CPU hotspot for `activation-arguments-lite`.
 
 ## Verification
 

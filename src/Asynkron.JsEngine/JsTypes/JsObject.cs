@@ -1980,6 +1980,14 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     /// </summary>
     private bool TryGetOwnPropertyJsValue(string name, JsValue receiver, EvaluationContext? context, out JsValue value)
     {
+        if (_state is { } state &&
+            state.Storage.TryGetValue(name, out value) &&
+            (!state.Descriptors.TryGetValue(name, out var directDescriptor) ||
+             !directDescriptor.IsAccessorDescriptor))
+        {
+            return true;
+        }
+
         if (_virtualPropertyProvider is not null &&
             (_state?.Descriptors.ContainsKey(name) != true) &&
             !ContainsKey(name) &&

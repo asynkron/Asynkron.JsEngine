@@ -791,7 +791,9 @@ public sealed partial class RegExpPrototype
 
         StringBuilder? builder = null;
         var nextSourcePosition = 0;
-        while (regex.TryExecMatchOnly(input, out var match))
+        var lastMatchIndex = -1;
+        var lastMatchLength = 0;
+        while (regex.TryExecMatchBoundsOnly(input, out var match))
         {
             builder ??= new StringBuilder(input.Length + replacement.Length);
             if (match.Index >= nextSourcePosition)
@@ -800,6 +802,9 @@ public sealed partial class RegExpPrototype
                 builder.Append(replacement);
                 nextSourcePosition = match.Index + match.Length;
             }
+
+            lastMatchIndex = match.Index;
+            lastMatchLength = match.Length;
 
             if (!isGlobal)
             {
@@ -826,6 +831,7 @@ public sealed partial class RegExpPrototype
             builder.Append(input.AsSpan(nextSourcePosition));
         }
 
+        Realm.UpdateRegExpStatics(input, lastMatchIndex, lastMatchLength);
         result = new JsValue(builder.ToString());
         return true;
     }

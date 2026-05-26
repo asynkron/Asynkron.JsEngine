@@ -589,6 +589,58 @@ public sealed class JsRegExp
 
     internal readonly record struct MatchOnlyResult(int Index, int Length, string Value);
 
+    internal bool TryExecMatchBoundsOnly(string input, out MatchBoundsResult result)
+    {
+        result = default;
+
+        var lastIndex = GetLastIndex();
+        var startIndex = Global || Sticky ? lastIndex : 0;
+
+        if (startIndex > input.Length)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        if (TryMatchLegacyGlobalNonWhitespacePlus(input, startIndex, out var fastIndex, out var fastLength))
+        {
+            SetLastIndexStrict(fastIndex + fastLength);
+            result = new MatchBoundsResult(fastIndex, fastLength);
+            return true;
+        }
+
+        var match = EnsureRegex().Match(input, startIndex);
+
+        if (Sticky && match.Success && match.Index != startIndex)
+        {
+            match = System.Text.RegularExpressions.Match.Empty;
+        }
+
+        if (!match.Success)
+        {
+            if (Global || Sticky)
+            {
+                SetLastIndexStrict(0);
+            }
+
+            return false;
+        }
+
+        if (Global || Sticky)
+        {
+            SetLastIndexStrict(match.Index + match.Length);
+        }
+
+        result = new MatchBoundsResult(match.Index, match.Length);
+        return true;
+    }
+
+    internal readonly record struct MatchBoundsResult(int Index, int Length);
+
     /// <summary>
     ///     Finds all matches in the input string.
     /// </summary>

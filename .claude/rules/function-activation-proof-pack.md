@@ -42,10 +42,13 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
    struct and reintroduces the allocation the optimization is trying to remove.
    If the arity reduction is for an Array iteration callback, also prove the
    callback cannot observe omitted arguments before switching from the full
-   `(value, index, array)` carrier to a narrower carrier. Ordinary functions,
-   rest parameters, parameter expressions, async/generator callbacks, and
-   callbacks with explicit index or array parameters must stay on the full
-   observable argument path.
+   `(value, index, array)` or reducer
+   `(accumulator, value, index, array)` carrier to a narrower carrier. Ordinary
+   functions, rest parameters, parameter expressions, async/generator callbacks,
+   and callbacks with explicit index or array parameters must stay on the full
+   observable argument path. For `reduce`/`reduceRight`, a two-argument reducer
+   carrier is only valid for guarded simple arrow callbacks that cannot observe
+   callback-local `arguments`, `index`, or `array`.
 8. When binding parameters into an activation that already has slot storage,
    update the planned parameter slots directly. Do not call
    `DefineParameterFast` as a closure mirror for those parameters; it appends a
@@ -187,6 +190,19 @@ ordinary functions that expose `arguments`, rest parameters, and callbacks that
 name the index or array. Future callback-arity optimizations should pair the
 profile evidence with positive value-semantics tests and negative observable
 extra-argument tests.
+
+Related ADR:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
+
+Issue #2076 / PR #2088 showed the reducer follow-up: after `FourValueArgs`
+made the full reducer path allocation-stable, the `arrayops` memory profile
+still showed repeated callback-shape `HashSet<Symbol>` allocation and full
+reducer carrier work for simple `(acc, value) => ...` arrows. The accepted fix
+cached the constructor-stable eligibility predicate and used `TwoValueArgs`
+only for guarded simple typed reducer arrows. Future callback-arity work should
+prove reducer callback observability separately from map/filter callback
+observability and keep ordinary/rest/default/destructured/async/generator
+callbacks on the full path.
 
 Related ADR:
 `docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.

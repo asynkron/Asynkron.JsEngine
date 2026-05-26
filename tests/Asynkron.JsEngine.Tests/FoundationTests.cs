@@ -894,6 +894,81 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Array_Reduce_TwoArgumentArrow_UsesPrototypeValueForHole()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let hits = 0;
+                                           Object.defineProperty(Array.prototype, "1", {
+                                             configurable: true,
+                                             get() {
+                                               hits++;
+                                               return 10;
+                                             }
+                                           });
+                                           try {
+                                             const sum = [1, , 3].reduce((acc, x) => acc + x, 0);
+                                             sum + "|" + hits;
+                                           } finally {
+                                             delete Array.prototype[1];
+                                           }
+                                           """);
+        Assert.Equal("14|1", result);
+    }
+
+    [Fact]
+    public async Task Array_Reduce_TwoArgumentArrow_UsesAccessorValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let hits = 0;
+                                           const arr = [1, 2, 3];
+                                           Object.defineProperty(arr, "1", {
+                                             configurable: true,
+                                             get() {
+                                               hits++;
+                                               return 20;
+                                             }
+                                           });
+                                           const sum = arr.reduce((acc, x) => acc + x, 0);
+                                           sum + "|" + hits;
+                                           """);
+        Assert.Equal("24|1", result);
+    }
+
+    [Fact]
+    public async Task Array_Reduce_TwoArgumentArrow_ProxySkipsMissingIndexGet()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const log = [];
+                                           const proxy = new Proxy({ 0: 2, 2: 5, length: 3 }, {
+                                             has(target, prop) {
+                                               if (prop === "1") {
+                                                 return false;
+                                               }
+                                               return Reflect.has(target, prop);
+                                             },
+                                             get(target, prop, receiver) {
+                                               log.push("g" + prop);
+                                               return Reflect.get(target, prop, receiver);
+                                             }
+                                           });
+                                           const sum = Array.prototype.reduce.call(proxy, (acc, x) => acc + x, 0);
+                                           sum + "|" + (log.indexOf("g1") === -1);
+                                           """);
+        Assert.Equal("7|true", result);
+    }
+
+    [Fact]
+    public async Task Array_Reduce_ObservableArrowCallbackKeepsFullArguments()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("[10].reduce((...items) => items.length, 0)");
+        Assert.Equal(4d, result);
+    }
+
+    [Fact]
     public async Task Array_Map_UsesPrototypeValueForHole()
     {
         await using var engine = CreateEngine();

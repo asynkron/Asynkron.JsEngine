@@ -116,17 +116,21 @@ optimization.
     writability, and maximum-length fallback behavior with focused tests.
 14a. For Array iteration callback arity optimizations, prove that callback
      argument materialization is the selected profile owner before reducing
-     `(value, index, array)` to a narrower carrier. Keep the arity predicate
-     owned by the typed callback/invoker shape, not by a generic callback
-     length heuristic. Preserve the full argument path for callbacks that can
-     observe omitted arguments through `arguments`, rest parameters, parameter
-     expressions, async/generator execution, or explicit index/array
-     parameters, and pin both value semantics and observable extra-argument
-     behavior with focused tests. For reducer callbacks that must expose
-     `(accumulator, value, index, array)`, keep the four-argument path
+     `(value, index, array)` or reducer
+     `(accumulator, value, index, array)` to a narrower carrier. Keep the arity
+     predicate owned by the typed callback/invoker shape, not by a generic
+     callback length heuristic. Preserve the full argument path for callbacks
+     that can observe omitted arguments through callback-local `arguments`, rest
+     parameters, parameter expressions, async/generator execution, or explicit
+     index/array parameters, and pin both value semantics and observable
+     extra-argument behavior with focused tests. For reducer callbacks that must
+     expose `(accumulator, value, index, array)`, keep the four-argument path
      observable but carry it through a concrete typed carrier such as
      `FourValueArgs` when the typed JavaScript invoker can consume it; do not
-     allocate a temporary `JsValue[]` just to preserve the full arity.
+     allocate a temporary `JsValue[]` just to preserve the full arity. When a
+     profile names repeated callback-shape predicate allocation, cache only
+     constructor-stable predicate results on the invoker owner and keep mutable
+     invocation-state checks out of that cache.
 15. For repeated string append optimizations, prove whether the selected
     `stringops` cost is append-loop flattening, consumer flattening, or another
     string built-in before changing the rope or addition path. Keep primitive
@@ -528,6 +532,18 @@ pair for the selected slice. The durable lesson is that follow-up performance
 docs must state which slice the numbers prove and avoid presenting a
 no-regression profile pair as a fresh throughput win. Related ADR:
 `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
+
+Issue #2076 / PR #2088 selected `arrayops` again after earlier dense callback
+carrier work and proved the current owners with CPU and memory profiles:
+callback invocation still sat under `Map`, `Filter`, and `Reduce`, while the
+memory profile showed repeated `HashSet<Symbol>` allocation under callback
+eligibility. The accepted slice cached the simple callback eligibility predicate
+on `SyncFunctionInvoker` and used `TwoValueArgs` only for guarded simple typed
+reducer arrows, keeping observable callbacks on the full four-argument path. The
+durable lesson is that callback-arity follow-ups can move from carrier
+allocation to predicate allocation; fix the current profiled owner without
+widening the semantic predicate. Related ADR:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`.
 
 Issue `autrun-disb2md7n23s-0c3cde8865` / PR #1999 selected `destructuring`
 again and proved the hot owner with a CPU call tree: dense array binding

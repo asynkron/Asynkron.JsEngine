@@ -646,4 +646,44 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
             "before-first-yield|yielded:first|after-await:x|yielded:second",
             result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_DirectNextAcrossPendingAwaits_PreserveOrdering()
+    {
+        await using var engine = CreateEngine();
+
+        AsyncTestHelpers.RegisterDelayHelper(engine);
+
+        await engine.Evaluate("""
+            let log = [];
+
+            async function* gen() {
+                log.push("gen:start");
+                const first = await __delay(10, "first");
+                log.push("gen:after-first-await:" + first);
+                yield first;
+                log.push("gen:after-yield");
+                const second = await __delay(10, "second");
+                log.push("gen:after-second-await:" + second);
+                yield second;
+            }
+
+            async function run() {
+                const it = gen();
+                const r1 = await it.next();
+                log.push("next1:" + r1.value + ":" + r1.done);
+                const r2 = await it.next();
+                log.push("next2:" + r2.value + ":" + r2.done);
+                const r3 = await it.next();
+                log.push("next3:" + r3.value + ":" + r3.done);
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal(
+            "gen:start|gen:after-first-await:first|next1:first:false|gen:after-yield|gen:after-second-await:second|next2:second:false|next3:undefined:true",
+            result);
+    }
 }

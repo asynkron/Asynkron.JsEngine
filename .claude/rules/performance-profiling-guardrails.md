@@ -169,6 +169,15 @@ optimization.
      optimized. Capacity tuning must not change eligibility, active frame
      count, argument/receiver binding, expression stack state, or fallback
      behavior.
+16b. For sync IR trampoline frame-pooling work, keep frame ownership explicit.
+     Do not use `[ThreadStatic]`, `AsyncLocal<T>`, or shared scratch frame
+     caches to avoid allocation. If top-level `SyncIrFrame[]` storage is pooled,
+     growth cleanup and final cleanup must stay separate: after copying live
+     frames to a new rented array, reset only the old frame structs before
+     returning the old backing array, because the copied frames still own their
+     nested slot, expression-stack, and flag arrays. Final cleanup must clear
+     those nested arrays and non-scratch references such as `Plan` and
+     `ActivationSlots` before returning the invocation's backing array.
 17. For lexical scope-entry TDZ performance work, prove that the selected
     profile is paying repeated scope-entry metadata work before changing the
     runner. If slot layout is already known by lowering or stamping, carry
@@ -471,6 +480,17 @@ profile timings by about 42% on average. The durable lesson is that trampoline
 capacity work should be profile-owned and capacity-only: optimize the shallow
 startup case without changing eligibility, active frame semantics, or fallback
 behavior. Related ADR:
+`docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`.
+
+Issue #2075 / PR #2091 extended that same owner surface from frame capacity to
+frame-array pooling. Review rejected a `[ThreadStatic]` scratch cache because
+repo policy disallows thread-static shared state and nested trampoline use can
+reuse the same scratch storage. The follow-up lifecycle fix separated growth
+cleanup from final cleanup: growth only resets old frame structs after copying
+live frames, while final invocation cleanup clears nested scratch arrays and
+retained `Plan` / `ActivationSlots` references before pool return. The durable
+lesson is that pooled trampoline frame storage is an ownership change, not just
+an allocation micro-optimization. Related ADR:
 `docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`.
 
 Issue `autrun-dirzemwhwz7s-0f70b9a325` / PR #1915 selected `destructuring`

@@ -16,6 +16,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
   - `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`
   - `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`
+  - `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`
 
 ## Rules
 
@@ -123,6 +124,15 @@ When working inside the core engine, keep JavaScript values represented as
     `JsArray` constructor, element-write, push, or length helpers, the typed
     `JsValue` surface is the core contract; prove removal with a focused
     signature search for the retired overload family.
+18. When a private destructuring helper receives a `JsValue` and needs
+    `ToObject`/primitive-boxing semantics, call the shared
+    `StandardLibrary.TryGetObject(JsValue, realm, out ...)` path directly.
+    Do not manually unwrap booleans, numbers, strings, symbols, bigints, or
+    object payloads into CLR values before calling the legacy `object?`
+    overload; that recreates an object-carrier bridge inside evaluator code
+    that already has the JavaScript value and can drift from the shared
+    coercion helper. Prove these slices with the destructuring-focused legacy
+    switch search and focused destructuring tests.
 
 ## Why
 
@@ -319,3 +329,16 @@ important closeout lesson is that once a core runtime type has complete
 `JsValue` coverage and a focused signature search shows the old overload family
 can disappear, keeping those overloads no longer protects compatibility; it
 preserves an accidental object-carrier entry point for future runtime code.
+
+Issue `autrun-disb2mdhzcvs-0a8e873051` / PR #1996 migrated
+`ToObjectForDestructuringJsValue` from a manual primitive unwrap switch plus
+`StandardLibrary.TryGetObject(object?, ...)` to
+`StandardLibrary.TryGetObject(JsValue, ...)`. The old branch converted the
+already-typed destructuring value into CLR booleans/numbers/object payloads
+before asking the standard library to box primitives. That was not a public,
+host-interop, debugger, or diagnostic boundary; it was a private evaluator
+coercion helper. Future destructuring coercion cleanup should stay on the
+shared `JsValue` ToObject path and prove the slice with the focused
+`ToObjectForDestructuringJsValue`/legacy primitive-switch search plus the
+destructuring test pack. Related ADR:
+`docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`.

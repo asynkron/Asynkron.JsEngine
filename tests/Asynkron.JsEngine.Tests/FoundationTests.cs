@@ -843,6 +843,30 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Array_Reduce_PassesAllCallbackArguments()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("[10].reduce(function(acc, x, i, arr) { return arguments.length + i + arr.length; }, 0)");
+        Assert.Equal(5d, result);
+    }
+
+    [Fact]
+    public async Task Array_Map_UsesPrototypeValueForHole()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           Array.prototype[1] = 7;
+                                           try {
+                                             let arr = [1, , 3];
+                                             arr.map(x => x * 2).join(',');
+                                           } finally {
+                                             delete Array.prototype[1];
+                                           }
+                                           """);
+        Assert.Equal("2,14,6", result);
+    }
+
+    [Fact]
     public async Task Array_Spread()
     {
         await using var engine = CreateEngine();

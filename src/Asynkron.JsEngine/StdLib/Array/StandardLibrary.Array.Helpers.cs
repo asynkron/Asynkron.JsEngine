@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.JsArrayConstants;
 
@@ -230,10 +231,10 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    accumulator =
-                        callback.Invoke(
-                            [accumulator, value, new JsValue((double)k), accessorJsValue],
-                            JsValue.Undefined);
+                    var callbackArgs = new FourValueArgs(accumulator, value, new JsValue((double)k), accessorJsValue);
+                    accumulator = callback is TypedAstEvaluator.SyncFunctionInvoker typedFunction
+                        ? typedFunction.InvokeWithContext<FourValueArgs>(callbackArgs, JsValue.Undefined, null)
+                        : callback.Invoke(callbackArgs, JsValue.Undefined);
                 }
             }
 
@@ -468,6 +469,14 @@ public static partial class StandardLibrary
 
     internal static bool TryGetExistingElement(IJsPropertyAccessor accessor, long index, out JsValue value)
     {
+        if ((ulong)index <= uint.MaxValue &&
+            accessor is JsArray { HasCustomIndexedProperties: false } array &&
+            array.HasOwnIndex((uint)index))
+        {
+            value = array.GetElement((uint)index);
+            return true;
+        }
+
         return TryGetExistingElement(accessor, ToIndexString(index), out value);
     }
 

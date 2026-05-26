@@ -18,13 +18,6 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (plan.Instructions[plan.EntryPoint] is not ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null })
-        {
-            program = EmptyProgram();
-            reason = "Entrypoint must be a non-awaited ReturnInstruction with ReturnProgram.";
-            return false;
-        }
-
         if (plan.ActivationSlots is null)
         {
             program = EmptyProgram();
@@ -32,23 +25,94 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>(returnProgram.OperationCount + 1);
-        foreach (var operation in returnProgram.EnumerateOperations())
+        var entryInstruction = plan.Instructions[plan.EntryPoint];
+        if (entryInstruction is ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null })
+        {
+            var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>(returnProgram.OperationCount + 1);
+            if (!TryAppendExpressionProgramOps(returnProgram, plan.ActivationSlots, unified, out reason))
+            {
+                program = EmptyProgram();
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+            program = new UnifiedBytecodeProgram(unified.MoveToImmutable(), returnProgram.MaxStackDepth);
+            reason = string.Empty;
+            return true;
+        }
+
+        if (entryInstruction is not SimpleVariableDeclarationInstruction
+            {
+                InitializerProgram: { } initializerProgram,
+                AwaitedProgram: null,
+                TargetSymbol: { } targetSymbol
+            } declaration)
+        {
+            program = EmptyProgram();
+            reason = "Entrypoint must be a non-awaited ReturnInstruction or a simple local declaration followed by return.";
+            return false;
+        }
+
+        if ((uint)declaration.Next >= (uint)plan.Instructions.Length ||
+            plan.Instructions[declaration.Next] is not ReturnInstruction { ReturnProgram: { } linearReturnProgram, AwaitedProgram: null })
+        {
+            program = EmptyProgram();
+            reason = "Simple declaration entrypoint must be followed immediately by a non-awaited ReturnInstruction with ReturnProgram.";
+            return false;
+        }
+
+        if (!TryResolveActivationSlot(targetSymbol, plan.ActivationSlots, out var storeSlot))
+        {
+            program = EmptyProgram();
+            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
+            return false;
+        }
+
+        var capacity = initializerProgram.OperationCount + linearReturnProgram.OperationCount + 2;
+        var linearUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>(capacity);
+        if (!TryAppendExpressionProgramOps(initializerProgram, plan.ActivationSlots, linearUnified, out reason))
+        {
+            program = EmptyProgram();
+            return false;
+        }
+
+        linearUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
+        if (!TryAppendExpressionProgramOps(linearReturnProgram, plan.ActivationSlots, linearUnified, out reason))
+        {
+            program = EmptyProgram();
+            return false;
+        }
+
+        linearUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+        program = new UnifiedBytecodeProgram(
+            linearUnified.MoveToImmutable(),
+            Math.Max(initializerProgram.MaxStackDepth, linearReturnProgram.MaxStackDepth));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static UnifiedBytecodeProgram EmptyProgram() => new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0);
+
+    private static bool TryAppendExpressionProgramOps(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        out string reason)
+    {
+        foreach (var operation in expressionProgram.EnumerateOperations())
         {
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadIdentifier:
                     if (operation.IsArguments)
                     {
-                        program = EmptyProgram();
                         reason = "arguments is not supported.";
                         return false;
                     }
 
-                    var identifier = operation.GetIdentifier(returnProgram.IdentifierConstants.AsSpan());
-                    if (!TryResolveParameterSlot(identifier, plan.ActivationSlots, out var slotIndex))
+                    var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
                     {
-                        program = EmptyProgram();
                         reason = $"Unsupported identifier '{identifier.Name.Name}'.";
                         return false;
                     }
@@ -57,36 +121,28 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.Binary when operation.Operator == BinaryOperator.Add:
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Add));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
 
                 default:
-                    program = EmptyProgram();
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;
             }
         }
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
-        program = new UnifiedBytecodeProgram(unified.MoveToImmutable(), returnProgram.MaxStackDepth);
         reason = string.Empty;
         return true;
     }
 
-    private static UnifiedBytecodeProgram EmptyProgram() => new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0);
-
-    private static bool TryResolveParameterSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots, out int slotIndex)
+    private static bool TryResolveActivationSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots, out int slotIndex)
     {
-        if (identifier.ScopeId == activationSlots.ScopeId &&
-            identifier.SlotIndex >= 0 &&
-            ContainsParameterSlot(activationSlots.ParameterSlotIndices, identifier.SlotIndex))
+        if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
         {
             slotIndex = identifier.SlotIndex;
             return true;
         }
 
-        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot) &&
-            ContainsParameterSlot(activationSlots.ParameterSlotIndices, mappedSlot))
+        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot))
         {
             slotIndex = mappedSlot;
             return true;
@@ -96,16 +152,6 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
-    private static bool ContainsParameterSlot(ImmutableArray<int> parameterSlots, int candidate)
-    {
-        foreach (var parameterSlot in parameterSlots)
-        {
-            if (parameterSlot == candidate)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    private static bool TryResolveActivationSlot(Symbol symbol, ActivationSlotShape activationSlots, out int slotIndex) =>
+        activationSlots.SlotMap.TryGetValue(symbol, out slotIndex);
 }

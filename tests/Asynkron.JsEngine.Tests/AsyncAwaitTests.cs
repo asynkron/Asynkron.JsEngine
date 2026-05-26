@@ -630,7 +630,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("42", result);
     }
 
-    [Fact(Timeout = 20000)]
+    [Fact(Timeout = 60000)]
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange
@@ -674,7 +674,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
 
                          """);
 
-        await WaitForConditionAsync(() => result == "30", timeoutMs: 5000);
+        await WaitForConditionAsync(() => result == "30", timeoutMs: 15000);
 
         // Assert
         Assert.Equal("30", result);

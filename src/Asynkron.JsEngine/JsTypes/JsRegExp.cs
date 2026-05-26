@@ -5253,95 +5253,6 @@ public sealed class JsRegExp
             i++;
         }
 
-        // Phase 2: Collect positions where resets need to be inserted.
-        // For each group that contains duplicates: insert at content start and after each |
-        var insertPositions = new HashSet<int>();
-        groupStack.Clear();
-        i = 0;
-        escaped = false;
-        inCharClass = false;
-        var groupIndex = 0;
-
-        while (i < pattern.Length)
-        {
-            var c = pattern[i];
-
-            if (escaped)
-            {
-                escaped = false;
-                i++;
-                continue;
-            }
-
-            if (c == '\\')
-            {
-                escaped = true;
-                i++;
-                continue;
-            }
-
-            if (c == '[' && !inCharClass)
-            {
-                inCharClass = true;
-                i++;
-                continue;
-            }
-
-            if (c == ']' && inCharClass)
-            {
-                inCharClass = false;
-                i++;
-                continue;
-            }
-
-            if (inCharClass)
-            {
-                i++;
-                continue;
-            }
-
-            if (c == '(')
-            {
-                if (groupIndex < groupOpenPositions.Count)
-                {
-                    var contentStart = groupOpenPositions[groupIndex];
-                    if (groupContainsDup[groupIndex])
-                    {
-                        insertPositions.Add(contentStart);
-                    }
-
-                    groupStack.Push(groupIndex);
-                    groupIndex++;
-                }
-
-                i++;
-                continue;
-            }
-
-            if (c == ')' && groupStack.Count > 0)
-            {
-                groupStack.Pop();
-                i++;
-                continue;
-            }
-
-            if (c == '|' && groupStack.Count > 0)
-            {
-                var currentGroup = groupStack.Peek();
-                if (groupContainsDup[currentGroup])
-                {
-                    insertPositions.Add(i + 1); // Insert after the |
-                }
-            }
-
-            i++;
-        }
-
-        if (insertPositions.Count == 0)
-        {
-            return pattern;
-        }
-
         var resetStrings = new string?[groupOpenPositions.Count];
         for (var groupId = 0; groupId < groupResetNames.Count; groupId++)
         {
@@ -5368,7 +5279,7 @@ public sealed class JsRegExp
         i = 0;
         escaped = false;
         inCharClass = false;
-        groupIndex = 0;
+        var groupIndex = 0;
 
         while (i < pattern.Length)
         {
@@ -5443,6 +5354,11 @@ public sealed class JsRegExp
             }
 
             i++;
+        }
+
+        if (insertsByPosition.Count == 0)
+        {
+            return pattern;
         }
 
         // Phase 3: Build the new pattern with resets inserted

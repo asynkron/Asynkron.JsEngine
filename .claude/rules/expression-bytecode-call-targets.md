@@ -18,6 +18,14 @@ checks separate.
 4. At runtime, mark `EvalHostFunction.IsDirectCall` only when the call opcode is
    syntactically direct eval and the eval host belongs to the current engine.
    Cross-realm eval values must remain indirect.
+4a. If expression-program execution adds a direct-eval fast path, pass
+    invocation-local eval state explicitly into `EvalHostFunction`: current
+    `EvaluationContext`, current `JsEnvironment`, directness, and
+    class-field-initializer state. Do not let a fast path's shared eval core
+    read `CallingContext`, `CallingJsEnvironment`, `IsDirectCall`, or
+    `InClassFieldInitializer` as hidden inputs on the engine-global eval host.
+    Keep such shortcuts same-engine guarded and fall back for spread,
+    multi-argument, cross-engine, or indirect shapes.
 5. When direct eval executes, validate `super` and `new.target` from the
    caller's lexical execution context, not from only the immediate function kind.
    Arrows can inherit valid method, derived-constructor, or class-field
@@ -51,6 +59,15 @@ Direct eval inside arrows and class-field initializer contexts still needs the
 caller lexical `super` / `new.target` state; categorical arrow or no-method-frame
 rejections reject valid ECMAScript contexts and miss the real home-object /
 derived-constructor eligibility check.
+
+Issue #2149 / PR #2156 optimized the same-engine, one-argument direct-eval path
+for `activation-evalscope-lite` by adding an explicit
+`EvalHostFunction.InvokeDirectSingleArgumentFast` entrypoint. Review found that
+the shared eval core initially read class-field-initializer state from the
+mutable host field instead of the explicit invocation parameter. The durable
+lesson is that direct-eval call-path shortcuts may remove generic host-call
+handoff, but they must keep caller context, caller environment, and class-field
+state as explicit per-invocation inputs.
 
 The plan-child issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-b08421d0b0`

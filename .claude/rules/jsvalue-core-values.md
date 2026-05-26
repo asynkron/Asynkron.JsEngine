@@ -15,6 +15,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
   - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
   - `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`
+  - `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`
 
 ## Rules
 
@@ -106,6 +107,16 @@ When working inside the core engine, keep JavaScript values represented as
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
     focused semantic proof for that descriptor cluster.
+16. When a private runtime property-read helper already has a JavaScript
+    receiver, keep the context-aware read path typed as `JsValue` for both the
+    receiver and the returned value. Do not unbox primitive receivers into CLR
+    payloads such as `bool`, `double`, `string`, `JsBigInt`, or general
+    `object?` before prototype/accessor lookup and then rewrap the result.
+    Preserve the active `EvaluationContext?` so accessors, proxies, and
+    JavaScript throws keep propagating on the same path. If an unmigrated
+    legacy branch must still call the typed helper, make its
+    `JsValue.FromObjectUnsafe(...)` conversion explicit at that branch and keep
+    the branch as a remaining migration target.
 
 ## Why
 
@@ -271,3 +282,16 @@ descriptor migrations should keep JavaScript data values on the `JsValue`
 setter and record the before/after legacy-setter signal in the delivery
 evidence so reviewers do not have to reconstruct whether the selected slice was
 fully migrated.
+
+Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`
+context-aware property-read flow from the legacy object-carrier overload to a
+`JsValue` receiver/return path on `JsObject.TryGetProperty`. The old branches
+passed extracted CLR receivers such as `target.AsBoolean()` or
+`target.NumberValue` into prototype lookup, then normalized the result through
+defensive `value is JsValue ... JsValue.FromObjectUnsafe(...)` bridges. That
+was not a compatibility boundary; it was a private runtime property-access flow
+that already had a `JsValue` receiver and active `EvaluationContext?`. Future
+property-access migrations should keep receivers and results typed through the
+context-aware helper, and prove cleanup with a before/after search for the
+legacy `TryGetProperty(..., object?, context, out ...)` shape. Related ADR:
+`docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`.

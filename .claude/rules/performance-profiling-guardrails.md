@@ -33,7 +33,9 @@ optimization.
     commit marginal or noisy experiments that fail repeated focused timing.
     Revert the attempted code, keep the build update evidence-only, and do not
     add performance docs that imply a retained optimization when no successful
-    change remains.
+    change remains. When a no-win run isolates concrete failed experiments,
+    name them in the build update so future optimizer agents do not retry the
+    same micro-slices without fresh profile evidence.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
@@ -218,6 +220,16 @@ reverted and the build update stayed evidence-only. The durable lesson is that
 optimizer automation should prefer no code commit over preserving marginal
 changes or writing performance documentation for an optimization that was not
 kept.
+
+Issue `autrun-disf6pv2ztqw-bd150c7cbc` repeated that no-win pattern on
+`closures-lite`. The CPU and memory profiles pointed at simple closure
+invocation/return and `CreateExecutionEnvironment` pressure, but try/finally
+state null probing, captured simple IR activation, and direct captured
+update-return experiments did not clear the repeated 10% timing bar. The
+experimental edits were reverted and PR creation was deferred because the branch
+had no retained commits. The durable lesson is that failed micro-slices are
+useful evidence only when named explicitly; they are not performance
+documentation and should not be retried unchanged without new owner evidence.
 
 Issue `autrun-diqwn50g1d08-a853a50d18` / PR #1682 selected `ir-arithmetic` from
 a broader `rtk ./benchmark.sh` table because that profile mapped directly to

@@ -932,6 +932,9 @@ internal sealed partial class ExecutionPlanBuilder
                         }
 
                         return;
+                    case LabeledStatement labeledStatement:
+                        statement = labeledStatement.Statement;
+                        continue;
                     default:
                         return;
                 }

@@ -10,6 +10,13 @@ searches to specific existing paths, avoid broad `.faktorial/worktrees` scans
 unless the task explicitly requires that surface, and use targeted raw-log
 snippets with line caps when summaries are insufficient.
 
+For agent runtime context gathering, use this practical order: supplied Source
+Context or issue/dashboard API details first, compact `/api/logs/<issue>/summary`
+next, and bounded raw-log snippets only when those are still insufficient.
+Agents must not run the host `faktorial` binary for issue, log, or state reads;
+older guidance that suggests `faktorial issue` or `faktorial log-summary` is
+stale for agent runtime context reads.
+
 For `main is red` or main-health repair issues, re-run the exact failing
 main-health command on the current worktree before changing source code. Treat
 the stored mainverify status as a trigger and evidence pointer, not as proof
@@ -84,6 +91,13 @@ output while agents gathered local issue context. The durable lesson is not to
 avoid evidence; it is to gather the same evidence through bounded helpers,
 small scoped commands, and capped snippets so telemetry stays useful and future
 reviewers can see the actual signal.
+
+Issue #2031 / PR #2034 refined that Faktorial evidence rule after recurrent
+child guidance still left the read order and host-daemon boundary ambiguous.
+The durable lesson is that agent runtime context must start with supplied
+Source Context or the issue/dashboard API, use compact log summaries next, and
+treat older host `faktorial issue` or `faktorial log-summary` instructions as
+stale so agents do not accidentally start or depend on the daemon binary.
 
 Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
 recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the

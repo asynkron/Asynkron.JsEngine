@@ -131,9 +131,11 @@ When working inside the core engine, keep JavaScript values represented as
 17. When obsolete `object?` convenience overloads on a core runtime type no
     longer expose real compatibility callers or an intentional host boundary,
     delete the overloads rather than keeping them as permanent tripwires. For
-    `JsArray` constructor, element-write, push, or length helpers, the typed
-    `JsValue` surface is the core contract; prove removal with a focused
-    signature search for the retired overload family.
+    property-read helpers, remove the whole duplicate family together:
+    context-aware lookup, own-property lookup, prototype traversal, and getter
+    bridge helpers. For `JsArray` constructor, element-write, push, or length
+    helpers, the typed `JsValue` surface is the core contract; prove removal
+    with a focused signature search for the retired overload family.
 18. When a private destructuring helper receives a `JsValue` and needs
     `ToObject`/primitive-boxing semantics, call the shared
     `StandardLibrary.TryGetObject(JsValue, realm, out ...)` path directly.
@@ -406,6 +408,20 @@ property-access migrations should keep receivers and results typed through the
 context-aware helper, and prove cleanup with a before/after search for the
 legacy `TryGetProperty(..., object?, context, out ...)` shape. Related ADR:
 `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`.
+
+Issue `autrun-dispn7u6bsg0-178edda9cb` / PR #2145 completed the follow-up
+closeout for `JsObject` by deleting the legacy internal `object? receiver`
+lookup family after the active `JsValue` path already owned descriptor, getter,
+prototype, and private-field reads. The removed methods included the
+context-aware `TryGetProperty(... object? receiver ...)`,
+`TryGetOwnProperty(... object? receiver ...)`,
+`TryGetPropertyFromPrototypeChain`, and `InvokeGetterWithThrowHandling`
+helpers. Keeping that duplicate traversal/getter stack would not protect a
+public compatibility boundary; it would preserve a second private runtime path
+for future property-read work to drift into. Future property-access closeouts
+should prove the `JsValue` path with focused descriptor/private-field coverage,
+then delete the full obsolete helper family once the targeted signature search
+shows no live callers.
 
 Issue `autrun-dis9sojas0zs-56ecc19548` / PR #1990 removed the obsolete
 `JsArray(IEnumerable<object?>)`, `SetElement(..., object?)`, `Push(object?)`,

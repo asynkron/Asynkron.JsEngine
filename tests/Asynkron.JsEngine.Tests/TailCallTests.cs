@@ -339,4 +339,571 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal(1d, result);
     }
+
+    [Fact(Timeout = 15000)]
+    public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let callCount = 0;
+            (function f(n) {
+                "use strict";
+                if (n === 0) {
+                    callCount += 1;
+                    return;
+                }
+
+                function getF() { return f; }
+                return getF()(n - 1);
+            }(100000));
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotReuseLeakedCapturedActivation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            (function f(n) {
+                "use strict";
+                if (n === 0) {
+                    return saved();
+                }
+
+                return (saved = () => n, f)(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotReuseLeakedFunctionDeclarationClosure()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            (function f(n) {
+                "use strict";
+                function getF() { return f; }
+                function getN() { return n; }
+                if (n === 0) {
+                    return saved();
+                }
+
+                return (saved = getN, getF())(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseLeakedFunctionDeclarationClosure()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() { saved = getN; return f; }
+                if (n === 0) {
+                    return saved();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedThroughWrapperClosureEnvironment()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            function leak(fn) {
+                let hidden = fn;
+                saved = function() { return hidden(); };
+            }
+
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) leak(getN);
+                    return f;
+                }
+
+                if (n === 0) {
+                    return saved();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedThroughWrapperClosureAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            const holder = {
+                wrapper: (function() {
+                    let hidden = () => 0;
+                    return {
+                        set(fn) { hidden = fn; },
+                        read() { return hidden(); },
+                    };
+                })(),
+            };
+
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.wrapper.set(getN);
+                        saved = holder.wrapper.read;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaObjectProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = {};
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() { holder.saved = getN; return f; }
+                if (n === 0) {
+                    return holder.saved();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaNestedObjectPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { inner: {} };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.inner.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return holder.inner.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaNestedArrayElementAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { arr: [0] };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.arr[0] = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return holder.arr[0]();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaWeakMapValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let wm = new WeakMap();
+            let key = {};
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        wm.set(key, getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return wm.get(key)();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaWeakMapValueAfterInitialCleanHolderScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { wm: new WeakMap(), key: {} };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.wm.set(holder.key, getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return holder.wm.get(holder.key)();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaWeakMapCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let wm = new WeakMap();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        wm.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return wm.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaMapValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let map = new Map();
+            let key = {};
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        map.set(key, getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return map.get(key)();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaMapValueAfterInitialCleanHolderScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { map: new Map(), key: {} };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.map.set(holder.key, getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return holder.map.get(holder.key)();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaMapCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let map = new Map();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        map.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return map.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaSetValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let set = new Set();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        set.add(getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    let leaked;
+                    set.forEach(v => leaked = v);
+                    return leaked();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaSetCustomPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let set = new Set();
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        set.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return set.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaSetValueAfterInitialCleanHolderScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { set: new Set() };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.set.add(getN);
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    let leaked;
+                    holder.set.forEach(v => leaked = v);
+                    return leaked();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaFunctionObjectProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = function holder() {};
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() { holder.saved = getN; return f; }
+                if (n === 0) {
+                    return holder.saved();
+                }
+
+                return getF()(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaCurrentActivationArgumentObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function f(n, localHolder) {
+                "use strict";
+                if (!localHolder) localHolder = {};
+                function getN() { return n; }
+                function getF() { localHolder.saved = getN; return f; }
+                if (n === 0) return localHolder.saved();
+                return getF()(n - 1, localHolder);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaArgumentPrototypeChain()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function f(n, localHolder) {
+                "use strict";
+                if (!localHolder) localHolder = {};
+                function getN() { return n; }
+                function getF() {
+                    Object.setPrototypeOf(localHolder, { saved: getN });
+                    return f;
+                }
+
+                if (n === 0) {
+                    return localHolder.saved();
+                }
+
+                return getF()(n - 1, localHolder);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallIgnoresUnrelatedProxySlotDuringEscapeCheck()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let p = new Proxy({}, { ownKeys() { throw new Error("boom"); } });
+            (function f(n) {
+                "use strict";
+                function getF() { return f; }
+                return n ? getF()(n - 1) : 1;
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
 }

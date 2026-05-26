@@ -124,6 +124,18 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public IJsPropertyAccessor? PrototypeAccessor =>
         _properties is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
 
+    public PropertyDescriptor? GetOwnPropertyDescriptor(string name) =>
+        _properties.GetOwnPropertyDescriptor(name);
+
+    public IEnumerable<string> GetOwnPropertyNames() =>
+        _properties.GetOwnPropertyNames();
+
+    public IEnumerable<string> GetEnumerablePropertyNames() =>
+        _properties.GetEnumerablePropertyNames();
+
+    public IEnumerable<string> GetOwnPropertyKeysInOrder(bool includeSymbols = true, bool includeNonEnumerable = true) =>
+        _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable);
+
     internal JsValue GetValue(int index)
     {
         return _insertionOrder[index];
@@ -138,6 +150,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         if (_set.Add(jsValue))
         {
             _insertionOrder.Add(jsValue);
+            JsObject.MarkGlobalMutation();
         }
 
         return this;
@@ -163,6 +176,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         _insertionOrder.Remove(jsValue);
+        JsObject.MarkGlobalMutation();
         return true;
     }
 
@@ -171,8 +185,14 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void Clear()
     {
+        if (_set.Count == 0)
+        {
+            return;
+        }
+
         _set.Clear();
         _insertionOrder.Clear();
+        JsObject.MarkGlobalMutation();
     }
 
     /// <summary>
@@ -214,5 +234,18 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
+    }
+
+    internal bool AnyValueMatches(Predicate<JsValue> predicate)
+    {
+        foreach (var value in _insertionOrder)
+        {
+            if (_set.Contains(value) && predicate(value))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

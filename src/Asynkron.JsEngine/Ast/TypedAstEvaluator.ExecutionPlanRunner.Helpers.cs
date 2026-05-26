@@ -2703,6 +2703,8 @@ public static partial class TypedAstEvaluator
                 TryRequestSameFunctionTailRestart(
                     callable,
                     thisValue,
+                    call.HasExplicitThis,
+                    call.AllowsCapturedActivationTailRestart,
                     call.ArgumentCount,
                     stack,
                     calleeIndex + 1,
@@ -2901,6 +2903,8 @@ public static partial class TypedAstEvaluator
         private bool TryRequestSameFunctionTailRestart(
             IJsCallable callable,
             JsValue thisValue,
+            bool hasExplicitThis,
+            bool allowsCapturedActivationTailRestart,
             int argumentCount,
             Span<JsValue> stack,
             int argumentStartIndex,
@@ -2912,8 +2916,18 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
-                !CanReuseCurrentTailRestartActivation(environment) ||
                 !CanRestartCurrentTailCall())
+            {
+                return false;
+            }
+
+            if (!CanReuseCurrentTailRestartActivation(
+                    environment,
+                    hasExplicitThis,
+                    allowsCapturedActivationTailRestart,
+                    argumentCount,
+                    stack,
+                    argumentStartIndex))
             {
                 return false;
             }
@@ -2932,8 +2946,29 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment)
+        private bool CanReuseCurrentTailRestartActivation(
+            JsEnvironment environment,
+            bool hasExplicitThis,
+            bool allowsCapturedActivationTailRestart,
+            int argumentCount,
+            Span<JsValue> stack,
+            int argumentStartIndex)
         {
+            // Some non-explicit-this call expressions (for example indirect self lookups) can
+            // mark activations captured while still being restart-safe. The compiler keeps
+            // this fast path disabled for side-effectful callee/argument shapes that can leak
+            // activation-capturing closures.
+            if (!hasExplicitThis &&
+                allowsCapturedActivationTailRestart &&
+                !HasEscapedActivationCapturingClosure(
+                    environment,
+                    argumentCount,
+                    stack,
+                    argumentStartIndex))
+            {
+                return true;
+            }
+
             var current = environment;
             while (current is not null && !ReferenceEquals(current, _closure))
             {
@@ -2946,6 +2981,300 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+
+        private bool HasEscapedActivationCapturingClosure(
+            JsEnvironment environment,
+            int argumentCount,
+            Span<JsValue> stack,
+            int argumentStartIndex)
+        {
+            HashSet<object>? visitedObjects = null;
+            HashSet<object>? weakMapKeyCandidates = null;
+            for (var outer = _closure; outer is not null; outer = outer.Enclosing)
+            {
+                for (var i = 0; i < outer.SlotCount; i++)
+                {
+                    ref var slot = ref outer.GetSlotByIndex(i);
+                    AddWeakMapKeyCandidate(slot.Value, ref weakMapKeyCandidates);
+                    if (slot.Name is null ||
+                        slot.IsUninitialized ||
+                        slot.HasSpecialBinding ||
+                        slot.Value.Kind != JsValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    if (HasEscapedActivationCapturingClosureValue(
+                            slot.Value,
+                            environment,
+                            ref visitedObjects,
+                            weakMapKeyCandidates))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            for (var i = 0; i < argumentCount; i++)
+            {
+                var argument = stack[argumentStartIndex + i];
+                AddWeakMapKeyCandidate(argument, ref weakMapKeyCandidates);
+                if (HasEscapedActivationCapturingClosureValue(
+                        argument,
+                        environment,
+                        ref visitedObjects,
+                        weakMapKeyCandidates))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static void AddWeakMapKeyCandidate(JsValue value, ref HashSet<object>? weakMapKeyCandidates)
+        {
+            if (JsWeakCollectionHelpers.ExtractWeakKeyObject(value) is not { } objectValue)
+            {
+                return;
+            }
+
+            weakMapKeyCandidates ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            weakMapKeyCandidates.Add(objectValue);
+        }
+
+        private bool HasEscapedActivationCapturingClosureValue(
+            JsValue value,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
+        {
+            if (value.Kind != JsValueKind.Object)
+            {
+                return false;
+            }
+
+            var objectValue = value.ObjectValue;
+            if (objectValue is null)
+            {
+                return false;
+            }
+
+            if (TryGetEscapedClosureScanCacheResult(objectValue, out var cachedResult))
+            {
+                return cachedResult;
+            }
+
+            if (value.TryGetObject<SyncFunctionInvoker>(out var captured) &&
+                !ReferenceEquals(captured, _callable) &&
+                captured.CapturesActivationTransitivelyBetween(environment, _closure))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            if (!visitedObjects.Add(objectValue))
+            {
+                return false;
+            }
+
+            if (objectValue is JsWeakMap weakMap &&
+                weakMapKeyCandidates is { Count: > 0 } &&
+                HasEscapedActivationCapturingClosureInWeakMapValues(
+                    weakMap,
+                    weakMapKeyCandidates,
+                    environment,
+                    ref visitedObjects))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            if (objectValue is JsMap map &&
+                HasEscapedActivationCapturingClosureInMapEntries(
+                    map,
+                    environment,
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            if (objectValue is JsSet set &&
+                HasEscapedActivationCapturingClosureInSetValues(
+                    set,
+                    environment,
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            // Proxy ownKeys/getOwnPropertyDescriptor can run user code. Tail-restart
+            // eligibility checks must stay non-observable, so skip proxy traversal.
+            if (objectValue is JsProxy)
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
+                return false;
+            }
+
+            if (objectValue is not IJsPropertyAccessor accessor)
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
+                return false;
+            }
+
+            foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            {
+                var descriptor = accessor.GetOwnPropertyDescriptor(key);
+                if (descriptor is null)
+                {
+                    continue;
+                }
+
+                if (descriptor.HasValue &&
+                    HasEscapedActivationCapturingClosureValue(
+                        descriptor.JsValue,
+                        environment,
+                        ref visitedObjects,
+                        weakMapKeyCandidates))
+                {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                    return true;
+                }
+
+                if (descriptor.Get is SyncFunctionInvoker getter &&
+                    !ReferenceEquals(getter, _callable) &&
+                    getter.CapturesActivationTransitivelyBetween(environment, _closure))
+                {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                    return true;
+                }
+
+                if (descriptor.Set is SyncFunctionInvoker setter &&
+                    !ReferenceEquals(setter, _callable) &&
+                    setter.CapturesActivationTransitivelyBetween(environment, _closure))
+                {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                    return true;
+                }
+            }
+
+            var prototypeAccessor = GetEscapedClosureScanPrototypeAccessor(objectValue);
+            if (prototypeAccessor is not null &&
+                HasEscapedActivationCapturingClosureValue(
+                    JsValue.FromObjectUnsafe(prototypeAccessor),
+                    environment,
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
+            return false;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInWeakMapValues(
+            JsWeakMap weakMap,
+            HashSet<object> weakMapKeyCandidates,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = weakMap.AnyMappedValueMatches(mappedValue =>
+                HasEscapedActivationCapturingClosureValue(
+                    mappedValue,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInMapEntries(
+            JsMap map,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = map.AnyEntryComponentMatches(entryComponent =>
+                HasEscapedActivationCapturingClosureValue(
+                    entryComponent,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInSetValues(
+            JsSet set,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = set.AnyValueMatches(setValue =>
+                HasEscapedActivationCapturingClosureValue(
+                    setValue,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
+        }
+
+        private static IJsPropertyAccessor? GetEscapedClosureScanPrototypeAccessor(object objectValue)
+        {
+            if (objectValue is IPrototypeAccessorProvider { PrototypeAccessor: { } prototypeAccessor })
+            {
+                return prototypeAccessor;
+            }
+
+            if (objectValue is IJsObjectLike { Prototype: { } prototype })
+            {
+                return prototype;
+            }
+
+            return null;
+        }
+
+        private bool TryGetEscapedClosureScanCacheResult(object objectValue, out bool containsEscapedClosure)
+        {
+            if (objectValue is not JsObject jsObject ||
+                _escapedClosureScanCache is null ||
+                !_escapedClosureScanCache.TryGetValue(objectValue, out var cacheEntry) ||
+                cacheEntry.MutationVersion != jsObject.CurrentMutationVersion ||
+                cacheEntry.GlobalMutationVersion != JsObject.CurrentGlobalMutationVersion)
+            {
+                containsEscapedClosure = false;
+                return false;
+            }
+
+            containsEscapedClosure = cacheEntry.ContainsEscapedClosure;
+            return true;
+        }
+
+        private void StoreEscapedClosureScanCacheResult(object objectValue, bool containsEscapedClosure)
+        {
+            if (!containsEscapedClosure || objectValue is not JsObject jsObject)
+            {
+                return;
+            }
+
+            _escapedClosureScanCache ??= new Dictionary<object, EscapedClosureScanCacheEntry>(
+                ReferenceEqualityComparer<object>.Instance);
+            _escapedClosureScanCache[objectValue] = new EscapedClosureScanCacheEntry(
+                jsObject.CurrentMutationVersion,
+                JsObject.CurrentGlobalMutationVersion,
+                containsEscapedClosure);
         }
 
         private bool CanRestartCurrentTailCall()

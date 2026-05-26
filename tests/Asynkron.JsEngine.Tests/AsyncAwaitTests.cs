@@ -651,20 +651,16 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         await engine.Evaluate("""
 
                                      async function test() {
-                                         let p1 = new Promise(function(resolve) {
-                                             setTimeout(function() {
-                                                 resolve(10);
-                                             }, 100);
-                                         });
+                                         function delay(value, ms) {
+                                             return new Promise(function(resolve) {
+                                                 setTimeout(function() {
+                                                     resolve(value);
+                                                 }, ms);
+                                             });
+                                         }
 
-                                         let p2 = new Promise(function(resolve) {
-                                             setTimeout(function() {
-                                                 resolve(20);
-                                             }, 100);
-                                         });
-
-                                         let a = await p1;
-                                         let b = await p2;
+                                         let a = await delay(10, 25);
+                                         let b = await delay(20, 25);
                                          return a + b;
                                      }
 

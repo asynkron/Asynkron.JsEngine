@@ -153,6 +153,17 @@ optimization.
     sizing. Capacity helpers may reserve space for known activation appends, but
     reports must distinguish backing capacity from logical slot count, binding
     order, and observable environment semantics.
+12a. For execution-runner control-flow side-state capacity work, prove the
+     selected profile is paying stack/list growth for that side state before
+     changing initial capacities. Pre-size only the owning state object, such as
+     `BreakableState.BreakableStack`, and keep active-frame count, label
+     matching, `break` / `continue`, cleanup / `IteratorClose`, and suspension
+     semantics unchanged. Do not turn a `Stack<T>.Grow` subtree into broader
+     lowering or control-flow rewrites. WHY: issue
+     `autrun-dissu2eufu0w-31ee6d51c0` / PR #2189 showed first-push
+     `BreakableFrame` stack growth in `activation-arguments-lite`; the retained
+     fix was a capacity-only stack pre-size backed by repeated timings and a
+     follow-up CPU profile.
 13. For repeated RegExp matcher performance work, keep shared .NET `Regex`
     reuse keyed by the runtime bridge shape that actually executes: capped
     normalized pattern plus `RegexOptions`. Preserve per-instance `_compiledRegex`
@@ -316,6 +327,18 @@ optimization.
     validation, and current caller-environment execution after the cache
     lookup. Prove retained wins with repeated selected-profile timings plus the
     focused activation/eval/private-name proof pack.
+25. For class constructor and `super()` dispatch performance work, prove the hot
+    owner with a current `classdef` CPU profile before editing
+    `ExecuteProgramSuperConstruct`, super-constructor resolution, or construct
+    dispatch. Keep argument and spread evaluation order, constructor and
+    `new.target` validation, proxy behavior, derived-`this` initialization,
+    double-super errors, and class-field initialization on the existing
+    semantic paths. Internal sentinel slots such as `Symbol.ThisInitialized`
+    may use a direct `JsValue` kind fast path only when the expected kind is
+    checked first and the prior `JsOps.ToBoolean(...)` or semantic fallback is
+    preserved for every other value. Do not turn a sampled constructor/super
+    subtree into broad activation widening or constructor-dispatch bypass
+    without focused class/super and lowering proof.
 
 ## Why
 
@@ -499,6 +522,17 @@ The durable lesson is that activation capacity fixes should be profile-owned and
 capacity-only, then backed by activation/class semantics tests, slot/environment
 tests, runner AST-seam scans, and an allocation-stability memory check. Detailed
 measurement note: `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dissu2eufu0w-31ee6d51c0` / PR #2189 selected
+`activation-arguments-lite` and proved a narrower runner side-state owner:
+`HandleBreakableEnter -> Stack<BreakableFrame>.PushWithResize -> Grow` under
+`InvokeWithContextSlow`. The accepted slice initialized the breakable-frame
+stack with capacity four, kept break/continue frame semantics unchanged, and
+confirmed the subtree disappeared from the follow-up CPU profile. The durable
+lesson is that runner side-state capacity work should be profile-owned and
+capacity-only, not a reason to rewrite control-flow lowering or cleanup
+semantics. Related ADR:
+`docs/adrs/0195-keep-runner-breakable-stack-capacity-profile-owned.md`.
 
 Issue `autrun-dis3ezcjxsm0-238752b986` / PR #1949 selected the `classdef`
 profile and found `ArrayPrototype.InvokeArrayIterationCallback` still paying
@@ -717,3 +751,12 @@ on the current eval environment. The durable lesson is that direct-eval parse
 caches may reuse immutable program structure, but must not cache caller state or
 use a source-only key. Related ADR:
 `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.
+
+Issue #2183 / PR #2185 continued the `classdef` constructor/super-dispatch
+follow-through after ADR 0193. The retained change was a kind-guarded boolean
+fast path for `Symbol.ThisInitialized` inside `ExecuteProgramSuperConstruct`;
+non-boolean values still use the previous `JsOps.ToBoolean(...)` fallback. The
+durable lesson is that internal sentinel fast paths can trim hot derived
+constructor checks only when they are profile-owned, kind-guarded, and do not
+change `super()` dispatch semantics or evaluation order. Related ADR:
+`docs/adrs/0194-keep-super-constructor-thisinitialized-guard-boolean-fast-path.md`.

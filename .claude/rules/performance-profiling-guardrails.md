@@ -155,6 +155,16 @@ optimization.
     full invocation path for dependency-bearing arrows, and report repeated
     selected-profile timings plus a follow-up CPU profile that shows the fast
     path is actually taken.
+21. For simple numeric self-recursion work, do not generalize from a benchmark
+    name or from the presence of self-calls. Prove the selected profile is
+    still paying the full recursive invocation tree, then keep the shortcut
+    shape- and runtime-guarded: strict/simple one-parameter function,
+    exact base-case-plus-two-self-calls recurrence shape, live recursive-name
+    binding still pointing at the same `SyncFunctionInvoker`, finite numeric
+    argument, bounded integer fast input, and ordinary invocation fallback for
+    non-integers, `NaN`, infinity, rebound names, class, async, generator,
+    private-name, `super`, home-object, and instance-field cases. Pin both the
+    positive recurrence and negative fallback behavior with focused tests.
 
 ## Why
 
@@ -386,3 +396,16 @@ and `super` operations, then reported repeated `classdef` runs averaging about
 work must be profile-owned and bytecode-dependency guarded, not a broad
 syntactic arrow shortcut. Related ADR:
 `docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`.
+
+Issue `autrun-dis9soiwafzk-cc111e3a78` / PR #1994 selected `fib` again after
+earlier trampoline and typed-call-dispatch slices. The remaining hotspot was no
+longer failed trampoline setup or generic callable dispatch; it was the full
+recursive invocation tree for a strict, one-parameter, numeric recurrence. The
+accepted fast path stayed deliberately narrow: it recognizes only the
+base-case-plus-two-self-calls shape, verifies the current recursive name
+binding still points at the same function object, bounds integer inputs, and
+falls back for non-integers and invocation shapes the local numeric evaluator
+does not model. The durable lesson is that recurrence shortcuts must be
+executable-shape and runtime-binding guarded, not keyed to `fib`, a function
+name, or the mere presence of self-calls. Related ADR:
+`docs/adrs/0152-keep-simple-numeric-self-recursion-fast-path-shape-and-binding-guarded.md`.

@@ -657,7 +657,7 @@ public static class JsonHelper
                     builder.Append(',');
                 }
 
-                builder.Append(QuoteString(propKey));
+                AppendQuotedString(builder, propKey);
                 builder.Append(':');
                 builder.Append(strP);
                 wroteMember = true;
@@ -833,6 +833,19 @@ public static class JsonHelper
         }
         sb.Append('"');
         return sb.ToString();
+    }
+
+    private static void AppendQuotedString(StringBuilder builder, string value)
+    {
+        if (!RequiresJsonStringEscaping(value))
+        {
+            builder.Append('"');
+            builder.Append(value);
+            builder.Append('"');
+            return;
+        }
+
+        builder.Append(QuoteString(value));
     }
 
     private static bool RequiresJsonStringEscaping(string value)

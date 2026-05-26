@@ -1334,6 +1334,38 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal(true, result);
     }
 
+    [Fact]
+    public async Task JSON_Parse_ProtoKeyStaysOwnDataProperty()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           let parsed = JSON.parse('{"__proto__":{"x":1}}');
+                                           Object.prototype.hasOwnProperty.call(parsed, "__proto__")
+                                             && parsed.__proto__.x === 1
+                                             && Object.getPrototypeOf(parsed) === Object.prototype;
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
+    public async Task JSON_Stringify_PreservesEscapingAndSurrogates()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           JSON.stringify({
+                                             quote: "\"",
+                                             slash: "\\",
+                                             control: "\n",
+                                             pair: "\uD83D\uDE00",
+                                             loneHigh: "\uD800",
+                                             loneLow: "\uDC00"
+                                           });
+                                           """);
+        Assert.Equal(
+            "{\"quote\":\"\\\"\",\"slash\":\"\\\\\",\"control\":\"\\n\",\"pair\":\"😀\",\"loneHigh\":\"\\ud800\",\"loneLow\":\"\\udc00\"}",
+            result);
+    }
+
     #endregion
 
     #region Async/Await

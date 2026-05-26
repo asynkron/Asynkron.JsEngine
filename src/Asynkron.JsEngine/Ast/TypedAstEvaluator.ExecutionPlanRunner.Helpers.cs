@@ -3092,6 +3092,28 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
+            if (objectValue is JsMap map &&
+                HasEscapedActivationCapturingClosureInMapEntries(
+                    map,
+                    environment,
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
+            if (objectValue is JsSet set &&
+                HasEscapedActivationCapturingClosureInSetValues(
+                    set,
+                    environment,
+                    ref visitedObjects,
+                    weakMapKeyCandidates))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
             // Proxy ownKeys/getOwnPropertyDescriptor can run user code. Tail-restart
             // eligibility checks must stay non-observable, so skip proxy traversal.
             if (objectValue is JsProxy)
@@ -3168,6 +3190,40 @@ public static partial class TypedAstEvaluator
             var hasEscaped = weakMap.AnyMappedValueMatches(mappedValue =>
                 HasEscapedActivationCapturingClosureValue(
                     mappedValue,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInMapEntries(
+            JsMap map,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = map.AnyEntryComponentMatches(entryComponent =>
+                HasEscapedActivationCapturingClosureValue(
+                    entryComponent,
+                    environment,
+                    ref visited,
+                    weakMapKeyCandidates));
+            visitedObjects = visited;
+            return hasEscaped;
+        }
+
+        private bool HasEscapedActivationCapturingClosureInSetValues(
+            JsSet set,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects,
+            HashSet<object>? weakMapKeyCandidates)
+        {
+            var visited = visitedObjects;
+            var hasEscaped = set.AnyValueMatches(setValue =>
+                HasEscapedActivationCapturingClosureValue(
+                    setValue,
                     environment,
                     ref visited,
                     weakMapKeyCandidates));

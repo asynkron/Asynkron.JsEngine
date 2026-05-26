@@ -138,6 +138,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         if (_set.Add(jsValue))
         {
             _insertionOrder.Add(jsValue);
+            JsObject.MarkGlobalMutation();
         }
 
         return this;
@@ -163,6 +164,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         _insertionOrder.Remove(jsValue);
+        JsObject.MarkGlobalMutation();
         return true;
     }
 
@@ -171,8 +173,14 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void Clear()
     {
+        if (_set.Count == 0)
+        {
+            return;
+        }
+
         _set.Clear();
         _insertionOrder.Clear();
+        JsObject.MarkGlobalMutation();
     }
 
     /// <summary>
@@ -214,5 +222,18 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
+    }
+
+    internal bool AnyValueMatches(Predicate<JsValue> predicate)
+    {
+        foreach (var value in _insertionOrder)
+        {
+            if (_set.Contains(value) && predicate(value))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

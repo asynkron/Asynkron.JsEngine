@@ -150,7 +150,8 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsMap Set(JsValue key, JsValue value)
     {
         key = CanonicalizeKey(key);
-        if (!_map.ContainsKey(key))
+        var hadEntry = _map.TryGetValue(key, out var previousValue);
+        if (!hadEntry)
         {
             var entry = new MapEntryRecord(key);
             _insertionOrder.Add(entry);
@@ -158,6 +159,11 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         _map[key] = value;
+        if (!hadEntry || !previousValue.Equals(value))
+        {
+            JsObject.MarkGlobalMutation();
+        }
+
         return this;
     }
 
@@ -198,6 +204,7 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
 
         // Don't remove from _insertionOrder — ForEach uses index-based iteration
         // and removing would shift indices, corrupting the loop.
+        JsObject.MarkGlobalMutation();
         return true;
     }
 
@@ -206,9 +213,15 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     /// </summary>
     public void Clear()
     {
+        if (_map.Count == 0)
+        {
+            return;
+        }
+
         _map.Clear();
         _insertionOrder.Clear();
         _entryRecords.Clear();
+        JsObject.MarkGlobalMutation();
     }
 
     /// <summary>
@@ -290,6 +303,24 @@ public sealed class JsMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
         }
 
         return new JsArray(values);
+    }
+
+    internal bool AnyEntryComponentMatches(Predicate<JsValue> predicate)
+    {
+        foreach (var entry in _insertionOrder)
+        {
+            if (!entry.IsAlive || !_map.TryGetValue(entry.Key, out var value))
+            {
+                continue;
+            }
+
+            if (predicate(entry.Key) || predicate(value))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed class MapEntryRecord(JsValue key)

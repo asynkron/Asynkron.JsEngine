@@ -635,11 +635,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
             foreach (var kv in original._state.PrivateFields)
             {
-                _state.PrivateFields[kv.Key] = kv.Value switch
-                {
-                    PropertyDescriptor desc => cloneDescriptor(desc),
-                    _ => cloneValue(kv.Value)
-                };
+                _state.PrivateFields[kv.Key] = cloneDescriptor(kv.Value);
             }
 
             foreach (var brand in original._state.PrivateBrands)
@@ -825,10 +821,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var privateFields = state.PrivateFields;
         if (name.IsPrivateSlotName())
         {
-            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor
-                {
-                    IsAccessorDescriptor: true
-                } desc)
+            if (privateFields.TryGetValue(name, out var existing) &&
+                existing is { IsAccessorDescriptor: true } desc)
             {
                 if (desc.Set is null)
                 {
@@ -842,8 +836,9 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 return;
             }
 
-            if (privateFields.TryGetValue(name, out existing) && existing is PropertyDescriptor dataDesc)
+            if (privateFields.TryGetValue(name, out existing))
             {
+                var dataDesc = existing;
                 if (!dataDesc.Writable)
                 {
                     throw StandardLibrary.ThrowTypeError(
@@ -865,7 +860,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                 if (prototype._state is { } protoState &&
                     protoState.PrivateFields.TryGetValue(name, out var inherited))
                 {
-                    if (inherited is PropertyDescriptor { IsAccessorDescriptor: true } inheritedDesc)
+                    if (inherited is { IsAccessorDescriptor: true } inheritedDesc)
                     {
                         if (inheritedDesc.Set is null)
                         {
@@ -878,19 +873,17 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
                         return;
                     }
 
-                    if (inherited is PropertyDescriptor dataDescriptor)
+                    var dataDescriptor = inherited;
+                    if (!dataDescriptor.Writable)
                     {
-                        if (!dataDescriptor.Writable)
-                        {
-                            throw StandardLibrary.ThrowTypeError(
-                                "Private field is read-only",
-                                realm: ResolveRealmStateFromReceiver(receiverValue));
-                        }
-
-                        dataDescriptor.JsValue = value;
-                        protoState.PrivateFields[name] = dataDescriptor;
-                        return;
+                        throw StandardLibrary.ThrowTypeError(
+                            "Private field is read-only",
+                            realm: ResolveRealmStateFromReceiver(receiverValue));
                     }
+
+                    dataDescriptor.JsValue = value;
+                    protoState.PrivateFields[name] = dataDescriptor;
+                    return;
                 }
 
                 prototype = prototype.Prototype;
@@ -1083,27 +1076,20 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (_state is { } state && state.PrivateFields.TryGetValue(name, out var slot))
             {
-                switch (slot)
+                if (slot.IsAccessorDescriptor)
                 {
-                    case PropertyDescriptor desc:
-                        if (desc.IsAccessorDescriptor)
-                        {
-                            if (desc.Get != null)
-                            {
-                                return InvokeGetterJsValue(desc.Get, receiver, context, out value);
-                            }
+                    if (slot.Get != null)
+                    {
+                        return InvokeGetterJsValue(slot.Get, receiver, context, out value);
+                    }
 
-                            throw StandardLibrary.ThrowTypeError(
-                                "Private accessor does not have a getter",
-                                realm: ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null));
-                        }
-
-                        value = desc.HasValue ? desc.JsValue : JsValue.Undefined;
-                        return true;
-                    default:
-                        value = JsValue.FromObjectUnsafe(slot);
-                        return true;
+                    throw StandardLibrary.ThrowTypeError(
+                        "Private accessor does not have a getter",
+                        realm: ResolveRealmState(receiver.IsObject ? receiver.ObjectValue : null));
                 }
+
+                value = slot.HasValue ? slot.JsValue : JsValue.Undefined;
+                return true;
             }
 
             if (Prototype is JsObject protoWithPrivate)
@@ -1241,7 +1227,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var descriptors = state.Descriptors;
         if (name.IsPrivateSlotName())
         {
-            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            if (privateFields.TryGetValue(name, out var existingDescriptor))
             {
                 if (!ValidateDescriptorChange(descriptor, existingDescriptor))
                 {
@@ -1327,7 +1313,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         var descriptors = state.Descriptors;
         if (name.IsPrivateSlotName())
         {
-            if (privateFields.TryGetValue(name, out var existing) && existing is PropertyDescriptor existingDescriptor)
+            if (privateFields.TryGetValue(name, out var existingDescriptor))
             {
                 if (!ValidateDescriptorChange(descriptor, existingDescriptor))
                 {
@@ -2155,27 +2141,20 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             if (_state is { } state && state.PrivateFields.TryGetValue(name, out var slot))
             {
-                switch (slot)
+                if (slot.IsAccessorDescriptor)
                 {
-                    case PropertyDescriptor desc:
-                        if (desc.IsAccessorDescriptor)
-                        {
-                            if (desc.Get != null)
-                            {
-                                return InvokeGetterWithThrowHandling(desc.Get, receiver, context, out value);
-                            }
+                    if (slot.Get != null)
+                    {
+                        return InvokeGetterWithThrowHandling(slot.Get, receiver, context, out value);
+                    }
 
-                            throw StandardLibrary.ThrowTypeError(
-                                "Private accessor does not have a getter",
-                                realm: ResolveRealmState(receiver));
-                        }
-
-                        value = desc.HasValue ? desc.JsValue.ToObject() : Symbol.Undefined;
-                        return true;
-                    default:
-                        value = slot;
-                        return true;
+                    throw StandardLibrary.ThrowTypeError(
+                        "Private accessor does not have a getter",
+                        realm: ResolveRealmState(receiver));
                 }
+
+                value = slot.HasValue ? slot.JsValue.ToObject() : Symbol.Undefined;
+                return true;
             }
 
             if (Prototype is not null &&
@@ -2546,7 +2525,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         internal readonly Dictionary<string, PropertyDescriptor> Descriptors = new(StringComparer.Ordinal);
         internal readonly HashSet<object> PrivateBrands = new(ReferenceEqualityComparer<object>.Instance);
-        internal readonly Dictionary<string, object?> PrivateFields = new(StringComparer.Ordinal);
+        internal readonly Dictionary<string, PropertyDescriptor> PrivateFields = new(StringComparer.Ordinal);
 
         internal readonly List<string> PropertyInsertionOrder = [];
         internal readonly HybridDictionary<JsValue> Storage = new();

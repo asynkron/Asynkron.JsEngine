@@ -116,6 +116,23 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnLiteralFunction_UsesLiteralFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function ping() {
+                return 1;
+            }
+
+            ping();
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData("""
         function probe(a) {

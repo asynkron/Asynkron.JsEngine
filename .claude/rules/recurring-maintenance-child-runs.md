@@ -491,3 +491,13 @@ focused filter as a cheap compile/test confidence check. Future dormant
 test-source reductions should keep that boundary clear so agents do not delete
 active scratch tests, resurrect obsolete fixtures, or overstate a no-match
 filter as proof of runtime behavior.
+
+Issue `autrun-dis78sue3600-cfedc9e361` / PR #1965 was the adjacent but
+distinct test-source reduction: `AsyncIterableDebugTest.cs` was compiled and
+active, but it was an output-only async iterable scratch probe with no
+assertions, while assertion-bearing async iteration coverage remained in the
+owning test classes. Future code-reduction children may delete compiled debug
+probes only after proving they are not the owner contract, checking neighboring
+asserted coverage, recording the file-level line-count deletion, and running
+the focused owner test filter. Do not treat every `DebugTest` suffix as dead
+code, and do not claim runtime proof from line-count reduction alone.

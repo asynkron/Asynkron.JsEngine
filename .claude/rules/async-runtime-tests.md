@@ -20,6 +20,10 @@ behavior under test instead of incidental host scheduling.
    `JsEngine.ScheduleTask(Action)`. Start background work explicitly, capture
    completion with `TaskCompletionSource` or another tracked task, and await
    that completion before printing or asserting final state.
+6. Do not keep output-only async debug probes as compiled tests after the
+   behavior has assertion-bearing coverage. Either turn the probe into a stable
+   assertion in the owning async test class or remove it and prove the nearest
+   asserted async filter still passes.
 
 ## Why
 
@@ -37,3 +41,11 @@ started through callbacks accepted as `Action`. The demo could print its final
 completion line before the delayed background work finished, which made the
 example claim success early. Future async demos and tests should track the host
 work they start and wait for it before reporting final state.
+
+Issue `autrun-dis78sue3600-cfedc9e361` / PR #1965 removed
+`AsyncIterableDebugTest.cs`, a compiled async iterable scratch test file that
+only wrote diagnostic output and had no assertions. The stable async iteration
+contract already lived in assertion-bearing tests under `AsyncIterationTests`
+and `AsyncIterableDebugTests`, so keeping the extra debug probe increased suite
+noise without adding a regression guard. Future async runtime cleanup should
+prefer the asserted owner tests and avoid preserving compiled log-only probes.

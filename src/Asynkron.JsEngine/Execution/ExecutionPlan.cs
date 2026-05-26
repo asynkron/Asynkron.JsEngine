@@ -65,6 +65,9 @@ internal sealed record ExecutionPlan(
     public SimpleReturnParameterBinaryExpression? SimpleReturnParameterBinary { get; } =
         ComputeSimpleReturnParameterBinary(Instructions, EntryPoint, ActivationSlots);
 
+    public SimpleReturnParameterBinaryChainExpression? SimpleReturnParameterBinaryChain { get; } =
+        ComputeSimpleReturnParameterBinaryChain(Instructions, EntryPoint, ActivationSlots);
+
     public SimpleReturnLiteralExpression? SimpleReturnLiteral { get; } =
         ComputeSimpleReturnLiteral(Instructions, EntryPoint);
 
@@ -186,6 +189,42 @@ internal sealed record ExecutionPlan(
             rightParameterIndex);
     }
 
+    private static SimpleReturnParameterBinaryChainExpression? ComputeSimpleReturnParameterBinaryChain(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint,
+        ActivationSlotShape? activationSlots)
+    {
+        if (activationSlots is null ||
+            ComputeSimpleReturnProgram(instructions, entryPoint) is not { } program ||
+            program.OperationCount != 5)
+        {
+            return null;
+        }
+
+        var leftLoad = program.GetOperation(0);
+        var rightLoad = program.GetOperation(1);
+        var firstBinary = program.GetOperation(2);
+        var thirdLoad = program.GetOperation(3);
+        var secondBinary = program.GetOperation(4);
+        if (firstBinary.Kind != ExpressionOpKind.Binary ||
+            secondBinary.Kind != ExpressionOpKind.Binary ||
+            !IsSupportedSimpleParameterBinaryChainOperator(firstBinary.Operator) ||
+            !IsSupportedSimpleParameterBinaryChainOperator(secondBinary.Operator) ||
+            !TryResolveParameterLoad(leftLoad, program, activationSlots, out var leftParameterIndex) ||
+            !TryResolveParameterLoad(rightLoad, program, activationSlots, out var rightParameterIndex) ||
+            !TryResolveParameterLoad(thirdLoad, program, activationSlots, out var thirdParameterIndex))
+        {
+            return null;
+        }
+
+        return new SimpleReturnParameterBinaryChainExpression(
+            firstBinary.Operator,
+            leftParameterIndex,
+            rightParameterIndex,
+            secondBinary.Operator,
+            thirdParameterIndex);
+    }
+
     private static SimpleReturnLiteralExpression? ComputeSimpleReturnLiteral(
         ImmutableArray<ExecutionInstruction> instructions,
         int entryPoint)
@@ -231,6 +270,31 @@ internal sealed record ExecutionPlan(
             BinaryOperator.Subtract or
             BinaryOperator.Multiply or
             BinaryOperator.Divide;
+
+    private static bool IsSupportedSimpleParameterBinaryChainOperator(BinaryOperator op) =>
+        op is BinaryOperator.Add or
+            BinaryOperator.Subtract or
+            BinaryOperator.Multiply or
+            BinaryOperator.Divide or
+            BinaryOperator.BitwiseXor;
+
+    private static bool TryResolveParameterLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots,
+        out int parameterIndex)
+    {
+        parameterIndex = -1;
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return false;
+        }
+
+        parameterIndex = ResolveParameterSlotIndex(
+            operation.GetIdentifier(program.IdentifierConstants.AsSpan()),
+            activationSlots);
+        return parameterIndex >= 0;
+    }
 
     private static int ResolveParameterSlotIndex(
         IdentifierOperand identifier,
@@ -345,6 +409,13 @@ internal readonly record struct SimpleReturnParameterBinaryExpression(
     BinaryOperator Operator,
     int LeftParameterIndex,
     int RightParameterIndex);
+
+internal readonly record struct SimpleReturnParameterBinaryChainExpression(
+    BinaryOperator FirstOperator,
+    int LeftParameterIndex,
+    int RightParameterIndex,
+    BinaryOperator SecondOperator,
+    int ThirdParameterIndex);
 
 internal readonly record struct SimpleReturnLiteralExpression(JsValue Value);
 

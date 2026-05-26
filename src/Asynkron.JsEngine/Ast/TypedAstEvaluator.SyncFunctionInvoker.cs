@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
@@ -54,6 +55,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasFunctionNameEnvironment;
         private readonly bool _hasParameterExpressions;
         private readonly bool _hasCapturedActivationInClosure;
+        private readonly bool _hasOnlySimpleIdentifierParameters;
         private readonly bool _isStrict;
         private readonly Dictionary<Symbol, bool> _lexicalDeclarationKinds;
         private readonly ImmutableArray<Symbol> _lexicalTemplate;
@@ -72,6 +74,8 @@ public static partial class TypedAstEvaluator
         private readonly ActivationSlotShape? _activationSlots;
         private readonly bool _hasSimpleReturnParameterBinaryFastPath;
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
+        private readonly bool _hasSimpleReturnParameterBinaryChainFastPath;
+        private readonly SimpleReturnParameterBinaryChainExpression _simpleReturnParameterBinaryChainFastPath;
         private readonly bool _hasSimpleReturnLiteralFastPath;
         private readonly JsValue _simpleReturnLiteralFastPath;
         private readonly bool _hasSimpleReturnParameterNoArgsFastPath;
@@ -163,6 +167,7 @@ public static partial class TypedAstEvaluator
             // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
             // since mapped arguments object (which links argument values to parameter bindings) is not needed.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
+            _hasOnlySimpleIdentifierParameters = hasSimpleParams;
             _canUseArrayIterationSingleArgumentFastPath =
                 IsArrowFunction &&
                 function.Parameters.Length <= 1 &&
@@ -384,6 +389,13 @@ public static partial class TypedAstEvaluator
             {
                 _hasSimpleReturnParameterBinaryFastPath = true;
                 _simpleReturnParameterBinaryFastPath = parameterBinary;
+            }
+
+            if (planSeed.Plan is { SimpleReturnParameterBinaryChain: { } parameterBinaryChain } chainPlan &&
+                CanUseSimpleIrActivationPlanShape(chainPlan))
+            {
+                _hasSimpleReturnParameterBinaryChainFastPath = true;
+                _simpleReturnParameterBinaryChainFastPath = parameterBinaryChain;
             }
 
             if (_canUseSimpleIrActivationFastBase &&
@@ -815,6 +827,31 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
+        public JsValue InvokeWithContext3(
+            JsValue arg0,
+            JsValue arg1,
+            JsValue arg2,
+            JsValue thisValue,
+            EvaluationContext callingContext)
+        {
+            if (TryInvokeSimpleReturnFastPath(3, JsValue.Undefined, out var literalResult))
+            {
+                return literalResult;
+            }
+
+            if (TryInvokePrecomputedSimpleNumberParameterBinaryChain3(arg0, arg1, arg2, out var fastResult))
+            {
+                return fastResult;
+            }
+
+            return InvokeWithContextSlow(
+                new ThreeValueArgs(arg0, arg1, arg2),
+                thisValue,
+                callingContext,
+                JsValue.Undefined);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
         private bool TryInvokeSimpleReturnFastPath(
             int argumentCount,
             JsValue newTarget,
@@ -1221,6 +1258,86 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryInvokePrecomputedSimpleNumberParameterBinaryChain3(
+            JsValue arg0,
+            JsValue arg1,
+            JsValue arg2,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (!_hasSimpleReturnParameterBinaryChainFastPath ||
+                !_canUseSimpleIrActivationFastBase ||
+                !arg0.IsNumber ||
+                !arg1.IsNumber ||
+                !arg2.IsNumber ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                !TryGetSimpleNumberArgument(
+                    arg0,
+                    arg1,
+                    arg2,
+                    _simpleReturnParameterBinaryChainFastPath.LeftParameterIndex,
+                    out var left) ||
+                !TryGetSimpleNumberArgument(
+                    arg0,
+                    arg1,
+                    arg2,
+                    _simpleReturnParameterBinaryChainFastPath.RightParameterIndex,
+                    out var right) ||
+                !TryGetSimpleNumberArgument(
+                    arg0,
+                    arg1,
+                    arg2,
+                    _simpleReturnParameterBinaryChainFastPath.ThirdParameterIndex,
+                    out var third))
+            {
+                return false;
+            }
+
+            RealmState.Logger?.LogInformation(
+                "simple-ir-parameter-number-binary-chain-fast-path func={Function}",
+                _function.Name?.Name ?? "<anonymous>");
+
+            var firstResult = EvaluateSimpleNumberParameterBinaryOperator(
+                _simpleReturnParameterBinaryChainFastPath.FirstOperator,
+                left,
+                right);
+            result = JsValue.FromDouble(EvaluateSimpleNumberParameterBinaryOperator(
+                _simpleReturnParameterBinaryChainFastPath.SecondOperator,
+                firstResult,
+                third));
+            return true;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static double EvaluateSimpleNumberParameterBinaryOperator(
+            BinaryOperator op,
+            double left,
+            double right)
+        {
+            return op switch
+            {
+                BinaryOperator.Add => left + right,
+                BinaryOperator.Subtract => left - right,
+                BinaryOperator.Multiply => left * right,
+                BinaryOperator.Divide => left / right,
+                BinaryOperator.BitwiseXor => JsNumericConversions.ToInt32(left) ^
+                                             JsNumericConversions.ToInt32(right),
+                _ => double.NaN
+            };
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static bool TryGetSimpleNumberArgument(
             JsValue arg0,
             JsValue arg1,
@@ -1235,6 +1352,34 @@ public static partial class TypedAstEvaluator
 
                 case 1 when arg1.IsNumber:
                     value = arg1.NumberValue;
+                    return true;
+
+                default:
+                    value = 0.0;
+                    return false;
+            }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static bool TryGetSimpleNumberArgument(
+            JsValue arg0,
+            JsValue arg1,
+            JsValue arg2,
+            int index,
+            out double value)
+        {
+            switch (index)
+            {
+                case 0 when arg0.IsNumber:
+                    value = arg0.NumberValue;
+                    return true;
+
+                case 1 when arg1.IsNumber:
+                    value = arg1.NumberValue;
+                    return true;
+
+                case 2 when arg2.IsNumber:
+                    value = arg2.NumberValue;
                     return true;
 
                 default:
@@ -2270,6 +2415,22 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
 
+            if (plan.SimpleReturnParameterBinaryChain is { } parameterBinaryChain &&
+                SyncIrCallTrampoline.CanUseDirectReturnFastPath(this, plan, newTarget))
+            {
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-parameter-binary-chain-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-return-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+
+                result = EvaluateSimpleReturnParameterBinaryChain(arguments, parameterBinaryChain, context);
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+            }
+
             if (SyncIrCallTrampoline.TryInvoke(
                     this,
                     arguments,
@@ -2367,7 +2528,53 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 BinaryOperator.Add => AddValue(left, right, context),
                 BinaryOperator.Subtract => SubtractValue(left, right, context),
                 BinaryOperator.Multiply => MultiplyValue(left, right, context),
-                _ => DivideValue(left, right, context)
+                BinaryOperator.Divide => DivideValue(left, right, context),
+                _ => JsValue.Undefined
+            };
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue EvaluateSimpleReturnParameterBinaryChain<TArgs>(
+            TArgs arguments,
+            SimpleReturnParameterBinaryChainExpression expression,
+            EvaluationContext context)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var left = GetSimpleReturnParameterArgument(arguments, expression.LeftParameterIndex);
+            var right = GetSimpleReturnParameterArgument(arguments, expression.RightParameterIndex);
+            var firstResult = EvaluateSimpleReturnParameterBinaryOperator(
+                expression.FirstOperator,
+                left,
+                right,
+                context);
+            if (context.ShouldStopEvaluation)
+            {
+                return JsValue.Undefined;
+            }
+
+            var third = GetSimpleReturnParameterArgument(arguments, expression.ThirdParameterIndex);
+            return EvaluateSimpleReturnParameterBinaryOperator(
+                expression.SecondOperator,
+                firstResult,
+                third,
+                context);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue EvaluateSimpleReturnParameterBinaryOperator(
+            BinaryOperator op,
+            in JsValue left,
+            in JsValue right,
+            EvaluationContext context)
+        {
+            return op switch
+            {
+                BinaryOperator.Add => AddValue(left, right, context),
+                BinaryOperator.Subtract => SubtractValue(left, right, context),
+                BinaryOperator.Multiply => MultiplyValue(left, right, context),
+                BinaryOperator.Divide => DivideValue(left, right, context),
+                BinaryOperator.BitwiseXor => BitwiseXorValue(left, right, context),
+                _ => JsValue.Undefined
             };
         }
 

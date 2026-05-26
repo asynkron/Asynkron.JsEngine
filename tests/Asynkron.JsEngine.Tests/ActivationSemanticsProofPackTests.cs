@@ -12,7 +12,10 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
 {
     private const string SimpleIrActivationFastPathLog = "simple-ir-activation-fast-path";
     private const string SimpleIrParameterNumberBinaryFastPathLog = "simple-ir-parameter-number-binary-fast-path";
+    private const string SimpleIrParameterNumberBinaryChainFastPathLog =
+        "simple-ir-parameter-number-binary-chain-fast-path";
     private const string SimpleIrParameterBinaryFastPathLog = "simple-ir-parameter-binary-fast-path";
+    private const string SimpleIrParameterBinaryChainFastPathLog = "simple-ir-parameter-binary-chain-fast-path";
     private const string SimpleIrReturnFastPathLog = "simple-ir-return-fast-path";
 
     [Fact(Timeout = 5000)]
@@ -58,6 +61,52 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnFunction_NumberParameterBinaryChainUsesCallerFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function blend(a, b, c) {
+                return (a + b) ^ c;
+            }
+
+            blend(20, 22, 0);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                SimpleIrParameterNumberBinaryChainFastPathLog,
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryChainFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleReturnFunction_CoercingParameterBinaryChainUsesIrFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function blend(a, b, c) {
+                return (a + b) ^ c;
+            }
+
+            blend("40", 2, 0);
+            """);
+
+        Assert.Equal(402d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                SimpleIrParameterNumberBinaryChainFastPathLog,
+                StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrParameterBinaryChainFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

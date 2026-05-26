@@ -2899,11 +2899,18 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
-                !CanReuseCurrentTailRestartActivation(
+                !CanRestartCurrentTailCall())
+            {
+                return false;
+            }
+
+            if (!CanReuseCurrentTailRestartActivation(
                     environment,
                     hasExplicitThis,
-                    allowsCapturedActivationTailRestart) ||
-                !CanRestartCurrentTailCall())
+                    allowsCapturedActivationTailRestart,
+                    argumentCount,
+                    stack,
+                    argumentStartIndex))
             {
                 return false;
             }
@@ -2925,7 +2932,10 @@ public static partial class TypedAstEvaluator
         private bool CanReuseCurrentTailRestartActivation(
             JsEnvironment environment,
             bool hasExplicitThis,
-            bool allowsCapturedActivationTailRestart)
+            bool allowsCapturedActivationTailRestart,
+            int argumentCount,
+            Span<JsValue> stack,
+            int argumentStartIndex)
         {
             // Some non-explicit-this call expressions (for example indirect self lookups) can
             // mark activations captured while still being restart-safe. The compiler keeps
@@ -2933,7 +2943,11 @@ public static partial class TypedAstEvaluator
             // activation-capturing closures.
             if (!hasExplicitThis &&
                 allowsCapturedActivationTailRestart &&
-                !HasEscapedActivationCapturingClosure(environment))
+                !HasEscapedActivationCapturingClosure(
+                    environment,
+                    argumentCount,
+                    stack,
+                    argumentStartIndex))
             {
                 return true;
             }
@@ -2952,7 +2966,11 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool HasEscapedActivationCapturingClosure(JsEnvironment environment)
+        private bool HasEscapedActivationCapturingClosure(
+            JsEnvironment environment,
+            int argumentCount,
+            Span<JsValue> stack,
+            int argumentStartIndex)
         {
             HashSet<object>? visitedObjects = null;
             for (var outer = _closure; outer is not null; outer = outer.Enclosing)
@@ -2972,6 +2990,17 @@ public static partial class TypedAstEvaluator
                     {
                         return true;
                     }
+                }
+            }
+
+            for (var i = 0; i < argumentCount; i++)
+            {
+                if (HasEscapedActivationCapturingClosureValue(
+                        stack[argumentStartIndex + i],
+                        environment,
+                        ref visitedObjects))
+                {
+                    return true;
                 }
             }
 

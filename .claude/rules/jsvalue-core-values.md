@@ -481,6 +481,18 @@ helper already has complete `JsValue` coverage, remove the legacy overload and
 prove the result with the scoped before/after search. Related ADR:
 `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`.
 
+Issue #2202 / PR #2207 showed that the shared Intl brand-helper cleanup is not
+enough by itself: a prototype owner surface can still preserve a private
+object-carrier hop after a `JsValue` brand check. `Intl.Collator` had
+`ValidateCollatorReceiver(JsValue)` return `JsObject` and then
+`GetSlots(JsObject)` read the slots. Future Intl receiver/slot cleanup should
+look for this local two-step shape too, collapse it to an owner-local
+`GetSlots(JsValue)` helper when the caller already has a `JsValue`, and prove
+borrowed prototype methods for both branded receivers and incompatible
+receivers. WHY: otherwise ADR 0196 can appear satisfied while local prototype
+helpers keep the object-carrier seam alive. Related ADR:
+`docs/adrs/0200-keep-intl-collator-slot-resolution-jsvalue-native.md`.
+
 Issue `autrun-disb2mdhzcvs-0a8e873051` / PR #1996 migrated
 `ToObjectForDestructuringJsValue` from a manual primitive unwrap switch plus
 `StandardLibrary.TryGetObject(object?, ...)` to

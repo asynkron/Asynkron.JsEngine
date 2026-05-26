@@ -49,7 +49,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
         {
             var descriptor = new PropertyDescriptor
             {
-                Value = constructor,
+                JsValue = constructor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -90,14 +90,14 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
 
         // ES spec: Set [[ErrorData]] internal slot - we use a non-enumerable internal property
         instance.DefineProperty("_errorData",
-            new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor { JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
 
         // Set message if provided and not undefined
         if (args.Count >= 1 && !args[0].IsUndefined)
         {
             var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
             instance.DefineProperty("message",
-                new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
+                new PropertyDescriptor { JsValue = message, Writable = true, Enumerable = false, Configurable = true });
         }
 
         // ES2022: InstallErrorCause - handle options.cause
@@ -109,7 +109,7 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
             {
                 JsOps.TryGetPropertyValue(options, "cause", out var cause);
                 instance.DefineProperty("cause",
-                    new PropertyDescriptor { Value = cause, Writable = true, Enumerable = false, Configurable = true });
+                    new PropertyDescriptor { JsValue = cause, Writable = true, Enumerable = false, Configurable = true });
             }
         }
     }
@@ -140,9 +140,9 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
     private void InitializePrototypeDefaults()
     {
         Prototype.DefineProperty("name",
-            new PropertyDescriptor { Value = ErrorType, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = ErrorType, Writable = true, Enumerable = false, Configurable = true });
         Prototype.DefineProperty("message",
-            new PropertyDescriptor { Value = string.Empty, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = string.Empty, Writable = true, Enumerable = false, Configurable = true });
     }
 
     /// <summary>

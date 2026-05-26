@@ -33,7 +33,7 @@ public sealed partial class SuppressedErrorConstructor(IJsObjectLike prototype, 
         instance.DefineProperty("_errorData",
             new PropertyDescriptor
             {
-                Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false
+                JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false
             });
 
         var errorArg = args.Count > 0 ? args[0] : JsValue.Undefined;
@@ -48,7 +48,7 @@ public sealed partial class SuppressedErrorConstructor(IJsObjectLike prototype, 
             instance.DefineProperty("message",
                 new PropertyDescriptor
                 {
-                    Value = message, Writable = true, Enumerable = false, Configurable = true
+                    JsValue = message, Writable = true, Enumerable = false, Configurable = true
                 });
         }
 
@@ -62,7 +62,7 @@ public sealed partial class SuppressedErrorConstructor(IJsObjectLike prototype, 
                 instance.DefineProperty("cause",
                     new PropertyDescriptor
                     {
-                        Value = cause, Writable = true, Enumerable = false, Configurable = true
+                        JsValue = cause, Writable = true, Enumerable = false, Configurable = true
                     });
             }
         }
@@ -71,12 +71,12 @@ public sealed partial class SuppressedErrorConstructor(IJsObjectLike prototype, 
         instance.DefineProperty("error",
             new PropertyDescriptor
             {
-                Value = errorArg, Writable = true, Enumerable = false, Configurable = true
+                JsValue = errorArg, Writable = true, Enumerable = false, Configurable = true
             });
         instance.DefineProperty("suppressed",
             new PropertyDescriptor
             {
-                Value = suppressedArg, Writable = true, Enumerable = false, Configurable = true
+                JsValue = suppressedArg, Writable = true, Enumerable = false, Configurable = true
             });
     }
 }

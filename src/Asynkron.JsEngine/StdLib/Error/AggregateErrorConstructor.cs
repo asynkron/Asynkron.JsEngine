@@ -27,7 +27,7 @@ public sealed partial class AggregateErrorConstructor(IJsObjectLike prototype, R
 
         // ES spec: Set [[ErrorData]] internal slot
         instance.DefineProperty("_errorData",
-            new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor { JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
 
         // args[0] = errors, args[1] = message, args[2] = options
         var errorsArg = args.Count > 0 ? args[0] : JsValue.Undefined;
@@ -39,7 +39,7 @@ public sealed partial class AggregateErrorConstructor(IJsObjectLike prototype, R
         {
             var message = messageArg.IsNull ? "null" : JsOps.ToJsString(messageArg);
             instance.DefineProperty("message",
-                new PropertyDescriptor { Value = message, Writable = true, Enumerable = false, Configurable = true });
+                new PropertyDescriptor { JsValue = message, Writable = true, Enumerable = false, Configurable = true });
         }
 
         // ES2022: InstallErrorCause - handle options.cause
@@ -50,7 +50,7 @@ public sealed partial class AggregateErrorConstructor(IJsObjectLike prototype, R
             {
                 JsOps.TryGetPropertyValue(optionsArg, "cause", out var cause);
                 instance.DefineProperty("cause",
-                    new PropertyDescriptor { Value = cause, Writable = true, Enumerable = false, Configurable = true });
+                    new PropertyDescriptor { JsValue = cause, Writable = true, Enumerable = false, Configurable = true });
             }
         }
 
@@ -58,7 +58,7 @@ public sealed partial class AggregateErrorConstructor(IJsObjectLike prototype, R
         // Step 3: Let errorsList be ? IterableToList(errors).
         var errorsList = IterableToList(errorsArg);
         instance.DefineProperty("errors",
-            new PropertyDescriptor { Value = errorsList, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = errorsList, Writable = true, Enumerable = false, Configurable = true });
     }
 
     private JsValue IterableToList(JsValue iterable)

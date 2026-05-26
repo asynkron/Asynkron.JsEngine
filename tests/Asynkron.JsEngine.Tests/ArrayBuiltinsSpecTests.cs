@@ -89,6 +89,24 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayIterationCallbacks_SingleParameterArrowPreservesLexicalThis()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const receiver = {
+              factor: 4,
+              run() {
+                return [1, 2, 3].map(value => value * this.factor).join(",");
+              }
+            };
+            receiver.run();
+        """);
+
+        Assert.Equal("4,8,12", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayIterationCallbacks_PreserveObservableExtraArguments()
     {
         await using var engine = CreateEngine();

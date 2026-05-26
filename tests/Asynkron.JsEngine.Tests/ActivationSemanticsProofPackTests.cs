@@ -470,6 +470,35 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task RepeatedDirectEval_UsesCurrentActivationBindings()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            'use strict';
+
+            let shared = 0;
+            function makeEvalReader(offset) {
+                return function read(x) {
+                    const y = x + offset;
+                    return eval('y + shared');
+                };
+            }
+
+            const first = makeEvalReader(1);
+            const second = makeEvalReader(10);
+            shared = 5;
+            const a = first(2);
+            shared = 7;
+            const b = first(3);
+            shared = 11;
+            const c = second(4);
+            [a, b, c].join(',');
+            """);
+
+        Assert.Equal("8,11,25", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithAndStrictMode_StaySeparated()
     {
         await using var engine = CreateEngine();

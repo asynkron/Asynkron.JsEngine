@@ -20,7 +20,12 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, ICallableMetadata
 {
     internal static readonly Symbol FieldInitializerEvalFlag = Symbol.Intern("#classFieldInitializerEval");
+    private const int MaxProgramCacheEntries = 64;
     private readonly JsObject _properties = new();
+    private readonly object _programCacheLock = new();
+    private readonly LinkedList<KeyValuePair<EvalProgramCacheKey, ProgramNode>> _programCacheLru = new();
+    private readonly Dictionary<EvalProgramCacheKey, LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>>
+        _programCache = new();
 
     public EvalHostFunction(JsEngine engine)
     {
@@ -175,7 +180,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         ProgramNode program;
         try
         {
-            program = Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+            program = GetOrParseProgram(code, forceStrict);
         }
         catch (ParseException parseException)
         {
@@ -698,6 +703,44 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             throw;
         }
     }
+
+    private ProgramNode GetOrParseProgram(string code, bool forceStrict)
+    {
+        var key = new EvalProgramCacheKey(code, forceStrict);
+        lock (_programCacheLock)
+        {
+            if (_programCache.TryGetValue(key, out var cachedNode))
+            {
+                _programCacheLru.Remove(cachedNode);
+                _programCacheLru.AddLast(cachedNode);
+                return cachedNode.Value.Value;
+            }
+        }
+
+        var program = Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+        lock (_programCacheLock)
+        {
+            if (_programCache.TryGetValue(key, out var cachedNode))
+            {
+                _programCacheLru.Remove(cachedNode);
+                _programCacheLru.AddLast(cachedNode);
+                return cachedNode.Value.Value;
+            }
+
+            var node = new LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>(new(key, program));
+            _programCacheLru.AddLast(node);
+            _programCache.Add(key, node);
+            if (_programCache.Count > MaxProgramCacheEntries && _programCacheLru.First is { } first)
+            {
+                _programCache.Remove(first.Value.Key);
+                _programCacheLru.RemoveFirst();
+            }
+        }
+
+        return program;
+    }
+
+    private readonly record struct EvalProgramCacheKey(string Code, bool ForceStrict);
 
     private static bool IsDirectEvalCallerMethod(JsEnvironment? callingEnvironment)
     {

@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
@@ -43,13 +44,11 @@ public static partial class TypedAstEvaluator
             planOverride: planSeed.Plan,
             planFailureOverride: planSeed.Failure);
 
-        // WAITING ON FULL ASYNC GENERATOR IR SUPPORT:
-        // For now we reuse the sync generator IR plan and runtime to execute
-        // the body. Async semantics are modeled by driving the shared plan
-        // through a small step API and wrapping each step in a Promise. Once
-        // we have a dedicated async-generator IR executor, this wiring
-        // should be revisited so await/yield drive a single non-blocking
-        // state machine.
+        // Async generators currently execute through the shared
+        // ExecutionPlanRunner.ExecuteAsyncStep contract. Each .next/.return/.throw
+        // call drives one step and wraps the step result in a Promise. A dedicated
+        // async-generator IR executor can later replace this bridge without changing
+        // the external async-step contract used here.
         public void Initialize()
         {
             _inner.Initialize();
@@ -198,26 +197,31 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private sealed class AsyncResumeCallback : IJsCallable
         {
-            [ThreadStatic] private static AsyncResumeCallback? TCachedFulfilled;
-
-            [ThreadStatic] private static AsyncResumeCallback? TCachedRejected;
+            private static readonly ObjectPool<AsyncResumeCallback> FulfilledPool =
+                new(32, static () => new AsyncResumeCallback());
+            private static readonly ObjectPool<AsyncResumeCallback> RejectedPool =
+                new(32, static () => new AsyncResumeCallback());
 
             private AsyncGeneratorInvoker? _executor;
             private bool _isRejection;
             private IJsCallable? _reject;
             private IJsCallable? _resolve;
+            private AsyncResumeCallback? _sibling;
 
             public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
             {
+                AssertOwnership(nameof(Invoke));
                 var executor = _executor!;
                 var resolve = _resolve!;
                 var reject = _reject!;
                 var isRejection = _isRejection;
+                var sibling = _sibling;
 
                 // Clear state before execution
                 _executor = null;
                 _resolve = null;
                 _reject = null;
+                _sibling = null;
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
@@ -231,14 +235,29 @@ public static partial class TypedAstEvaluator
                 }
                 finally
                 {
-                    // Return to appropriate pool
                     if (isRejection)
                     {
-                        TCachedRejected = this;
+                        RejectedPool.Return(this);
+                        if (sibling is not null)
+                        {
+                            sibling._executor = null;
+                            sibling._resolve = null;
+                            sibling._reject = null;
+                            sibling._sibling = null;
+                            FulfilledPool.Return(sibling);
+                        }
                     }
                     else
                     {
-                        TCachedFulfilled = this;
+                        FulfilledPool.Return(this);
+                        if (sibling is not null)
+                        {
+                            sibling._executor = null;
+                            sibling._resolve = null;
+                            sibling._reject = null;
+                            sibling._sibling = null;
+                            RejectedPool.Return(sibling);
+                        }
                     }
                 }
 
@@ -250,22 +269,25 @@ public static partial class TypedAstEvaluator
                 IJsCallable resolve,
                 IJsCallable reject)
             {
-                var fulfilled = TCachedFulfilled ?? new AsyncResumeCallback();
-                TCachedFulfilled = null;
+                var fulfilled = FulfilledPool.Rent();
                 fulfilled._executor = executor;
                 fulfilled._resolve = resolve;
                 fulfilled._reject = reject;
                 fulfilled._isRejection = false;
 
-                var rejected = TCachedRejected ?? new AsyncResumeCallback();
-                TCachedRejected = null;
+                var rejected = RejectedPool.Rent();
                 rejected._executor = executor;
                 rejected._resolve = resolve;
                 rejected._reject = reject;
                 rejected._isRejection = true;
+                fulfilled._sibling = rejected;
+                rejected._sibling = fulfilled;
 
                 return (fulfilled, rejected);
             }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
         }
     }
 }

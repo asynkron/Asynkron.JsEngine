@@ -140,6 +140,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   the slice. If a planned ADR or report citation does not exist, either cite the
   maintained evidence surface that does exist or keep the roadmap claim
   boundary-only without the missing file reference.
+- When a roadmap slice names an ADR, report, or performance note as evidence,
+  verify that the cited artifact actually supports the same claim being made,
+  not only that the file exists or is recently accepted. If the available
+  evidence is adjacent but not claim-specific, keep the roadmap wording
+  boundary-only and require a dedicated evidence surface before future agents
+  add the stronger claim.
 - When a recurring roadmap child starts from issue or investigation context that
   says `docs/roadmap.md` is missing, re-check the file on the current branch
   before treating creation as the slice. If latest main already has the roadmap,
@@ -202,6 +208,15 @@ host demo path even though those runnable example directories and host scripts
 were present. Future README demo-list maintenance should compare the listed
 examples against `examples/` first, then update the README as the bounded slice
 without widening into demo behavior or broad validation work.
+
+Issue `autrun-discmtuc3nyg-6afa45ba2d` / PR #2014 exposed the stronger
+roadmap-evidence version of the same problem. The delivery initially connected
+future Promise constructor/combinator roadmap wording to ADR 0151, but ADR 0151
+only covered error-constructor shared initialization argument mapping. The
+review fix removed the unsupported Promise-specific attribution and kept the
+Promise roadmap item evidence-first until a dedicated Promise evidence surface
+exists. Future roadmap refreshes must check citation relevance, not just path
+existence or recent acceptance.
 
 Issue #1239 / PR #1251 was a docs-only maintenance slice triggered by the
 pre-existing duplicate ADR prefix `0071`. The useful delivery was adding

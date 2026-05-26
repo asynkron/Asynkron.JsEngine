@@ -80,6 +80,8 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasHoistableDeclarations;
+        private readonly bool _canUseArrayIterationSingleArgumentFastPath;
+        private readonly bool _canUseArrayReduceTwoArgumentFastPath;
 
         private readonly bool _wasAsyncFunction;
         private readonly FunctionExecutionPlanSeed _planSeed;
@@ -161,6 +163,20 @@ public static partial class TypedAstEvaluator
             // For non-strict mode: can use fast path if the function doesn't use 'arguments' identifier,
             // since mapped arguments object (which links argument values to parameter bindings) is not needed.
             var hasSimpleParams = HasOnlySimpleIdentifierParameters(function);
+            _canUseArrayIterationSingleArgumentFastPath =
+                IsArrowFunction &&
+                function.Parameters.Length <= 1 &&
+                !_hasParameterExpressions &&
+                !IsAsyncLike &&
+                !function.IsGenerator &&
+                hasSimpleParams;
+            _canUseArrayReduceTwoArgumentFastPath =
+                IsArrowFunction &&
+                function.Parameters.Length <= 2 &&
+                !_hasParameterExpressions &&
+                !IsAsyncLike &&
+                !function.IsGenerator &&
+                hasSimpleParams;
             var canUseFastPathForStrictness = _isStrict || !_usesArguments;
             var isSimpleFunction = canUseFastPathForStrictness &&
                                    !function.IsAsync &&
@@ -415,13 +431,9 @@ public static partial class TypedAstEvaluator
 
         public bool IsArrowFunction { get; }
 
-        internal bool CanUseArrayIterationSingleArgumentFastPath =>
-            IsArrowFunction &&
-            _parameterNames.Length <= 1 &&
-            !_hasParameterExpressions &&
-            !IsAsyncLike &&
-            !_function.IsGenerator &&
-            HasOnlySimpleIdentifierParameters(_function);
+        internal bool CanUseArrayIterationSingleArgumentFastPath => _canUseArrayIterationSingleArgumentFastPath;
+
+        internal bool CanUseArrayReduceTwoArgumentFastPath => _canUseArrayReduceTwoArgumentFastPath;
 
         internal bool HasHomeObject => _homeObject is not null;
 

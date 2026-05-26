@@ -231,10 +231,24 @@ public static partial class StandardLibrary
                 }
                 else
                 {
-                    var callbackArgs = new FourValueArgs(accumulator, value, new JsValue((double)k), accessorJsValue);
-                    accumulator = callback is TypedAstEvaluator.SyncFunctionInvoker typedFunction
-                        ? typedFunction.InvokeWithContext<FourValueArgs>(callbackArgs, JsValue.Undefined, null)
-                        : callback.Invoke(callbackArgs, JsValue.Undefined);
+                    if (callback is TypedAstEvaluator.SyncFunctionInvoker
+                        {
+                            CanUseArrayReduceTwoArgumentFastPath: true
+                        } twoArgTypedFunction)
+                    {
+                        var twoArgCallbackArgs = new TwoValueArgs(accumulator, value);
+                        accumulator = twoArgTypedFunction.InvokeWithContext<TwoValueArgs>(
+                            twoArgCallbackArgs,
+                            JsValue.Undefined,
+                            null);
+                    }
+                    else
+                    {
+                        var callbackArgs = new FourValueArgs(accumulator, value, new JsValue((double)k), accessorJsValue);
+                        accumulator = callback is TypedAstEvaluator.SyncFunctionInvoker typedFunction
+                            ? typedFunction.InvokeWithContext<FourValueArgs>(callbackArgs, JsValue.Undefined, null)
+                            : callback.Invoke(callbackArgs, JsValue.Undefined);
+                    }
                 }
             }
 

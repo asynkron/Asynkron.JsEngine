@@ -183,7 +183,9 @@ public static partial class TypedAstEvaluator
                             context.RealmState));
                     }
 
-                    if (slot.HasSpecialBinding)
+                    if (slot.IsImmutableBinding ||
+                        slot.IsGlobalConstant ||
+                        slot.HasSpecialBinding)
                     {
                         return false;
                     }

@@ -116,6 +116,41 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DestructuringAssignmentPreservesSloppyNamedFunctionExpressionBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const f = function g() {
+                [g] = [1];
+                return typeof g + ":" + (g === f);
+            };
+            f();
+            """);
+
+        Assert.Equal("function:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DestructuringAssignmentThrowsForStrictNamedFunctionExpressionBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const f = function g() {
+                "use strict";
+                try {
+                    [g] = [1];
+                    return "no throw";
+                } catch (error) {
+                    return error.name + ":" + (g === f);
+                }
+            };
+            f();
+            """);
+
+        Assert.Equal("TypeError:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task CatchDestructuringDoesNotInitializeOuterLexicalSlot()
     {
         await using var engine = CreateEngine();

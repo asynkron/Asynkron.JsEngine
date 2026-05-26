@@ -683,7 +683,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         switch (program)
         {
-            case IdentifierBindingTargetProgram:
+            case IdentifierBindingTargetProgram identifier:
+                {
+                    if (_isRestampingNestedFunction && identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+                    {
+                        return program;
+                    }
+
+                    if (!TryResolve(identifier.Name, out var resolution))
+                    {
+                        return program;
+                    }
+
+                    var flatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex);
+                    return identifier with
+                    {
+                        ScopeId = resolution.scopeId,
+                        SlotIndex = resolution.slotIndex,
+                        FlatSlotId = flatSlotId
+                    };
+                }
+
             case NamedSuperPropertyAssignmentBindingTargetProgram:
                 return program;
 

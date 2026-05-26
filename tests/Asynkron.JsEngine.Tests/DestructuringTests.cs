@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -62,6 +64,53 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
             a * 10 + calls;
             """);
         Assert.Equal(71d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectBindingTargetProgramsCarrySlotMetadata()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function bind(values) {
+                const { x, y } = values;
+                return x + y;
+            }
+            """);
+
+        await engine.Evaluate(program);
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(cache.Plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
+        Assert.All(targetProgram.Properties, property =>
+        {
+            var identifier = Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+            Assert.True(identifier.ScopeId >= 0, $"Expected {identifier.Name.Name} to have a stamped scope.");
+            Assert.True(identifier.SlotIndex >= 0, $"Expected {identifier.Name.Name} to have a stamped slot.");
+            Assert.True(identifier.FlatSlotId >= 0, $"Expected {identifier.Name.Name} to have a stamped flat slot.");
+        });
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ConstArrayDestructuringKeepsConstAfterSlotFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const [x] = [1];
+            let name = "";
+            try {
+                x = 2;
+            } catch (e) {
+                name = e.name;
+            }
+            name + ":" + x;
+            """);
+
+        Assert.Equal("TypeError:1", result);
     }
 
     [Fact(Timeout = 2000)]

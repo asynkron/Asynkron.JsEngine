@@ -18,6 +18,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`
   - `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`
   - `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`
+  - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
 
 ## Rules
 
@@ -140,6 +141,15 @@ When working inside the core engine, keep JavaScript values represented as
     that already has the JavaScript value and can drift from the shared
     coercion helper. Prove these slices with the destructuring-focused legacy
     switch search and focused destructuring tests.
+19. When a private resolver can fail to find an optional JavaScript value but
+    successful callers already require `JsValue`, expose absence separately
+    from the payload, for example with a `bool Try...(..., out JsValue value)`
+    contract or an equivalent typed result. Do not keep a nullable `object?`
+    payload, use `null`, or use `JsValue.Undefined` as the only no-value signal
+    when callers must preserve an existing missing-value error branch. Keep any
+    unavoidable `JsValue.FromObjectUnsafe(...)` wrapping inside the resolver
+    boundary for known runtime objects and prove the caller-side rewraps are
+    gone.
 
 ## Why
 
@@ -397,3 +407,15 @@ shared `JsValue` ToObject path and prove the slice with the focused
 `ToObjectForDestructuringJsValue`/legacy primitive-switch search plus the
 destructuring test pack. Related ADR:
 `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`.
+
+Issue `autrun-disgkh6pbz1k-90662a8047` / PR #2068 migrated
+`ResolveSuperConstructorForCall` from a nullable `object?` return to
+`TryResolveSuperConstructorForCall(..., out JsValue)`. The old resolver fed
+both legacy AST and expression-bytecode `super(...)` callsites, and both
+callers immediately rewrapped the nullable object result with
+`JsValue.FromObjectUnsafe(dynamicSuperConstructor)`. Absence of a constructor
+was the only non-value state, so the fix made absence explicit with a boolean
+return while keeping the resolved callable/accessor payload typed. Future
+optional resolver migrations should use the same shape instead of treating
+`object?` nullability as a private JavaScript-value carrier. Related ADR:
+`docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`.

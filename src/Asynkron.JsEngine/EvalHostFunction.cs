@@ -124,28 +124,43 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     public JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
     {
-        if (arguments.Count == 0 || !arguments[0].IsString)
+        if (arguments.Count == 0)
         {
-            return arguments.Count > 0 ? arguments[0] : JsValue.Undefined;
+            return JsValue.Undefined;
         }
-
-        var code = arguments[0].AsString();
 
         var isDirectEval = IsDirectCall;
         IsDirectCall = false;
+        return InvokeSingleArgument(arguments[0], CallingContext, CallingJsEnvironment, isDirectEval,
+            InClassFieldInitializer);
+    }
+
+    private JsValue InvokeSingleArgument(
+        JsValue argument,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment,
+        bool isDirectEval,
+        bool inClassFieldInitializer)
+    {
+        if (!argument.IsString)
+        {
+            return argument;
+        }
+
+        var code = argument.AsString();
 
         // Direct eval executes in the caller's scope; indirect eval always uses the realm's global scope.
         var evalRealmGlobal = Engine.GlobalExecutionScope ?? Engine.GlobalEnvironment;
         var environment = isDirectEval
-            ? CallingJsEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
+            ? callingEnvironment ?? throw new InvalidOperationException("eval() called without a calling environment")
             : evalRealmGlobal;
 
         var hasStrictCaller = isDirectEval && (
-            (CallingContext?.CurrentScope.Mode == ScopeMode.Strict) ||
-            (CallingContext?.IsStrictSource ?? false) ||
-            (CallingJsEnvironment?.IsStrict ?? false) ||
+            (callingContext?.CurrentScope.Mode == ScopeMode.Strict) ||
+            (callingContext?.IsStrictSource ?? false) ||
+            (callingEnvironment?.IsStrict ?? false) ||
             environment.IsStrict ||
-            (CallingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
+            (callingContext?.RealmState?.Engine?.GlobalExecutionScope?.IsStrict ?? false));
 
         // Hot path for Test262 regexp literal round-trip eval loops:
         // eval("/.../") with no trailing source can skip full parse/analyze.
@@ -170,7 +185,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Unexpected reserved identifier in strict eval.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -185,7 +200,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         catch (ParseException parseException)
         {
             var errorObject =
-                StandardLibrary.CreateSyntaxError(parseException.Message, CallingContext, environment.RealmState);
+                StandardLibrary.CreateSyntaxError(parseException.Message, callingContext, environment.RealmState);
             throw new ThrowSignal(errorObject);
         }
 
@@ -196,7 +211,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "Cannot use module declarations within eval code.",
-                    CallingContext,
+                    callingContext,
                     environment.RealmState);
             }
         }
@@ -205,13 +220,13 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "'import.meta' is only valid in module code.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
         var insideClassFieldInitializer = InClassFieldInitializer ||
-                                          CallingContext?.InClassFieldInitializer == true ||
-                                          (CallingJsEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
+                                          callingContext?.InClassFieldInitializer == true ||
+                                          (callingEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
 
         // Single-pass AST scan to collect all validation flags at once (performance optimization)
         var validationFlags = ScanForValidationFlags(program.Body);
@@ -232,7 +247,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super calls are not allowed in eval inside class field initializers.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -240,7 +255,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super references are not allowed in eval inside class field initializers.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -248,7 +263,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "'arguments' is not allowed in eval inside class field initializers.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -260,7 +275,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "new.target is not allowed in indirect eval code.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -270,7 +285,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "super references are not allowed in indirect eval code.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -279,23 +294,23 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (isDirectEval && containsNewTargetTopLevel)
         {
             var callerHasNewTarget =
-                CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out _) == true;
+                callingEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out _) == true;
             // Direct eval inside class field initializers inherits the "inside function"
             // allowance for new.target, even though the eval source itself is a ScriptBody.
             if (!callerHasNewTarget && !insideClassFieldInitializer)
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "new.target is not allowed in this direct eval context.",
-                    CallingContext,
+                    callingContext,
                     environment.RealmState);
             }
         }
 
         if (isDirectEval)
         {
-            var hasSuperBinding = HasDirectEvalSuperBinding(CallingJsEnvironment, insideClassFieldInitializer);
+            var hasSuperBinding = HasDirectEvalSuperBinding(callingEnvironment, insideClassFieldInitializer);
             // Arrow functions inherit new.target lexically through the caller environment chain.
-            var hasNewTarget = CallingJsEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out var newTarget) == true &&
+            var hasNewTarget = callingEnvironment?.TryFindBindingJsValue(Symbol.NewTarget, true, out _, out var newTarget) == true &&
                                !newTarget.IsUndefined;
 
             // Check super call without includeFunctionBodies (top-level only)
@@ -305,7 +320,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super references are not allowed in direct eval outside methods.",
-                    CallingContext,
+                    callingContext,
                     environment.RealmState);
             }
 
@@ -313,7 +328,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             {
                 throw StandardLibrary.ThrowSyntaxError(
                     "super calls are only allowed in direct eval when evaluating constructors.",
-                    CallingContext,
+                    callingContext,
                     environment.RealmState);
             }
         }
@@ -329,7 +344,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Illegal control flow statement in eval code.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -338,16 +353,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         // For indirect eval, no private names are available.
         // Any private name reference not found in available scopes is a SyntaxError.
         ImmutableArray<PrivateNameScope>? evalPrivateNameScopes = null;
-        if (isDirectEval && CallingContext is not null)
+        if (isDirectEval && callingContext is not null)
         {
-            var capturedScopes = CallingContext.CapturePrivateNameScopes();
+            var capturedScopes = callingContext.CapturePrivateNameScopes();
             if (!capturedScopes.IsDefaultOrEmpty)
             {
                 evalPrivateNameScopes = capturedScopes;
             }
-            else if (CallingContext.CurrentPrivateNameScope is not null)
+            else if (callingContext.CurrentPrivateNameScope is not null)
             {
-                evalPrivateNameScopes = [CallingContext.CurrentPrivateNameScope];
+                evalPrivateNameScopes = [callingContext.CurrentPrivateNameScope];
             }
         }
 
@@ -356,7 +371,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 $"Private field '{invalidPrivateName}' must be declared in an enclosing class",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -418,7 +433,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Unexpected reserved identifier in strict eval.",
-                CallingContext,
+                callingContext,
                 environment.RealmState);
         }
 
@@ -431,7 +446,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Unexpected reserved identifier '{name.Name}' in strict mode.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
             }
@@ -442,7 +457,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Unexpected reserved identifier '{name.Name}' in strict mode.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
             }
@@ -461,7 +476,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing parameter binding.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
 
@@ -482,7 +497,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         "Cannot declare 'arguments' in direct eval inside a function with non-simple parameters.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
 
@@ -507,7 +522,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
             }
@@ -533,7 +548,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     {
                         throw StandardLibrary.ThrowSyntaxError(
                             $"Cannot declare var-scoped binding '{name.Name}' in direct eval due to existing lexical declaration.",
-                            CallingContext,
+                            callingContext,
                             environment.RealmState);
                     }
                 }
@@ -555,7 +570,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare lexical binding '{name.Name}' in direct eval because a var binding already exists.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
 
@@ -563,7 +578,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         $"Cannot declare lexical binding '{name.Name}' in direct eval due to non-configurable global.",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
             }
@@ -584,7 +599,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 {
                     throw StandardLibrary.ThrowTypeError(
                         "Cannot redeclare non-configurable global function",
-                        CallingContext,
+                        callingContext,
                         environment.RealmState);
                 }
             }
@@ -646,7 +661,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     hasInitializer: false,
                     isFunctionDeclaration: true,
                     globalFunctionConfigurable: true,
-                    context: CallingContext,
+                    context: callingContext,
                     canDelete: true);
                 varEnv.MarkEvalDeletable(name);
             }
@@ -675,7 +690,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                     JsValue.Undefined,
                     hasInitializer: false,
                     isFunctionDeclaration: false,
-                    context: CallingContext,
+                    context: callingContext,
                     globalVarConfigurable: true,
                     canDelete: true);
                 varEnv.MarkEvalDeletable(name);
@@ -686,9 +701,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         {
             // Evaluate directly in the constructed eval environment (direct eval is synchronous).
             // Note: evalPrivateNameScopes was captured earlier for AllPrivateNamesValid validation.
-            if (evalPrivateNameScopes is { IsDefaultOrEmpty: false } && CallingContext is not null)
+            if (evalPrivateNameScopes is { IsDefaultOrEmpty: false } && callingContext is not null)
             {
-                CallingContext.RealmState.Logger?.LogInformation(
+                callingContext.RealmState.Logger?.LogInformation(
                     "Eval direct: captured {PrivateScopeCount} private scopes (class initializer={InInitializer})",
                     evalPrivateNameScopes.Value.Length,
                     insideClassFieldInitializer);
@@ -702,6 +717,16 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             RollbackEvalBindings(varEnv, varDeclaredNames, preexistingVarBindings);
             throw;
         }
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal JsValue InvokeDirectSingleArgumentFast(
+        JsValue argument,
+        EvaluationContext context,
+        JsEnvironment environment,
+        bool inClassFieldInitializer)
+    {
+        return InvokeSingleArgument(argument, context, environment, isDirectEval: true, inClassFieldInitializer);
     }
 
     private ProgramNode GetOrParseProgram(string code, bool forceStrict)

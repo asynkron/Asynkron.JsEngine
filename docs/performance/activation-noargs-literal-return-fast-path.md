@@ -44,10 +44,10 @@ Focused proof pack:
 
 ```text
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ActivationSemanticsProofPackTests|FullyQualifiedName~ExecutionPlanDiagnosticsTests.FunctionPlan_SimpleReturnExpression_IsMarkedAsIrCallShape"
-ok dotnet test: 31 tests passed
+ok dotnet test: 33 tests passed
 ```
 
-Repeated selected-profile measurements after the change:
+Repeated selected-profile measurements after the initial literal-return slice:
 
 ```text
 activation-noargs-lite          276      270  Tie
@@ -58,9 +58,12 @@ activation-noargs-lite          265      128  Jint 2.07x faster
 Compared with the 634 ms pre-edit Asynkron baseline, the repeated post-edit
 Asynkron samples are about 56-59% faster.
 
-Follow-up sample after widening to the guarded no-argument parameter-return
-shape:
+gh2040 widening evidence (guarded no-argument parameter-return shape):
 
 ```text
-activation-noargs-lite          457      202  Jint 2.26x faster
+baseline (9a3ec1ed^): activation-noargs-lite          267      140  Jint 1.91x faster
+final (9a3ec1ed):     activation-noargs-lite          258      130  Jint 1.98x faster
 ```
+
+This widening sample pair is effectively a no-regression confirmation for the
+selected profile, which still primarily exercises the literal-return body.

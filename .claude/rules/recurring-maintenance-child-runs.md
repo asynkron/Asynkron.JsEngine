@@ -183,6 +183,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   edit, pair it with a code-size signal such as `rtk cloc --vcs=git
   --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
   out of scope unless the exact deletion no longer compiles.
+- When a recurring code-reduction child uses named cleanup tools such as
+  QuickDup, Roslynator, or cloc, follow each tool's documented discovery path
+  before marking it unavailable. A local `dotnet tool list --local` result is
+  not enough to prove Roslynator unavailable; check PATH/global tool discovery
+  such as `rtk which roslynator` and the documented
+  `dnx Roslynator.DotNet.Cli` fallback, then record the exact command and
+  failure if analyzer evidence still cannot run.
 - If the code-reduction slice targets dormant test source files, only delete
   files that are entirely non-compiled/commented-out or otherwise proven absent
   from the test project. Confirm no live references or explicit project includes
@@ -686,6 +693,16 @@ semantic owner, record the file-level C# line count drop from 233 to 218, run
 `AsyncGeneratorTests` (19 tests). Future runtime dispatch reductions should use
 that evidence shape; line-count reduction alone is not enough proof when the
 dispatch path settles promises or other observable runtime behavior.
+
+Issue `autrun-disrgarna6fc-5f88c8087c` / PR #2168 removed redundant
+ArrayBuffer and SharedArrayBuffer constructor fallback properties. The build
+handoff said Roslynator was unavailable after checking only the local tool
+manifest, but review found a global Roslynator install and then completed the
+documented `dnx Roslynator.DotNet.Cli` fallback with zero diagnostics for the
+touched constructor files. Future code-reduction children should treat tool
+availability as the documented discovery chain, not as a single manifest check,
+so static-analysis evidence is accurate without reopening an already-correct
+delivery.
 
 Issue #1971 / PR #1976 clarified a persistent ADR/rule compaction child whose
 issue context included automation markers such as `Part of automation template`

@@ -66,6 +66,16 @@ public sealed class EvaluationContext(
     private IReadOnlyList<JsValue>? _legacyTailCallArguments;
     private JsValue _legacyTailCallThisValue;
 
+    internal readonly struct LegacyTailCallRestartState(
+        TypedAstEvaluator.SyncFunctionInvoker? invoker,
+        IReadOnlyList<JsValue>? arguments,
+        JsValue thisValue)
+    {
+        internal TypedAstEvaluator.SyncFunctionInvoker? Invoker { get; } = invoker;
+        internal IReadOnlyList<JsValue>? Arguments { get; } = arguments;
+        internal JsValue ThisValue { get; } = thisValue;
+    }
+
     /// <summary>
     ///     Scratch slot for JsValue to avoid struct copies in hot paths.
     ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
@@ -592,6 +602,31 @@ public sealed class EvaluationContext(
         return true;
     }
 
+    internal LegacyTailCallRestartState SaveLegacyTailCallRestartState()
+    {
+        AssertOwnership(nameof(SaveLegacyTailCallRestartState));
+        return new LegacyTailCallRestartState(
+            _legacyTailCallInvoker,
+            _legacyTailCallArguments,
+            _legacyTailCallThisValue);
+    }
+
+    internal void RestoreLegacyTailCallRestartState(in LegacyTailCallRestartState state)
+    {
+        AssertOwnership(nameof(RestoreLegacyTailCallRestartState));
+        _legacyTailCallInvoker = state.Invoker;
+        _legacyTailCallArguments = state.Arguments;
+        _legacyTailCallThisValue = state.ThisValue;
+    }
+
+    internal void ClearLegacyTailCallRestart()
+    {
+        AssertOwnership(nameof(ClearLegacyTailCallRestart));
+        _legacyTailCallInvoker = null;
+        _legacyTailCallArguments = null;
+        _legacyTailCallThisValue = JsValue.Undefined;
+    }
+
     /// <summary>
     ///     Saves the current completion state for later restoration (used by try-finally).
     /// </summary>
@@ -657,6 +692,7 @@ public sealed class EvaluationContext(
         IsStrictSource = false;
         IsReturn = false;
         _returnValue = default;
+        ClearLegacyTailCallRestart();
         CurrentSignal = null;
         LastYieldIndex = -1;
         LastYieldSourceStart = -1;

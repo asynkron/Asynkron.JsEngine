@@ -620,6 +620,7 @@ public static partial class TypedAstEvaluator
         }
 
         var savedState = context.SaveCompletionState();
+        var savedLegacyTailCallRestart = context.SaveLegacyTailCallRestartState();
         GeneratorPendingCompletion? pending = null;
         var isGenerator = environment.IsGeneratorContext();
         if (isGenerator && savedState.HasCompletion)
@@ -642,6 +643,7 @@ public static partial class TypedAstEvaluator
         }
 
         context.Clear();
+        context.ClearLegacyTailCallRestart();
         var finallyResult = statement.Finally.EvaluateBlockJsValue(environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -667,6 +669,7 @@ public static partial class TypedAstEvaluator
         else
         {
             context.RestoreCompletionState(savedState);
+            context.RestoreLegacyTailCallRestartState(savedLegacyTailCallRestart);
         }
 
         context.RealmState.Logger?.LogInformation(

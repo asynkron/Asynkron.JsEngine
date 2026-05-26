@@ -224,7 +224,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        var insideClassFieldInitializer = InClassFieldInitializer ||
+        var insideClassFieldInitializer = inClassFieldInitializer ||
                                           callingContext?.InClassFieldInitializer == true ||
                                           (callingEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
 

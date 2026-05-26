@@ -144,12 +144,12 @@ public static partial class StandardLibrary
     internal static void DefineConstantProperty(
         IJsPropertyAccessor target,
         string name,
-        object? value,
+        JsValue value,
         bool configurable = false)
     {
         var descriptor = new PropertyDescriptor
         {
-            Value = value,
+            JsValue = value,
             Writable = false,
             Enumerable = false,
             Configurable = configurable
@@ -166,7 +166,7 @@ public static partial class StandardLibrary
             return;
         }
 
-        target.SetProperty(name, JsValue.FromObjectUnsafe(value));
+        target.SetProperty(name, value);
     }
 
     internal static JsValue CreateSyntaxError(string message, EvaluationContext? context = null,

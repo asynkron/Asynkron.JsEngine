@@ -32,7 +32,7 @@ The older S-expression/CPS-era documents referenced by early README versions are
 Asynkron.JsEngine targets ECMAScript 262 with full language coverage and a steadily growing built-in library.
 
 ### Current Status
-- ECMAScript 262 language: 100% compliant; all language-focused Test262 cases pass.
+- ECMAScript 262 language: broad core-language coverage with targeted remaining gaps tracked in the active Test262 regression filter.
 - Built-ins / standard library: ~50% compliant; about half of the ES built-ins are implemented on the attribute-driven generator model and the rest are being migrated.
 
 ### Capabilities

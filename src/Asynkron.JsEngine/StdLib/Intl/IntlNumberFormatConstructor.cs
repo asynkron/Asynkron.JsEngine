@@ -219,7 +219,8 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         string? currency,
         string notation)
     {
-        var minimumIntegerDigits = GetDigitOption(options, "minimumIntegerDigits", 1, 21, 1);
+        var minimumIntegerDigits = IntlOptionHelpers.GetDigitOption(
+            options, "minimumIntegerDigits", 1, 21, 1, Realm, "NumberFormat");
 
         // Currency digit defaults only apply for "standard" notation
         var useCurrencyDefaults = string.Equals(style, "currency", StringComparison.Ordinal)
@@ -233,10 +234,14 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             _ => string.Equals(notation, "compact", StringComparison.Ordinal) ? 0 : 3
         };
 
-        var hasMinFrac = TryGetDigitOption(options, "minimumFractionDigits", 0, 100, out var rawMinFrac);
-        var hasMaxFrac = TryGetDigitOption(options, "maximumFractionDigits", 0, 100, out var rawMaxFrac);
-        var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
-        var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
+        var hasMinFrac = IntlOptionHelpers.TryGetDigitOption(
+            options, "minimumFractionDigits", 0, 100, Realm, "NumberFormat", out var rawMinFrac);
+        var hasMaxFrac = IntlOptionHelpers.TryGetDigitOption(
+            options, "maximumFractionDigits", 0, 100, Realm, "NumberFormat", out var rawMaxFrac);
+        var hasMinSig = IntlOptionHelpers.TryGetDigitOption(
+            options, "minimumSignificantDigits", 1, 21, Realm, "NumberFormat", out var minimumSignificantDigits);
+        var hasMaxSig = IntlOptionHelpers.TryGetDigitOption(
+            options, "maximumSignificantDigits", 1, 21, Realm, "NumberFormat", out var maximumSignificantDigits);
 
         // v3 options
         var roundingIncrement = GetRoundingIncrement(options);
@@ -410,51 +415,6 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         }
 
         return intValue;
-    }
-
-    private int GetDigitOption(IJsPropertyAccessor? options, string property, int minimum, int maximum, int fallback)
-    {
-        if (options is null ||
-            !options.TryGetProperty(property, out var value) ||
-            value.IsUndefined)
-        {
-            return fallback;
-        }
-
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || number < minimum || number > maximum)
-        {
-            throw ThrowRangeError(
-                $"Intl.NumberFormat {property} option must be between {minimum} and {maximum}", realm: Realm);
-        }
-
-        return (int)Math.Floor(number);
-    }
-
-    private bool TryGetDigitOption(
-        IJsPropertyAccessor? options,
-        string property,
-        int minimum,
-        int maximum,
-        out int? result)
-    {
-        result = null;
-        if (options is null ||
-            !options.TryGetProperty(property, out var value) ||
-            value.IsUndefined)
-        {
-            return false;
-        }
-
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || number < minimum || number > maximum)
-        {
-            throw ThrowRangeError(
-                $"Intl.NumberFormat {property} option must be between {minimum} and {maximum}", realm: Realm);
-        }
-
-        result = (int)Math.Floor(number);
-        return true;
     }
 
     private static int GetCurrencyDigits(string? currency)

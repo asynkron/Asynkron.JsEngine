@@ -3708,7 +3708,10 @@ public static partial class TypedAstEvaluator
                             : JsValue.Undefined
                         : thisInitializationValue;
 
-                    if (!alreadyInitialized.IsUndefined && JsOps.ToBoolean(alreadyInitialized))
+                    if (!alreadyInitialized.IsUndefined &&
+                        (alreadyInitialized.IsBoolean
+                            ? alreadyInitialized.AsBoolean()
+                            : JsOps.ToBoolean(alreadyInitialized)))
                     {
                         throw StandardLibrary.ThrowReferenceError(
                             "Super constructor may only be called once.", context, context.RealmState);

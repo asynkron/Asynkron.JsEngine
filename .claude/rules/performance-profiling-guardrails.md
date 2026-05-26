@@ -316,6 +316,18 @@ optimization.
     validation, and current caller-environment execution after the cache
     lookup. Prove retained wins with repeated selected-profile timings plus the
     focused activation/eval/private-name proof pack.
+25. For class constructor and `super()` dispatch performance work, prove the hot
+    owner with a current `classdef` CPU profile before editing
+    `ExecuteProgramSuperConstruct`, super-constructor resolution, or construct
+    dispatch. Keep argument and spread evaluation order, constructor and
+    `new.target` validation, proxy behavior, derived-`this` initialization,
+    double-super errors, and class-field initialization on the existing
+    semantic paths. Internal sentinel slots such as `Symbol.ThisInitialized`
+    may use a direct `JsValue` kind fast path only when the expected kind is
+    checked first and the prior `JsOps.ToBoolean(...)` or semantic fallback is
+    preserved for every other value. Do not turn a sampled constructor/super
+    subtree into broad activation widening or constructor-dispatch bypass
+    without focused class/super and lowering proof.
 
 ## Why
 
@@ -717,3 +729,12 @@ on the current eval environment. The durable lesson is that direct-eval parse
 caches may reuse immutable program structure, but must not cache caller state or
 use a source-only key. Related ADR:
 `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.
+
+Issue #2183 / PR #2185 continued the `classdef` constructor/super-dispatch
+follow-through after ADR 0193. The retained change was a kind-guarded boolean
+fast path for `Symbol.ThisInitialized` inside `ExecuteProgramSuperConstruct`;
+non-boolean values still use the previous `JsOps.ToBoolean(...)` fallback. The
+durable lesson is that internal sentinel fast paths can trim hot derived
+constructor checks only when they are profile-owned, kind-guarded, and do not
+change `super()` dispatch semantics or evaluation order. Related ADR:
+`docs/adrs/0194-keep-super-constructor-thisinitialized-guard-boolean-fast-path.md`.

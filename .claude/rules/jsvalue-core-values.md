@@ -117,6 +117,12 @@ When working inside the core engine, keep JavaScript values represented as
     legacy branch must still call the typed helper, make its
     `JsValue.FromObjectUnsafe(...)` conversion explicit at that branch and keep
     the branch as a remaining migration target.
+17. When obsolete `object?` convenience overloads on a core runtime type no
+    longer expose real compatibility callers or an intentional host boundary,
+    delete the overloads rather than keeping them as permanent tripwires. For
+    `JsArray` constructor, element-write, push, or length helpers, the typed
+    `JsValue` surface is the core contract; prove removal with a focused
+    signature search for the retired overload family.
 
 ## Why
 
@@ -304,3 +310,12 @@ property-access migrations should keep receivers and results typed through the
 context-aware helper, and prove cleanup with a before/after search for the
 legacy `TryGetProperty(..., object?, context, out ...)` shape. Related ADR:
 `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`.
+
+Issue `autrun-dis9sojas0zs-56ecc19548` / PR #1990 removed the obsolete
+`JsArray(IEnumerable<object?>)`, `SetElement(..., object?)`, `Push(object?)`,
+and `SetLength(object?)` overloads after previous slices had already migrated
+the core callers and used error-level obsoletion to expose stragglers. The
+important closeout lesson is that once a core runtime type has complete
+`JsValue` coverage and a focused signature search shows the old overload family
+can disappear, keeping those overloads no longer protects compatibility; it
+preserves an accidental object-carrier entry point for future runtime code.

@@ -3975,7 +3975,8 @@ public sealed class JsEnvironment : IRentable
         ImmutableArray<Symbol> slotSymbols,
         int layoutId,
         int scopeId,
-        ImmutableArray<(Symbol Name, int SlotIndex)> slotNames = default)
+        ImmutableArray<(Symbol Name, int SlotIndex)> slotNames = default,
+        ImmutableArray<int> lexicalSlotIndices = default)
     {
         var needsRebuild = LayoutId != layoutId || _slots is null || _slots.Length < requiredSlots ||
                            _slotCount < requiredSlots;
@@ -4007,7 +4008,11 @@ public sealed class JsEnvironment : IRentable
             SetSlotMap(builder.ToImmutable());
         }
 
-        if (!lexicalBindings.IsEmpty)
+        if (!lexicalSlotIndices.IsDefaultOrEmpty)
+        {
+            SetSlotsLexicalUninitialized(lexicalSlotIndices);
+        }
+        else if (!lexicalBindings.IsEmpty)
         {
             MarkSlotsLexicalUninitialized(lexicalBindings);
         }
@@ -4209,6 +4214,26 @@ public sealed class JsEnvironment : IRentable
     {
         ref var slot = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(_slots!), index);
         slot.Flags |= SlotFlags.Lexical | SlotFlags.Uninitialized | SlotFlags.BlocksFunctionScopeOverride;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal void SetSlotsLexicalUninitialized(ImmutableArray<int> indices)
+    {
+        if (_slots is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < indices.Length; i++)
+        {
+            var index = indices[i];
+            if ((uint)index >= (uint)_slotCount)
+            {
+                continue;
+            }
+
+            SetSlotLexicalUninitialized(index);
+        }
     }
 
     /// <summary>

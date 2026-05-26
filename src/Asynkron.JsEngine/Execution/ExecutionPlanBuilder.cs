@@ -193,7 +193,8 @@ internal sealed partial class ExecutionPlanBuilder
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
-        var activationSlots = BuildActivationSlotShape(function, mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap);
+        var activationSlots = BuildActivationSlotShape(function, mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap,
+            rootLexicalBindings);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
@@ -320,11 +321,13 @@ internal sealed partial class ExecutionPlanBuilder
         int rootScopeId,
         int rootSlotCount,
         int layoutId,
-        ImmutableDictionary<Symbol, int> rootSlotMap)
+        ImmutableDictionary<Symbol, int> rootSlotMap,
+        ImmutableHashSet<Symbol> rootLexicalBindings)
     {
         var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache()
             .ParameterNames;
         var parameterSlotIndices = BuildParameterSlotIndices(rootSlotMap, parameterNames);
+        var lexicalSlotIndices = BuildLexicalSlotIndices(rootSlotMap, rootLexicalBindings);
         if (rootSlotMap.IsEmpty)
         {
             return new ActivationSlotShape(
@@ -333,7 +336,8 @@ internal sealed partial class ExecutionPlanBuilder
                 layoutId,
                 ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance),
                 ImmutableArray<(Symbol Name, int SlotIndex)>.Empty,
-                parameterSlotIndices);
+                parameterSlotIndices,
+                lexicalSlotIndices);
         }
 
         var slotNames = rootSlotMap
@@ -342,7 +346,30 @@ internal sealed partial class ExecutionPlanBuilder
             .ToImmutableArray();
 
         return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, rootSlotMap, slotNames,
-            parameterSlotIndices);
+            parameterSlotIndices,
+            lexicalSlotIndices);
+    }
+
+    private static ImmutableArray<int> BuildLexicalSlotIndices(
+        ImmutableDictionary<Symbol, int> rootSlotMap,
+        ImmutableHashSet<Symbol> rootLexicalBindings)
+    {
+        if (rootSlotMap.IsEmpty || rootLexicalBindings.IsEmpty)
+        {
+            return ImmutableArray<int>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(rootLexicalBindings.Count);
+        foreach (var binding in rootLexicalBindings)
+        {
+            if (rootSlotMap.TryGetValue(binding, out var slotIndex))
+            {
+                builder.Add(slotIndex);
+            }
+        }
+
+        builder.Sort();
+        return builder.MoveToImmutable();
     }
 
     private static ImmutableArray<int> BuildParameterSlotIndices(

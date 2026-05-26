@@ -92,6 +92,13 @@ avoid evidence; it is to gather the same evidence through bounded helpers,
 small scoped commands, and capped snippets so telemetry stays useful and future
 reviewers can see the actual signal.
 
+Issue #2031 / PR #2034 refined that Faktorial evidence rule after recurrent
+child guidance still left the read order and host-daemon boundary ambiguous.
+The durable lesson is that agent runtime context must start with supplied
+Source Context or the issue/dashboard API, use compact log summaries next, and
+treat older host `faktorial issue` or `faktorial log-summary` instructions as
+stale so agents do not accidentally start or depend on the daemon binary.
+
 Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
 recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the
 build-stage reran that exact command and the timeout-shaped variant on the

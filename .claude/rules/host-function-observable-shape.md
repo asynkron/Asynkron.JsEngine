@@ -24,6 +24,34 @@ shape corrections separate from ordinary JavaScript property operations.
    exact observable property and any aliases that share the same function
    object.
 
+## Prototype Constructor Setup
+
+When deduplicating prototype constructor bases that configure `HostFunction`
+construction behavior, extract only the invariant construction workflow. Keep
+per-family observable seams as explicit hooks:
+
+- `newTarget` callable extraction can differ by constructor family; do not
+  replace distinct `TryGetCallable` and `TryGetObject<IJsCallable>` paths with
+  one broader helper unless focused tests prove the observable shape is the
+  same.
+- Post-allocation behavior can differ; for collection constructors, population
+  order is part of the constructor contract and belongs in the family hook.
+- Preserve the existing `Constructor X requires 'new'` TypeError boundary when
+  the invocation is not a construction call or `newTarget` cannot be resolved
+  through that family's accepted path.
+
+WHY: issue `autrun-dis8iqog56lc-7528af1da1` / PR #1982 deduplicated
+`SimpleInstanceConstructorBase<TInstance>` and
+`CollectionConstructorBase<TInstance>` by introducing
+`ConstructingInstanceConstructorBase<TInstance>`. The safe extraction kept
+shared `new` enforcement, prototype resolution, and instance materialization in
+the base while preserving simple-vs-collection `newTarget` extraction and
+collection population as hooks. Future cleanup should keep that split instead
+of merging constructor semantics under the appearance of duplicate code.
+
+Related ADR:
+`docs/adrs/0149-keep-prototype-constructor-newtarget-hooks-split.md`.
+
 ## Why
 
 Issue #816 / PR #1016 fixed global `parseInt` and `Number.parseInt` after the

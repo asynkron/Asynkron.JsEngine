@@ -1,4 +1,4 @@
-.PHONY: quality build-internal test-internal test-internal-no-build
+.PHONY: help quality build-internal test-internal test-internal-no-build
 
 CONFIGURATION ?= Debug
 DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
@@ -7,6 +7,14 @@ DOTNET_TEST_ARGS ?=
 XUNIT_ARGS ?= xUnit.MaxParallelThreads=1 -timeout 20000
 DOTNET ?= dotnet
 GIT ?= git
+
+help:
+	@printf "%s\n" "Available targets:" \
+		"  help                   Show available repo maintenance targets" \
+		"  quality                Check diff, build internal projects, run internal tests (no Test262)" \
+		"  build-internal         Build internal projects used by the quality gate" \
+		"  test-internal          Run internal tests with build" \
+		"  test-internal-no-build Run internal tests without rebuilding"
 
 quality:
 	$(GIT) diff --check

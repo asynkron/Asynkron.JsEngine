@@ -47,6 +47,13 @@ indices and store them on the `PushEnvironmentInstruction` payload. The runtime
 scope-entry handler should consume those indices directly and mark TDZ state by
 slot index.
 
+When the instruction already carries `LexicalSlotIndices`, the runner should
+delegate the marking to the environment-owned batch helper
+`SetSlotsLexicalUninitialized` rather than looping over indices and calling the
+single-slot helper from `HandlePushEnvironment`. The runner owns choosing the
+stamped-index payload versus the compatibility fallback; `JsEnvironment` owns
+the representation and application of lexical-uninitialized flags.
+
 The symbol-based `LexicalBindings` plus `SlotMap` lookup path remains a
 compatibility and diagnostics fallback for instructions that cannot yet be
 stamped with direct indices. It should not be the hot path for ordinary lowered
@@ -71,6 +78,12 @@ still covers unstamped compatibility records.
 - Future performance work on lexical scope entry should prove the hot owner with
   the selected profile, then keep the fix on the plan/emitter/stamping boundary
   unless the slot layout is genuinely unavailable.
+- Issue #2201 / PR #2208 tightened this boundary for the
+  `activation-arguments-lite` follow-up: `HandlePushEnvironment` should
+  batch-apply stamped slot indices through
+  `JsEnvironment.SetSlotsLexicalUninitialized`, because a per-index runner loop
+  kept avoidable method-call overhead after the plan-owned metadata already
+  existed.
 - Remaining destructuring cost shifted to binding and iterator protocol work;
   those are separate optimization owners and should not be conflated with
   environment TDZ setup.
@@ -78,5 +91,6 @@ still covers unstamped compatibility records.
 ## Related
 
 - `docs/performance/destructuring-lexical-slot-tdz.md`
+- `docs/performance/activation-arguments-breakable-stack-presizing.md`
 - `.claude/rules/performance-profiling-guardrails.md`
 - `.claude/rules/statement-bytecode-packing.md`

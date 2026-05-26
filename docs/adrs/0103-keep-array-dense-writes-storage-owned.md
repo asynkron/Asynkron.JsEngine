@@ -33,6 +33,20 @@ strictly less than `2^32 - 1`. The property name `"4294967295"` is an ordinary
 property and must not grow array length, so the numeric helper can only enter the
 dense array fast path for indices `< uint.MaxValue`.
 
+Issue `autrun-dis5yv0qlsr4-6ad7f476ff` / PR #1961 later selected `arrayops`
+again, this time after dense result writes and push length storage were already
+optimized. The CPU profile still showed dense element lookup under
+`Array.prototype.map`, `filter`, and `reduce`: every present dense array element
+was paying index string conversion plus the generic `HasProperty` /
+`TryGetProperty` path. The accepted follow-up let
+`TryGetExistingElement(long)` read a present own dense `JsArray` element
+directly, but only when `HasCustomIndexedProperties` is false and
+`HasOwnIndex(...)` proves the element exists. Holes, inherited prototype
+values, proxies, sparse/custom descriptors, non-array receivers, and ordinary
+property lookup all remain on the existing fallback path. The same slice
+improved the selected benchmark from a 1480 ms Asynkron baseline to repeated
+final runs of 912 ms, 982 ms, and 916 ms.
+
 ## Decision
 
 Keep dense array creation and length-growth performance work owned by
@@ -46,10 +60,13 @@ The durable policy is:
 2. keep built-ins such as `map` and `filter` on numeric helper overloads that
    still fall back to the ordinary descriptor-based `CreateDataProperty` path;
 3. only treat numeric property indices `< uint.MaxValue` as array indices for
-   dense array growth; and
-4. prove any future array fast path with both performance evidence for the
-   selected benchmark and semantic coverage for descriptor, writability, and
-   `2^32 - 1` boundary behavior.
+   dense array growth;
+4. read dense own elements directly only after the array storage owner proves
+   both that the receiver is an ordinary `JsArray` without custom indexed
+   properties and that the exact index is an own present element; and
+5. prove any future array fast path with both performance evidence for the
+   selected benchmark and semantic coverage for descriptor, writability,
+   prototype/hole, proxy/custom-property, and `2^32 - 1` boundary behavior.
 
 ## Consequences
 
@@ -59,6 +76,10 @@ The durable policy is:
   non-extensible arrays, custom numeric descriptors, non-writable length,
   proxies, species results that are not `JsArray`, and ordinary properties at
   `"4294967295"`.
+- The generic property-read path remains the source of truth for holes,
+  inherited prototype values, proxies, sparse/custom descriptors, non-array
+  receivers, and any shape where `HasProperty` can observe more than a present
+  dense own element.
 - Future performance work must not widen the dense path by using `uint` range
   checks alone; `uint.MaxValue` is a valid `uint` value but not an ECMAScript
   array index.

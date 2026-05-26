@@ -45,13 +45,18 @@ optimization.
    equivalent diagnostic, keep packed flag side-state intact, and preserve the
    pooled fallback for larger programs. Do not raise the inline-buffer threshold
    without current profile evidence and a frame-size/semantics proof.
-9. For array dense-write optimizations, keep the shortcut at the `JsArray`
-   storage boundary and preserve the ordinary property-definition fallback.
+9. For array dense storage optimizations, keep shortcuts at the `JsArray`
+   storage boundary and preserve ordinary property fallbacks. Dense writes must
+   keep descriptor/extensibility/length-writability semantics and the
+   `2^32 - 1` boundary pinned. Dense iteration reads may bypass string-index
+   conversion only for ordinary `JsArray` receivers with no custom indexed
+   properties and a proven present own dense element; holes, inherited
+   prototype values, proxies, sparse/custom descriptors, non-array receivers,
+   and ordinary `HasProperty` observability must stay on the fallback path.
    Future `arrayops` or array built-in work must prove the hot owner with a CPU
-   profile, then pin descriptor/extensibility/length-writability semantics and
-   the `2^32 - 1` boundary. Numeric helpers may fast-path only indices
-   `< uint.MaxValue`; `"4294967295"` is an ordinary property and must not grow
-   array length.
+   profile before widening either read or write shortcuts. Numeric helpers may
+   fast-path only indices `< uint.MaxValue`; `"4294967295"` is an ordinary
+   property and must not grow array length.
 10. For object-literal default data-property optimizations, keep the shortcut at
     the `JsObject` storage boundary and preserve the ordinary descriptor
     fallback. Future `objectcreation` or object-literal work must prove the hot
@@ -91,7 +96,11 @@ optimization.
      observe omitted arguments through `arguments`, rest parameters, parameter
      expressions, async/generator execution, or explicit index/array
      parameters, and pin both value semantics and observable extra-argument
-     behavior with focused tests.
+     behavior with focused tests. For reducer callbacks that must expose
+     `(accumulator, value, index, array)`, keep the four-argument path
+     observable but carry it through a concrete typed carrier such as
+     `FourValueArgs` when the typed JavaScript invoker can consume it; do not
+     allocate a temporary `JsValue[]` just to preserve the full arity.
 15. For repeated string append optimizations, prove whether the selected
     `stringops` cost is append-loop flattening, consumer flattening, or another
     string built-in before changing the rope or addition path. Keep primitive
@@ -198,6 +207,22 @@ before `2^32 - 1`. The durable lesson is that array fast paths must stay
 profile-owned and storage-owned while preserving ordinary property behavior at
 `"4294967295"`. Related ADR:
 `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`.
+
+Issue `autrun-dis5yv0qlsr4-6ad7f476ff` / PR #1961 selected `arrayops` again
+after earlier dense-write work and proved the remaining hot owner with an
+`arrayops` CPU call tree: dense iteration still paid callback dispatch plus
+string-index/generic property lookup for every present element. The accepted
+slice added a `TryGetExistingElement(long)` fast path only for ordinary
+`JsArray` receivers with no custom indexed properties and a proven own dense
+element, while a focused regression pinned inherited prototype values for
+holes. The same slice introduced `FourValueArgs` for reducer callbacks so the
+full four observable arguments stay available without allocating a temporary
+argument array. The durable lesson is that array iteration optimization must
+separate storage-owned dense element proof from observable property fallback,
+and must treat full callback arity as a typed-carrier problem rather than an
+argument-omission shortcut. Related ADRs:
+`docs/adrs/0101-keep-function-call-argument-carriers-typed-through-hot-paths.md`
+and `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`.
 
 Issue `autrun-diqzaewea814-77aafdbdd9` / PR #1692 selected `objectcreation`
 from the benchmark table and proved the hot owner with an `objectcreation` CPU

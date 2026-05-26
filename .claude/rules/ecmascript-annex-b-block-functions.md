@@ -48,6 +48,16 @@ parse-phase redeclaration checks scoped to the correct syntactic container.
    sloppy switch async/generator tests, and eval switch var-update tests. Do not
    use broad harness policy or a full Test262 run as a substitute for the
    semantic proof.
+11. When a sloppy function has parameter expressions, block every eligible
+   Annex B block-function name from legacy var-style function hoisting up front.
+   Keep this decision aligned across IR slot assignment, execution-runner
+   function environment setup, sync invocation setup, and the legacy hoist-time
+   undefined binding path.
+12. Keep Annex B block-function blocked-name collectors traversal-compatible
+   with the hoisted-function collectors they constrain. Transparent wrappers
+   such as `LabeledStatement` must be unwrapped in every duplicated collector,
+   otherwise a label-wrapped declaration can still receive a stale var-scope
+   slot or hoist artifact.
 
 ## Why
 
@@ -77,3 +87,13 @@ switch/catch execution suppresses the Annex B outer var update for these
 declarations, but eval declaration environments must keep eval var-binding
 update semantics. Related ADR:
 `docs/adrs/0075-keep-switch-async-generator-declarations-eval-aware.md`.
+
+Issue #2001 / PR #2009 fixed the
+`annexB/language/function-code/*-func-skip-dft-param.js` cluster. The initial
+repair correctly made parameter-expression functions block Annex B
+block-function var-style hoists, but review caught that the new blocked-name
+collectors did not unwrap `LabeledStatement` while the existing hoisted-function
+collector did. Future work must treat the skip decision as a shared
+FunctionDeclarationInstantiation/slot-planning/hoist-time contract, not as a
+single local guard. Related ADR:
+`docs/adrs/0157-keep-annex-b-parameter-expression-blocked-names-shared.md`.

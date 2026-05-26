@@ -111,23 +111,7 @@ public static partial class TypedAstEvaluator
                 // Drive the underlying generator plan by a single step and
                 // resolve/reject the Promise based on the step outcome.
                 var step = _inner.ExecuteAsyncStep(mode, argument);
-                switch (step.Kind)
-                {
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Yield:
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
-                        {
-                            var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                            resolve.Invoke(new SingleValueArgs((JsValue)iteratorResult), JsValue.Undefined);
-                            break;
-                        }
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
-                        // step.Value is already JsValue
-                        reject.Invoke(new SingleValueArgs(step.Value), JsValue.Undefined);
-                        break;
-                    case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
-                        HandlePendingStep(step, resolve, reject);
-                        break;
-                }
+                ResolveFromStep(step, resolve, reject);
 
                 return JsValue.Undefined;
             });

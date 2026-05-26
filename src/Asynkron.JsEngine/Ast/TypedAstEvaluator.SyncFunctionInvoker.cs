@@ -927,7 +927,7 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool CanReuseLegacyTailRestartActivation(JsEnvironment environment)
+        internal bool CanReuseLegacyTailRestartActivation(JsEnvironment environment)
         {
             var current = environment;
             while (current is not null && !ReferenceEquals(current, _closure))

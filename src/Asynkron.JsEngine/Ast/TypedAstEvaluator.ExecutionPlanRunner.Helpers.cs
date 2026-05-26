@@ -2700,7 +2700,13 @@ public static partial class TypedAstEvaluator
 
             if (tailPosition &&
                 call.SpreadMaskConstantIndex < 0 &&
-                TryRequestSameFunctionTailRestart(callable, thisValue, call.ArgumentCount, stack, calleeIndex + 1))
+                TryRequestSameFunctionTailRestart(
+                    callable,
+                    thisValue,
+                    call.ArgumentCount,
+                    stack,
+                    calleeIndex + 1,
+                    environment))
             {
                 stack[baseIndex] = JsValue.Undefined;
                 stackFlags.Set(baseIndex, false);
@@ -2869,7 +2875,8 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             int argumentCount,
             Span<JsValue> stack,
-            int argumentStartIndex)
+            int argumentStartIndex,
+            JsEnvironment environment)
         {
             if (_isScriptMode ||
                 _isAsync ||
@@ -2877,6 +2884,7 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
+                !CanReuseCurrentTailRestartActivation(environment) ||
                 !CanRestartCurrentTailCall())
             {
                 return false;
@@ -2893,6 +2901,22 @@ public static partial class TypedAstEvaluator
             _tailRestartNewTargetValue = JsValue.Undefined;
             _tailRestartRequested = true;
             _tailRestartVersion++;
+            return true;
+        }
+
+        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment)
+        {
+            var current = environment;
+            while (current is not null && !ReferenceEquals(current, _closure))
+            {
+                if (current.IsCaptured)
+                {
+                    return false;
+                }
+
+                current = current.Enclosing;
+            }
+
             return true;
         }
 

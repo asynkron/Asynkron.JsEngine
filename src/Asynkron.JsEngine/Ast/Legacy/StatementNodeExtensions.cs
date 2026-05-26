@@ -501,10 +501,15 @@ public static partial class TypedAstEvaluator
         {
             var tailCallValue = JsValue.Undefined;
             var tailCallArguments = new JsValue[callExpression.Arguments.Length];
+            var argumentMayCaptureActivation = false;
             for (var i = 0; i < callExpression.Arguments.Length; i++)
             {
+                var argumentExpression = callExpression.Arguments[i].Expression;
+                argumentMayCaptureActivation |=
+                    ContainsInnerFunctionExpression(argumentExpression) ||
+                    DynamicScopeDetector.ContainsDirectEval(argumentExpression);
                 tailCallArguments[i] = EvaluateDynamicExpressionProgram(
-                    callExpression.Arguments[i].Expression,
+                    argumentExpression,
                     environment,
                     context,
                     "Dynamic tail-call argument");
@@ -512,6 +517,23 @@ public static partial class TypedAstEvaluator
                 {
                     return tailCallValue;
                 }
+            }
+
+            if (argumentMayCaptureActivation ||
+                !tailCallTarget.CanReuseLegacyTailRestartActivation(environment))
+            {
+                var result = InvokeCallableJsValue(
+                    tailCallTarget,
+                    tailCallArguments,
+                    JsValue.Undefined,
+                    context,
+                    environment);
+                if (!context.ShouldStopEvaluation)
+                {
+                    context.SetReturn(result);
+                }
+
+                return result;
             }
 
             context.SetLegacyTailCallRestart(

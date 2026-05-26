@@ -462,11 +462,151 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        return instructions[sourceInstructionIndex] is
-            SimpleVariableDeclarationInstruction or
-            AssignmentSlotInstruction or
-            CompoundAssignmentSlotInstruction or
-            SetCompletionValueInstruction;
+        if (instructions[sourceInstructionIndex] is not AssignmentSlotInstruction and not CompoundAssignmentSlotInstruction)
+        {
+            return false;
+        }
+
+        return TryIsLinearCanonicalWhileBody(branch.ConsequentIndex, sourceInstructionIndex, instructions) &&
+               !HasForStyleContinueTarget(sourceInstructionIndex, targetIndex, branch.AlternateIndex, instructions) &&
+               !HasExplicitJumpIntoLoopBackEdgeSource(sourceInstructionIndex, instructions);
+    }
+
+    private static bool TryIsLinearCanonicalWhileBody(
+        int startInstructionIndex,
+        int endInstructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if ((uint)startInstructionIndex >= (uint)instructions.Length ||
+            (uint)endInstructionIndex >= (uint)instructions.Length)
+        {
+            return false;
+        }
+
+        var visited = new HashSet<int>();
+        var current = startInstructionIndex;
+        while (current != endInstructionIndex)
+        {
+            if (!visited.Add(current))
+            {
+                return false;
+            }
+
+            if ((uint)current >= (uint)instructions.Length)
+            {
+                return false;
+            }
+
+            switch (instructions[current])
+            {
+                case SimpleVariableDeclarationInstruction declaration:
+                    current = declaration.Next;
+                    break;
+                case AssignmentSlotInstruction assignment:
+                    current = assignment.Next;
+                    break;
+                case CompoundAssignmentSlotInstruction compound:
+                    current = compound.Next;
+                    break;
+                case SetCompletionValueInstruction setCompletion:
+                    current = setCompletion.Next;
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasExplicitJumpIntoLoopBackEdgeSource(
+        int loopBackEdgeSourceInstructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        for (var index = 0; index < instructions.Length; index++)
+        {
+            if (index == loopBackEdgeSourceInstructionIndex)
+            {
+                continue;
+            }
+
+            if (instructions[index] is JumpInstruction jump &&
+                jump.TargetIndex == loopBackEdgeSourceInstructionIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasForStyleContinueTarget(
+        int loopBackEdgeSourceInstructionIndex,
+        int loopConditionInstructionIndex,
+        int loopBreakInstructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction is not BreakableEnterInstruction breakableEnter)
+            {
+                continue;
+            }
+
+            if (breakableEnter.Next == loopConditionInstructionIndex &&
+                breakableEnter.BreakTarget == loopBreakInstructionIndex &&
+                breakableEnter.ContinueTarget == loopBackEdgeSourceInstructionIndex)
+            {
+                return true;
+            }
+
+            if (breakableEnter.BreakTarget == loopBreakInstructionIndex &&
+                breakableEnter.ContinueTarget == loopBackEdgeSourceInstructionIndex &&
+                ReachesInstructionLinearly(breakableEnter.Next, loopConditionInstructionIndex, instructions))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ReachesInstructionLinearly(
+        int startInstructionIndex,
+        int targetInstructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if ((uint)startInstructionIndex >= (uint)instructions.Length ||
+            (uint)targetInstructionIndex >= (uint)instructions.Length)
+        {
+            return false;
+        }
+
+        var visited = new HashSet<int>();
+        var current = startInstructionIndex;
+        while (current != targetInstructionIndex)
+        {
+            if (!visited.Add(current) || (uint)current >= (uint)instructions.Length)
+            {
+                return false;
+            }
+
+            current = instructions[current] switch
+            {
+                SimpleVariableDeclarationInstruction declaration => declaration.Next,
+                AssignmentSlotInstruction assignment => assignment.Next,
+                CompoundAssignmentSlotInstruction compound => compound.Next,
+                SetCompletionValueInstruction setCompletion => setCompletion.Next,
+                _ => -1
+            };
+
+            if (current < 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void PatchOperand(

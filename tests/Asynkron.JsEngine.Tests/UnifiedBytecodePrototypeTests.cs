@@ -267,6 +267,45 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_ForLoopWithConditionAndPostUpdate_DeclinesWithExplicitReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0; n = n - 1) {
+                    total = total + n;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryCompile_ForLoopWithInitializerAndPostUpdate_DeclinesWithExplicitReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (var i = 0; i < n; i = i + 1) {
+                    total = total + i;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TryCompile_UnsupportedBranchPayload_DeclinesWholeProgram()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

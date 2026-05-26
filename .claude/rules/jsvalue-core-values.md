@@ -17,6 +17,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`
   - `docs/adrs/0148-keep-context-property-reads-jsvalue-receiver-native.md`
   - `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`
+  - `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`
 
 ## Rules
 
@@ -107,7 +108,10 @@ When working inside the core engine, keep JavaScript values represented as
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
-    focused semantic proof for that descriptor cluster.
+    focused semantic proof for that descriptor cluster. Do not turn the
+    compatibility setter into error-level obsoletion inside a small descriptor
+    slice when the exposed callers are repo-wide or include generated code;
+    record that deferral and keep the bounded migration moving.
 16. When a private runtime property-read helper already has a JavaScript
     receiver, keep the context-aware read path typed as `JsValue` for both the
     receiver and the returned value. Do not unbox primitive receivers into CLR
@@ -307,6 +311,18 @@ arguments-object or descriptor cleanup should keep these constructor
 initializers on `JsValue =`, use an explicit conversion only for unavoidable
 legacy object payloads, and prove the slice with a scoped `\bValue\s*=` search
 plus the focused arguments-object tests.
+
+Issue `autrun-discmtujl4ko-18deddaa26` / PR #2008 migrated another bounded
+`PropertyDescriptor.Value` cluster in `JsOps`, `JsPrototype`, and tagged
+template array construction. The accepted delivery removed all scoped
+`Value =` descriptor initializers in those files, but deliberately deferred
+`[Obsolete(..., true)]` on the compatibility setter because that pressure would
+fan out through remaining repo-wide callsites, including generated code, and
+turn a nine-line descriptor cleanup into an unbounded migration. Future
+descriptor migrations should keep using the scoped before/after setter search,
+move only proven JavaScript data values to `JsValue =`, and save strict setter
+obsoletion for a dedicated repository-wide closeout. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
 
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`
 context-aware property-read flow from the legacy object-carrier overload to a

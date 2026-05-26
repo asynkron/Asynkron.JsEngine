@@ -32,6 +32,12 @@ dash-separated strings or one broad regular expression.
 8. Keep grandfathered and complex language alias data in `IntlLocaleData` when a
    canonical mapping is data-owned. Pin representative mappings, such as
    `sgn-GR` to `gss`, against local regressions and host `Intl` behavior.
+9. For Intl constructors whose resolved locale only depends on the
+   `numberingSystem` option and the Unicode `nu` keyword, use
+   `IntlUtilities.ResolveNumberingSystemAndLocale(...)` instead of a
+   constructor-local resolver. Keep option read order in the constructor, then
+   let the shared helper own option-over-extension-over-default precedence,
+   extension retention, and `latn` fallback behavior.
 
 ## Why
 
@@ -52,3 +58,14 @@ canonicalization, and added the `sgn-GR` to `gss` complex language mapping from
 Future agents should treat BCP-47 extension parsing as structured
 canonicalization and validation work, not as broad extension stripping or broad
 regex matching.
+
+Issue `autrun-discmtty0hgw-585866a96b` / PR #2007 removed three duplicate
+numbering-system locale resolvers from `Intl.NumberFormat`,
+`Intl.RelativeTimeFormat`, and `Intl.DurationFormat`. The shared behavior is not
+constructor-local plumbing: the `numberingSystem` option, Unicode `nu`
+extension, resolved locale, base locale, and `latn` fallback must stay aligned
+across the constructor family. Future Intl constructor cleanup should reuse the
+shared helper and prove the touched constructor plus a sibling constructor when
+the helper changes.
+
+Related ADR: `docs/adrs/0156-keep-intl-numbering-system-locale-resolution-shared.md`.

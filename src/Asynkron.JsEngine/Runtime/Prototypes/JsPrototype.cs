@@ -60,7 +60,7 @@ public abstract class JsPrototype
     ///     Ensures that a function object has a specific metadata property (like "length" or "name")
     ///     with the correct descriptor attributes.
     /// </summary>
-    protected static void EnsureFunctionMetadata(IJsObjectLike target, string propertyName, object value)
+    protected static void EnsureFunctionMetadata(IJsObjectLike target, string propertyName, JsValue value)
     {
         if (target.GetOwnPropertyDescriptor(propertyName) is not null)
         {
@@ -69,7 +69,7 @@ public abstract class JsPrototype
 
         target.DefineProperty(propertyName, new PropertyDescriptor
         {
-            Value = value,
+            JsValue = value,
             Writable = false,
             Enumerable = false,
             Configurable = true

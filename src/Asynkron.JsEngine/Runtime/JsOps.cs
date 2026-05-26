@@ -1721,6 +1721,8 @@ internal static class JsOps
     {
         switch (target.Kind)
         {
+            case JsValueKind.Object when target.ObjectValue is JsObject jsObject:
+                return jsObject.TryGetProperty(propertyName, target, context, out value);
             // Handle objects first - most common case
             case JsValueKind.Object or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt:
                 {

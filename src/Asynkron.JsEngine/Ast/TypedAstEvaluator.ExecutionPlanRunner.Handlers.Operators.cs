@@ -367,6 +367,79 @@ public static partial class TypedAstEvaluator
             var flatSlotId = instruction.FlatSlotId;
             var rhsFlatSlotId = instruction.RhsFlatSlotId;
 
+            if (flatSlotId >= 0 &&
+                rhsFlatSlotId < 0 &&
+                instruction.Operator == BinaryOperator.Add &&
+                instruction.AwaitedProgram is null &&
+                instruction.RhsProgram is { } addRhsProgram)
+            {
+                ref var targetVar = ref runner._flatSlots![flatSlotId];
+                if (targetVar.IsValid)
+                {
+                    if (targetVar.Environment.IsSlotUninitialized(targetVar.SlotIndex))
+                    {
+                        throw StandardLibrary.ThrowReferenceError(
+                            $"Cannot access '{instruction.TargetSymbol.Name}' before initialization",
+                            realm: runner._realmState);
+                    }
+
+                    if (targetVar.IsConst)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                            $"Assignment to constant variable '{instruction.TargetSymbol.Name}'.",
+                            realm: runner._realmState));
+                    }
+
+                    var leftValue = targetVar.Read();
+                    var rightValue = runner.EvaluateExpressionProgram(
+                        addRhsProgram,
+                        environment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (runner._isAsync && runner.TryHandlePendingAwait(context, out var pendingResult, environment))
+                        {
+                            returnValue = pendingResult;
+                            return InstructionResult.Return;
+                        }
+
+                        if (context.IsThrow)
+                        {
+                            var thrown = context.FlowValue;
+                            context.Clear();
+                            if (runner.HandleAbruptCompletion(AbruptKind.Throw, thrown))
+                            {
+                                returnValue = default;
+                                return InstructionResult.Continue;
+                            }
+
+                            runner.TryCatchStateRef.TryStack.Clear();
+                            throw new ThrowSignal(thrown);
+                        }
+                    }
+
+                    var addResult = ProfileCompoundAdd(leftValue, rightValue);
+                    if (addResult.IsUndefined)
+                    {
+                        addResult = ProfileApplyBinaryOperator(
+                            instruction.Operator,
+                            leftValue,
+                            rightValue,
+                            context);
+                    }
+
+                    targetVar.Write(addResult);
+                    if (runner._isScriptMode && !instruction.SuppressCompletionValue)
+                    {
+                        runner._scriptCompletionValue = addResult;
+                    }
+
+                    runner._programCounter = instruction.Next;
+                    returnValue = default;
+                    return InstructionResult.Continue;
+                }
+            }
+
             // Super-fast path: both operands use flat slots, operator is Add, both are numbers
             // This covers the common loop case like: sum = sum + prev
             if (flatSlotId >= 0 &&

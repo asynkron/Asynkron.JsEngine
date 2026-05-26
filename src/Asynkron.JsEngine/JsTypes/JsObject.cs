@@ -487,6 +487,10 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     internal int CurrentMutationVersion => MutationVersion;
     internal static long CurrentGlobalMutationVersion => Volatile.Read(ref s_globalMutationVersion);
+    internal static void MarkGlobalMutation()
+    {
+        Interlocked.Increment(ref s_globalMutationVersion);
+    }
 
     private void MarkMutated()
     {
@@ -495,7 +499,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             MutationVersion++;
         }
 
-        Interlocked.Increment(ref s_globalMutationVersion);
+        MarkGlobalMutation();
     }
 
     internal void SetPromiseSlot(JsPromise promise)

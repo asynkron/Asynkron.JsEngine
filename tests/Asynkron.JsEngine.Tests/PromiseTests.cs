@@ -360,6 +360,101 @@ public sealed class PromiseTests(ITestOutputHelper output) : InternalTestBase(ou
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Promise_AllSettled_ReturnsStatusAndValueForAllInputs()
+    {
+        await using var engine = CreateEngine();
+        var results = new List<string>();
+
+        engine.SetGlobalFunction("captureSettled", args =>
+        {
+            if (args.Count >= 2)
+            {
+                results.Add($"{args[0].ToObject()}:{args[1].ToObject()}");
+            }
+
+            return JsTypes.JsValue.Undefined;
+        });
+
+        await engine.Evaluate("""
+
+                                     let p1 = Promise.resolve("ok");
+                                     let p2 = Promise.reject("fail");
+                                     let p3 = Promise.resolve("done");
+
+                                     Promise.allSettled([p1, p2, p3]).then(function(items) {
+                                         captureSettled(items[0].status, items[0].value);
+                                         captureSettled(items[1].status, items[1].reason);
+                                         captureSettled(items[2].status, items[2].value);
+                                     });
+
+                         """);
+
+        Assert.Equal(
+            new[] { "fulfilled:ok", "rejected:fail", "fulfilled:done" },
+            results);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Promise_Any_RejectsWithAggregateErrorWhenAllReject()
+    {
+        await using var engine = CreateEngine();
+        var capturedName = "";
+
+        engine.SetGlobalFunction("captureAnyRejection", args =>
+        {
+            if (args.Count >= 1)
+            {
+                capturedName = args[0].ToObject()?.ToString() ?? "";
+            }
+
+            return JsTypes.JsValue.Undefined;
+        });
+
+        await engine.Evaluate("""
+
+                                     let p1 = Promise.reject("e1");
+                                     let p2 = Promise.reject("e2");
+
+                                     Promise.any([p1, p2])["catch"](function(err) {
+                                         captureAnyRejection(err.name);
+                                     });
+
+                         """);
+
+        Assert.Equal("AggregateError", capturedName);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Promise_Any_ResolvesWhenOneInputFulfills()
+    {
+        await using var engine = CreateEngine();
+        var resolvedValue = "";
+
+        engine.SetGlobalFunction("captureAnyValue", args =>
+        {
+            if (args.Count > 0)
+            {
+                resolvedValue = args[0].ToObject()?.ToString() ?? "";
+            }
+
+            return JsTypes.JsValue.Undefined;
+        });
+
+        await engine.Evaluate("""
+
+                                     let p1 = Promise.reject("e1");
+                                     let p2 = Promise.resolve("winner");
+
+                                     Promise.any([p1, p2]).then(function(value) {
+                                         captureAnyValue(value);
+                                     });
+
+                         """);
+
+        Assert.Equal("winner", resolvedValue);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Promise_IntegrationWithSetTimeout()
     {
         await using var engine = CreateEngine();

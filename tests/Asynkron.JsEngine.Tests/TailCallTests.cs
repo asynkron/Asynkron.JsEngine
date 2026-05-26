@@ -445,6 +445,34 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaNestedObjectPropertyAfterInitialCleanScan()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let holder = { inner: {} };
+            (function f(n) {
+                "use strict";
+                function getN() { return n; }
+                function getF() {
+                    if (n === 1) {
+                        holder.inner.saved = getN;
+                    }
+
+                    return f;
+                }
+
+                if (n === 0) {
+                    return holder.inner.saved();
+                }
+
+                return getF()(n - 1);
+            }(2));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaFunctionObjectProperty()
     {
         await using var engine = CreateEngine();

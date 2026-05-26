@@ -109,6 +109,7 @@ public static partial class TypedAstEvaluator
 
         private readonly record struct EscapedClosureScanCacheEntry(
             int MutationVersion,
+            long GlobalMutationVersion,
             bool ContainsEscapedClosure);
 
         /// <summary>

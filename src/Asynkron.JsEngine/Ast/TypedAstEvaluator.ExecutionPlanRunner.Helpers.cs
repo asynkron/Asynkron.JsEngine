@@ -3068,7 +3068,8 @@ public static partial class TypedAstEvaluator
             if (objectValue is not JsObject jsObject ||
                 _escapedClosureScanCache is null ||
                 !_escapedClosureScanCache.TryGetValue(objectValue, out var cacheEntry) ||
-                cacheEntry.MutationVersion != jsObject.CurrentMutationVersion)
+                cacheEntry.MutationVersion != jsObject.CurrentMutationVersion ||
+                cacheEntry.GlobalMutationVersion != JsObject.CurrentGlobalMutationVersion)
             {
                 containsEscapedClosure = false;
                 return false;
@@ -3089,6 +3090,7 @@ public static partial class TypedAstEvaluator
                 ReferenceEqualityComparer<object>.Instance);
             _escapedClosureScanCache[objectValue] = new EscapedClosureScanCacheEntry(
                 jsObject.CurrentMutationVersion,
+                JsObject.CurrentGlobalMutationVersion,
                 containsEscapedClosure);
         }
 

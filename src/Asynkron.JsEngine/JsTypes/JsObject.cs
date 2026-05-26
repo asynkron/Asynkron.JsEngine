@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.Runtime;
@@ -21,6 +22,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     IPrivateBrandHolder,
     IPropertyDefinitionHost, IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
 {
+    private static long s_globalMutationVersion;
     private const string PrototypeKey = "__proto__";
     private const string GetterPrefix = "__getter__";
     private const string SetterPrefix = "__setter__";
@@ -484,6 +486,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     public IJsPropertyAccessor? PrototypeAccessor { get; private set; }
 
     internal int CurrentMutationVersion => MutationVersion;
+    internal static long CurrentGlobalMutationVersion => Volatile.Read(ref s_globalMutationVersion);
 
     private void MarkMutated()
     {
@@ -491,6 +494,8 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         {
             MutationVersion++;
         }
+
+        Interlocked.Increment(ref s_globalMutationVersion);
     }
 
     internal void SetPromiseSlot(JsPromise promise)

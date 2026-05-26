@@ -40,6 +40,31 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArrayDestructuringUsesCustomIterator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let calls = 0;
+            Array.prototype[Symbol.iterator] = function() {
+                let index = 0;
+                return {
+                    next() {
+                        calls++;
+                        if (index++ === 0) {
+                            return { value: 7, done: false };
+                        }
+
+                        return { value: undefined, done: true };
+                    }
+                };
+            };
+            let [a] = [1];
+            a * 10 + calls;
+            """);
+        Assert.Equal(71d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithDefaults()
     {
         await using var engine = CreateEngine();

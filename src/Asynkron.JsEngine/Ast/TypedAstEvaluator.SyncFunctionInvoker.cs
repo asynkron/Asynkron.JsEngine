@@ -893,6 +893,7 @@ public static partial class TypedAstEvaluator
                 executing.IsAsyncLike ||
                 executing.IsClassConstructor ||
                 !executing.HasOnlySimpleLegacyTailRestartParameters() ||
+                !executing.CanReuseLegacyTailRestartActivation(environment) ||
                 expression.IsOptional)
             {
                 return false;
@@ -923,6 +924,22 @@ public static partial class TypedAstEvaluator
             }
 
             current = executing;
+            return true;
+        }
+
+        private bool CanReuseLegacyTailRestartActivation(JsEnvironment environment)
+        {
+            var current = environment;
+            while (current is not null && !ReferenceEquals(current, _closure))
+            {
+                if (current.IsCaptured)
+                {
+                    return false;
+                }
+
+                current = current.Enclosing;
+            }
+
             return true;
         }
 
@@ -1972,7 +1989,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         JsEnvironment.Current = previousEnvironment;
                     }
 
-                    if (context.TryConsumeLegacyTailCallRestart(this, out var restartArguments, out var restartThisValue))
+                    if (context.TryConsumeLegacyTailCallRestart(
+                            this,
+                            out var restartArguments,
+                            out var restartThisValue,
+                            out var restartNewTargetValue))
                     {
                         currentArguments = restartArguments;
                         isLegacyTailRestart = true;
@@ -1981,6 +2002,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                             functionEnvironment._thisValue = restartThisValue;
                             functionEnvironment._hasThisValue = true;
                             functionEnvironment.DefineJsValue(Symbol.This, restartThisValue);
+                            functionEnvironment.DefineJsValue(Symbol.NewTarget, restartNewTargetValue, true,
+                                isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         }
 
                         goto LegacyTailCallRestart;

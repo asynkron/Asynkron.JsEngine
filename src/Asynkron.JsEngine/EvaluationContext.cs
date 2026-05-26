@@ -65,15 +65,18 @@ public sealed class EvaluationContext(
     private TypedAstEvaluator.SyncFunctionInvoker? _legacyTailCallInvoker;
     private IReadOnlyList<JsValue>? _legacyTailCallArguments;
     private JsValue _legacyTailCallThisValue;
+    private JsValue _legacyTailCallNewTargetValue;
 
     internal readonly struct LegacyTailCallRestartState(
         TypedAstEvaluator.SyncFunctionInvoker? invoker,
         IReadOnlyList<JsValue>? arguments,
-        JsValue thisValue)
+        JsValue thisValue,
+        JsValue newTargetValue)
     {
         internal TypedAstEvaluator.SyncFunctionInvoker? Invoker { get; } = invoker;
         internal IReadOnlyList<JsValue>? Arguments { get; } = arguments;
         internal JsValue ThisValue { get; } = thisValue;
+        internal JsValue NewTargetValue { get; } = newTargetValue;
     }
 
     /// <summary>
@@ -572,18 +575,21 @@ public sealed class EvaluationContext(
     internal void SetLegacyTailCallRestart(
         TypedAstEvaluator.SyncFunctionInvoker invoker,
         IReadOnlyList<JsValue> arguments,
-        JsValue thisValue)
+        JsValue thisValue,
+        JsValue newTargetValue)
     {
         AssertOwnership(nameof(SetLegacyTailCallRestart));
         _legacyTailCallInvoker = invoker;
         _legacyTailCallArguments = arguments;
         _legacyTailCallThisValue = thisValue;
+        _legacyTailCallNewTargetValue = newTargetValue;
     }
 
     internal bool TryConsumeLegacyTailCallRestart(
         TypedAstEvaluator.SyncFunctionInvoker invoker,
         out IReadOnlyList<JsValue> arguments,
-        out JsValue thisValue)
+        out JsValue thisValue,
+        out JsValue newTargetValue)
     {
         AssertOwnership(nameof(TryConsumeLegacyTailCallRestart));
         if (!ReferenceEquals(_legacyTailCallInvoker, invoker) ||
@@ -591,14 +597,17 @@ public sealed class EvaluationContext(
         {
             arguments = [];
             thisValue = JsValue.Undefined;
+            newTargetValue = JsValue.Undefined;
             return false;
         }
 
         arguments = pendingArguments;
         thisValue = _legacyTailCallThisValue;
+        newTargetValue = _legacyTailCallNewTargetValue;
         _legacyTailCallInvoker = null;
         _legacyTailCallArguments = null;
         _legacyTailCallThisValue = JsValue.Undefined;
+        _legacyTailCallNewTargetValue = JsValue.Undefined;
         return true;
     }
 
@@ -608,7 +617,8 @@ public sealed class EvaluationContext(
         return new LegacyTailCallRestartState(
             _legacyTailCallInvoker,
             _legacyTailCallArguments,
-            _legacyTailCallThisValue);
+            _legacyTailCallThisValue,
+            _legacyTailCallNewTargetValue);
     }
 
     internal void RestoreLegacyTailCallRestartState(in LegacyTailCallRestartState state)
@@ -617,6 +627,7 @@ public sealed class EvaluationContext(
         _legacyTailCallInvoker = state.Invoker;
         _legacyTailCallArguments = state.Arguments;
         _legacyTailCallThisValue = state.ThisValue;
+        _legacyTailCallNewTargetValue = state.NewTargetValue;
     }
 
     internal void ClearLegacyTailCallRestart()
@@ -625,6 +636,7 @@ public sealed class EvaluationContext(
         _legacyTailCallInvoker = null;
         _legacyTailCallArguments = null;
         _legacyTailCallThisValue = JsValue.Undefined;
+        _legacyTailCallNewTargetValue = JsValue.Undefined;
     }
 
     /// <summary>

@@ -44,7 +44,7 @@ public static partial class TypedAstEvaluator
             _closure = closure;
             _arguments = arguments;
             _thisValue = thisValue;
-            _newTarget = newTarget;
+            _currentNewTarget = newTarget;
             _callable = callable;
             _realmState = realmState;
             _derivedClassErrorRealm = derivedClassErrorRealm ?? realmState;
@@ -137,7 +137,7 @@ public static partial class TypedAstEvaluator
             _thisValue = environment.TryFindBindingJsValue(Symbol.This, allowUninitialized: true, out _, out var thisValue)
                 ? thisValue
                 : JsValue.Undefined;
-            _newTarget = newTarget;
+            _currentNewTarget = newTarget;
             _derivedClassErrorRealm = _realmState;
             _isStrict = environment.IsStrict;
             _isAsync = false;

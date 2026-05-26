@@ -514,7 +514,11 @@ public static partial class TypedAstEvaluator
                 }
             }
 
-            context.SetLegacyTailCallRestart(tailCallTarget, tailCallArguments, JsValue.Undefined);
+            context.SetLegacyTailCallRestart(
+                tailCallTarget,
+                tailCallArguments,
+                JsValue.Undefined,
+                JsValue.Undefined);
             if (!context.ShouldStopEvaluation)
             {
                 context.SetReturn(tailCallValue);

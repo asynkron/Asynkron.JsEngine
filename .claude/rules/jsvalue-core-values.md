@@ -25,6 +25,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`
   - `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`
   - `docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`
+  - `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`
 
 ## Rules
 
@@ -189,6 +190,16 @@ When working inside the core engine, keep JavaScript values represented as
     plus focused `Reflect.ownKeys` and `Object.getOwnPropertySymbols` coverage.
     Related ADR:
     `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`.
+22. When a runner helper stores a value by `Symbol`, keep the helper contract on
+    the `JsValue` path and delete private `object?` compatibility shims once a
+    targeted callsite search shows no intentional object-valued JavaScript
+    payloads remain. If the slot intentionally carries runner bookkeeping state
+    such as a `YieldStarState` or dynamic `with` `JsEnvironment`, wrap that
+    specific state object explicitly at the callsite with
+    `JsValue.FromObjectUnsafe(...)` and read it back with typed extraction.
+    Do not hide both JavaScript values and internal state objects behind a
+    generic store helper that accepts `object?`. Related ADR:
+    `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`.
 
 ## Why
 
@@ -542,3 +553,15 @@ string export names and `Symbol.toStringTag` typed through the owner helper,
 then prove both mixed string/symbol reflection and symbol-only filtering.
 Related ADR:
 `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`.
+
+Issue `autrun-disvllqpjvx4-8e3b36a053` / PR #2215 removed the execution-plan
+runner's private `StoreSymbolValue(..., object?)` compatibility helper. The old
+helper hid two different cases behind one object-carrier API: ordinary
+JavaScript value stores that already had `JsValue`, and intentional runner
+state-object stores for `YieldStarState` and dynamic `with` `JsEnvironment`.
+The fix moved existing `JsValue` result-slot stores directly to
+`StoreSymbolValueJsValue(...)` and made the unavoidable state-object wrapping
+explicit at the two callsites. Future runner symbol-store cleanup should keep
+that split visible so object-carrier audits can distinguish intentional internal
+state from legacy JavaScript value flow. Related ADR:
+`docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`.

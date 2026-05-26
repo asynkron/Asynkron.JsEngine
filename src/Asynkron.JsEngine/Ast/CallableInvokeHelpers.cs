@@ -82,6 +82,35 @@ public static partial class TypedAstEvaluator
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
+        if (callable is SyncFunctionInvoker typedFunction && callingContext is not null)
+        {
+            IJsEnvironmentAwareCallable? envAware = null;
+            JsEnvironment? previousEnvironment = null;
+            if (callingEnvironment is not null && callable is IJsEnvironmentAwareCallable environmentAware)
+            {
+                envAware = environmentAware;
+                previousEnvironment = envAware.CallingJsEnvironment;
+                envAware.CallingJsEnvironment = callingEnvironment;
+            }
+
+            IEvaluationContextAwareCallable? contextAware = null;
+            if (callable is IEvaluationContextAwareCallable evaluationContextAware)
+            {
+                contextAware = evaluationContextAware;
+                contextAware.CallingContext = callingContext;
+            }
+
+            try
+            {
+                return typedFunction.InvokeWithContext3(arg0, arg1, arg2, thisValue, callingContext);
+            }
+            finally
+            {
+                envAware?.CallingJsEnvironment = previousEnvironment;
+                contextAware?.CallingContext = null;
+            }
+        }
+
         var args = new ThreeValueArgs(arg0, arg1, arg2);
         return InvokeCallableJsValueGeneric(callable, args, thisValue, callingContext, callingEnvironment);
     }

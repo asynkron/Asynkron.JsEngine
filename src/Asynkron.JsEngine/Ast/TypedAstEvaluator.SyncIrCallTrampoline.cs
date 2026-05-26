@@ -190,6 +190,12 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            internal static bool CanUseDirectReturnFastPath(
+                SyncFunctionInvoker invoker,
+                ExecutionPlan plan,
+                JsValue newTarget) =>
+                CanUseTrampoline(invoker, plan, newTarget);
+
             private static SyncIrFrame[] RentFrameStorage()
             {
                 return ArrayPool<SyncIrFrame>.Shared.Rent(InitialFrameCapacity);
@@ -209,7 +215,7 @@ public static partial class TypedAstEvaluator
                     invoker._function.IsDefaultDerivedConstructor ||
                     invoker._hasParameterExpressions ||
                     invoker._hasNonParameterCalleeCall ||
-                    !HasOnlySimpleIdentifierParameters(invoker._function) ||
+                    !invoker._hasOnlySimpleIdentifierParameters ||
                     invoker._usesArguments ||
                     invoker._needsArgumentsBinding ||
                     !invoker._allowIdentifierCache ||

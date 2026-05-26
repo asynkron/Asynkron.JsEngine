@@ -67,6 +67,13 @@ MSBuild and disables node reuse so host child-node failures do not masquerade as
 source failures. Do not remove it or omit it from new internal build projects
 without a current quality-window proof.
 
+Keep `test.runsettings` blame collection tuned for the canonical gate. Do not
+lower `CollectDumpOnTestSessionHang TestTimeout` below `300000` ms or disable
+the blame collector without a current quality-window proof. WHY: issue #2084 /
+PR #2127 failed after implementation because the previous 60-second inactivity
+timeout aborted `dotnet test` during a long-silent internal-test stretch, while
+focused reruns passed.
+
 Keep Makefile command tools configurable through variables such as
 `DOTNET ?= dotnet` and `GIT ?= git`. Do not hardcode `rtk`, `rtk proxy`, or
 another local agent wrapper inside repository Make targets; wrap the shell

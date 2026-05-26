@@ -55,6 +55,14 @@ optimization.
     `autrun-disltaszb6mo-e6c0f409f5` / PR #2122 caused this rule after the
     classdef runner argument-container attempt removed the sampled boxing
     subtree but regressed focused timings.
+6c. When a performance issue's acceptance criteria require before/after
+    selected-profile evidence, report the comparable rows before review/deploy:
+    command, baseline source, current source, timing, allocation, and whether
+    the signal is noisy. If the build stage omits that evidence, review must
+    reconstruct it before accepting the performance claim. WHY: issue #2084 /
+    PR #2127 delivered the stringops split/join allocation reduction, but review
+    had to rerun PR/base `stringops` allocation rows because the build updates
+    only reported semantic tests.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
@@ -164,7 +172,16 @@ optimization.
     intermediate element arrays where observable order is unchanged, reuse
     cached single-code-unit strings only on a profiled and semantics-pinned
     path such as ASCII `split("")`, and do not turn a split/join hotspot into a
-    rope or generic addition policy change.
+    rope or generic addition policy change. For `Array.prototype.join`
+    stringops work, a dense fast path may use only ordinary `JsArray` receivers
+    with no custom indexed properties, every index present as an own element,
+    and every element already tagged as a primitive JavaScript string. Do not
+    call element `ToString` in the guard or fast path; objects, holes,
+    inherited values, `null`/`undefined`, proxies, array-like receivers,
+    sparse/custom descriptors, length mismatches, and side-effectful coercions
+    must fall back to the generic join loop. WHY: issue #2084 / PR #2127 first
+    needed a repair so side-effectful element `toString` could delete a later
+    element and let the generic path observe the prototype value.
 16. For sync IR trampoline performance work, separate semantically tail-position
     calls from calls the current trampoline executor can actually complete.
     Before widening eligibility, prove the selected profile's call shape

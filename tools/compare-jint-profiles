@@ -21,10 +21,16 @@ smoke_profiles=(
 )
 
 default_profiles=(
+  simplearithmetic
   fib
   forloop
   whileloop
   ir-arithmetic
+  activation-noargs-lite
+  activation-params-lite
+  activation-arguments-lite
+  activation-closures-lite
+  activation-evalscope-lite
   objectcreation
   arrayops
   stringops
@@ -36,6 +42,8 @@ default_profiles=(
   json
   regex
   promise
+  closures-lite
+  recursion-lite
   forofiteration
   functioncalls
   functioncalls-lite
@@ -53,9 +61,12 @@ Smoke profiles:
   fib forloop ir-arithmetic functioncalls functioncalls-lite
 
 Default profiles:
-  fib forloop whileloop ir-arithmetic objectcreation arrayops stringops
-  propertyaccess classdef destructuring spread mapset json regex promise
-  forofiteration functioncalls functioncalls-lite
+  simplearithmetic fib forloop whileloop ir-arithmetic activation-noargs-lite
+  activation-params-lite activation-arguments-lite activation-closures-lite
+  activation-evalscope-lite
+  objectcreation arrayops stringops propertyaccess classdef destructuring spread
+  mapset json regex promise closures-lite recursion-lite forofiteration
+  functioncalls functioncalls-lite
 
 This is not BenchmarkDotNet and does not run ./tools/profile --compare.
 It intentionally avoids async/generator profiles in the timing table.
@@ -127,7 +138,7 @@ fi
 
 profile_needs_iife_wrap() {
   case "$1" in
-    simplearithmetic|whileloop|objectcreation|arrayops|stringops|propertyaccess|classdef|destructuring|spread|mapset|json|regex|promise|recursion|closures)
+    simplearithmetic|whileloop|activation-*|objectcreation|arrayops|stringops|propertyaccess|classdef|destructuring|spread|mapset|json|regex|promise|recursion|recursion-lite|closures|closures-lite)
       return 0
       ;;
     *)

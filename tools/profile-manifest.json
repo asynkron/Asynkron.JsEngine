@@ -116,12 +116,32 @@
       "show_progress": true,
       "show_timing": true
     },
+    "activation-noargs-lite": {
+      "name": "ActivationNoArgsLiteProfile",
+      "description": "No-argument function call activation loop - short comparison pass",
+      "script": "activation-noargs.js",
+      "mode": "sync",
+      "iterations": 2,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "activation-params": {
       "name": "ActivationParamsProfile",
       "description": "Parameterized function call activation loop",
       "script": "activation-params.js",
       "mode": "sync",
       "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-params-lite": {
+      "name": "ActivationParamsLiteProfile",
+      "description": "Parameterized function call activation loop - short comparison pass",
+      "script": "activation-params.js",
+      "mode": "sync",
+      "iterations": 2,
       "warmup": 1,
       "show_progress": true,
       "show_timing": true
@@ -136,12 +156,32 @@
       "show_progress": true,
       "show_timing": true
     },
+    "activation-arguments-lite": {
+      "name": "ActivationArgumentsLiteProfile",
+      "description": "Function calls that read arguments objects - short comparison pass",
+      "script": "activation-arguments.js",
+      "mode": "sync",
+      "iterations": 1,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "activation-closures": {
       "name": "ActivationClosuresProfile",
       "description": "Nested closure activation loop",
       "script": "activation-closures.js",
       "mode": "sync",
       "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
+    "activation-closures-lite": {
+      "name": "ActivationClosuresLiteProfile",
+      "description": "Nested closure activation loop - short comparison pass",
+      "script": "activation-closures.js",
+      "mode": "sync",
+      "iterations": 1,
       "warmup": 1,
       "show_progress": true,
       "show_timing": true
@@ -156,6 +196,16 @@
       "show_progress": true,
       "show_timing": true
     },
+    "activation-evalscope-lite": {
+      "name": "ActivationEvalScopeLiteProfile",
+      "description": "Eval-sensitive function calls with dynamic scope access - short comparison pass",
+      "script": "activation-evalscope.js",
+      "mode": "sync",
+      "iterations": 1,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "closures": {
       "name": "ClosuresProfile",
       "description": "Closure creation and invocation",
@@ -166,6 +216,16 @@
       "show_progress": true,
       "show_timing": false
     },
+    "closures-lite": {
+      "name": "ClosuresLiteProfile",
+      "description": "Closure creation and invocation - short comparison pass",
+      "script": "closures.js",
+      "mode": "sync",
+      "iterations": 2,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "recursion": {
       "name": "RecursionProfile",
       "description": "Factorial and sum recursion",
@@ -175,6 +235,16 @@
       "warmup": 1,
       "show_progress": true,
       "show_timing": false
+    },
+    "recursion-lite": {
+      "name": "RecursionLiteProfile",
+      "description": "Factorial and sum recursion - short comparison pass",
+      "script": "recursion.js",
+      "mode": "sync",
+      "iterations": 2,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
     },
     "propertyaccess": {
       "name": "PropertyAccessProfile",

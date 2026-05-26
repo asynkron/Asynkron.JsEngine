@@ -86,6 +86,13 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
 
     protected virtual void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
     {
+        var messageArg = args.Count >= 1 ? args[0] : JsValue.Undefined;
+        var optionsArg = args.Count >= 2 ? args[1] : JsValue.Undefined;
+        InitializeErrorShared(instance, messageArg, optionsArg);
+    }
+
+    protected void InitializeErrorShared(JsObject instance, JsValue messageArg, JsValue optionsArg)
+    {
         instance.RealmState ??= Realm;
 
         // ES spec: Set [[ErrorData]] internal slot - we use a non-enumerable internal property
@@ -93,24 +100,21 @@ public abstract class ErrorConstructorBase(IJsObjectLike prototype, RealmState r
             new PropertyDescriptor { JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
 
         // Set message if provided and not undefined
-        if (args.Count >= 1 && !args[0].IsUndefined)
+        if (!messageArg.IsUndefined)
         {
-            var message = args[0].IsNull ? "null" : JsOps.ToJsString(args[0]);
+            var message = messageArg.IsNull ? "null" : JsOps.ToJsString(messageArg);
             instance.DefineProperty("message",
                 new PropertyDescriptor { JsValue = message, Writable = true, Enumerable = false, Configurable = true });
         }
 
         // ES2022: InstallErrorCause - handle options.cause
-        if (args.Count >= 2 && args[1].IsObject)
+        if (optionsArg.IsObject &&
+            optionsArg.TryGetObject<IJsPropertyAccessor>(out var optionsAccessor) &&
+            HasProperty(optionsAccessor, "cause"))
         {
-            var options = args[1];
-            if (options.TryGetObject<IJsPropertyAccessor>(out var optionsAccessor) &&
-                HasProperty(optionsAccessor, "cause"))
-            {
-                JsOps.TryGetPropertyValue(options, "cause", out var cause);
-                instance.DefineProperty("cause",
-                    new PropertyDescriptor { JsValue = cause, Writable = true, Enumerable = false, Configurable = true });
-            }
+            JsOps.TryGetPropertyValue(optionsArg, "cause", out var cause);
+            instance.DefineProperty("cause",
+                new PropertyDescriptor { JsValue = cause, Writable = true, Enumerable = false, Configurable = true });
         }
     }
 

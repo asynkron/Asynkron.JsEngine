@@ -112,6 +112,35 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task UnicodePropertyEscape_PunctuationCategories_DoNotCrash_AndMatchExpectedSamples()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const close = String.fromCodePoint(0x0029); // ')'
+                                                       const connector = String.fromCodePoint(0x005F); // '_'
+                                                       const letter = "A";
+                                                       [
+                                                         /^\p{General_Category=Close_Punctuation}+$/u.test(close),
+                                                         /^\p{General_Category=Close_Punctuation}+$/u.test(letter),
+                                                         /^\p{General_Category=Connector_Punctuation}+$/u.test(connector),
+                                                         /^\p{General_Category=Connector_Punctuation}+$/u.test(letter),
+                                                         /\p{General_Category=Close_Punctuation}/u.test(close + letter),
+                                                         /\p{General_Category=Connector_Punctuation}/u.test(letter + connector)
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.True(values.Items[0].AsBoolean());
+        Assert.False(values.Items[1].AsBoolean());
+        Assert.True(values.Items[2].AsBoolean());
+        Assert.False(values.Items[3].AsBoolean());
+        Assert.True(values.Items[4].AsBoolean());
+        Assert.True(values.Items[5].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

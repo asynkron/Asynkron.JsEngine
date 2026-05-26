@@ -28,6 +28,20 @@ place, but excluded sloppy direct-eval `var arguments` from the generic
 parameter and lexical collision checks. It also compared symbol names
 ordinally instead of relying on `Symbol.Arguments` reference identity.
 
+Issue #2002 / PR #2010 found the matching arrow-parameter edge case. A broad
+arrow exception in the non-simple-parameter guard restored inherited
+`arguments` behavior, but also allowed an arrow parameter list that declares
+its own `arguments` binding:
+
+```js
+const f = (p = eval("var arguments = 'param'"), arguments) => {};
+f();
+```
+
+The repair kept inherited arrow `arguments` behavior allowed, while rejecting
+direct-eval `var arguments` only when the active parameter environment actually
+has an own `arguments` binding.
+
 This decision sits near ADR 0100 and ADR 0124, but owns a different boundary.
 Those ADRs cover activation setup and lazy arguments-object materialization.
 This ADR covers `EvalDeclarationInstantiation` collision policy for direct
@@ -50,6 +64,11 @@ the exception narrow:
 5. Name-based checks for this special binding should use ordinal string
    comparison on the symbol name, so behavior does not depend on symbol object
    identity.
+6. Arrow parameter environments require a second split: arrows do not create an
+   arguments object, but an arrow parameter list can still declare an own
+   `arguments` binding. Do not exempt all arrows from the non-simple-parameter
+   direct-eval guard, and do not reject inherited-arrow `arguments` cases that
+   lack an own binding.
 
 Do not fix this class by weakening parser binding validation, generic var
 declaration execution, or all lexical collision detection. The shape is a
@@ -61,6 +80,9 @@ binding, not permission to make `arguments` generally redeclarable.
 - Future direct-eval changes must prove both sides of the split: sloppy
   ordinary-function `eval("var arguments;")` completes, while strict and
   non-simple-parameter cases still reject when required.
+- Arrow/non-simple-parameter proof must include both inherited `arguments`
+  through arrow defaults and the explicit arrow parameter named `arguments`
+  case from issue #2002.
 - Focused proof should include the internal regression
   `TestVariableDeclarations.DirectEvalVarArgumentsInSloppyFunction_ShouldBeAllowed`
   and the owning Test262 method/file from issue #1834.
@@ -72,6 +94,7 @@ binding, not permission to make `arguments` generally redeclarable.
 ## Related
 
 - Issue #1834 / PR #1853
+- Issue #2002 / PR #2010
 - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
 - `docs/adrs/0124-keep-lazy-arguments-object-materialization-observable-and-profile-owned.md`
 - `.claude/rules/ecmascript-direct-eval-declaration-instantiation.md`

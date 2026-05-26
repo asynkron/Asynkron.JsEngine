@@ -24,6 +24,16 @@ obsolete overload definition remained, and the canonical quality gate passed
 after a transient async test was rerun and then the full `make quality` gate
 passed.
 
+Issue #2052 / PR #2060 later found that the helper boundary was typed, but
+adjacent array length descriptor initializers still constructed fallback length
+descriptors with `PropertyDescriptor.Value = (double)_length`. That setter is
+the object-carrier compatibility path because it routes through
+`JsValue.FromObjectUnsafe(...)`. The follow-up migrated the three `JsArray`
+length descriptor sites to `PropertyDescriptor.JsValue =
+JsValue.FromDouble(_length)` and pinned descriptor value/writable/enumerable/
+configurable behavior with a focused `Object.getOwnPropertyDescriptor(...,
+"length")` regression.
+
 ## Decision
 
 Keep array length assignment helpers `JsValue`-native inside the core runtime.
@@ -34,11 +44,14 @@ For `JsArray.SetLength` and similar array mutation helpers:
    `JsValue` overload;
 2. preserve the existing spec-owned length conversion and strict/sloppy failure
    behavior in the shared `TrySetArrayLength(...)` path;
-3. keep any remaining compatibility `object?` overload as an obsolete
+3. construct initial and fallback array length data descriptors with
+   `PropertyDescriptor.JsValue` rather than the `Value` compatibility setter
+   whenever the source is the internal numeric `_length`;
+4. keep any remaining compatibility `object?` overload as an obsolete
    error-level tripwire only while it is needed to expose or preserve a boundary;
-4. prove the slice with a targeted legacy-signature search before and after the
-   edit; and
-5. treat unrelated public facade, host interop, debugger, or async boundaries as
+5. prove the slice with targeted legacy-signature and descriptor-setter searches
+   before and after the edit; and
+6. treat unrelated public facade, host interop, debugger, or async boundaries as
    separate slices unless the selected proof covers them.
 
 ## Consequences
@@ -49,14 +62,21 @@ For `JsArray.SetLength` and similar array mutation helpers:
 - A clean search such as
   `rtk rg -n "SetLength\\s*\\(\\s*object\\?" src tests` is the right narrow
   proof that internal callers no longer bind to the object overload.
+- For array length descriptor cleanup, pair the helper signature search with an
+  owner-file setter search such as
+  `rtk rg -n "Value\\s*=\\s*\\(double\\)_length" src/Asynkron.JsEngine/JsTypes/JsArray.cs`
+  so fallback descriptor initializers cannot silently keep the compatibility
+  setter alive.
 - If the obsolete object overload no longer preserves a real compatibility or
   discovery boundary, remove it rather than keeping a dead fallback.
 - This complements ADR 0103's array storage ownership rule and ADR 0111's Array
-  static result-helper boundary. This ADR owns the array length helper carrier
-  boundary.
+  static result-helper boundary, and overlaps with ADR 0155's descriptor value
+  carrier rule. This ADR owns the array length helper and length descriptor
+  carrier boundary.
 
 ## Related
 
 - `.claude/rules/jsvalue-core-values.md`
 - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
 - `docs/adrs/0111-keep-array-static-sync-result-helpers-jsvalue-native.md`
+- `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`

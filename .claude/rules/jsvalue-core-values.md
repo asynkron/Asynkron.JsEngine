@@ -222,6 +222,18 @@ keep the public helper boundary typed to `JsValue` and prove accidental object
 binding is gone with the focused `SetLength(object?)` signature search. Related
 ADR: `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`.
 
+Issue #2052 / PR #2060 showed that array length cleanup is incomplete when the
+helper signature is typed but fallback descriptors still use
+`PropertyDescriptor.Value = (double)_length`. The `Value` setter routes through
+`JsValue.FromObjectUnsafe(...)`, so the fix migrated the three `JsArray` length
+descriptor initializers to `JsValue = JsValue.FromDouble(_length)` and added a
+focused `Object.getOwnPropertyDescriptor(a, "length")` value/attribute
+regression. Future array length and descriptor cleanup should include both the
+helper signature scan and the owner-file `Value = (double)_length` /
+`Value = value` setter scan before claiming the object carrier is gone. Related
+ADRs: `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md` and
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
 Issue `autrun-diro77wbl75s-869c762677` / PR #1784 migrated `JsMap` key storage
 from extracted CLR `object` keys plus `null`/`undefined` side channels to
 `JsValue` keys with `SameValueZeroComparer.JsValueInstance`. The deterministic

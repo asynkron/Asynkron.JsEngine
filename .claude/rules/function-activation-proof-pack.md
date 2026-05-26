@@ -116,6 +116,17 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     replay requires a distinct callee context. Pair the allocation win with a
     captured-closure regression, recursive binding/strict-self fallback tests,
     and selected-profile before/after allocation evidence.
+17. When adding parameter-only binary or binary-chain direct-return shortcuts,
+    extend `ExecutionPlan` return-shape metadata and
+    `ActivationSemanticsProofPackTests` together. A caller fast path that
+    returns before invocation context setup may handle only exact arity and
+    runtime operands it directly models, such as all-number arguments for a
+    numeric chain. Coercing inputs and omitted parameter values must either use
+    the shared JavaScript operator helpers behind the existing simple
+    IR/trampoline eligibility guard or fall back to ordinary activation. Pin the
+    positive numeric shortcut, the coercion-correct fallback, and negative
+    non-simple shapes in the proof pack. Do not infer eligibility from source
+    text, function names, or benchmark names.
 
 ## Why
 
@@ -320,3 +331,16 @@ creation as mechanically returnable.
 
 Related ADR:
 `docs/adrs/0176-keep-sync-ir-activation-environment-pooling-ownership-guarded.md`.
+
+Issue #2083 / PR #2128 showed the parameter binary-chain direct-return trap:
+`activation-params-lite` looked like a simple numeric benchmark, but the safe
+shortcut had to preserve three boundaries at once. `ExecutionPlan` owns the
+five-op parameter-chain proof, the number-only caller fast path owns only the
+exact numeric three-argument runtime case, and the coercing path still reuses
+the shared binary operator helpers behind the existing trampoline eligibility
+guard. Future activation-param return-chain work should prove those positive
+and negative paths in the focused activation pack before claiming it can skip
+context or trampoline setup.
+
+Related ADR:
+`docs/adrs/0178-keep-activation-params-binary-chain-fast-path-plan-and-runtime-guarded.md`.

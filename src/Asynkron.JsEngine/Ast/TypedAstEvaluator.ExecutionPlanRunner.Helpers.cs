@@ -3068,7 +3068,7 @@ public static partial class TypedAstEvaluator
 
             if (value.TryGetObject<SyncFunctionInvoker>(out var captured) &&
                 !ReferenceEquals(captured, _callable) &&
-                captured.CapturesActivationBetween(environment, _closure))
+                captured.CapturesActivationTransitivelyBetween(environment, _closure))
             {
                 StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                 return true;
@@ -3149,7 +3149,7 @@ public static partial class TypedAstEvaluator
 
                 if (descriptor.Get is SyncFunctionInvoker getter &&
                     !ReferenceEquals(getter, _callable) &&
-                    getter.CapturesActivationBetween(environment, _closure))
+                    getter.CapturesActivationTransitivelyBetween(environment, _closure))
                 {
                     StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;
@@ -3157,7 +3157,7 @@ public static partial class TypedAstEvaluator
 
                 if (descriptor.Set is SyncFunctionInvoker setter &&
                     !ReferenceEquals(setter, _callable) &&
-                    setter.CapturesActivationBetween(environment, _closure))
+                    setter.CapturesActivationTransitivelyBetween(environment, _closure))
                 {
                     StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;

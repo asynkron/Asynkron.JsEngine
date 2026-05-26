@@ -1030,6 +1030,51 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+        internal bool CapturesActivationTransitivelyBetween(JsEnvironment environment, JsEnvironment closure)
+        {
+            HashSet<object>? visitedFunctions = null;
+            return CapturesActivationTransitivelyBetweenCore(environment, closure, ref visitedFunctions);
+        }
+
+        private bool CapturesActivationTransitivelyBetweenCore(
+            JsEnvironment environment,
+            JsEnvironment closure,
+            ref HashSet<object>? visitedFunctions)
+        {
+            visitedFunctions ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            if (!visitedFunctions.Add(this))
+            {
+                return false;
+            }
+
+            if (CapturesActivationBetween(environment, closure))
+            {
+                return true;
+            }
+
+            for (var current = _closure; current is not null; current = current.Enclosing)
+            {
+                for (var i = 0; i < current.SlotCount; i++)
+                {
+                    ref var slot = ref current.GetSlotByIndex(i);
+                    if (slot.IsUninitialized ||
+                        slot.HasSpecialBinding ||
+                        slot.Value.Kind != JsValueKind.Object ||
+                        !slot.Value.TryGetObject<SyncFunctionInvoker>(out var nested))
+                    {
+                        continue;
+                    }
+
+                    if (nested.CapturesActivationTransitivelyBetweenCore(environment, closure, ref visitedFunctions))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private bool HasOnlySimpleLegacyTailRestartParameters()
         {
             HashSet<Symbol>? seenNames = null;

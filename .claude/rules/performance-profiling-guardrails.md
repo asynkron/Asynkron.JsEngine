@@ -29,6 +29,11 @@ optimization.
    only proves improvement when the matching prior profile output or committed
    baseline numbers are still available. If the baseline is missing, report
    stable/no-regression or current-hotspot evidence instead of claiming a win.
+6a. For recurring optimizer work with an explicit improvement threshold, do not
+    commit marginal or noisy experiments that fail repeated focused timing.
+    Revert the attempted code, keep the build update evidence-only, and do not
+    add performance docs that imply a retained optimization when no successful
+    change remains.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
@@ -163,6 +168,16 @@ activation profiles and full LanguageTests throughput were captured, but the
 handoff's comparable activation baseline directory was not present in the
 worktree, so the report could only make a no-focused-regression/current-hotspot
 claim rather than a strong activation-overhead reduction claim.
+
+Issue `autrun-dis78sutx3qw-ee0780e761` had a bounded optimizer build pass that
+tried class-construction and expression-bytecode experiments after capturing
+`classdef` and `ir-arithmetic` timings. Release builds passed, but repeated
+focused timings stayed below the required 10% improvement threshold and were
+too noisy to justify a retained optimization. The experimental edits were
+reverted and the build update stayed evidence-only. The durable lesson is that
+optimizer automation should prefer no code commit over preserving marginal
+changes or writing performance documentation for an optimization that was not
+kept.
 
 Issue `autrun-diqwn50g1d08-a853a50d18` / PR #1682 selected `ir-arithmetic` from
 a broader `rtk ./benchmark.sh` table because that profile mapped directly to

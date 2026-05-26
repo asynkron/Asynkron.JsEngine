@@ -98,6 +98,15 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     dynamic scope, private-name, `super`, home-object, and instance-field cases.
     Pair the positive direct-return proof with negative activation-observable
     coverage.
+15. When optimizing `activation-arguments` paths where `arguments` is
+    observable, do not skip `JsArgumentsObject` materialization. Keep the object
+    and binding semantics from ADR 0100/0124, and limit the optimization to
+    profile-proven setup work such as descriptor capacity reservations or
+    plan-proven no-op hoist work. Strict-mode Annex B blocked-name construction
+    can be skipped because the legacy hoist path is sloppy-only; function-body
+    hoist scans can be skipped only when `HoistableDeclarationsPlan` proves no
+    hoistable declarations. Do not replace these guards with source scans,
+    benchmark-name checks, or runner-local AST predicates.
 
 ## Why
 
@@ -277,3 +286,14 @@ instead of adding invoker-local source or AST predicates.
 
 Related ADR:
 `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
+
+Issue `autrun-disk07x5rsi8-08cbb528b9` / PR #2103 showed the
+observable-arguments setup trap: `activation-arguments-lite` was strict-mode
+code that actively read `arguments`, so the accepted optimization retained the
+arguments object and instead removed descriptor resize churn plus strict-mode
+Annex B/no-hoist setup work. Future activation-arguments work should preserve
+observable arguments materialization, keep descriptor pre-sizing capacity-only,
+and skip hoist work only from strict-mode or cached-plan facts.
+
+Related ADR:
+`docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`.

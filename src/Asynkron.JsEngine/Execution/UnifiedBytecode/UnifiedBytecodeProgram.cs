@@ -8,6 +8,8 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadLiteral,
     StoreSlot,
     Binary,
+    Jump,
+    JumpIfFalse,
     Return
 }
 

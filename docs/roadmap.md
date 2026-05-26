@@ -47,13 +47,20 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - No-argument literal-return call activation now has plan-proven direct-return evidence and guardrails, reducing sync activation overhead while preserving dynamic/observable fallback seams (`docs/performance/activation-noargs-literal-return-fast-path.md`, `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`).
 - JSON parse/stringify now has profile-owned default data-property and compact quote fast-path evidence with explicit semantics boundaries for `__proto__`, escaping, surrogates, reviver, and replacer behavior (`docs/performance/json-default-data-properties-and-quote-fast-path.md`, `docs/adrs/0158-keep-json-default-property-and-quote-fast-paths-profile-owned.md`).
 - Activation call trampoline frame capacity now has focused activation-params evidence, with remaining activation-params-lite setup/trampoline overhead explicitly tracked as follow-up work rather than treated as solved (`docs/performance/activation-params-trampoline-frame-capacity.md`, [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
+- Sync IR trampoline frame capacity is now explicitly shallow-first and pool-owned, with future capacity growth constrained to new profile evidence (`docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`).
 - `StringPrototype.Split`/join follow-through now has explicit consumer-materialization ownership evidence under ADR 0163, with remaining stringops materialization cost tracked as a narrow next-step issue (`docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`, [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
+- Empty-separator `split("")` character reuse is now explicitly consumer-owned and cache-bounded for ASCII-heavy workloads without widening observable split semantics (`docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`).
 - Super-constructor private resolver routing is now explicitly JsValue-native and captured as a durable ownership boundary for future constructor-path optimization slices (`docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`, `src/Asynkron.JsEngine/Ast/JsEnvironmentExtensions.cs`).
+- No-spread expression-program `new`/`super(...)` argument-carrier fast paths are now explicitly separated from spread/generic construction, while preserving spread-order and constructor-error semantics (`docs/adrs/0171-keep-no-spread-construct-argument-carriers-and-super-spread-order.md`).
+- Observable arguments setup now has an explicit profile-owned and plan-proven boundary: descriptor/hoist improvements are accepted, while residual lexical-name setup remains an evidence-backed follow-up seam (`docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`, `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`).
+- Jint comparison policy now keeps the comparison version centralized and explicit, so benchmark deltas remain interpretable across optimization slices (`docs/adrs/0174-keep-jint-comparison-version-centralized.md`).
+- Async generators still carry a known weaker seam: invoker wiring currently runs through a sync-generator IR step wrapper with ThreadStatic resume callback caches; this remains a bounded follow-up surface rather than a settled runtime contract (`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
 - Unsupported statement-family buckets remain in migration diagnostics, so compact runtime-routing and record-backed removal are not yet low-risk.
 - Dynamic/eval seams and activation-sensitive behavior still require careful handling to avoid correctness regressions while optimizing hot paths.
+- Async-generator resume flow still depends on a sync-generator IR wrapper seam and ThreadStatic callback cache ownership, so full async-generator IR support is not complete yet.
 
 ### What Could Improve Next
 - Continue lowering-time normalization in the unsupported statement families so more instruction shapes become execution-ready without mixed AST/IR fallback seams.
@@ -89,6 +96,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in [#2041](https://github.com/asynkron/Asynkron.JsEngine/issues/2041)).
 27. Continue activation follow-through by reducing remaining activation-params-lite call setup/trampoline overhead only through focused profile-backed slices that preserve current eligibility/semantics boundaries (tracked in [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
 28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
+29. Continue activation-arguments follow-through after ADR 0173 by reducing remaining lexical-name setup overhead with selected-profile proof while preserving observable semantics boundaries (tracked in [#2123](https://github.com/asynkron/Asynkron.JsEngine/issues/2123)).
+30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -119,6 +128,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/activation-noargs-literal-return-fast-path.md`
   - `docs/performance/json-default-data-properties-and-quote-fast-path.md`
   - `docs/performance/activation-params-trampoline-frame-capacity.md`
+  - `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -147,6 +157,11 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`
   - `docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`
   - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
+  - `docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`
+  - `docs/adrs/0171-keep-no-spread-construct-argument-carriers-and-super-spread-order.md`
+  - `docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`
+  - `docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`
+  - `docs/adrs/0174-keep-jint-comparison-version-centralized.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`
@@ -169,6 +184,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0108-keep-self-referential-with-assignment-dynamic.md`
 - Historical Test262 gap inventory (not a current pass/fail baseline): `docs/remaining-test262-gaps.md`
 - Active diagnostics/runtime implementation surfaces:
+  - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`
   - `src/Asynkron.JsEngine/Execution/StatementInstructionStorageDiagnostics.cs`
   - `src/Asynkron.JsEngine/Execution/StatementInstructionDiagnosticsCodec.cs`
   - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Completion.cs`

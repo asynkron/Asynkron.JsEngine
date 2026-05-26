@@ -56,6 +56,13 @@ unless the issue explicitly asks for a major migration.
   final source verification. Do not turn that environment gap into a Test262
   harness migration or unrelated runtime-install task inside the dependency
   slice.
+- When updating `Test262Harness`, treat
+  `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`
+  and `tools/ProfileRunner/ProfileRunner.csproj` as the aligned owner set.
+  Update both pins in the same slice unless a current investigation documents a
+  reason to split them, and prove compatibility with at least a Test262 project
+  restore plus a ProfileRunner build instead of relying on a literal `rg`
+  version check alone.
 
 ## Why
 
@@ -147,3 +154,11 @@ reported `express` with `wanted` `4.22.2` and `latest` `5.2.1`. The committed
 `express` to `4.22.2`, so the actionable lesson was to document the signal as
 local install-state evidence while continuing to defer Express 5 and Polka
 `1.0.0-next.28` to dedicated compatibility passes.
+
+Issue #1972 / PR #1978 updated `Test262Harness` from `1.0.3` to `1.0.6` in both
+the generated Test262 test project and `ProfileRunner`. The package feeds
+Test262 fixture discovery/generation as well as profiling scenarios, so future
+maintenance sweeps should keep those two project references aligned and record
+real restore/build proof for both affected surfaces: Test262 project restore and
+ProfileRunner Release build were the accepted narrow compatibility signals for
+this patch update.

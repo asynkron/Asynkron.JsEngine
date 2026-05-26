@@ -94,18 +94,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     /// <summary>
-    /// Convenience constructor that wraps objects in JsValue.
-    /// </summary>
-    [Obsolete("Use JsArray(IEnumerable<JsValue>, RealmState?) overload", true)]
-    public JsArray(IEnumerable<object?> items, RealmState? realmState = null)
-        : this(realmState)
-    {
-        // Handle case where items contain already-boxed JsValue values
-        _items.AddRange(items.Select(static item => item is JsValue js ? js : JsValue.FromObjectUnsafe(item)));
-        _length = (uint)_items.Count;
-    }
-
-    /// <summary>
     /// Gets the RealmState associated with this array.
     /// </summary>
     public RealmState? RealmState { get; }
@@ -778,26 +766,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     /// <summary>
-    /// Convenience overload that wraps object in JsValue.
-    /// </summary>
-    [Obsolete("Use SetElement(int, JsValue) overload", true)]
-    public void SetElement(int index, object? value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(index);
-
-        SetElement((uint)index, JsValue.FromObjectUnsafe(value));
-    }
-
-    /// <summary>
-    /// Convenience overload that wraps object in JsValue.
-    /// </summary>
-    [Obsolete("Use SetElement(uint, JsValue) overload", true)]
-    public void SetElement(uint index, object? value)
-    {
-        SetElement(index, JsValue.FromObjectUnsafe(value));
-    }
-
-    /// <summary>
     /// Sets an element at the specified index.
     /// </summary>
     public void SetElement(uint index, JsValue value)
@@ -1099,17 +1067,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         BumpLength((uint)_items.Count);
     }
 
-    /// <summary>
-    /// Convenience overload that wraps object in JsValue.
-    /// </summary>
-    [Obsolete("Use Push(JsValue) overload", true)]
-    public void Push(object? value)
-    {
-        // Handle case where value is already a boxed JsValue
-        var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-        Push(jsVal);
-    }
-
     public JsValue Pop()
     {
         if (_length == 0)
@@ -1216,13 +1173,6 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     internal bool SetLength(JsValue value, EvaluationContext? context, bool throwOnWritableFailure = true)
     {
         return TrySetArrayLength(true, value, false, true, context, throwOnWritableFailure);
-    }
-
-    [Obsolete("Use SetLength(JsValue, ...) overload", true)]
-    internal bool SetLength(object? value, EvaluationContext? context, bool throwOnWritableFailure = true)
-    {
-        return TrySetArrayLength(true, JsValue.FromObjectUnsafe(value), false, true, context,
-            throwOnWritableFailure);
     }
 
     internal bool DefineLength(PropertyDescriptor descriptor, EvaluationContext? context, bool throwOnWritableFailure)

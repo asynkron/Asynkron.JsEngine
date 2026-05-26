@@ -919,6 +919,43 @@ public sealed class AdditionalArrayMethodsTests(ITestOutputHelper output) : Inte
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_Join_EmptyArrayStillCoercesSeparator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let separatorCalls = 0;
+                                                       let separator = {
+                                                           toString() {
+                                                               separatorCalls++;
+                                                               return "|";
+                                                           }
+                                                       };
+                                                       let joined = [].join(separator);
+                                                       joined + ":" + separatorCalls;
+
+                                           """);
+        Assert.Equal(":1", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_Join_FallsBackForSparseArrayPrototypeValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       Array.prototype[0] = "proto";
+                                                       let a = [];
+                                                       a.length = 1;
+                                                       let joined = a.join("|");
+                                                       delete Array.prototype[0];
+                                                       joined;
+
+                                           """);
+        Assert.Equal("proto", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_Slice_SkipsMissingProxyIndex()
     {
         await using var engine = CreateEngine();

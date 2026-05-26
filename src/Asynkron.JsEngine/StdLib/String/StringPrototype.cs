@@ -1806,32 +1806,48 @@ public sealed partial class StringPrototype
 
     private static JsArray SplitBySeparator(string value, string separator, uint limit, RealmState? realm)
     {
-        var cap = (int)Math.Min((long)limit, value.Length + 1L);
-        var array = new JsArray(realm, cap);
         if (limit == 0)
         {
-            return array;
+            return new JsArray(realm, 0);
         }
 
         var sepLength = separator.Length;
-        var startIndex = 0;
-        uint count = 0;
-        while (count + 1 < limit)
+        var scanIndex = 0;
+        uint segmentCount = 0;
+        while (segmentCount < limit)
         {
-            var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
+            var matchIndex = value.IndexOf(separator, scanIndex, StringComparison.Ordinal);
             if (matchIndex < 0)
+            {
+                segmentCount++;
+                break;
+            }
+
+            segmentCount++;
+            if (segmentCount == limit)
             {
                 break;
             }
 
-            array.Push(new JsValue(value.Substring(startIndex, matchIndex - startIndex)));
-            count++;
-            startIndex = matchIndex + sepLength;
+            scanIndex = matchIndex + sepLength;
         }
 
-        if (count < limit)
+        var array = new JsArray(realm, checked((int)segmentCount));
+        var startIndex = 0;
+        for (uint emitted = 0; emitted < segmentCount; emitted++)
         {
-            array.Push(new JsValue(value.Substring(startIndex)));
+            var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
+            if (matchIndex < 0)
+            {
+                array.Push(new JsValue(value.Substring(startIndex)));
+                break;
+            }
+
+            array.Push(new JsValue(value.Substring(startIndex, matchIndex - startIndex)));
+            if (emitted + 1 < segmentCount)
+            {
+                startIndex = matchIndex + sepLength;
+            }
         }
 
         return array;

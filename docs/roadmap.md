@@ -98,7 +98,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 25. Continue activation no-args fast-path follow-through only through plan-owned eligibility widening and focused activation proof-pack evidence under ADR 0159 constraints (tracked in [#2040](https://github.com/asynkron/Asynkron.JsEngine/issues/2040)).
 26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in [#2041](https://github.com/asynkron/Asynkron.JsEngine/issues/2041)).
 27. Continue activation follow-through by reducing remaining activation-params-lite call setup/trampoline overhead only through focused profile-backed slices that preserve current eligibility/semantics boundaries (tracked in [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
-28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
+28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150); comparable row evidence in `docs/performance/stringops-split-join-consumer-follow-through.md`).
 29. Continue activation-arguments follow-through after ADR 0173 by reducing remaining lexical-name setup overhead with selected-profile proof while preserving observable semantics boundaries (tracked in [#2123](https://github.com/asynkron/Asynkron.JsEngine/issues/2123)).
 30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
 31. Continue direct-eval follow-through after the eval program-cache slice by reducing remaining `activation-evalscope-lite` overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
@@ -166,6 +166,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`
   - `docs/adrs/0171-keep-no-spread-construct-argument-carriers-and-super-spread-order.md`
   - `docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`
+  - `docs/performance/stringops-split-join-consumer-follow-through.md`
   - `docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`
   - `docs/adrs/0174-keep-jint-comparison-version-centralized.md`
   - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

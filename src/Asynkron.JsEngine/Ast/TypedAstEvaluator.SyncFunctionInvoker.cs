@@ -978,6 +978,22 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
+        internal bool CapturesActivationBetween(JsEnvironment environment, JsEnvironment closure)
+        {
+            var current = environment;
+            while (current is not null && !ReferenceEquals(current, closure))
+            {
+                if (ReferenceEquals(current, _closure))
+                {
+                    return true;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return false;
+        }
+
         private bool HasOnlySimpleLegacyTailRestartParameters()
         {
             HashSet<Symbol>? seenNames = null;

@@ -2920,7 +2920,9 @@ public static partial class TypedAstEvaluator
             // mark activations captured while still being restart-safe. The compiler keeps
             // this fast path disabled for side-effectful callee/argument shapes that can leak
             // activation-capturing closures.
-            if (!hasExplicitThis && allowsCapturedActivationTailRestart)
+            if (!hasExplicitThis &&
+                allowsCapturedActivationTailRestart &&
+                !HasEscapedActivationCapturingClosure(environment))
             {
                 return true;
             }
@@ -2937,6 +2939,37 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+
+        private bool HasEscapedActivationCapturingClosure(JsEnvironment environment)
+        {
+            for (var outer = _closure; outer is not null; outer = outer.Enclosing)
+            {
+                for (var i = 0; i < outer.SlotCount; i++)
+                {
+                    ref var slot = ref outer.GetSlotByIndex(i);
+                    if (slot.Name is null ||
+                        slot.IsUninitialized ||
+                        slot.HasSpecialBinding ||
+                        slot.Value.Kind != JsValueKind.Object)
+                    {
+                        continue;
+                    }
+
+                    if (!slot.Value.TryGetObject<SyncFunctionInvoker>(out var captured) ||
+                        ReferenceEquals(captured, _callable))
+                    {
+                        continue;
+                    }
+
+                    if (captured.CapturesActivationBetween(environment, _closure))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         private bool CanRestartCurrentTailCall()

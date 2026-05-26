@@ -302,21 +302,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var capability = NewPromiseCapability(thisValue);
         var operation = "Promise.all";
 
-        IJsCallable promiseResolve;
-        IJsObjectLike iterator;
-
-        try
+        if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
-            promiseResolve = GetPromiseResolveCallable(thisValue, operation);
-            iterator = GetIterator(args.GetArgument(0), operation);
-        }
-        catch (ThrowSignal signal)
-        {
-            return RejectPromiseCapability(capability, signal.ThrownValue);
-        }
-        catch (Exception)
-        {
-            return RejectPromiseCapability(capability, JsValue.Undefined);
+            return earlyResult;
         }
 
         var results = new List<JsValue>();
@@ -325,37 +313,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         while (true)
         {
-            IJsObjectLike? iteratorResult;
-            try
+            if (!TryGetCombinatorNextValue(iterator, operation, capability, out var nextValue, out earlyResult))
             {
-                iteratorResult = IteratorStep(iterator, operation);
+                return earlyResult;
             }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
-            }
-
-            if (iteratorResult is null)
+            if (nextValue is null)
             {
                 break;
-            }
-
-            JsValue nextValue;
-            try
-            {
-                nextValue = IteratorValue(iteratorResult);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
             }
 
             EnsureCapacity(results, index);
@@ -381,18 +345,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 return JsValue.Undefined;
             });
 
-            try
+            if (!TryInvokePromiseCombinatorThen(promiseResolve, nextValue.Value, thisValue, resolveElement, capability.reject, capability, iterator, operation, out earlyResult))
             {
-                var nextPromise = promiseResolve.Invoke([nextValue], thisValue);
-                InvokeThen(nextPromise, resolveElement, capability.reject);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, JsValue.Undefined);
+                return earlyResult;
             }
 
             index++;
@@ -412,70 +367,25 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var capability = NewPromiseCapability(thisValue);
         var operation = "Promise.race";
 
-        IJsCallable promiseResolve;
-        IJsObjectLike iterator;
-
-        try
+        if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
-            promiseResolve = GetPromiseResolveCallable(thisValue, operation);
-            iterator = GetIterator(args.GetArgument(0), operation);
-        }
-        catch (ThrowSignal signal)
-        {
-            return RejectPromiseCapability(capability, signal.ThrownValue);
-        }
-        catch (Exception)
-        {
-            return RejectPromiseCapability(capability, JsValue.Undefined);
+            return earlyResult;
         }
 
         while (true)
         {
-            IJsObjectLike? iteratorResult;
-            try
+            if (!TryGetCombinatorNextValue(iterator, operation, capability, out var nextValue, out earlyResult))
             {
-                iteratorResult = IteratorStep(iterator, operation);
+                return earlyResult;
             }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
-            }
-
-            if (iteratorResult is null)
+            if (nextValue is null)
             {
                 break;
             }
 
-            JsValue nextValue;
-            try
+            if (!TryInvokePromiseCombinatorThen(promiseResolve, nextValue.Value, thisValue, capability.resolve, capability.reject, capability, iterator, operation, out earlyResult))
             {
-                nextValue = IteratorValue(iteratorResult);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
-            }
-
-            try
-            {
-                var nextPromise = promiseResolve.Invoke([nextValue], thisValue);
-                InvokeThen(nextPromise, capability.resolve, capability.reject);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, JsValue.Undefined);
+                return earlyResult;
             }
         }
 
@@ -487,21 +397,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var capability = NewPromiseCapability(thisValue);
         var operation = "Promise.allSettled";
 
-        IJsCallable promiseResolve;
-        IJsObjectLike iterator;
-
-        try
+        if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
-            promiseResolve = GetPromiseResolveCallable(thisValue, operation);
-            iterator = GetIterator(args.GetArgument(0), operation);
-        }
-        catch (ThrowSignal signal)
-        {
-            return RejectPromiseCapability(capability, signal.ThrownValue);
-        }
-        catch (Exception)
-        {
-            return RejectPromiseCapability(capability, JsValue.Undefined);
+            return earlyResult;
         }
 
         var results = new List<JsValue>();
@@ -510,37 +408,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         while (true)
         {
-            IJsObjectLike? iteratorResult;
-            try
+            if (!TryGetCombinatorNextValue(iterator, operation, capability, out var nextValue, out earlyResult))
             {
-                iteratorResult = IteratorStep(iterator, operation);
+                return earlyResult;
             }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
-            }
-
-            if (iteratorResult is null)
+            if (nextValue is null)
             {
                 break;
-            }
-
-            JsValue nextValue;
-            try
-            {
-                nextValue = IteratorValue(iteratorResult);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
             }
 
             EnsureCapacity(results, index);
@@ -583,18 +457,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 return JsValue.Undefined;
             });
 
-            try
+            if (!TryInvokePromiseCombinatorThen(promiseResolve, nextValue.Value, thisValue, resolveElement, rejectElement, capability, iterator, operation, out earlyResult))
             {
-                var nextPromise = promiseResolve.Invoke([nextValue], thisValue);
-                InvokeThen(nextPromise, resolveElement, rejectElement);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, JsValue.Undefined);
+                return earlyResult;
             }
 
             index++;
@@ -614,21 +479,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         var capability = NewPromiseCapability(thisValue);
         var operation = "Promise.any";
 
-        IJsCallable promiseResolve;
-        IJsObjectLike iterator;
-
-        try
+        if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
-            promiseResolve = GetPromiseResolveCallable(thisValue, operation);
-            iterator = GetIterator(args.GetArgument(0), operation);
-        }
-        catch (ThrowSignal signal)
-        {
-            return RejectPromiseCapability(capability, signal.ThrownValue);
-        }
-        catch (Exception)
-        {
-            return RejectPromiseCapability(capability, JsValue.Undefined);
+            return earlyResult;
         }
 
         var errors = new List<JsValue>();
@@ -637,37 +490,13 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         while (true)
         {
-            IJsObjectLike? iteratorResult;
-            try
+            if (!TryGetCombinatorNextValue(iterator, operation, capability, out var nextValue, out earlyResult))
             {
-                iteratorResult = IteratorStep(iterator, operation);
+                return earlyResult;
             }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
-            }
-
-            if (iteratorResult is null)
+            if (nextValue is null)
             {
                 break;
-            }
-
-            JsValue nextValue;
-            try
-            {
-                nextValue = IteratorValue(iteratorResult);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapability(capability, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapability(capability, JsValue.Undefined);
             }
 
             EnsureCapacity(errors, index);
@@ -693,18 +522,9 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 return JsValue.Undefined;
             });
 
-            try
+            if (!TryInvokePromiseCombinatorThen(promiseResolve, nextValue.Value, thisValue, capability.resolve, rejectElement, capability, iterator, operation, out earlyResult))
             {
-                var nextPromise = promiseResolve.Invoke([nextValue], thisValue);
-                InvokeThen(nextPromise, capability.resolve, rejectElement);
-            }
-            catch (ThrowSignal signal)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, signal.ThrownValue);
-            }
-            catch (Exception)
-            {
-                return RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, JsValue.Undefined);
+                return earlyResult;
             }
 
             index++;
@@ -717,6 +537,103 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         }
 
         return capability.promise;
+    }
+
+    private bool TryPreparePromiseCombinator(
+        JsValue thisValue,
+        IReadOnlyList<JsValue> args,
+        (JsValue promise, JsValue resolve, JsValue reject) capability,
+        string operation,
+        out IJsCallable promiseResolve,
+        out IJsObjectLike iterator,
+        out JsValue earlyResult)
+    {
+        try
+        {
+            promiseResolve = GetPromiseResolveCallable(thisValue, operation);
+            iterator = GetIterator(args.GetArgument(0), operation);
+            earlyResult = JsValue.Undefined;
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            promiseResolve = null!;
+            iterator = null!;
+            earlyResult = RejectPromiseCapability(capability, signal.ThrownValue);
+            return false;
+        }
+        catch (Exception)
+        {
+            promiseResolve = null!;
+            iterator = null!;
+            earlyResult = RejectPromiseCapability(capability, JsValue.Undefined);
+            return false;
+        }
+    }
+
+    private bool TryGetCombinatorNextValue(
+        IJsObjectLike iterator,
+        string operation,
+        (JsValue promise, JsValue resolve, JsValue reject) capability,
+        out JsValue? nextValue,
+        out JsValue earlyResult)
+    {
+        try
+        {
+            var iteratorResult = IteratorStep(iterator, operation);
+            if (iteratorResult is null)
+            {
+                nextValue = null;
+                earlyResult = JsValue.Undefined;
+                return true;
+            }
+
+            nextValue = IteratorValue(iteratorResult);
+            earlyResult = JsValue.Undefined;
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            nextValue = null;
+            earlyResult = RejectPromiseCapability(capability, signal.ThrownValue);
+            return false;
+        }
+        catch (Exception)
+        {
+            nextValue = null;
+            earlyResult = RejectPromiseCapability(capability, JsValue.Undefined);
+            return false;
+        }
+    }
+
+    private bool TryInvokePromiseCombinatorThen(
+        IJsCallable promiseResolve,
+        JsValue nextValue,
+        JsValue thisValue,
+        JsValue onFulfilled,
+        JsValue onRejected,
+        (JsValue promise, JsValue resolve, JsValue reject) capability,
+        IJsObjectLike iterator,
+        string operation,
+        out JsValue earlyResult)
+    {
+        try
+        {
+            var nextPromise = promiseResolve.Invoke([nextValue], thisValue);
+            InvokeThen(nextPromise, onFulfilled, onRejected);
+            earlyResult = JsValue.Undefined;
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            earlyResult = RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, signal.ThrownValue);
+            return false;
+        }
+        catch (Exception)
+        {
+            earlyResult = RejectPromiseCapabilityAfterIteratorClose(capability, iterator, operation, JsValue.Undefined);
+            return false;
+        }
     }
 
     private IJsObjectLike GetIterator(JsValue iterable, string operation)

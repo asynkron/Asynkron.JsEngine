@@ -50,6 +50,15 @@ all-or-nothing until a separate routing issue proves production readiness.
    opcode subset that has been proven. Prototype opcodes such as `Binary`,
    `Jump`, and `JumpIfFalse` stay prototype-only for production routing until a
    separate routing slice proves their observable semantics.
+10. When invoking production unified bytecode from sync calls, keep the bridge
+    slot-layout owned and fast-path ordered. Route after direct simple-return
+    binary/chain shortcuts and `SyncIrCallTrampoline`, before the generic simple
+    IR activation runner. Populate an invocation-local slot span from
+    `ActivationSlotShape` by filling `undefined` and writing parameters through
+    `ParameterSlotIndices`; do not create a `JsEnvironment`, call
+    `ExecutionPlanRunner`, or add VM fallback for accepted programs. Prove both
+    selected routing and nearby declined/faster routes through public invocation
+    tests plus the activation proof pack.
 
 ## Why
 
@@ -102,9 +111,19 @@ bytecode and declines async/generator functions, captured or dynamic activation,
 arguments-object dependency, `this`, `new.target`, calls, dynamic lookup,
 labels, break/continue, and prototype-only opcodes before VM execution.
 
+Faktorial issue
+`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-ba-aa82d6b615`
+and PR #2217 made that selector execute in production sync invocation for the
+first time. The lesson is that runtime routing is a three-way contract between
+existing sync fast-path ordering, the decline-first unified-bytecode selector,
+and the `ActivationSlotShape` slot bridge. Future agents should not bypass that
+bridge with source-shape checks, environment creation, runner callbacks, or VM
+fallbacks.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
 - `docs/adrs/0189-keep-unified-bytecode-linear-expression-packs-flattened.md`
 - `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`
 - `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
+- `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`

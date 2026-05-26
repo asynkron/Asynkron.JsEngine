@@ -529,6 +529,8 @@ internal readonly struct PackedExpressionOp
 
     public bool IsDirectEval => (Flags & Flag1) != 0;
 
+    public bool AllowsCapturedActivationTailRestart => (Flags & Flag2) != 0;
+
     public bool ReplaceWithUndefined => (Flags & Flag1) != 0;
 
     public int SpreadMaskConstantIndex => _int1 - 1;
@@ -963,6 +965,7 @@ internal readonly struct PackedExpressionOp
         int ArgumentCount,
         bool HasExplicitThis = false,
         bool IsDirectEval = false,
+        bool AllowsCapturedActivationTailRestart = false,
         int SpreadMaskConstantIndex = -1)
     {
         return new PackedExpressionOp(
@@ -970,7 +973,8 @@ internal readonly struct PackedExpressionOp
             int0: ArgumentCount,
             int1: SpreadMaskConstantIndex + 1,
             flags: (byte)((HasExplicitThis ? Flag0 : 0) |
-                          (IsDirectEval ? Flag1 : 0)));
+                          (IsDirectEval ? Flag1 : 0) |
+                          (AllowsCapturedActivationTailRestart ? Flag2 : 0)));
     }
 
     public static PackedExpressionOp Construct(

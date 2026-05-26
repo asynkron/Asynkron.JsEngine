@@ -361,4 +361,23 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal(1d, result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotReuseLeakedCapturedActivation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let saved;
+            (function f(n) {
+                "use strict";
+                if (n === 0) {
+                    return saved();
+                }
+
+                return (saved = () => n, f)(n - 1);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
 }

@@ -2704,6 +2704,7 @@ public static partial class TypedAstEvaluator
                     callable,
                     thisValue,
                     call.HasExplicitThis,
+                    call.AllowsCapturedActivationTailRestart,
                     call.ArgumentCount,
                     stack,
                     calleeIndex + 1,
@@ -2875,6 +2876,7 @@ public static partial class TypedAstEvaluator
             IJsCallable callable,
             JsValue thisValue,
             bool hasExplicitThis,
+            bool allowsCapturedActivationTailRestart,
             int argumentCount,
             Span<JsValue> stack,
             int argumentStartIndex,
@@ -2886,7 +2888,10 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
-                !CanReuseCurrentTailRestartActivation(environment, hasExplicitThis) ||
+                !CanReuseCurrentTailRestartActivation(
+                    environment,
+                    hasExplicitThis,
+                    allowsCapturedActivationTailRestart) ||
                 !CanRestartCurrentTailCall())
             {
                 return false;
@@ -2906,11 +2911,14 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment, bool hasExplicitThis)
+        private bool CanReuseCurrentTailRestartActivation(
+            JsEnvironment environment,
+            bool hasExplicitThis,
+            bool allowsCapturedActivationTailRestart)
         {
-            // Indirect calls like getF()(...) can transiently mark the current activation captured
-            // via helper declarations while still being safe to restart in strict mode.
-            if (!hasExplicitThis)
+            // Some non-explicit-this call expressions (for example indirect self lookups) can
+            // transiently mark the activation captured without leaking a closure.
+            if (!hasExplicitThis && allowsCapturedActivationTailRestart)
             {
                 return true;
             }

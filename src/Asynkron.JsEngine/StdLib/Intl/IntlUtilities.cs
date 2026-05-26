@@ -409,6 +409,39 @@ internal static partial class IntlUtilities
         return NumberingSystemSet.Contains(canonical);
     }
 
+    public static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
+        string? optionNu,
+        string resolvedLocale)
+    {
+        var unicodeKeywords = ParseUnicodeExtensionKeywords(resolvedLocale);
+        string? extensionNu = null;
+        if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
+        {
+            extensionNu = nuValues[0];
+        }
+
+        var baseLocale = RemoveUnicodeExtensions(resolvedLocale);
+
+        if (optionNu is not null && TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
+        {
+            if (extensionNu is not null &&
+                string.Equals(canonicalOption, extensionNu, StringComparison.Ordinal))
+            {
+                return (canonicalOption, resolvedLocale);
+            }
+
+            return (canonicalOption, baseLocale);
+        }
+
+        if (extensionNu is not null &&
+            TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
+        {
+            return (validExtNu, resolvedLocale);
+        }
+
+        return ("latn", baseLocale);
+    }
+
     internal static bool IsUnicodeTypeSequence(string value)
     {
         var parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries);

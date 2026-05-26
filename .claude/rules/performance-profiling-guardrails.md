@@ -147,6 +147,14 @@ optimization.
     `fib`-style timings are noisy, report repeated before/after selected-profile
     runs plus the follow-up CPU profile shape instead of claiming a win from one
     benchmark row.
+20. For simple-arrow activation work, prove that the selected profile is paying
+    full invocation for a simple arrow before widening IR activation
+    eligibility. Keep the eligibility predicate bytecode-owned: a simple arrow
+    may use simple IR activation only when its lowered simple return program
+    has no lexical `this`, lexical `new.target`, or `super` op. Preserve the
+    full invocation path for dependency-bearing arrows, and report repeated
+    selected-profile timings plus a follow-up CPU profile that shows the fast
+    path is actually taken.
 
 ## Why
 
@@ -366,3 +374,15 @@ and `__proto__` must keep the conservative path unless the compiler can prove a
 later static data property cannot overwrite an earlier or unknown key. Related
 ADR:
 `docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`.
+
+Issue `autrun-dis8iqooxge8-6666a730d6` / PR #1985 selected `classdef` from the
+benchmark table and proved the hot owner with a CPU call tree: the final simple
+arrow `Array.map` callback still used full sync invocation after earlier
+callback-arity work. The accepted slice allowed simple IR activation only for
+arrows whose lowered simple return bytecode lacks lexical `this`, `new.target`,
+and `super` operations, then reported repeated `classdef` runs averaging about
+36% faster than baseline plus a follow-up CPU profile showing
+`TryInvokeIrFast`. The durable lesson is that arrow activation performance
+work must be profile-owned and bytecode-dependency guarded, not a broad
+syntactic arrow shortcut. Related ADR:
+`docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`.

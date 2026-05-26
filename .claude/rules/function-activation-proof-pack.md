@@ -74,6 +74,13 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     stability. Function declaration conflicts with parameters or `arguments`
     are activation-isolation signals; they are not permission to disable all
     strict recursive IR fast paths.
+13. When allowing arrow functions onto simple IR activation paths, require the
+    lowered simple return `ExpressionProgram` to prove that the arrow has no
+    lexical `this`, lexical `new.target`, or `super` dependency. Do not use
+    source size, parameter count, or callback arity alone as permission for the
+    activation shortcut. Pair the positive simple-arrow value-semantics proof
+    with negative lexical binding coverage so dependency-bearing arrows keep
+    full arrow invocation semantics.
 
 ## Why
 
@@ -204,3 +211,15 @@ together whenever recursive activation reuse or script-mode IR gating changes.
 
 Related ADR:
 `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`.
+
+Issue `autrun-dis8iqooxge8-6666a730d6` / PR #1985 showed the next `classdef`
+callback activation trap: after callback arity was narrowed, the simple arrow
+`dogs.map(d => d.speak())` still paid full invocation because all arrows were
+rejected from simple IR activation. The accepted fix permits only arrows whose
+simple return bytecode has no `this`, `new.target`, or `super` operations, and
+keeps dependency-bearing arrows on the full path. Future simple-arrow
+activation work should scan the lowered expression program, prove positive
+callback value semantics, and pin negative lexical binding behavior.
+
+Related ADR:
+`docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`.

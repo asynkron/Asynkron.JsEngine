@@ -146,6 +146,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   evidence is adjacent but not claim-specific, keep the roadmap wording
   boundary-only and require a dedicated evidence surface before future agents
   add the stronger claim.
+- When a roadmap or documentation-maintenance slice links tracked follow-up
+  work, use actual Markdown links to the GitHub issue URLs instead of inline
+  code issue IDs. Treat acceptance criteria that ask for "links" as rendered
+  link requirements, not just visible `#NNNN` references.
 - When a recurring roadmap child starts from issue or investigation context that
   says `docs/roadmap.md` is missing, re-check the file on the current branch
   before treating creation as the slice. If latest main already has the roadmap,
@@ -516,6 +520,14 @@ destructuring profile lessons, plus `.claude/rules/jsvalue-core-values.md` for
 HTMLDDA string-coercion precedence. Future learn passes for roadmap refreshes
 should record that overlap and avoid creating duplicate ADR/rule artifacts when
 the delivery only surfaced already-accepted evidence in `docs/roadmap.md`.
+
+Issue `autrun-disf6pj6b97s-d66702792b` / PR #2042 exposed a roadmap
+traceability gap in the same recurring-docs family: the delivery selected and
+created follow-up issues #2040 and #2041, but review sent AC-5 back because the
+roadmap used inline issue references instead of actual links. The accepted fix
+converted those references to GitHub issue URLs. Without this rule, future
+roadmap children can appear to satisfy "link follow-up work" acceptance
+criteria while leaving readers without durable rendered links.
 
 Issue `autrun-dis3ezc3dlnc-5e34c6d44c` / PR #1944 was a recurring code
 reduction child that removed the unused internal

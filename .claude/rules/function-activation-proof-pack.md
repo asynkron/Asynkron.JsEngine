@@ -134,6 +134,18 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     positive numeric shortcut, the coercion-correct fallback, and negative
     non-simple shapes in the proof pack. Do not infer eligibility from source
     text, function names, or benchmark names.
+18. When allowing class or object-literal methods with a home object onto the
+    simple IR activation path, require the lowered simple return
+    `ExpressionProgram` to prove that the method has no `super` operation.
+    A home object alone is not an activation-observable dependency for a plain
+    simple-return method, because ordinary receiver `this` binding is already
+    supplied by simple activation. `super` access is the dependency that must
+    keep the method on the full invocation path. Keep private-name scopes,
+    explicit super constructor/prototype state, instance fields, async/generator
+    shapes, parameter expressions, `arguments`, captured activation, and
+    dynamic identifier-cache cases on their existing fallbacks. Do not replace
+    the bytecode-owned super scan with source text, method names, benchmark
+    names, or callback-shape predicates.
 
 ## Why
 
@@ -363,3 +375,16 @@ context or trampoline setup.
 
 Related ADR:
 `docs/adrs/0178-keep-activation-params-binary-chain-fast-path-plan-and-runtime-guarded.md`.
+
+Issue `autrun-disrk4l293k0-661ecf4a43` / PR #2175 showed the home-object
+method trap in the `classdef` profile: after simple arrows were already allowed
+onto simple IR activation, the `dogs.map(d => d.speak())` tail still paid full
+typed method invocation because any `_homeObject` rejected the shortcut. The
+accepted fix kept the semantic guard bytecode-owned: methods with a home object
+may use simple activation only when their simple return program contains no
+`super` operations. Future class-method activation work should preserve that
+receiver-versus-super distinction and prove class/super behavior before
+claiming a retained optimization.
+
+Related ADR:
+`docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`.

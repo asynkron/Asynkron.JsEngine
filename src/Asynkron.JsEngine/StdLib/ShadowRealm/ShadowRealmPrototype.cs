@@ -53,7 +53,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
         try
         {
             var program = innerEngine.ParseProgram(source);
-            var rawResult = program.EvaluateProgram(
+            var rawResult = program.EvaluateProgramJsValue(
                 innerEngine.GlobalEnvironment,
                 innerRealm,
                 executionKind: ExecutionKind.Eval);
@@ -134,7 +134,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
     }
 
     /// <summary>
-    /// Converts a raw object? result from EvaluateSync to a JsValue.
+    /// Converts a raw evaluation result into a JsValue.
     /// Handles null (JS null), JsValue, and other objects.
     /// </summary>
     private static JsValue ConvertResult(object? rawResult)

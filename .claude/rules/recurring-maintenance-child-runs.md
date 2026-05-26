@@ -105,6 +105,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   slice, treat the run as evidence-only: keep the issue update evidence
   complete, explain why no wording delta was needed, and do not invent a
   mechanical docs change just to produce file churn.
+- If review sends a recurring-child build back only because an acceptance
+  criterion lacks evidence fields, make the re-entry explicitly evidence-only:
+  restate the baseline/final signal pair, `git diff --check`, changed-file
+  scope, and no-unrelated-change note in the handoff instead of adding a new
+  source/docs tweak to satisfy an already-delivered slice.
 - Keep recurring-child progress updates plain and bounded while work is in
   flight. Reserve machine-readable structured schema output for the actual
   final stage result only; avoid emitting final-response-shaped interim status
@@ -321,6 +326,14 @@ same persistent-compaction flow. When the stable overlap check shows the owned
 semantic home already covers the selected slice, the right delivery is complete
 issue-update evidence plus an explicit no-wording-delta rationale, not a
 mechanical documentation tweak created only to produce changed files.
+
+Issue `autrun-dis78sv4x35c-716ec19cb6` / PR #1964 repeated the evidence-only
+pattern in a recurring roadmap refresh. The docs slice itself had already
+landed, but AC-4 needed an explicit baseline/final signal pair, `git diff
+--check`, changed-file scope, and no-unrelated-change note. The corrective
+build re-entry was an evidence-only handoff, not another roadmap edit. Future
+AC evidence re-entries should close the missing proof fields directly and keep
+the delivered artifact lifecycle intact.
 
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,

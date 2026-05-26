@@ -230,7 +230,7 @@ public sealed class JsRegExp
         var sanitized = SanitizeGroupNamesForDotNet(normalized, out var nameMapping);
         var renamed = RenameDuplicateGroups(sanitized, ref nameMapping, out _duplicateGroupNames);
         _normalizedPattern = _duplicateGroupNames is not null
-            ? InsertQuantifierResets(renamed, _duplicateGroupNames)
+            ? InsertQuantifierResets(renamed)
             : renamed;
         _groupNameMapping = nameMapping;
 
@@ -5134,10 +5134,8 @@ public sealed class JsRegExp
     /// of resetting captures at the start of each quantifier iteration, which .NET does not do.
     /// Uses .NET balancing groups: (?>(?&lt;-name&gt;)?) to pop stale captures.
     /// </summary>
-    private static string InsertQuantifierResets(string pattern, Dictionary<string, string[]> duplicateGroupNames)
+    private static string InsertQuantifierResets(string pattern)
     {
-        _ = duplicateGroupNames;
-
         // Phase 1: Walk pattern to determine which groups contain duplicate captures.
         // For each group, record the duplicate captures in its descendant alternatives so
         // resets only clear captures relevant to that group, not unrelated siblings.
@@ -5194,9 +5192,10 @@ public sealed class JsRegExp
             {
                 var groupId = groupOpenPositions.Count;
                 var parentId = groupStack.Count > 0 ? groupStack.Peek() : -1;
+                var contentStart = i + 1;
+                var groupName = (string?)null;
 
                 // Find position after the group opener (past (?:, (?<name>, etc.)
-                var contentStart = i + 1;
                 if (i + 1 < pattern.Length && pattern[i + 1] == '?')
                 {
                     if (i + 2 < pattern.Length && pattern[i + 2] == '<' &&
@@ -5207,31 +5206,7 @@ public sealed class JsRegExp
                         if (end != -1)
                         {
                             contentStart = end + 1;
-
-                            // Check if this is a renamed duplicate group
-                            var name = pattern.Substring(i + 3, end - (i + 3));
-                            if (name.Contains("__", StringComparison.Ordinal))
-                            {
-                                // This is a renamed duplicate capture. Mark this group and all ancestors.
-                                groupOpenPositions.Add(contentStart);
-                                groupContainsDup.Add(false); // The named group itself doesn't need reset
-                                groupParent.Add(parentId);
-                                groupResetNames.Add(null);
-                                groupStack.Push(groupId);
-
-                                // Mark all ancestor groups as containing duplicates
-                                var ancestor = parentId;
-                                while (ancestor >= 0)
-                                {
-                                    groupContainsDup[ancestor] = true;
-                                    (groupResetNames[ancestor] ??= new HashSet<string>(StringComparer.Ordinal))
-                                        .Add(name);
-                                    ancestor = groupParent[ancestor];
-                                }
-
-                                i = end + 1;
-                                continue;
-                            }
+                            groupName = pattern.Substring(i + 3, end - (i + 3));
                         }
                     }
                     else
@@ -5250,6 +5225,20 @@ public sealed class JsRegExp
                 groupParent.Add(parentId);
                 groupResetNames.Add(null);
                 groupStack.Push(groupId);
+
+                // This is a renamed duplicate capture. Mark all ancestor groups.
+                if (groupName is not null && groupName.Contains("__", StringComparison.Ordinal))
+                {
+                    var ancestor = parentId;
+                    while (ancestor >= 0)
+                    {
+                        groupContainsDup[ancestor] = true;
+                        (groupResetNames[ancestor] ??= new HashSet<string>(StringComparer.Ordinal))
+                            .Add(groupName);
+                        ancestor = groupParent[ancestor];
+                    }
+                }
+
                 i++;
                 continue;
             }

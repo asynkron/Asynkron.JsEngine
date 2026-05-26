@@ -2703,6 +2703,7 @@ public static partial class TypedAstEvaluator
                 TryRequestSameFunctionTailRestart(
                     callable,
                     thisValue,
+                    call.HasExplicitThis,
                     call.ArgumentCount,
                     stack,
                     calleeIndex + 1,
@@ -2873,6 +2874,7 @@ public static partial class TypedAstEvaluator
         private bool TryRequestSameFunctionTailRestart(
             IJsCallable callable,
             JsValue thisValue,
+            bool hasExplicitThis,
             int argumentCount,
             Span<JsValue> stack,
             int argumentStartIndex,
@@ -2884,7 +2886,7 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
-                !CanReuseCurrentTailRestartActivation(environment) ||
+                !CanReuseCurrentTailRestartActivation(environment, hasExplicitThis) ||
                 !CanRestartCurrentTailCall())
             {
                 return false;
@@ -2904,8 +2906,15 @@ public static partial class TypedAstEvaluator
             return true;
         }
 
-        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment)
+        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment, bool hasExplicitThis)
         {
+            // Indirect calls like getF()(...) can transiently mark the current activation captured
+            // via helper declarations while still being safe to restart in strict mode.
+            if (!hasExplicitThis)
+            {
+                return true;
+            }
+
             var current = environment;
             while (current is not null && !ReferenceEquals(current, _closure))
             {

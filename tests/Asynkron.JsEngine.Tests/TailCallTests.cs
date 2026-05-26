@@ -339,4 +339,26 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal(1d, result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let callCount = 0;
+            (function f(n) {
+                "use strict";
+                if (n === 0) {
+                    callCount += 1;
+                    return;
+                }
+
+                function getF() { return f; }
+                return getF()(n - 1);
+            }(1500));
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
 }

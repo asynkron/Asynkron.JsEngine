@@ -2622,7 +2622,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _needsArgumentsBinding ||
                 !_allowIdentifierCache ||
                 _lexicalThisEnvironment is not null ||
-                _homeObject is not null ||
+                !CanUseSimpleIrActivationHomeObjectPath(plan) ||
                 PrivateNameScope is not null ||
                 !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
                 _superConstructor is not null ||
@@ -2635,6 +2635,17 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return CanUseSimpleIrActivationPlanShape(plan);
         }
 
+        private bool CanUseSimpleIrActivationHomeObjectPath(ExecutionPlan plan)
+        {
+            if (_homeObject is null)
+            {
+                return true;
+            }
+
+            return plan.SimpleReturnProgram is { } returnProgram &&
+                   !ContainsSuperOperation(returnProgram);
+        }
+
         private static bool CanUseSimpleIrActivationArrowFastPath(ExecutionPlan plan)
         {
             if (plan.SimpleReturnProgram is not { } returnProgram)
@@ -2642,7 +2653,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            foreach (var operation in returnProgram.EnumerateOperations())
+            return !ContainsThisNewTargetOrSuperOperation(returnProgram);
+        }
+
+        private static bool ContainsThisNewTargetOrSuperOperation(ExpressionProgram program)
+        {
+            foreach (var operation in program.EnumerateOperations())
             {
                 switch (operation.Kind)
                 {
@@ -2658,11 +2674,34 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     case ExpressionOpKind.UpdateNamedSuperProperty:
                     case ExpressionOpKind.UpdateComputedSuperProperty:
                     case ExpressionOpKind.SuperConstruct:
-                        return false;
+                        return true;
                 }
             }
 
-            return true;
+            return false;
+        }
+
+        private static bool ContainsSuperOperation(ExpressionProgram program)
+        {
+            foreach (var operation in program.EnumerateOperations())
+            {
+                switch (operation.Kind)
+                {
+                    case ExpressionOpKind.LoadNamedSuperCallTarget:
+                    case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    case ExpressionOpKind.EnsureSuperReference:
+                    case ExpressionOpKind.GetNamedSuperProperty:
+                    case ExpressionOpKind.GetComputedSuperProperty:
+                    case ExpressionOpKind.SetNamedSuperProperty:
+                    case ExpressionOpKind.SetComputedSuperProperty:
+                    case ExpressionOpKind.UpdateNamedSuperProperty:
+                    case ExpressionOpKind.UpdateComputedSuperProperty:
+                    case ExpressionOpKind.SuperConstruct:
+                        return true;
+                }
+            }
+
+            return false;
         }
 
         private bool CanUseSimpleIrActivationPlanShape(ExecutionPlan plan)

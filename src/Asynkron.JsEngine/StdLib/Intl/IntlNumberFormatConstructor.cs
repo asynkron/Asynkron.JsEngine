@@ -38,7 +38,7 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
         _ = IntlOptionHelpers.GetStringOption(options, "localeMatcher", Realm, "NumberFormat",
             ["lookup", "best fit"], "best fit");
         var numberingSystem = ResolveNumberingSystem(options);
-        var (resolvedNumberingSystem, finalLocale) = ResolveNumberingSystemAndLocale(numberingSystem, locale);
+        var (resolvedNumberingSystem, finalLocale) = IntlUtilities.ResolveNumberingSystemAndLocale(numberingSystem, locale);
         var culture = IntlUtilities.ResolveCulture(finalLocale);
 
         // Step 3-8: SetNumberFormatUnitOptions (always reads all, regardless of style)
@@ -149,39 +149,6 @@ public sealed partial class IntlNumberFormatConstructor(IJsObjectLike prototype,
             RoundingType = digits.RoundingType,
             Culture = culture
         };
-    }
-
-    private static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
-        string? optionNu,
-        string resolvedLocale)
-    {
-        var unicodeKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
-        string? extensionNu = null;
-        if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
-        {
-            extensionNu = nuValues[0];
-        }
-
-        var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
-
-        if (optionNu is not null && IntlUtilities.TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
-        {
-            if (extensionNu is not null &&
-                string.Equals(canonicalOption, extensionNu, StringComparison.Ordinal))
-            {
-                return (canonicalOption, resolvedLocale);
-            }
-
-            return (canonicalOption, baseLocale);
-        }
-
-        if (extensionNu is not null &&
-            IntlUtilities.TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
-        {
-            return (validExtNu, resolvedLocale);
-        }
-
-        return ("latn", baseLocale);
     }
 
     private string ResolveStyle(IJsPropertyAccessor? options)

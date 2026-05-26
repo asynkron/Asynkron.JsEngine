@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
             templateObject.DefineProperty(i.ToString(CultureInfo.InvariantCulture),
                 new PropertyDescriptor
                 {
-                    Value = stringsArray.Items[i],
+                    JsValue = stringsArray.Items[i],
                     Writable = false,
                     Enumerable = true,
                     Configurable = false
@@ -34,7 +34,7 @@ public static partial class TypedAstEvaluator
         templateObject.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)stringsArray.Items.Count,
+                JsValue = (double)stringsArray.Items.Count,
                 Writable = false,
                 Enumerable = false,
                 Configurable = false
@@ -47,7 +47,7 @@ public static partial class TypedAstEvaluator
             rawArray.DefineProperty(i.ToString(CultureInfo.InvariantCulture),
                 new PropertyDescriptor
                 {
-                    Value = rawStringsArray.Items[i],
+                    JsValue = rawStringsArray.Items[i],
                     Writable = false,
                     Enumerable = true,
                     Configurable = false
@@ -57,7 +57,7 @@ public static partial class TypedAstEvaluator
         rawArray.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)rawStringsArray.Items.Count,
+                JsValue = (double)rawStringsArray.Items.Count,
                 Writable = false,
                 Enumerable = false,
                 Configurable = false
@@ -71,7 +71,7 @@ public static partial class TypedAstEvaluator
         templateObject.DefineProperty("raw",
             new PropertyDescriptor
             {
-                Value = rawArray,
+                JsValue = JsValue.FromJsArray(rawArray),
                 Writable = false,
                 Enumerable = false,
                 Configurable = false

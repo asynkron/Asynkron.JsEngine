@@ -90,7 +90,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
 
         // Resolve numbering system from option, unicode extension, or default
         var (resolvedNumberingSystem, finalLocale) =
-            ResolveNumberingSystemAndLocale(numberingSystem, resolvedLocale);
+            IntlUtilities.ResolveNumberingSystemAndLocale(numberingSystem, resolvedLocale);
 
         var instance = PrepareThisObject(thisValue);
         IntlDurationFormatPrototype.InitializeInternalSlots(
@@ -192,38 +192,4 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
             : null;
     }
 
-    private static (string NumberingSystem, string Locale) ResolveNumberingSystemAndLocale(
-        string? optionNu,
-        string resolvedLocale)
-    {
-        // Extract unicode extension numbering system from locale (e.g., "en-u-nu-arab" → "arab")
-        var unicodeKeywords = IntlUtilities.ParseUnicodeExtensionKeywords(resolvedLocale);
-        string? extensionNu = null;
-        if (unicodeKeywords.TryGetValue("nu", out var nuValues) && nuValues.Count > 0)
-        {
-            extensionNu = nuValues[0];
-        }
-
-        var baseLocale = IntlUtilities.RemoveUnicodeExtensions(resolvedLocale);
-
-        // Resolution: option > unicode extension > default
-        if (optionNu is not null && IntlUtilities.TryNormalizeSupportedNumberingSystem(optionNu, out var canonicalOption))
-        {
-            if (extensionNu is not null &&
-                string.Equals(canonicalOption, extensionNu, StringComparison.Ordinal))
-            {
-                return (canonicalOption, resolvedLocale);
-            }
-
-            return (canonicalOption, baseLocale);
-        }
-
-        if (extensionNu is not null &&
-            IntlUtilities.TryNormalizeSupportedNumberingSystem(extensionNu, out var validExtNu))
-        {
-            return (validExtNu, resolvedLocale);
-        }
-
-        return ("latn", baseLocale);
-    }
 }

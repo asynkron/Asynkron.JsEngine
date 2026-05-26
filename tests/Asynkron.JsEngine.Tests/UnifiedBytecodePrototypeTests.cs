@@ -193,7 +193,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_LoopPlan_DeclinesWithLoopReason()
+    public void TryCompile_CanonicalWhileLoop_ProducesBackwardJump()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function sumTo(n) {
@@ -208,9 +208,195 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "sumTo");
 
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(
+            program.Instructions.Select((instruction, index) => (instruction, index)),
+            pair => pair.instruction.OpCode == UnifiedBytecodeOpCode.Jump && pair.instruction.Operand < pair.index);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4, 10)]
+    public void Execute_CanonicalWhileLoop_ReturnsExpectedResult(int n, int expected)
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "n", JsValue.FromDouble(n));
+        Assert.Equal(expected, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_ConditionOnlyForLoop_ProducesBackwardJump()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0;) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(
+            program.Instructions.Select((instruction, index) => (instruction, index)),
+            pair => pair.instruction.OpCode == UnifiedBytecodeOpCode.Jump && pair.instruction.Operand < pair.index);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4, 10)]
+    public void Execute_ConditionOnlyForLoop_ReturnsExpectedResult(int n, int expected)
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0;) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "n", JsValue.FromDouble(n));
+        Assert.Equal(expected, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_WhileWithBreak_DeclinesWithExplicitReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function breakLoop(n) {
+                var total = 0;
+                while (n > 0) {
+                    if (n > 2) {
+                        break;
+                    }
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "breakLoop");
+
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
         Assert.False(result);
-        Assert.Contains("Loop-shaped", reason, StringComparison.Ordinal);
+        Assert.Contains("Unsupported", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryCompile_LabeledWhileLoop_DeclinesWithLabelReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function labeledSumTo(n) {
+                var total = 0;
+                outer: while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeledSumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryCompile_LabeledNonLoopStatement_DeclinesWithLabelReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function labeledBlock(flag) {
+                var total = 0;
+                blockLabel: {
+                    if (flag) {
+                        break blockLabel;
+                    }
+                    total = 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeledBlock");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryCompile_ForLoopWithConditionAndPostUpdate_DeclinesWithExplicitReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0; n = n - 1) {
+                    total = total + n;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryCompile_ForLoopWithInitializerAndPostUpdate_DeclinesWithExplicitReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (var i = 0; i < n; i = i + 1) {
+                    total = total + i;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

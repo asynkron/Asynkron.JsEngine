@@ -11,8 +11,8 @@ all-or-nothing until a separate routing issue proves production readiness.
 2. Keep eligibility at compile time, including function kind. Unsupported
    statement shapes, expression ops, identifiers, async/generator functions,
    local/declaration forms outside the exact accepted slice, control flow
-   outside the acyclic branch slice, or dynamic shapes must return an
-   unsupported reason before VM execution.
+   outside the accepted branch-plus-canonical-while slice, or dynamic shapes
+   must return an unsupported reason before VM execution.
    Do not infer sync-only eligibility from `ExecutionPlan` shape alone.
 3. Do not add fallback inside `UnifiedBytecodeVirtualMachine` to
    `ExpressionProgram` evaluation, AST evaluation, or `ExecutionPlanRunner`.
@@ -34,11 +34,13 @@ all-or-nothing until a separate routing issue proves production readiness.
 7. Keep JavaScript semantic claims narrow. A prototype op such as numeric
    `Add` proves only the tested VM behavior; full JavaScript operator coercion
    requires an explicit migration and parity proof.
-8. When expanding across branch/control flow, keep the accepted CFG acyclic and
-   compiler-owned. Pre-scan reachable IR instructions for cycles, compile with
-   an IR-instruction-index to unified-bytecode-PC map, patch forward branch and
-   jump operands after targets are emitted, and reject loops or unsupported
-   branch payloads before VM execution. Do not treat acyclic branch support as
+8. When expanding across branch/control flow, keep accepted CFG ownership
+   compiler-side and explicit. Branch shapes plus one canonical guarded `while`
+   back-edge shape are accepted; all other loop/control-flow families must be
+   rejected before VM execution. Compile with an IR-instruction-index to
+   unified-bytecode-PC map, patch forward branch/jump operands after targets
+   are emitted, and reject unsupported branch payloads or non-canonical loop
+   shapes before execution. Do not treat this bounded while support as broad
    loop support or as permission to call back into existing evaluators.
 
 ## Why
@@ -70,11 +72,16 @@ untrue.
 
 Issue #2166 / PR #2173 crossed the prototype from linear body walking into
 acyclic branch CFG compilation. The lesson is that branch support needs an
-explicit bytecode-PC owner: map IR instruction indices to emitted PCs, patch
-`JumpIfFalse` and `Jump` targets after blocks are emitted, and reject
-loop-shaped graphs before unsupported body details hide the real boundary. This
-keeps branch joins, local updates, and condition bytecode owned by the unified
-compiler without implying loop support or production routing.
+explicit bytecode-PC owner: map IR instruction indices to emitted PCs and patch
+`JumpIfFalse` and `Jump` targets after blocks are emitted.
+
+Issue #2182 / PR #2186 then extended that boundary to one canonical
+condition-first back-edge IR shape (currently produced by guarded `while` and
+equivalent condition-only `for` forms without initializer/post-update or loop
+control statements). The lesson is to keep this loop support narrow and
+compiler-owned: accept only the proven canonical shape, reject other
+loop/control-flow families before unsupported details hide the real boundary,
+and keep production routing unchanged.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

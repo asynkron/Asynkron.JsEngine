@@ -32,6 +32,12 @@ public sealed partial class ArrayPrototype
             return new JsValue(string.Empty);
         }
 
+        if (accessor is JsArray array &&
+            TryJoinDenseOwnStringArray(array, length, separator, evalContext, Realm, out var denseJoin))
+        {
+            return new JsValue(denseJoin);
+        }
+
         var builder = new StringBuilder();
         for (long k = 0; k < length; k++)
         {
@@ -45,6 +51,49 @@ public sealed partial class ArrayPrototype
         }
 
         return new JsValue(builder.ToString());
+    }
+
+    private static bool TryJoinDenseOwnStringArray(
+        JsArray array,
+        long length,
+        string separator,
+        EvaluationContext? evalContext,
+        RealmState? realm,
+        out string result)
+    {
+        result = string.Empty;
+        if (array.HasCustomIndexedProperties)
+        {
+            return false;
+        }
+
+        if (length > int.MaxValue)
+        {
+            return false;
+        }
+
+        for (uint i = 0; i < (uint)length; i++)
+        {
+            if (!array.HasOwnIndex(i))
+            {
+                return false;
+            }
+        }
+
+        var builder = new StringBuilder();
+        for (uint i = 0; i < (uint)length; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(separator);
+            }
+
+            var value = array.GetElement(i);
+            builder.Append(JsOps.ToJsStringForArray(value, evalContext, realm));
+        }
+
+        result = builder.ToString();
+        return true;
     }
 
     [JsHostMethod("toString", Length = 0d)]

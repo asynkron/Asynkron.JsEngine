@@ -518,13 +518,7 @@ public sealed partial class StringPrototype
             return JsValue.FromJsArray(CreateArrayFromStringCharacters(value, charCount, Realm));
         }
 
-        var parts = value.Split([separator], StringSplitOptions.None);
-        if (lim < (uint)parts.Length)
-        {
-            parts = parts.Take((int)lim).ToArray();
-        }
-
-        return JsValue.FromJsArray(CreateArrayFromStrings(parts, Realm));
+        return JsValue.FromJsArray(SplitBySeparator(value, separator, lim, Realm));
     }
 
     [JsHostMethod("replace", Length = 2d)]
@@ -1805,6 +1799,39 @@ public sealed partial class StringPrototype
         for (var i = 0; i < charCount; i++)
         {
             array.Push(new JsValue(GetSingleCharacterString(value[i])));
+        }
+
+        return array;
+    }
+
+    private static JsArray SplitBySeparator(string value, string separator, uint limit, RealmState? realm)
+    {
+        var cap = (int)Math.Min((long)limit, value.Length + 1L);
+        var array = new JsArray(realm, cap);
+        if (limit == 0)
+        {
+            return array;
+        }
+
+        var sepLength = separator.Length;
+        var startIndex = 0;
+        uint count = 0;
+        while (count + 1 < limit)
+        {
+            var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
+            if (matchIndex < 0)
+            {
+                break;
+            }
+
+            array.Push(new JsValue(value.Substring(startIndex, matchIndex - startIndex)));
+            count++;
+            startIndex = matchIndex + sepLength;
+        }
+
+        if (count < limit)
+        {
+            array.Push(new JsValue(value.Substring(startIndex)));
         }
 
         return array;

@@ -38,7 +38,7 @@ Issue #1058 / PR #1289 added the first accepted prefix-based timeout exception:
 `built-ins/RegExp/CharacterClassEscapes/`. The affected fixtures are generated
 RegExp character-class escape packs over large Unicode ranges, and the final
 focused proof
-`dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=RegExp_CharacterClassEscapes"`
+`rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --filter "Name=RegExp_CharacterClassEscapes"`
 passed 24/24 after the harness-policy change. Future agents may not treat that
 exception as permission to widen other Test262 directories without the same
 proof shape and a new ADR.

@@ -8,9 +8,18 @@ internal static class UnifiedBytecodeCompiler
 {
     public static bool TryCompile(
         ExecutionPlan plan,
+        bool isAsync,
+        bool isGenerator,
         out UnifiedBytecodeProgram program,
         out string reason)
     {
+        if (isAsync || isGenerator)
+        {
+            program = EmptyProgram();
+            reason = "Async and generator functions are not eligible for unified bytecode compilation.";
+            return false;
+        }
+
         if ((uint)plan.EntryPoint >= (uint)plan.Instructions.Length)
         {
             program = EmptyProgram();

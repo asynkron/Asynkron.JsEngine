@@ -19,11 +19,18 @@ all-or-nothing until a separate routing issue proves production readiness.
 4. Do not route normal production execution through the unified VM in a
    prototype-expansion issue. Runtime routing needs its own issue and proof
    pack.
-5. For each accepted shape, add focused tests for the emitted unified opcode
+5. When expanding linear declaration/return packs, flatten only the supported
+   `ExpressionProgram` operations into unified instructions. Identifier reads
+   should become `LoadSlot`, literals should become program-owned
+   `LoadLiteral` entries, and binary operators should stay limited to the
+   explicitly proven numeric VM surface. Do not introduce an
+   `EvalExpressionProgram` opcode or a runtime callback into the existing
+   expression interpreter.
+6. For each accepted shape, add focused tests for the emitted unified opcode
    stream, a minimal execution result, and at least one nearby unsupported
    shape that declines cleanly. When an accepted body shape can also appear in
    async or generator functions, include function-kind negative tests.
-6. Keep JavaScript semantic claims narrow. A prototype op such as numeric
+7. Keep JavaScript semantic claims narrow. A prototype op such as numeric
    `Add` proves only the tested VM behavior; full JavaScript operator coercion
    requires an explicit migration and parity proof.
 
@@ -45,6 +52,16 @@ promise, iterator, and suspension semantics that the current unified VM does
 not implement. Function kind must stay part of the compile-time eligibility
 contract.
 
+Issue #2158 / PR #2162 expanded the same prototype into a small linear sync
+expression pack with multiple declarations, literals, and numeric binary
+operators. The lesson is that this expansion must still own the bytecode it
+executes: literals belong in `UnifiedBytecodeProgram`, supported expression ops
+are flattened into unified instructions, and unsupported statements or
+expression ops decline before execution. Adding a generic expression-program
+eval opcode would hide coverage gaps and make the fallback-free VM boundary
+untrue.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
+- `docs/adrs/0189-keep-unified-bytecode-linear-expression-packs-flattened.md`

@@ -15,12 +15,9 @@ public sealed partial class SharedArrayBufferConstructor(IJsObjectLike prototype
 {
     private HostFunction? _constructor;
 
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("SharedArrayBuffer constructor not initialized");
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var target = _constructor ?? ConstructFallback;
+        var target = _constructor ?? throw new InvalidOperationException("SharedArrayBuffer constructor not initialized");
         return JsValue.FromObjectUnsafe(ConstructBuffer(args, target));
     }
 

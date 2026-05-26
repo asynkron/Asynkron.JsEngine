@@ -455,6 +455,8 @@ internal sealed partial class ExecutionPlanBuilder
             var bodyLexNames = hoistPlan.LexicalNames;
             var simpleCatchNames = hoistPlan.SimpleCatchParameterNames;
             var catchNames = hoistPlan.CatchParameterNames;
+            var hasParameterExpressions = function.Parameters.Any(p =>
+                p.DefaultValue is not null || p.Pattern is not null);
             var blocked = new HashSet<Symbol>(bodyLexNames, ReferenceEqualityComparer<Symbol>.Instance);
             blocked.ExceptWith(simpleCatchNames);
             foreach (var pn in parameterNames)
@@ -471,6 +473,14 @@ internal sealed partial class ExecutionPlanBuilder
                 }
             }
 
+            if (hasParameterExpressions)
+            {
+                foreach (var annexBName in CollectAnnexBBlockFunctionSymbols(function.Body))
+                {
+                    blocked.Add(annexBName);
+                }
+            }
+
             // Per spec FunctionDeclarationInstantiation step 22.f: when argumentsObjectNeeded
             // is true, "arguments" is appended to parameterNames and blocks AnnexB hoisting.
             if (!function.IsArrow)
@@ -478,9 +488,7 @@ internal sealed partial class ExecutionPlanBuilder
                 var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
                 var argumentsInBodyLex = bodyLexNames.Contains(Symbol.Arguments) &&
                                          !simpleCatchNames.Contains(Symbol.Arguments);
-                var hasParamExpressions = function.Parameters.Any(p =>
-                    p.DefaultValue is not null || p.Pattern is not null);
-                var canSkipForBodyDecl = !hasParamExpressions && argumentsInBodyLex;
+                var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
                 var argumentsObjectNeeded = !argumentsIsParam && !canSkipForBodyDecl;
                 if (argumentsObjectNeeded)
                 {
@@ -839,6 +847,91 @@ internal sealed partial class ExecutionPlanBuilder
                     case WithStatement withStatement:
                         statement = withStatement.Body;
                         continue;
+                    default:
+                        return;
+                }
+            }
+        }
+    }
+
+    private static HashSet<Symbol> CollectAnnexBBlockFunctionSymbols(BlockStatement body)
+    {
+        var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+
+        foreach (var statement in body.Statements)
+        {
+            CollectFromStatement(statement, result, body.IsStrict, inBlockScope: false);
+        }
+
+        return result;
+
+        static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink, bool isStrict, bool inBlockScope)
+        {
+            while (true)
+            {
+                switch (statement)
+                {
+                    case FunctionDeclaration functionDeclaration:
+                        if (!isStrict && inBlockScope &&
+                            !functionDeclaration.Function.IsAsync &&
+                            !functionDeclaration.Function.WasAsync &&
+                            !functionDeclaration.Function.IsGenerator)
+                        {
+                            sink.Add(functionDeclaration.Name);
+                        }
+
+                        return;
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            CollectFromStatement(inner, sink, isStrict, inBlockScope: true);
+                        }
+
+                        return;
+                    case IfStatement ifStatement:
+                        CollectFromStatement(ifStatement.Then, sink, isStrict, inBlockScope: true);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            statement = elseBranch;
+                            continue;
+                        }
+
+                        return;
+                    case WhileStatement whileStatement:
+                        statement = whileStatement.Body;
+                        continue;
+                    case DoWhileStatement doWhileStatement:
+                        statement = doWhileStatement.Body;
+                        continue;
+                    case WithStatement withStatement:
+                        statement = withStatement.Body;
+                        continue;
+                    case ForStatement forStatement:
+                        statement = forStatement.Body;
+                        continue;
+                    case ForEachStatement forEachStatement:
+                        statement = forEachStatement.Body;
+                        continue;
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            CollectFromStatement(switchCase.Body, sink, isStrict, inBlockScope: true);
+                        }
+
+                        return;
+                    case TryStatement tryStatement:
+                        CollectFromStatement(tryStatement.TryBlock, sink, isStrict, inBlockScope: true);
+                        if (tryStatement.Catch?.Body is { } catchBody)
+                        {
+                            CollectFromStatement(catchBody, sink, isStrict, inBlockScope: true);
+                        }
+
+                        if (tryStatement.Finally is { } finallyBlock)
+                        {
+                            CollectFromStatement(finallyBlock, sink, isStrict, inBlockScope: true);
+                        }
+
+                        return;
                     default:
                         return;
                 }

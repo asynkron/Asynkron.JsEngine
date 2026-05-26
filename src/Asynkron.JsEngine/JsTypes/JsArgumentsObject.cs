@@ -19,7 +19,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private readonly bool _isStrict;
     private readonly bool _mappedEnabled;
     private readonly Symbol?[] _mappedParameters;
-    private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors;
     private readonly RealmState _realm;
     private readonly JsValue[] _values;
     private bool _suppressObserver;
@@ -38,6 +38,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _mappedParameters = mappedParameters;
         _mappedEnabled = mappedEnabled;
         _isStrict = isStrict;
+        var initialDescriptorCapacity = values.Count + 4;
+        _ownDescriptors = new Dictionary<string, PropertyDescriptor>(initialDescriptorCapacity, StringComparer.Ordinal);
+        _backing.EnsureDescriptorCapacity(initialDescriptorCapacity);
         _values = new JsValue[values.Count];
         for (var i = 0; i < values.Count; i++)
         {

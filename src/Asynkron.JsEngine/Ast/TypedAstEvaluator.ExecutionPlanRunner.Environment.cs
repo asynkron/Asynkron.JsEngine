@@ -39,31 +39,35 @@ public static partial class TypedAstEvaluator
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
             var needsArgumentsBinding = !_function.IsArrow && NeedsArgumentsBinding(_function);
-            var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
-            var blockedFunctionVarNames = bodyLexicalNames.Count == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
-            foreach (var parameterName in parameterNames)
+            HashSet<Symbol>? blockedFunctionVarNames = null;
+            if (!_isStrict)
             {
-                blockedFunctionVarNames.Add(parameterName);
-            }
-
-            // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting
-            foreach (var cn in catchParameterNamesRaw)
-            {
-                if (!simpleCatchParameterNames.Contains(cn))
+                var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
+                blockedFunctionVarNames = bodyLexicalNames.Count == 0
+                    ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                    : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                foreach (var parameterName in parameterNames)
                 {
-                    blockedFunctionVarNames.Add(cn);
+                    blockedFunctionVarNames.Add(parameterName);
                 }
-            }
 
-            // Annex B legacy var-style hoisting is skipped when the function has
-            // parameter expressions. Block all AnnexB block-function names.
-            if (hasParameterExpressions)
-            {
-                foreach (var blockedName in CollectAnnexBBlockFunctionNames(_function.Body))
+                // B.3.5: non-simple catch parameters (destructured) block AnnexB hoisting.
+                foreach (var cn in catchParameterNamesRaw)
                 {
-                    blockedFunctionVarNames.Add(blockedName);
+                    if (!simpleCatchParameterNames.Contains(cn))
+                    {
+                        blockedFunctionVarNames.Add(cn);
+                    }
+                }
+
+                // Annex B legacy var-style hoisting is skipped when the function has
+                // parameter expressions. Block all AnnexB block-function names.
+                if (hasParameterExpressions)
+                {
+                    foreach (var blockedName in CollectAnnexBBlockFunctionNames(_function.Body))
+                    {
+                        blockedFunctionVarNames.Add(blockedName);
+                    }
                 }
             }
 
@@ -76,7 +80,7 @@ public static partial class TypedAstEvaluator
             var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
             if (needsArgumentsObject)
             {
-                blockedFunctionVarNames.Add(Symbol.Arguments);
+                blockedFunctionVarNames?.Add(Symbol.Arguments);
             }
 
             JsEnvironment parameterEnvironment;
@@ -123,7 +127,7 @@ public static partial class TypedAstEvaluator
 
             // Store names that block Annex B.3.3 function-scope hoisting so runtime
             // HandleFunctionDeclaration can skip the var-binding update for these names.
-            if (blockedFunctionVarNames.Count > 0 && !_isStrict)
+            if (blockedFunctionVarNames is { Count: > 0 })
             {
                 varEnvironment.SetAnnexBBlockedNames(blockedFunctionVarNames);
             }
@@ -321,11 +325,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             SyncParameterSlotsToPlan(executionEnvironment, parameterEnvironment, parameterNames);
 
-            simpleCatchParameterNames.Clear();
-            _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
-                lexicalNames: lexicalNames,
-                catchParameterNames: catchParameterNames,
-                simpleCatchParameterNames: simpleCatchParameterNames);
+            if (((IAstCacheable<HoistableDeclarationsPlan>)_function.Body).GetOrCreateCache().HasHoistableDeclarations)
+            {
+                simpleCatchParameterNames.Clear();
+                _function.Body.HoistVarDeclarations(executionEnvironment, generatorContext,
+                    lexicalNames: lexicalNames,
+                    catchParameterNames: catchParameterNames,
+                    simpleCatchParameterNames: simpleCatchParameterNames);
+            }
 
             if (generatorContext.IsThrow)
             {

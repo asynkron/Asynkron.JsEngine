@@ -807,6 +807,17 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Arrow_DefaultParameterDirectEvalRejectsVarArgumentsWhenLaterParameterIsArguments()
+    {
+        await using var engine = CreateEngine();
+
+        await Assert.ThrowsAsync<ThrowSignal>(() => engine.Evaluate(@"
+            const f = (p = eval(""var arguments = 'param'""), arguments) => {};
+            f();
+        "));
+    }
+
+    [Fact]
     public async Task Function_IIFE()
     {
         await using var engine = CreateEngine();

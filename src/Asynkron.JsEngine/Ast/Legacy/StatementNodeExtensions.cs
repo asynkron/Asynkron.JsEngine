@@ -1391,6 +1391,13 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                            // Parameter-expression functions can mark AnnexB names as blocked up front.
+                            // When blocked, skip the hoist-time undefined var binding as well.
+                            if (environment.IsAnnexBBlocked(functionDeclaration.Name))
+                            {
+                                break;
+                            }
+
                             // Per Annex B.3.3.2, in non-strict mode, function declarations in if/while/etc
                             // branches should create a var binding initialized to undefined. The function
                             // value will be assigned when the FunctionDeclaration is evaluated at runtime.

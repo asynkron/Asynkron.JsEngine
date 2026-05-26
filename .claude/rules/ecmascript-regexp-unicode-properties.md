@@ -53,6 +53,13 @@ generator and prove the generated resolver behavior through focused tests.
    handling for `Other_ID_Start` / `Other_ID_Continue` code points. Prove this
    boundary with focused identifier tests and the issue-supplied
    `Name=Identifiers` Test262 method group before widening.
+11. For punctuation `General_Category` property-escape crash reports, prove the
+   exact generated Test262 category filters first. If `Close_Punctuation` and
+   `Connector_Punctuation` are already green on current main, keep the closeout
+   to focused internal regression coverage that exercises both anchored
+   full-string and unanchored membership shapes with positive and negative
+   samples. Do not edit generated Unicode tables, widen runtime matchers, or
+   change Test262 harness policy without a current failing row.
 
 ## Why
 
@@ -105,3 +112,10 @@ one-or-more full-string checks. Future agents should keep the single-codepoint
 form runtime-owned but prove that it consumes exactly one Unicode code point,
 including astral code points represented by surrogate pairs, instead of falling
 back to expanded .NET regex patterns or accidentally accepting repeated matches.
+
+Issue #2005 / PR #2016 repeated the generated property-escape crash-list shape
+for punctuation general categories. The focused current-main Test262 filters
+for `Close_Punctuation` and `Connector_Punctuation` were green, so the durable
+artifact was an internal regression covering anchored and unanchored
+punctuation category behavior rather than a Unicode data, `JsRegExp`, or
+harness patch.

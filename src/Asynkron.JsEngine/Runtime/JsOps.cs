@@ -2146,7 +2146,7 @@ internal static class JsOps
                 jsArray.DefineProperty(propertyName,
                     new PropertyDescriptor
                     {
-                        Value = value,
+                        JsValue = value,
                         Writable = true,
                         Enumerable = true,
                         Configurable = true
@@ -2204,7 +2204,7 @@ internal static class JsOps
                     jsArray.DefineProperty(propertyName,
                         new PropertyDescriptor
                         {
-                            Value = value,
+                            JsValue = value,
                             Writable = true,
                             Enumerable = true,
                             Configurable = true

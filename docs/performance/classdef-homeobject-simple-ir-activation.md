@@ -76,3 +76,32 @@ Results:
   constructor and `super()` dispatch rather than widening this slice.
 - The canonical internal quality gate remains `rtk make quality` and is
   delegated to the orchestrator-run verification stage.
+
+## Follow-through (Issue #2183)
+
+Date: 2026-05-26
+
+### Narrow change
+
+`ExecutionPlanRunner.ExecuteProgramSuperConstruct` now treats the
+`Symbol.ThisInitialized` double-super guard as a boolean fast path when the
+binding is already a boolean `JsValue`:
+
+- Boolean values use `AsBoolean()` directly.
+- Non-boolean values preserve the existing `JsOps.ToBoolean(...)` behavior.
+
+This keeps semantics unchanged while trimming one coercion step from the
+`super()` constructor path.
+
+### Evidence
+
+Baseline and final signals were both captured with:
+
+```bash
+rtk ./tools/profile classdef --cpu --calltree-depth 40 --calltree-width 40
+```
+
+Both runs continued to show constructor and `super()` dispatch as dominant
+sampled work (`ExecuteProgramSuperConstruct` -> `ExecuteProgramConstructNoSpread`
+-> `ReflectHelper.Construct`). This slice is intentionally bounded and does not
+claim broad classdef parity or end-to-end constructor wins.

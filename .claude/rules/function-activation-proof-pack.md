@@ -85,11 +85,16 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     environment, or sync trampoline frame setup, require the ordinary simple IR
     activation eligibility plus a plan-proven return shape. A no-argument
     literal-return shortcut may return before activation setup only when
-    `ExecutionPlan` proves the one-literal return and the invoker guard rejects
+    `ExecutionPlan` proves the one-literal return. A no-argument
+    parameter-return shortcut may return `undefined` before activation setup
+    only when `ExecutionPlan` proves the expression is exactly one
+    parameter-slot load and the call supplies zero arguments; supplied
+    arguments, locals, globals, `arguments`, and multi-op expressions must stay
+    on the ordinary path. Both shapes must keep the invoker guard rejecting
     constructor/class, async/generator, `arguments`, captured activation,
-    dynamic scope, private-name, `super`, home-object, and instance-field
-    cases. Pair the positive literal fast-path proof with negative
-    activation-observable coverage.
+    dynamic scope, private-name, `super`, home-object, and instance-field cases.
+    Pair the positive direct-return proof with negative activation-observable
+    coverage.
 
 ## Why
 
@@ -241,6 +246,18 @@ shortcut behind the existing simple IR activation guard and plan-owned
 `SimpleReturnLiteral` metadata, then proved the positive literal path and the
 activation semantics pack. Future direct-return work should preserve that
 plan-proven boundary instead of weakening activation-observable fallbacks.
+
+Related ADR:
+`docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
+
+Issue #2040 / PR #2047 widened that same boundary by exactly one shape:
+`return a;` may use the pre-context direct-return path only when the lowered
+plan proves a single parameter-slot load and the call has zero arguments. The
+negative proof matters as much as the positive one because any supplied
+argument, local/global read, `arguments` access, or broader expression would
+make skipped activation setup observable. Future direct-return widenings should
+extend `ExecutionPlan` metadata and `ActivationSemanticsProofPackTests` together
+instead of adding invoker-local source or AST predicates.
 
 Related ADR:
 `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.

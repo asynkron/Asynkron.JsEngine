@@ -111,14 +111,17 @@ decode bridge are explicit.
     descriptor objects into compact payloads or count declaration support from
     source-plan histograms alone.
 19. Environment-transition families may be narrowed one member at a time only
-    after the supported member has an explicit table-owned payload shape. For
-    `PushEnvironment`, treat `CompactPushEnvironmentPayload` and the compact
-    owner reference table as a diagnostic checkpoint for scope/slot metadata,
-    not as runtime compact-storage readiness for `PopEnvironment`,
-    `BreakableEnter`, or environment transitions as a whole. Keep
-    `SourceBlock` as an analysis-only payload that must be retired before
-    published plans, and keep `ExecutionPlanRunner` record-backed until a
-    separate runtime-routing slice proves the full environment operand model.
+    after the supported member has an explicit payload shape and record-level
+    parity proof. For `PushEnvironment`, treat
+    `CompactPushEnvironmentPayload` and the compact owner reference table as a
+    diagnostic checkpoint for scope/slot metadata. For `PopEnvironment`, encode
+    only the scalar companion payload (`ScopeId`, `AllowPooling`, and `Next`)
+    and prove semantic decode parity before moving it out of the deferred
+    bucket. Neither checkpoint is runtime compact-storage readiness for
+    `BreakableEnter` or environment transitions as a whole. Keep `SourceBlock`
+    as an analysis-only payload that must be retired before published plans,
+    and keep `ExecutionPlanRunner` record-backed until a separate
+    runtime-routing slice proves the full environment operand model.
 20. Keep broad runtime routing and record-backed instruction removal behind
     deferred-payload normalization while the live statement-storage profile
     still reports unsupported families. A migration report or diagnostic count
@@ -295,8 +298,18 @@ lesson is that collection-heavy scope metadata can become a measured diagnostic
 payload only when the owner boundary explicitly carries every semantic field
 and round-trips the `PushEnvironmentInstruction` record. This remains a
 checkpoint, not a runtime migration: `SourceBlock` retirement stays governed by
-the plan-publication invariant, `PopEnvironment` and `BreakableEnter` remain
-deferred, and the runner continues to execute the record-backed semantic view.
+the plan-publication invariant, `BreakableEnter` remains deferred, and the
+runner continues to execute the record-backed semantic view.
+
+Issue #2050 / PR #2059 promoted `PopEnvironment` as the scalar companion member
+of the environment-transition diagnostic family. The lesson is that a
+previously deferred family member can be supported without normalizing the
+whole family when its payload is fully represented by `ScopeId`, `AllowPooling`,
+and `Next`, the codec round-trips those fields, and the unsupported-family
+histogram visibly drops. This remains a diagnostics checkpoint only:
+`BreakableEnter` and broad runtime environment-transition storage still need
+their own operand model and proof before `ExecutionPlanRunner` stops consuming
+record-backed `ExecutionInstruction` views.
 
 Issue
 `planitem-planmanual1779454308935867000-push-bytecode-from-diagnostics-toward-runt-cfc3b74783`

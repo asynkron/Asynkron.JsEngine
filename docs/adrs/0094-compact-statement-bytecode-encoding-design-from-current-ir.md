@@ -114,7 +114,7 @@ storage readiness. For current support decisions, use live
 | Slot fast paths | `IncrementSlot`, `AssignmentSlot`, `LogicalCompoundAssignmentSlot`, `CompoundAssignmentSlot` | Conditional / needs normalization | Mostly scalar/symbol operands plus optional `ExpressionProgram`/`AwaitedProgram`; encode is safe once optional expression fields are normalized to IDs. |
 | Declarations with descriptor payloads | `FunctionDeclaration`, `ClassDeclaration` | Defer | Carry descriptor/program-cache payloads that are object-heavy and should be table-normalized before compact storage migration. |
 | Variable declarations | `SimpleVariableDeclaration`, `BindingVariableDeclaration` | Conditional / needs normalization | `SimpleVariableDeclaration` is close (symbol + optional expression), but `BindingVariableDeclaration` carries `BindingTargetProgram` object payload; keep together until binding payload encoding is finalized. |
-| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Conditional / needs normalization | `PushEnvironment` now uses normalized diagnostics payload ownership (`EnvironmentTransitionNormalized` + `CompactPushEnvironmentPayload` reference-table seam), but `PopEnvironment`/`BreakableEnter` remain deferred and the family still needs full runtime compact-storage normalization. |
+| Environment transitions | `PushEnvironment`, `PopEnvironment`, `BreakableEnter` | Conditional / needs normalization | `PushEnvironment` now uses normalized diagnostics payload ownership (`EnvironmentTransitionNormalized` + `CompactPushEnvironmentPayload` reference-table seam), and `PopEnvironment` now has scalar diagnostic encoding for `ScopeId`, `AllowPooling`, and `Next`. `BreakableEnter` remains deferred and the family still needs full runtime compact-storage normalization. |
 | Yield/resume | `Yield`, `YieldStar`, `StoreResumeValue` | Defer | Suspension/resume semantics rely on mixed payloads (`AwaitStateKey`, optional awaited/iterable programs, state/result symbols); avoid mixing storage migration with semantic seam work. |
 | Try/catch/finally | `EnterTry`, `EnterCatch`, `LeaveTry`, `EndFinally` | Defer | Handler/finally range metadata plus binding/catch-program payloads are still semantically dense; keep deferred until unwind/catch payload normalization is explicit. |
 | Iteration drivers (`for..of`) | `IteratorInit`, `IteratorMoveNext`, `IteratorClose` | Defer | Iterator state payload includes TDZ bindings, optional awaited/source references, and iterator driver semantics; still object-heavy. |
@@ -559,6 +559,31 @@ but it does not switch runtime execution to compact statement storage.
 `ExecutionPlanRunner` remains record-backed; this slice only proves that
 `PushEnvironment` can round-trip through the compact diagnostics boundary with
 explicit payload ownership rather than embedded object payloads.
+
+### 7.13 Issue #2050 PopEnvironment diagnostic checkpoint
+
+Issue #2050 / PR #2059 promoted `PopEnvironmentInstruction` into compact
+statement diagnostic storage while keeping runtime execution record-backed. The
+accepted slice added `EncodedStatementOpcode.PopEnvironment`, encoded `Next`,
+`ScopeId`, and `AllowPooling`, and reclassified `PopEnvironment` under
+`EnvironmentTransitionNormalized`.
+
+The before/after statement-storage proof was intentionally diagnostic-only:
+`forloop --statement-instruction-storage` moved from `supported=12,
+unsupported=6` with `PopEnvironment: 2` in the unsupported histogram to
+`supported=14, unsupported=4` with `PopEnvironment` and the
+`declaration-and-scope` unsupported-family bucket absent. Focused tests proved
+record-level round-trip parity for `ScopeId`, `AllowPooling`, and `Next`, and
+updated the supported/unsupported drift gates.
+
+This checkpoint does not complete the environment-transition family.
+`PushEnvironment` still owns collection-heavy scope metadata through
+`CompactPushEnvironmentPayload`, `PopEnvironment` is a scalar companion, and
+`BreakableEnter` remains deferred until its own operand model is explicit. The
+runtime contract is unchanged: `ExecutionPlanRunner` still consumes the
+published `ExecutionInstruction` semantic view, and compact statement storage
+remains a diagnostics/planning surface until a separate runtime-routing slice
+proves full owner/decode/runner parity.
 
 ### 8. Staged migration
 

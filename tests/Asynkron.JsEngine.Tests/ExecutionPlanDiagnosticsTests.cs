@@ -47,6 +47,14 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 return a + b;
             }
 
+            function blend(a, b, c) {
+                return (a + b) ^ c;
+            }
+
+            function moduloChain(a, b, c) {
+                return (a + b) % c;
+            }
+
             function addViaLocal(a, b) {
                 var c = a + b;
                 return c;
@@ -77,6 +85,8 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             """);
 
         var add = AssertFunctionPlanBuilds(pipeline.Analyzed, "add");
+        var blend = AssertFunctionPlanBuilds(pipeline.Analyzed, "blend");
+        var moduloChain = AssertFunctionPlanBuilds(pipeline.Analyzed, "moduloChain");
         var addViaLocal = AssertFunctionPlanBuilds(pipeline.Analyzed, "addViaLocal");
         var literal = AssertFunctionPlanBuilds(pipeline.Analyzed, "literal");
         var firstParameter = AssertFunctionPlanBuilds(pipeline.Analyzed, "firstParameter");
@@ -89,6 +99,12 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         Assert.Equal(BinaryOperator.Add, add.SimpleReturnParameterBinary?.Operator);
         Assert.Equal(0, add.SimpleReturnParameterBinary?.LeftParameterIndex);
         Assert.Equal(1, add.SimpleReturnParameterBinary?.RightParameterIndex);
+        Assert.Equal(BinaryOperator.Add, blend.SimpleReturnParameterBinaryChain?.FirstOperator);
+        Assert.Equal(0, blend.SimpleReturnParameterBinaryChain?.LeftParameterIndex);
+        Assert.Equal(1, blend.SimpleReturnParameterBinaryChain?.RightParameterIndex);
+        Assert.Equal(BinaryOperator.BitwiseXor, blend.SimpleReturnParameterBinaryChain?.SecondOperator);
+        Assert.Equal(2, blend.SimpleReturnParameterBinaryChain?.ThirdParameterIndex);
+        Assert.Null(moduloChain.SimpleReturnParameterBinaryChain);
         Assert.Equal(1d, literal.SimpleReturnLiteral?.Value.NumberValue);
         Assert.Equal(0, firstParameter.SimpleReturnParameter?.ParameterIndex);
         Assert.Equal(IrCallShape.None, addViaLocal.IrCallShape);

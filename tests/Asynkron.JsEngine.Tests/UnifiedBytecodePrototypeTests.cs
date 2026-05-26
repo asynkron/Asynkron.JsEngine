@@ -82,6 +82,52 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_MultipleDeclarationsAndLiteral_ProducesLinearProgram()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function linearPack(x, y) {
+                var a = x + y;
+                var b = a * 2;
+                return b;
+            }
+            """,
+            "linearPack");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadLiteral);
+        Assert.Equal(1, program.LiteralConstants.Length);
+        Assert.Equal(2d, program.LiteralConstants[0].AsDouble());
+    }
+
+    [Theory]
+    [InlineData("return x + y;", 5d)]
+    [InlineData("return x - y;", -1d)]
+    [InlineData("return x * y;", 6d)]
+    [InlineData("return x / y;", 2d / 3d)]
+    [InlineData("return x % y;", 2d)]
+    public void Execute_SupportedBinaryOperators_ReturnExpectedValues(string returnStatement, double expected)
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan($$"""
+            function op(x, y) {
+                {{returnStatement}}
+            }
+            """,
+            "op");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        slots[program.Instructions[0].Operand] = JsValue.FromDouble(2);
+        slots[program.Instructions[1].Operand] = JsValue.FromDouble(3);
+
+        var value = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        Assert.Equal(expected, value.AsDouble(), 12);
+    }
+
+    [Fact]
     public void TryCompile_NonLinearPlan_Declines()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
@@ -94,6 +140,23 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             }
             """,
             "addOrSub");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.NotEmpty(reason);
+    }
+
+    [Fact]
+    public void TryCompile_AssignmentStatement_Declines()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function assignThenReturn(a, b) {
+                let c = a;
+                c = b;
+                return c;
+            }
+            """,
+            "assignThenReturn");
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
         Assert.False(result);

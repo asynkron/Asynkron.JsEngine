@@ -1,5 +1,6 @@
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Runtime;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
@@ -18,6 +19,10 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = slots[instruction.Operand];
                     break;
 
+                case UnifiedBytecodeOpCode.LoadLiteral:
+                    stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
                     break;
@@ -29,6 +34,10 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = op switch
                     {
                         BinaryOperator.Add => JsValue.FromDouble(left.AsDouble() + right.AsDouble()),
+                        BinaryOperator.Subtract => JsValue.FromDouble(left.AsDouble() - right.AsDouble()),
+                        BinaryOperator.Multiply => JsValue.FromDouble(left.AsDouble() * right.AsDouble()),
+                        BinaryOperator.Divide => JsValue.FromDouble(left.AsDouble() / right.AsDouble()),
+                        BinaryOperator.Modulo => JsValue.FromDouble(JsOps.MathMod(left.AsDouble(), right.AsDouble())),
                         _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
                     };
                     break;

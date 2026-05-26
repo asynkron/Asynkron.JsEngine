@@ -14,12 +14,9 @@ public sealed partial class ArrayBufferConstructor(IJsObjectLike prototype, Real
 {
     private HostFunction? _constructor;
 
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException("ArrayBuffer constructor not initialized");
-
     protected override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        var target = _constructor ?? ConstructFallback;
+        var target = _constructor ?? throw new InvalidOperationException("ArrayBuffer constructor not initialized");
         return JsValue.FromObjectUnsafe(ConstructBuffer(args, target));
     }
 

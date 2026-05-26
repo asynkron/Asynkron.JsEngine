@@ -31,6 +31,14 @@ feature fix was otherwise ready. The quality run failed while building
 `DOTNET_BUILD_STABILITY_ARGS ?= /m:1 /nr:false` to `build-internal` so quality
 builds run single-node and without MSBuild node reuse.
 
+Issue #2084 / PR #2127 exposed a later test-host stability boundary after the
+StringOps implementation was otherwise ready. The canonical gate aborted during
+the `dotnet test` phase through the blame collector's inactivity hang timeout
+(`TestTimeout="60000"`), while focused internal tests completed successfully
+when rerun. The accepted repair raised the blame hang timeout in
+`test.runsettings` to `300000` ms so long-silent stretches produce useful dump
+behavior without falsely aborting the gate as a product-code failure.
+
 ## Decision
 
 Keep `make quality` as an explicit two-step contract:
@@ -52,6 +60,11 @@ MSBuild and disables node reuse. Callers may override the variable explicitly
 when doing local experiments, but the default gate should not re-enable parallel
 MSBuild nodes without a current proof under the same quality-run environment.
 
+Keep the test-host blame collector timeout long enough for the canonical
+quality gate's known silent stretches. Do not lower
+`CollectDumpOnTestSessionHang TestTimeout` below `300000` ms without a current
+quality-window proof that the shorter timeout no longer causes false aborts.
+
 ## Consequences
 
 - Future Makefile edits must preserve the build-before-no-build relationship in
@@ -61,6 +74,9 @@ MSBuild nodes without a current proof under the same quality-run environment.
 - Makefile commands should route through configurable tool variables such as
   `DOTNET ?= dotnet` and `GIT ?= git` rather than embedding `rtk` or another
   local agent wrapper in the repository contract.
+- `test.runsettings` is part of the quality-gate reliability contract. Its
+  blame collector should catch genuine hangs while avoiding the prior 60-second
+  inactivity false positive.
 - `test-internal` remains safe as a standalone local target because it still
   builds before testing.
 - Build-guide and pre-PR guidance must describe the exception so future agents

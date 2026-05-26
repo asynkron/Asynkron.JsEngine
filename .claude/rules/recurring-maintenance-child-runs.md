@@ -93,6 +93,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `.claude/rules/adr-allocation.md`, which is the allocator authority:
   Faktorial learn or knowledge-artifact work must reserve IDs through the
   runtime allocator, not by guessing from a directory scan.
+- When the slice does not create an ADR, skip the allocator call entirely. If
+  an ADR is required but `faktorial-api adr-next` is unavailable, record that
+  environment limitation in the evidence and follow current runtime allocator
+  guidance instead of widening into `gh` auth workarounds or host-daemon reads.
 - For persistent ADR/rule compaction children, verify overlap against the
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
@@ -205,6 +209,15 @@ prevention guidance to `agents/how-to-build-and-test.md` while leaving the
 actual duplicate cleanup and ADR ID allocation policy to the dedicated ADR
 allocation rule. This keeps the maintenance child small and prevents future
 learn-stage agents from treating a filesystem scan as the allocator.
+
+Issue #1973 / PR #1975 closed the next ADR-allocation edge case in that
+operational checklist. The delivery clarified that no allocator call is needed
+when a slice does not create an ADR, and that an unavailable
+`faktorial-api adr-next` helper should be recorded as an environment limitation
+only when an ADR is actually required. Without this rule, recurring children can
+widen a docs-only slice into source-host credential work or risky host-daemon
+reads even though the durable policy already keeps runtime allocation as the
+source of truth.
 
 Issue #1240 / PR #1253 clarified that the issue update itself needs a stable
 evidence shape. Without explicit `Baseline signal`, `Final signal`, `Slice

@@ -395,6 +395,24 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Replace_GlobalIgnoreCasePlainNoCapture_UpdatesFinalStatics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let regex = /[aeiou]/gi;
+            let replaced = "Hello".replace(regex, "*");
+            [
+                replaced,
+                regex.lastIndex,
+                RegExp.lastMatch,
+                RegExp.leftContext,
+                RegExp.rightContext
+            ].join("|");
+        """);
+        Assert.Equal("H*ll*|0|o|Hell|", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_Replace_GlobalCharacterClass_HonorsOwnExecOverride()
     {
         await using var engine = CreateEngine();

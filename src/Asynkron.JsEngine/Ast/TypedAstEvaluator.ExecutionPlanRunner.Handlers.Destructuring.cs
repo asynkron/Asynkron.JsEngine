@@ -238,7 +238,14 @@ public static partial class TypedAstEvaluator
             // Bind value to target (skip for holes where TargetSymbol is null)
             if (instruction.TargetSymbol is not null)
             {
-                BindDestructuringValue(environment, instruction.TargetSymbol, value, instruction.VarKind, context);
+                BindDestructuringValue(
+                    runner,
+                    environment,
+                    instruction.TargetSymbol,
+                    instruction.TargetSlotIndex,
+                    value,
+                    instruction.VarKind,
+                    context);
                 if (context.ShouldStopEvaluation)
                 {
                     var thrown = context.FlowValue;
@@ -357,8 +364,14 @@ public static partial class TypedAstEvaluator
             }
 
             // Bind rest array to target
-            BindDestructuringValue(environment, instruction.RestSymbol,
-                JsValue.FromObjectUnsafe(restArray), instruction.VarKind, context);
+            BindDestructuringValue(
+                runner,
+                environment,
+                instruction.RestSymbol,
+                instruction.RestSlotIndex,
+                JsValue.FromObjectUnsafe(restArray),
+                instruction.VarKind,
+                context);
 
             runner._programCounter = instruction.Next;
             returnValue = default;
@@ -397,12 +410,25 @@ public static partial class TypedAstEvaluator
         /// Bind a destructured value to a symbol based on variable kind.
         /// </summary>
         private static void BindDestructuringValue(
+            ExecutionPlanRunner runner,
             JsEnvironment environment,
             Symbol targetSymbol,
+            int targetSlotIndex,
             JsValue value,
             VariableKind varKind,
             EvaluationContext context)
         {
+            if (TryBindDestructuringValueBySlot(
+                    runner,
+                    environment,
+                    targetSymbol,
+                    targetSlotIndex,
+                    value,
+                    varKind))
+            {
+                return;
+            }
+
             switch (varKind)
             {
                 case VariableKind.Var:
@@ -426,6 +452,48 @@ public static partial class TypedAstEvaluator
                 default:
                     throw new InvalidOperationException($"Unsupported variable kind: {varKind}");
             }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static bool TryBindDestructuringValueBySlot(
+            ExecutionPlanRunner runner,
+            JsEnvironment environment,
+            Symbol targetSymbol,
+            int targetSlotIndex,
+            JsValue value,
+            VariableKind varKind)
+        {
+            if (targetSlotIndex < 0 ||
+                !environment.HasSlots ||
+                varKind is not (VariableKind.Let or VariableKind.Const))
+            {
+                return false;
+            }
+
+            var actualSlotIndex = runner.GetActualSlotIndex(environment, targetSlotIndex);
+            if ((uint)actualSlotIndex >= (uint)environment.SlotCount)
+            {
+                return false;
+            }
+
+            ref var slot = ref environment.GetSlotByIndex(actualSlotIndex);
+            if (!ReferenceEquals(slot.Name, targetSymbol) ||
+                !slot.IsLexical ||
+                !slot.IsUninitialized ||
+                slot.IsGlobalConstant ||
+                slot.HasSpecialBinding)
+            {
+                return false;
+            }
+
+            slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+            if (varKind == VariableKind.Const)
+            {
+                slot.Flags |= SlotFlags.Const;
+            }
+
+            environment.WriteSlotDirect(actualSlotIndex, value);
+            return true;
         }
     }
 }

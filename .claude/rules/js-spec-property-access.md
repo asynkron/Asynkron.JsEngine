@@ -76,6 +76,33 @@ JavaScript throw reaches the caller, and the active iterator's `return()` hook
 runs exactly once. Do not accept a regression that checks only the close side
 effect or only the thrown value.
 
+## Destructuring Slot-Proven Fast Paths
+
+When optimizing destructuring binding targets with direct slot writes, treat
+slot metadata as a provenance proof, not as permission to skip binding
+semantics.
+
+- stamp identifier binding target programs and simple array destructuring
+  element/rest targets only from analyzer/lowering-owned scope metadata;
+- rewrite catch binding target programs only after the catch scope is visible on
+  the rewriter scope stack, so catch targets cannot stamp against an outer
+  lexical binding;
+- at runtime, revalidate the flat slot, scope id, and slot name before writing;
+- in assignment mode, fall back for disabled identifier cache, `with` chains,
+  immutable bindings, global constants, special bindings, or any target whose
+  generic assignment path owns behavior;
+- in declaration mode, write directly only for uninitialized lexical let/const
+  slots that are non-special. Var binding, unsupported slot state, and
+  unstamped targets must stay on the generic binding helpers.
+
+WHY: issue #2054 / PR #2070 optimized slot-proven destructuring binding targets,
+but review/build-back repairs caught that catch binding programs were first
+stamped before their catch scope was on the rewriter stack, and that assignment
+direct-slot writes initially skipped immutable named function expression
+self-bindings and global constant semantics. Future changes on this surface
+must prove both the positive metadata path and the negative semantic fallback
+path.
+
 ## Super Property Reference Order
 
 For expression bytecode that touches `super.property` or `super[expr]`, keep the
@@ -283,6 +310,15 @@ durable lesson is that catch-binding throws replace the caught value while still
 needing the active catch/try frame to unwind through ordinary IR abrupt
 completion, including IteratorClose, before an outer catch observes the
 replacement error.
+
+Issue #2054 / PR #2070 added direct slot writes for analyzer/lowering-proven
+destructuring binding targets. The build-back repairs showed two separate
+semantic edges: catch target programs must be stamped with the catch scope
+active, and assignment-mode direct slot writes must fall back for immutable
+named function expression self-bindings and global constants. The durable
+lesson is that destructuring slot metadata is a provenance optimization only;
+the runner must still revalidate runtime slot identity and preserve every
+generic binding semantic not explicitly proven safe for the fast path.
 
 Issue #778 / PR #970 fixed `delete super[expr]` ordering in expression
 bytecode. Before `super()` initializes a derived constructor's `this`, the

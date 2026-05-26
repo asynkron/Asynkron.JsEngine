@@ -116,8 +116,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - If review sends a recurring-child build back only because an acceptance
   criterion lacks evidence fields, make the re-entry explicitly evidence-only:
   restate the baseline/final signal pair, `git diff --check`, changed-file
-  scope, and no-unrelated-change note in the handoff instead of adding a new
-  source/docs tweak to satisfy an already-delivered slice.
+  scope, sibling/no-recurrence evidence, and no-unrelated-change note in the
+  handoff instead of adding a new source/docs tweak to satisfy an
+  already-delivered slice.
 - Keep recurring-child progress updates plain and bounded while work is in
   flight. Reserve machine-readable structured schema output for the actual
   final stage result only; avoid emitting final-response-shaped interim status
@@ -381,6 +382,15 @@ landed, but AC-4 needed an explicit baseline/final signal pair, `git diff
 build re-entry was an evidence-only handoff, not another roadmap edit. Future
 AC evidence re-entries should close the missing proof fields directly and keep
 the delivered artifact lifecycle intact.
+
+Issue `autrun-disjoqeep8co-51ba6a407f` / PR #2085 repeated the same pattern in
+a recurring code-reduction child. The source change was already the intended
+one-file deletion of an obsolete `JsEnvironmentPool.Return(RentedEnvironment?,
+ILogger?)` overload, but review sent AC-6 back until the handoff explicitly
+recorded the sibling check, `git diff --check`, changed-file scope, and
+no-recurrence/no-unrelated-scope note. Future code-reduction re-entries should
+repair the evidence fields only and leave the merged delivery branch lifecycle
+intact.
 
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,

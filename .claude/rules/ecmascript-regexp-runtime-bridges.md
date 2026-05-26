@@ -38,7 +38,11 @@ model explicitly.
    property or `RegExp.prototype.exec` has changed from the captured default.
    Preserve `lastIndex`, legacy RegExp statics, match indexes, and prefix/gap
    replacement assembly. Whole-input early returns are allowed only when the
-   first match starts at index `0`.
+   first match starts at index `0`. Bounds-only replace matching is allowed for
+   ordinary no-capture plain-string paths only when captures, `/d` indices,
+   `$` substitutions, replacement callbacks, custom `exec`, and mutated flag
+   accessors have all been ruled out; update legacy statics from the final
+   successful match only when no user code can run between accepted matches.
 10. For shared .NET `Regex` instance caching, cache only after the ECMAScript
     pattern has been normalized into the runtime bridge shape, key by the capped
     normalized pattern and `RegexOptions`, and keep the cache bounded. The cache
@@ -92,6 +96,15 @@ prefix rather than collapse to a whole-input replacement. Future replace
 shortcuts should keep the same guard shape and add regression coverage for
 custom `exec`, prefix preservation, and metadata updates.
 
+Issue #2078 / PR #2092 reduced the `regex` benchmark allocation gap by changing
+the ordinary no-capture, plain-string `@@replace` path from per-match value
+materialization to bounds-only matching. The safe boundary is narrow: final
+legacy RegExp statics may be updated once from the last successful match only
+because the accepted path has no callbacks, substitutions, captures, indices,
+custom `exec`, or mutated accessors that could observe intermediate match
+metadata. Future replace allocation work should reuse that proof shape instead
+of moving callbacks or substitution processing onto a bounds-only path.
+
 Issue `autrun-dirl74ca7a0g-8d6fc2682c` / PR #0 added a bounded shared
 `Regex` instance cache for repeated Test262 matcher patterns. The cache is safe
 only because lookup happens after the same normalization and large-quantifier
@@ -108,5 +121,6 @@ actual insertion map drive both early return and output construction, so reset
 planning has one owned representation and code-reduction children do not leave
 parallel bookkeeping behind.
 
-Related ADR:
-`docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`.
+Related ADRs:
+- `docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`
+- `docs/adrs/0169-keep-regexp-no-capture-replace-bounds-only.md`

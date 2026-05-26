@@ -279,7 +279,7 @@ try {
             ["evalScript"] = new HostFunction(args => args.Count switch
             {
                 > 1 => throw new InvalidOperationException("only script parsing supported"),
-                > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(EvalScriptSync(engine, script)),
+                > 0 when args[0].IsString => JsValue.FromObjectUnsafe(EvalScriptSync(engine, args[0].AsString())),
                 _ => JsValue.Undefined,
             }),
 
@@ -294,8 +294,8 @@ try {
                 realmGlobal["evalScript"] = new HostFunction(args => args.Count switch
                 {
                     > 1 => throw new InvalidOperationException("only script parsing supported"),
-                    > 0 when args[0].ToObject() is string script => JsValue.FromObjectUnsafe(
-                        EvalScriptSync(realmEngine, script)),
+                    > 0 when args[0].IsString => JsValue.FromObjectUnsafe(
+                        EvalScriptSync(realmEngine, args[0].AsString())),
                     _ => JsValue.Undefined,
                 }, realmEngine.RealmState);
 

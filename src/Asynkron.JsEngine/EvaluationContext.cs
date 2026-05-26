@@ -62,6 +62,23 @@ public sealed class EvaluationContext(
     // Fast path for returns - avoids allocating ReturnCompletionSignal
     private JsValue _returnValue;
 
+    private TypedAstEvaluator.SyncFunctionInvoker? _legacyTailCallInvoker;
+    private IReadOnlyList<JsValue>? _legacyTailCallArguments;
+    private JsValue _legacyTailCallThisValue;
+    private JsValue _legacyTailCallNewTargetValue;
+
+    internal readonly struct LegacyTailCallRestartState(
+        TypedAstEvaluator.SyncFunctionInvoker? invoker,
+        IReadOnlyList<JsValue>? arguments,
+        JsValue thisValue,
+        JsValue newTargetValue)
+    {
+        internal TypedAstEvaluator.SyncFunctionInvoker? Invoker { get; } = invoker;
+        internal IReadOnlyList<JsValue>? Arguments { get; } = arguments;
+        internal JsValue ThisValue { get; } = thisValue;
+        internal JsValue NewTargetValue { get; } = newTargetValue;
+    }
+
     /// <summary>
     ///     Scratch slot for JsValue to avoid struct copies in hot paths.
     ///     Used by JsValue.FromDoubleRef when the value isn't in the cache.
@@ -555,6 +572,73 @@ public sealed class EvaluationContext(
         CurrentSignal = null;
     }
 
+    internal void SetLegacyTailCallRestart(
+        TypedAstEvaluator.SyncFunctionInvoker invoker,
+        IReadOnlyList<JsValue> arguments,
+        JsValue thisValue,
+        JsValue newTargetValue)
+    {
+        AssertOwnership(nameof(SetLegacyTailCallRestart));
+        _legacyTailCallInvoker = invoker;
+        _legacyTailCallArguments = arguments;
+        _legacyTailCallThisValue = thisValue;
+        _legacyTailCallNewTargetValue = newTargetValue;
+    }
+
+    internal bool TryConsumeLegacyTailCallRestart(
+        TypedAstEvaluator.SyncFunctionInvoker invoker,
+        out IReadOnlyList<JsValue> arguments,
+        out JsValue thisValue,
+        out JsValue newTargetValue)
+    {
+        AssertOwnership(nameof(TryConsumeLegacyTailCallRestart));
+        if (!ReferenceEquals(_legacyTailCallInvoker, invoker) ||
+            _legacyTailCallArguments is not { } pendingArguments)
+        {
+            arguments = [];
+            thisValue = JsValue.Undefined;
+            newTargetValue = JsValue.Undefined;
+            return false;
+        }
+
+        arguments = pendingArguments;
+        thisValue = _legacyTailCallThisValue;
+        newTargetValue = _legacyTailCallNewTargetValue;
+        _legacyTailCallInvoker = null;
+        _legacyTailCallArguments = null;
+        _legacyTailCallThisValue = JsValue.Undefined;
+        _legacyTailCallNewTargetValue = JsValue.Undefined;
+        return true;
+    }
+
+    internal LegacyTailCallRestartState SaveLegacyTailCallRestartState()
+    {
+        AssertOwnership(nameof(SaveLegacyTailCallRestartState));
+        return new LegacyTailCallRestartState(
+            _legacyTailCallInvoker,
+            _legacyTailCallArguments,
+            _legacyTailCallThisValue,
+            _legacyTailCallNewTargetValue);
+    }
+
+    internal void RestoreLegacyTailCallRestartState(in LegacyTailCallRestartState state)
+    {
+        AssertOwnership(nameof(RestoreLegacyTailCallRestartState));
+        _legacyTailCallInvoker = state.Invoker;
+        _legacyTailCallArguments = state.Arguments;
+        _legacyTailCallThisValue = state.ThisValue;
+        _legacyTailCallNewTargetValue = state.NewTargetValue;
+    }
+
+    internal void ClearLegacyTailCallRestart()
+    {
+        AssertOwnership(nameof(ClearLegacyTailCallRestart));
+        _legacyTailCallInvoker = null;
+        _legacyTailCallArguments = null;
+        _legacyTailCallThisValue = JsValue.Undefined;
+        _legacyTailCallNewTargetValue = JsValue.Undefined;
+    }
+
     /// <summary>
     ///     Saves the current completion state for later restoration (used by try-finally).
     /// </summary>
@@ -620,6 +704,7 @@ public sealed class EvaluationContext(
         IsStrictSource = false;
         IsReturn = false;
         _returnValue = default;
+        ClearLegacyTailCallRestart();
         CurrentSignal = null;
         LastYieldIndex = -1;
         LastYieldSourceStart = -1;

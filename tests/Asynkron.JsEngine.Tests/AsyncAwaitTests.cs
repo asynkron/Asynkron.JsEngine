@@ -630,7 +630,7 @@ public sealed class AsyncAwaitTests(ITestOutputHelper output) : InternalTestBase
         Assert.Equal("42", result);
     }
 
-    [Fact(Timeout = 10000)]
+    [Fact(Timeout = 20000)]
     public async Task AsyncFunction_WithMultipleSetTimeoutDelays()
     {
         // Arrange

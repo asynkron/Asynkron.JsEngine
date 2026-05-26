@@ -251,7 +251,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             // Define new.target for non-arrow functions so inner arrow functions can access it lexically
             if (!isArrowFunction)
             {
-                var newTargetValue = _newTarget.IsUndefined ? JsValue.Undefined : _newTarget;
+                var newTargetValue = _currentNewTarget.IsUndefined ? JsValue.Undefined : _currentNewTarget;
                 functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
                     blocksFunctionScopeOverride: true);
                 functionEnvironment.DefineJsValue(Symbol.ActiveFunction, JsValue.FromObjectUnsafe(_callable), true,

@@ -512,13 +512,7 @@ public sealed partial class StringPrototype
         if (separator.Length == 0)
         {
             var charCount = (int)Math.Min(value.Length, lim);
-            var chars = new string[charCount];
-            for (var i = 0; i < charCount; i++)
-            {
-                chars[i] = value[i].ToString();
-            }
-
-            return JsValue.FromJsArray(CreateArrayFromStrings(chars, Realm));
+            return JsValue.FromJsArray(CreateArrayFromStringCharacters(value, charCount, Realm));
         }
 
         var parts = value.Split([separator], StringSplitOptions.None);
@@ -1793,7 +1787,24 @@ public sealed partial class StringPrototype
 
     private static JsArray CreateArrayFromStrings(string[] strings, RealmState? realm)
     {
-        return new JsArray(strings.Select(static s => new JsValue(s)), realm);
+        var array = new JsArray(realm, strings.Length);
+        foreach (var item in strings)
+        {
+            array.Push(new JsValue(item));
+        }
+
+        return array;
+    }
+
+    private static JsArray CreateArrayFromStringCharacters(string value, int charCount, RealmState? realm)
+    {
+        var array = new JsArray(realm, charCount);
+        for (var i = 0; i < charCount; i++)
+        {
+            array.Push(new JsValue(value[i].ToString()));
+        }
+
+        return array;
     }
 
     [JsHostMethod("isWellFormed", Length = 0d)]

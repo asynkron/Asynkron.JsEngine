@@ -78,7 +78,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _isScriptMode;
         private readonly bool _isStrict;
         private readonly JsEnvironment? _lexicalThisEnvironment;
-        private readonly JsValue _newTarget;
+        private JsValue _currentNewTarget;
         private readonly ExecutionPlan? _plan;
         private readonly PrivateNameScope? _privateNameScope;
         private readonly RealmState _realmState;
@@ -99,6 +99,7 @@ public static partial class TypedAstEvaluator
         private bool _tailRestartRequested;
         private JsValue[]? _tailRestartArguments;
         private JsValue _tailRestartThisValue;
+        private JsValue _tailRestartNewTargetValue;
         private int _tailRestartVersion;
         private JsValue[]? _expressionStackBuffer;
         private ulong[]? _expressionFlagBuffer;

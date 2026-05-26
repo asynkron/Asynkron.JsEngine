@@ -76,6 +76,7 @@ public static partial class TypedAstEvaluator
         private readonly JsValue _simpleReturnLiteralFastPath;
         private readonly bool _hasSimpleReturnParameterNoArgsFastPath;
         private readonly SimpleNumericSelfRecursionFastPath? _simpleNumericSelfRecursionFastPath;
+        private readonly ImmutableArray<Symbol> _legacyTailRestartResetVarNames;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasHoistableDeclarations;
@@ -179,6 +180,7 @@ public static partial class TypedAstEvaluator
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
             _parameterNames = parameterNames;
+            _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
             if (parameterNames.Length == 0)
             {
                 var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
@@ -899,6 +901,140 @@ public static partial class TypedAstEvaluator
 
             return currentBinding.TryGetObject<SyncFunctionInvoker>(out var currentFunction) &&
                    ReferenceEquals(currentFunction, this);
+        }
+
+        internal static bool TryGetLegacySameFunctionTailRestartTarget(
+            CallExpression expression,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out SyncFunctionInvoker current)
+        {
+            current = null!;
+            var executing = t_currentlyExecuting;
+            if (executing is null ||
+                !executing._isStrict ||
+                executing.IsAsyncLike ||
+                executing.IsClassConstructor ||
+                !executing.HasOnlySimpleLegacyTailRestartParameters() ||
+                !executing.CanReuseLegacyTailRestartActivation(environment) ||
+                expression.IsOptional)
+            {
+                return false;
+            }
+
+            if (expression.Callee is not IdentifierExpression calleeId)
+            {
+                return false;
+            }
+
+            foreach (var argument in expression.Arguments)
+            {
+                if (argument.IsSpread)
+                {
+                    return false;
+                }
+            }
+
+            var calleeValue = calleeId is { SlotIndex: >= 0, ScopeId: >= 0 } &&
+                              environment.TryReadIdentifierWithSlot(calleeId, context, out var slotCallee)
+                ? slotCallee
+                : context.GetIdentifier(environment, calleeId.Name);
+            if (context.ShouldStopEvaluation ||
+                !calleeValue.TryGetObject<SyncFunctionInvoker>(out var callable) ||
+                !ReferenceEquals(callable, executing))
+            {
+                return false;
+            }
+
+            current = executing;
+            return true;
+        }
+
+        internal bool CanReuseLegacyTailRestartActivation(JsEnvironment environment)
+        {
+            var current = environment;
+            while (current is not null && !ReferenceEquals(current, _closure))
+            {
+                if (current.IsCaptured)
+                {
+                    return false;
+                }
+
+                current = current.Enclosing;
+            }
+
+            return true;
+        }
+
+        private bool HasOnlySimpleLegacyTailRestartParameters()
+        {
+            HashSet<Symbol>? seenNames = null;
+            for (var i = 0; i < _function.Parameters.Length; i++)
+            {
+                var parameter = _function.Parameters[i];
+                if (parameter is not { Name: { } name, Pattern: null, DefaultValue: null, IsRest: false })
+                {
+                    return false;
+                }
+
+                seenNames ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+                if (!seenNames.Add(name))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static ImmutableArray<Symbol> BuildLegacyTailRestartResetVarNames(
+            BlockStatement body,
+            ImmutableArray<Symbol> parameterNames)
+        {
+            var declaredNames = new List<Symbol>();
+            VarNameCollector.CollectVarDeclaredNames(body, declaredNames);
+            if (declaredNames.Count == 0)
+            {
+                return ImmutableArray<Symbol>.Empty;
+            }
+
+            HashSet<Symbol>? parameterNameSet = null;
+            if (!parameterNames.IsEmpty)
+            {
+                parameterNameSet = new HashSet<Symbol>(parameterNames, ReferenceEqualityComparer<Symbol>.Instance);
+            }
+
+            var seenNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            var resetNames = ImmutableArray.CreateBuilder<Symbol>();
+            foreach (var name in declaredNames)
+            {
+                if (parameterNameSet?.Contains(name) == true ||
+                    !seenNames.Add(name))
+                {
+                    continue;
+                }
+
+                resetNames.Add(name);
+            }
+
+            return resetNames.Count == 0 ? ImmutableArray<Symbol>.Empty : resetNames.ToImmutable();
+        }
+
+        private void ResetLegacyTailRestartActivation(
+            JsEnvironment varEnvironment,
+            JsEnvironment executionEnvironment)
+        {
+            foreach (var name in _legacyTailRestartResetVarNames)
+            {
+                varEnvironment.DefineFunctionScoped(name, JsValue.Undefined, hasInitializer: true);
+            }
+
+            foreach (var lexicalName in _topLevelLexicalNames)
+            {
+                var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
         }
 
         private static double EvaluateSimpleNumericSelfRecursion(
@@ -1762,27 +1898,10 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            IReadOnlyList<JsValue> currentArguments = arguments;
+            var isLegacyTailRestart = false;
             try
             {
-                // Create arguments object per ES2024 9.2.12 steps 17-20
-                // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
-                if (_argumentsObjectNeeded)
-                {
-                    // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment, RealmState,
-                        this,
-                        _isStrict);
-                    executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                        isLexicalBinding: false);
-                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                        isLexicalBinding: false);
-                    if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
-                    {
-                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                            isLexicalBinding: false);
-                    }
-                }
-
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
@@ -1795,8 +1914,34 @@ public static partial class TypedAstEvaluator
                 // are properly caught and converted to rejected promises.
                 try
                 {
+                LegacyTailCallRestart:
+                    context.ClearReturn();
+                    if (isLegacyTailRestart)
+                    {
+                        ResetLegacyTailRestartActivation(varEnvironment, executionEnvironment);
+                    }
+
+                    // Create the `arguments` binding before parameter defaults can observe it.
+                    // Legacy tail restarts update currentArguments, so the observable object must be refreshed here.
+                    if (_argumentsObjectNeeded)
+                    {
+                        var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment,
+                            RealmState,
+                            this,
+                            _isStrict);
+                        executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                            isLexicalBinding: false);
+                        parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                            isLexicalBinding: false);
+                        if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+                        {
+                            functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                                isLexicalBinding: false);
+                        }
+                    }
+
                     // Bind parameters
-                    _function.BindFunctionParameters(arguments, parameterEnvironment, context);
+                    _function.BindFunctionParameters(currentArguments, parameterEnvironment, context);
                     if (context.ShouldStopEvaluation)
                     {
                         if (!context.IsThrow)
@@ -1865,6 +2010,26 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     finally
                     {
                         JsEnvironment.Current = previousEnvironment;
+                    }
+
+                    if (context.TryConsumeLegacyTailCallRestart(
+                            this,
+                            out var restartArguments,
+                            out var restartThisValue,
+                            out var restartNewTargetValue))
+                    {
+                        currentArguments = restartArguments;
+                        isLegacyTailRestart = true;
+                        if (_isStrict && !IsArrowFunction)
+                        {
+                            functionEnvironment._thisValue = restartThisValue;
+                            functionEnvironment._hasThisValue = true;
+                            functionEnvironment.DefineJsValue(Symbol.This, restartThisValue);
+                            functionEnvironment.DefineJsValue(Symbol.NewTarget, restartNewTargetValue, true,
+                                isLexicalBinding: true, blocksFunctionScopeOverride: true);
+                        }
+
+                        goto LegacyTailCallRestart;
                     }
 
                     if (context.IsThrow)

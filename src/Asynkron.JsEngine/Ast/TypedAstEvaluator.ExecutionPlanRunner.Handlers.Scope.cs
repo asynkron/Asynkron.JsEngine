@@ -48,7 +48,7 @@ public static partial class TypedAstEvaluator
             {
                 var withEnv = JsEnvironment.CreateInstance(environment, false, context.CurrentScope.IsStrict,
                     instruction.ObjectSource, "with", withObject);
-                StoreSymbolValue(runner._executionEnvironment!, instruction.WithScopeSlot, withEnv);
+                StoreSymbolValueJsValue(runner._executionEnvironment!, instruction.WithScopeSlot, JsValue.FromObjectUnsafe(withEnv));
                 runner.WithStateRef.ActiveWithScopes.Push(instruction.WithScopeSlot);
                 environment = withEnv;
             }

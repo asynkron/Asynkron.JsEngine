@@ -23,6 +23,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   and durable compaction lessons. Include the sibling-summary check plus stable
   evidence field names, but do not duplicate the whole checklist or policy
   body in the entrypoint.
+- When issue/workflow playbooks describe Faktorial context gathering or build
+  handoffs, keep them aligned with the owned recurring-child evidence contract:
+  supplied Source Context or API first, compact summaries before raw logs, no
+  host `faktorial` daemon reads, and an explicit `Sibling check` in recurring
+  child `## Build Update` evidence. Do not rely on the build/test checklist
+  alone when review gates evaluate the issue-update handoff.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - Treat issue context markers such as `Part of automation template` or
@@ -286,6 +292,16 @@ policy and durable-compaction home. Future entrypoint docs should preserve that
 split: point runnable checklist/template ownership at
 `agents/how-to-build-and-test.md`, point semantic policy ownership here, and
 avoid turning README into a second policy body.
+
+Issue #2100 / PR #2108 exposed the same mirror problem in the issue/workflow
+playbook. `agents/how-to-build-and-test.md` already required `Sibling check`
+evidence for recurring children, but `agents/how-to-workflow-and-issues.md`
+owned the Faktorial issue-logging flow and did not name that evidence gate.
+Review failed AC-4 until the handoff and workflow doc explicitly carried the
+sibling-check requirement. Future workflow-doc maintenance should keep that
+issue-logging mirror aligned with the owned recurring-child evidence template
+and Faktorial runtime read-order rules instead of expecting reviewers or agents
+to infer them from another playbook.
 
 Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
 was already handling the README stale-link candidate

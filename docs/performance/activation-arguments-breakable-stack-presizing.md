@@ -79,3 +79,49 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests -c Release --filter "FullyQualifie
 The focused test run passed 82 tests. The canonical internal quality gate
 remains `rtk make quality` and is delegated to the orchestrator-run verification
 stage.
+
+## Follow-up Slice (Issue #2201)
+
+Date: 2026-05-26
+
+This follow-up keeps the activation-arguments scope narrow: TDZ setup for
+`PushEnvironment` now uses the existing batch helper
+`SetSlotsLexicalUninitialized` when `LexicalSlotIndices` are already plan
+stamped, instead of a per-index method-call loop.
+
+Changed surface:
+
+- `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Handlers.Scope.cs`
+
+Scope exclusions held:
+
+- No changes to arguments materialization, mapped/unmapped arguments behavior,
+  direct eval behavior, FunctionCode gating, pooling strategy, or slot-map
+  shape construction.
+
+### Selected Profile Rows
+
+Fresh baseline row (same worktree, temporary stash of this issue change):
+
+```text
+activation-arguments-lite  asynkron_ms=6803  jint_ms=871  Jint 7.81x faster
+```
+
+Final row after restoring/applying the issue change:
+
+```text
+activation-arguments-lite  asynkron_ms=2107  jint_ms=671  Jint 3.14x faster
+```
+
+### Focused CPU Profile Signal
+
+Command (baseline and final):
+
+```bash
+rtk ./tools/profile activation-arguments-lite --cpu --calltree-depth 40 --calltree-width 40
+```
+
+Under the `InvokeWithContextSlow` root, `HandlePushEnvironment` remains the
+owner subtree but total filtered time and hot-frame weight dropped in the final
+capture (baseline run in this issue showed ~524058.87 ms filtered total time vs
+~325136.44 ms in the final run).

@@ -186,13 +186,16 @@ optimization.
     non-integers, `NaN`, infinity, rebound names, class, async, generator,
     private-name, `super`, home-object, and instance-field cases. Pin both the
     positive recurrence and negative fallback behavior with focused tests.
-22. For no-argument literal-return activation work, prove that the selected
+22. For no-argument direct-return activation work, prove that the selected
     profile is paying invocation context, environment, or sync trampoline frame
-    setup before bypassing it. Keep literal direct returns owned by
-    `ExecutionPlan` return-shape metadata and the existing simple IR activation
-    guard, not source text or benchmark names. Report repeated focused timing,
-    the CPU owner, and the activation proof-pack result before claiming the
-    shortcut is retained.
+    setup before bypassing it. Keep literal and omitted-parameter direct returns
+    owned by `ExecutionPlan` return-shape metadata and the existing simple IR
+    activation guard, not source text or benchmark names. When widening a
+    retained shortcut, keep baseline/final samples tied to the widened slice and
+    label them as no-regression evidence if the selected profile still mostly
+    exercises the earlier shape. Report repeated focused timing, the CPU owner,
+    and the activation proof-pack result before claiming the shortcut is
+    retained.
 
 ## Why
 
@@ -480,6 +483,15 @@ literal before full context and frame setup, kept dynamic activation cases on
 the existing path, and reported repeated focused timings roughly 56-59% faster
 than the baseline. The durable lesson is that even tiny activation shortcuts
 need profile ownership plus plan-owned semantic guards. Related ADR:
+`docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
+
+Issue #2040 / PR #2047 widened the no-argument direct-return boundary from
+literals to one omitted-parameter return shape. Review sent the evidence back
+until the performance note separated the original literal-return measurements
+from the widening run and recorded a baseline/final `activation-noargs-lite`
+pair for the selected slice. The durable lesson is that follow-up performance
+docs must state which slice the numbers prove and avoid presenting a
+no-regression profile pair as a fresh throughput win. Related ADR:
 `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
 
 Issue `autrun-disb2md7n23s-0c3cde8865` / PR #1999 selected `destructuring`

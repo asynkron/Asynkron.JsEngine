@@ -1,4 +1,6 @@
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -62,6 +64,138 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
             a * 10 + calls;
             """);
         Assert.Equal(71d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectBindingTargetProgramsCarrySlotMetadata()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function bind(values) {
+                const { x, y } = values;
+                return x + y;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("bind({ x: 1, y: 3 });");
+        Assert.Equal(4d, result);
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        Assert.NotNull(cache.Plan);
+
+        var instruction = Assert.Single(cache.Plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
+        var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
+        Assert.All(targetProgram.Properties, property =>
+        {
+            var identifier = Assert.IsType<IdentifierBindingTargetProgram>(property.Target);
+            Assert.True(identifier.ScopeId >= 0, $"Expected {identifier.Name.Name} to have a stamped scope.");
+            Assert.True(identifier.SlotIndex >= 0, $"Expected {identifier.Name.Name} to have a stamped slot.");
+            Assert.True(identifier.FlatSlotId >= 0, $"Expected {identifier.Name.Name} to have a stamped flat slot.");
+        });
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ConstArrayDestructuringKeepsConstAfterSlotFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const [x] = [1];
+            let name = "";
+            try {
+                x = 2;
+            } catch (e) {
+                name = e.name;
+            }
+            name + ":" + x;
+            """);
+
+        Assert.Equal("TypeError:1", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DestructuringAssignmentPreservesSloppyNamedFunctionExpressionBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const f = function g() {
+                [g] = [1];
+                return typeof g + ":" + (g === f);
+            };
+            f();
+            """);
+
+        Assert.Equal("function:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task DestructuringAssignmentThrowsForStrictNamedFunctionExpressionBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            const f = function g() {
+                "use strict";
+                try {
+                    [g] = [1];
+                    return "no throw";
+                } catch (error) {
+                    return error.name + ":" + (g === f);
+                }
+            };
+            f();
+            """);
+
+        Assert.Equal("TypeError:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task CatchDestructuringDoesNotInitializeOuterLexicalSlot()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let observed = "";
+            try {
+                throw { x: 1 };
+            } catch ({ x }) {
+            }
+            try {
+                observed = String(x);
+            } catch (e) {
+                observed = e.name;
+            }
+            let x = 2;
+            observed + ":" + x;
+            """);
+
+        Assert.Equal("ReferenceError:2", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ArrayDestructuringIrTargetsCarrySlotIndices()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function bind(values) {
+                const [x, ...rest] = values;
+                return x + rest.length;
+            }
+            """);
+
+        await engine.Evaluate(program);
+
+        var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        Assert.NotNull(cache.Plan);
+
+        var element = Assert.Single(cache.Plan.Instructions.OfType<ArrayDestructuringElementInstruction>());
+        Assert.NotNull(element.TargetSymbol);
+        Assert.True(element.TargetSlotIndex >= 0, "Expected array destructuring element target to use a proven slot.");
+
+        var rest = Assert.Single(cache.Plan.Instructions.OfType<ArrayDestructuringRestInstruction>());
+        Assert.True(rest.RestSlotIndex >= 0, "Expected array destructuring rest target to use a proven slot.");
     }
 
     [Fact(Timeout = 2000)]

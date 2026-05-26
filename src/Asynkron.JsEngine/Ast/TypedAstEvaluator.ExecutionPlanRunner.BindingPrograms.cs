@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
@@ -27,7 +28,7 @@ public static partial class TypedAstEvaluator
             {
                 case IdentifierBindingTargetProgram identifier:
                     ApplyIdentifierBindingProgram(
-                        identifier.Name,
+                        identifier,
                         value,
                         environment,
                         context,
@@ -81,6 +82,138 @@ public static partial class TypedAstEvaluator
                 default:
                     throw new NotSupportedException(
                         $"Binding target program '{target.GetType().Name}' is not supported.");
+            }
+        }
+
+        private void ApplyIdentifierBindingProgram(
+            IdentifierBindingTargetProgram target,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool hasInitializer,
+            bool allowNameInference,
+            bool skipBlockedBindingLookup)
+        {
+            environment.AssertOwnership(nameof(ApplyIdentifierBindingProgram));
+            context.AssertOwnership(nameof(ApplyIdentifierBindingProgram));
+            if (TryApplySlotProvenIdentifierBindingProgram(
+                    target,
+                    value,
+                    environment,
+                    context,
+                    mode,
+                    allowNameInference))
+            {
+                return;
+            }
+
+            ApplyIdentifierBindingProgram(
+                target.Name,
+                value,
+                environment,
+                context,
+                mode,
+                hasInitializer,
+                allowNameInference,
+                skipBlockedBindingLookup);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryApplySlotProvenIdentifierBindingProgram(
+            IdentifierBindingTargetProgram target,
+            JsValue value,
+            JsEnvironment environment,
+            EvaluationContext context,
+            BindingMode mode,
+            bool allowNameInference)
+        {
+            if (target.FlatSlotId < 0 ||
+                _flatSlots is null ||
+                (uint)target.FlatSlotId >= (uint)_flatSlots.Length)
+            {
+                return false;
+            }
+
+            ref var variable = ref _flatSlots[target.FlatSlotId];
+            if (!variable.IsValid)
+            {
+                return false;
+            }
+
+            var targetEnvironment = variable.Environment;
+            if (targetEnvironment.ScopeId != target.ScopeId)
+            {
+                return false;
+            }
+
+            ref var slot = ref targetEnvironment.GetSlotByIndex(variable.SlotIndex);
+            if (!ReferenceEquals(slot.Name, target.Name))
+            {
+                return false;
+            }
+
+            if (allowNameInference && value is
+                { Kind: JsValueKind.Object, ObjectValue: IFunctionNameTarget nameTarget })
+            {
+                nameTarget.EnsureHasName(target.Name.Name);
+            }
+
+            switch (mode)
+            {
+                case BindingMode.Assign:
+                    if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
+                    {
+                        return false;
+                    }
+
+                    if (slot.IsUninitialized && slot.IsLexical)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateReferenceError(
+                            $"Cannot access '{target.Name.Name}' before initialization",
+                            context,
+                            context.RealmState));
+                    }
+
+                    if (slot.IsConst)
+                    {
+                        throw new ThrowSignal(StandardLibrary.CreateTypeError(
+                            $"Cannot reassign constant '{target.Name.Name}'.",
+                            context,
+                            context.RealmState));
+                    }
+
+                    if (slot.IsImmutableBinding ||
+                        slot.IsGlobalConstant ||
+                        slot.HasSpecialBinding)
+                    {
+                        return false;
+                    }
+
+                    variable.Write(value);
+                    return true;
+
+                case BindingMode.DefineLet:
+                case BindingMode.DefineConst:
+                    if (!slot.IsLexical ||
+                        !slot.IsUninitialized ||
+                        slot.IsGlobalConstant ||
+                        slot.HasSpecialBinding)
+                    {
+                        return false;
+                    }
+
+                    slot.Flags |= SlotFlags.BlocksFunctionScopeOverride;
+                    if (mode == BindingMode.DefineConst)
+                    {
+                        slot.Flags |= SlotFlags.Const;
+                    }
+
+                    variable.Write(value);
+                    return true;
+
+                default:
+                    return false;
             }
         }
 
@@ -654,7 +787,7 @@ public static partial class TypedAstEvaluator
                 }
 
                 ApplyIdentifierBindingProgram(
-                    identifier.Name,
+                    identifier,
                     array.GetElement((uint)i),
                     environment,
                     context,

@@ -12,7 +12,11 @@ internal abstract record BindingTargetProgram
     public override string ToString() => DescribeCore();
 }
 
-internal sealed record IdentifierBindingTargetProgram(Symbol Name) : BindingTargetProgram
+internal sealed record IdentifierBindingTargetProgram(
+    Symbol Name,
+    int ScopeId = -1,
+    int SlotIndex = -1,
+    int FlatSlotId = -1) : BindingTargetProgram
 {
     public override void CollectSymbols(ICollection<Symbol> names)
     {

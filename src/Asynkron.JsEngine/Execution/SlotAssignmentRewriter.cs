@@ -275,6 +275,13 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
             case EnterCatchInstruction enterCatch:
                 var mappedCatchScope = RemapScopeId(enterCatch.ScopeId);
+                _scopeStack.Push(mappedCatchScope);
+                if (_tryFrameCatchScopes.Count > 0)
+                {
+                    _tryFrameCatchScopes.Pop();
+                    _tryFrameCatchScopes.Push(mappedCatchScope);
+                }
+
                 var updatedCatch = enterCatch with
                 {
                     CatchBindingProgram = enterCatch.CatchBindingProgram is null
@@ -284,12 +291,6 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     SlotCount = GetSlotCount(mappedCatchScope),
                     SlotMap = GetSlotMap(mappedCatchScope)
                 };
-                _scopeStack.Push(mappedCatchScope);
-                if (_tryFrameCatchScopes.Count > 0)
-                {
-                    _tryFrameCatchScopes.Pop();
-                    _tryFrameCatchScopes.Push(mappedCatchScope);
-                }
                 return updatedCatch;
 
             case LeaveTryInstruction:
@@ -560,6 +561,28 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     SourceProgram = RewriteExpressionProgram(destructuringInit.SourceProgram)
                 };
 
+            case ArrayDestructuringElementInstruction { TargetSymbol: not null } destructuringElement:
+                if (TryResolve(destructuringElement.TargetSymbol, out var destructuringElementResolution))
+                {
+                    return destructuringElement with
+                    {
+                        TargetSlotIndex = destructuringElementResolution.slotIndex
+                    };
+                }
+
+                return destructuringElement;
+
+            case ArrayDestructuringRestInstruction destructuringRest:
+                if (TryResolve(destructuringRest.RestSymbol, out var destructuringRestResolution))
+                {
+                    return destructuringRest with
+                    {
+                        RestSlotIndex = destructuringRestResolution.slotIndex
+                    };
+                }
+
+                return destructuringRest;
+
             case IncrementSlotInstruction increment:
                 {
                     // Resolve the target symbol to get scope/slot/flatSlot metadata
@@ -683,7 +706,27 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         switch (program)
         {
-            case IdentifierBindingTargetProgram:
+            case IdentifierBindingTargetProgram identifier:
+                {
+                    if (_isRestampingNestedFunction && identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+                    {
+                        return program;
+                    }
+
+                    if (!TryResolve(identifier.Name, out var resolution))
+                    {
+                        return program;
+                    }
+
+                    var flatSlotId = GetOrCreateFlatSlotId(resolution.scopeId, resolution.slotIndex);
+                    return identifier with
+                    {
+                        ScopeId = resolution.scopeId,
+                        SlotIndex = resolution.slotIndex,
+                        FlatSlotId = flatSlotId
+                    };
+                }
+
             case NamedSuperPropertyAssignmentBindingTargetProgram:
                 return program;
 

@@ -153,6 +153,17 @@ optimization.
     sizing. Capacity helpers may reserve space for known activation appends, but
     reports must distinguish backing capacity from logical slot count, binding
     order, and observable environment semantics.
+12a. For execution-runner control-flow side-state capacity work, prove the
+     selected profile is paying stack/list growth for that side state before
+     changing initial capacities. Pre-size only the owning state object, such as
+     `BreakableState.BreakableStack`, and keep active-frame count, label
+     matching, `break` / `continue`, cleanup / `IteratorClose`, and suspension
+     semantics unchanged. Do not turn a `Stack<T>.Grow` subtree into broader
+     lowering or control-flow rewrites. WHY: issue
+     `autrun-dissu2eufu0w-31ee6d51c0` / PR #2189 showed first-push
+     `BreakableFrame` stack growth in `activation-arguments-lite`; the retained
+     fix was a capacity-only stack pre-size backed by repeated timings and a
+     follow-up CPU profile.
 13. For repeated RegExp matcher performance work, keep shared .NET `Regex`
     reuse keyed by the runtime bridge shape that actually executes: capped
     normalized pattern plus `RegexOptions`. Preserve per-instance `_compiledRegex`
@@ -511,6 +522,17 @@ The durable lesson is that activation capacity fixes should be profile-owned and
 capacity-only, then backed by activation/class semantics tests, slot/environment
 tests, runner AST-seam scans, and an allocation-stability memory check. Detailed
 measurement note: `docs/performance/classdef-ir-environment-pre-sizing.md`.
+
+Issue `autrun-dissu2eufu0w-31ee6d51c0` / PR #2189 selected
+`activation-arguments-lite` and proved a narrower runner side-state owner:
+`HandleBreakableEnter -> Stack<BreakableFrame>.PushWithResize -> Grow` under
+`InvokeWithContextSlow`. The accepted slice initialized the breakable-frame
+stack with capacity four, kept break/continue frame semantics unchanged, and
+confirmed the subtree disappeared from the follow-up CPU profile. The durable
+lesson is that runner side-state capacity work should be profile-owned and
+capacity-only, not a reason to rewrite control-flow lowering or cleanup
+semantics. Related ADR:
+`docs/adrs/0195-keep-runner-breakable-stack-capacity-profile-owned.md`.
 
 Issue `autrun-dis3ezcjxsm0-238752b986` / PR #1949 selected the `classdef`
 profile and found `ArrayPrototype.InvokeArrayIterationCallback` still paying

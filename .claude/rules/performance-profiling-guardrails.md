@@ -331,8 +331,11 @@ optimization.
     Key the cache by source text plus forced strictness, keep it per engine and
     bounded, and keep private-name validation, `super` / `new.target`
     validation, and current caller-environment execution after the cache
-    lookup. Prove retained wins with repeated selected-profile timings plus the
-    focused activation/eval/private-name proof pack.
+    lookup. A lock-free last-entry front cache may bypass the LRU lock only
+    when it mirrors that exact key and stores only the immutable `ProgramNode`;
+    keep misses and less stable source patterns on the bounded LRU path. Prove
+    retained wins with repeated selected-profile timings plus the focused
+    activation/eval/private-name proof pack.
 25. For class constructor and `super()` dispatch performance work, prove the hot
     owner with a current `classdef` CPU profile before editing
     `ExecuteProgramSuperConstruct`, super-constructor resolution, or construct
@@ -767,6 +770,18 @@ instantiation, private-name validation, caller-context validation, and execution
 on the current eval environment. The durable lesson is that direct-eval parse
 caches may reuse immutable program structure, but must not cache caller state or
 use a source-only key. Related ADR:
+`docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.
+
+Issue `autrun-disvdy376ya8-659d67a91b` / PR #2212 returned to
+`activation-evalscope-lite` after the bounded eval program LRU existed. The CPU
+owner was then repeated hits still entering `EvalHostFunction.GetOrParseProgram`
+through the locked LRU/dictionary path. The accepted follow-up added a
+lock-free single-entry last-program cache ahead of the LRU, keyed by the same
+source text and forced strictness pair and backed by the existing LRU on misses.
+The durable lesson is that direct-eval cache-hit shortcuts can remove cache
+machinery cost only when they preserve the same semantic key and continue to
+avoid caching caller state, declaration instantiation, validation, or execution
+results. Related ADR:
 `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.
 
 Issue #2183 / PR #2185 continued the `classdef` constructor/super-dispatch

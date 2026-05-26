@@ -65,7 +65,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
             snapshot.SupportedInstructionKindHistogram,
             entry => entry.Key is InstructionKind.SetCompletionValue or InstructionKind.Break or InstructionKind.BreakableExit);
         Assert.Contains(snapshot.SupportedInstructionKindHistogram, entry => entry.Key == InstructionKind.PushEnvironment);
-        Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope");
+        Assert.DoesNotContain(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope");
     }
 
     [Fact]
@@ -87,10 +87,10 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 
         Assert.Equal(1, snapshot.PlanCount);
         Assert.Equal(instructions.Length, snapshot.InstructionCount);
-        Assert.Equal(4, snapshot.SupportedInstructionCount);
-        Assert.Equal(3, snapshot.UnsupportedInstructionCount);
-        Assert.Equal(64, snapshot.OwnerBackedEncodedBytes);
-        Assert.Equal(4, snapshot.OperandTableEntryCount);
+        Assert.Equal(5, snapshot.SupportedInstructionCount);
+        Assert.Equal(2, snapshot.UnsupportedInstructionCount);
+        Assert.Equal(80, snapshot.OwnerBackedEncodedBytes);
+        Assert.Equal(5, snapshot.OperandTableEntryCount);
         Assert.Equal(0, snapshot.ExtraOperandTableEntryCount);
         Assert.Equal(0, snapshot.ExpressionReferenceCount);
         Assert.Equal(0, snapshot.SecondaryExpressionReferenceCount);
@@ -98,8 +98,7 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
         Assert.Equal(0, snapshot.BindingTargetOperandCount);
         Assert.Equal(0, snapshot.ExpressionProgramReferenceTableCount);
         Assert.Equal(0, snapshot.BindingTargetProgramReferenceTableCount);
-        Assert.Equal(64, snapshot.EstimatedCompactEncodedBytes);
-        Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "declaration-and-scope" && entry.Value == 1);
+        Assert.Equal(80, snapshot.EstimatedCompactEncodedBytes);
         Assert.Contains(snapshot.UnsupportedFamilyReasonHistogram, entry => entry.Key == "suspend-and-exception-flow" && entry.Value == 2);
     }
 
@@ -544,8 +543,8 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
 
         var boundary = CompactStatementStorage.CreateBoundary(instructions);
 
-        Assert.Equal(3, boundary.Storage.InstructionCount);
-        Assert.Equal(3, boundary.Storage.DecodeSemanticView().Length);
+        Assert.Equal(4, boundary.Storage.InstructionCount);
+        Assert.Equal(4, boundary.Storage.DecodeSemanticView().Length);
         Assert.Contains(
             boundary.SupportedKindClassifications,
             entry => entry.Kind == InstructionKind.Jump &&
@@ -562,10 +561,10 @@ public sealed class StatementInstructionStorageDiagnosticsTests : IAsyncLifetime
                      entry.PayloadGroup == CompactStatementPayloadGroup.EnvironmentTransitionNormalized &&
                      entry.IsSupported);
         Assert.Contains(
-            boundary.DeferredKindClassifications,
+            boundary.SupportedKindClassifications,
             entry => entry.Kind == InstructionKind.PopEnvironment &&
-                     entry.PayloadGroup == CompactStatementPayloadGroup.DeferredDeclarationAndScope &&
-                     !entry.IsSupported);
+                     entry.PayloadGroup == CompactStatementPayloadGroup.EnvironmentTransitionNormalized &&
+                     entry.IsSupported);
         Assert.Contains(
             boundary.DeferredKindClassifications,
             entry => entry.Kind == InstructionKind.Branch &&

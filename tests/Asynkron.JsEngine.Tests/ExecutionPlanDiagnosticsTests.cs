@@ -811,6 +811,20 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void StatementInstructionDiagnosticCodec_PopEnvironment_RoundTripsScopeAndPooling()
+    {
+        var instruction = new PopEnvironmentInstruction(ScopeId: 11, AllowPooling: true, Next: 14);
+        Assert.True(StatementInstructionDiagnosticsCodec.TryEncode(instruction, out var encoded));
+        Assert.Equal(EncodedStatementOpcode.PopEnvironment, encoded.Header.Opcode);
+        Assert.Equal(14, encoded.Header.NextOrTarget);
+        Assert.Equal(11, encoded.Header.Operand);
+        Assert.Equal(1, encoded.Header.Extra);
+
+        var decoded = Assert.IsType<PopEnvironmentInstruction>(StatementInstructionDiagnosticsCodec.Decode(encoded));
+        Assert.Equal(instruction, decoded);
+    }
+
+    [Fact]
     public void StatementInstructionDiagnosticCodec_InstructionKindClassification_IsExplicitAndDriftGated()
     {
         var expectedSupported = new HashSet<InstructionKind>
@@ -830,6 +844,7 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.StoreResumeValue,
             InstructionKind.FunctionDeclaration,
             InstructionKind.PushEnvironment,
+            InstructionKind.PopEnvironment,
             InstructionKind.ClassDeclaration
         };
 
@@ -837,7 +852,6 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         {
             InstructionKind.IncrementSlot,
             InstructionKind.LogicalCompoundAssignmentSlot,
-            InstructionKind.PopEnvironment,
             InstructionKind.Yield,
             InstructionKind.YieldStar,
             InstructionKind.EnterTry,

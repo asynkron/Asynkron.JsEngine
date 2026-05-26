@@ -98,6 +98,14 @@ When working inside the core engine, keep JavaScript values represented as
     `TryGetObject<IJsObjectLike>(...)` for iterator-result objects and pass the
     carried value directly to loop binding; do not unwrap to `object?` and then
     rewrap with `JsValue.FromObjectUnsafe(...)`.
+15. When constructing `PropertyDescriptor` data descriptors for JavaScript
+    values inside the core runtime or standard library, assign the `JsValue`
+    property directly. Treat the `Value` compatibility setter as an
+    object-carrier bridge because it routes through `JsValue.FromObjectUnsafe`.
+    Prove descriptor migrations with a scoped before/after search that
+    distinguishes legacy `Value =` setters from `JsValue =` setters, for
+    example `\bValue\s*=` in the selected file set, and pair it with the
+    focused semantic proof for that descriptor cluster.
 
 ## Why
 
@@ -253,3 +261,13 @@ inside the repo; future bounded slices should let the compiler expose those
 callers, migrate them to shared `JsOps` operations, and keep the proof as a
 targeted before/after search plus the focused semantic tests for the touched
 callers.
+
+Issue `autrun-dis5yv12l95s-27dcaf0dbf` / PR #1959 migrated the StdLib/Error
+`PropertyDescriptor` initializers from the legacy `Value` compatibility setter
+to `JsValue`. The implementation was intentionally mechanical, but review
+required a build re-entry because the initial evidence did not include explicit
+baseline and final signals for the scoped descriptor setter search. Future
+descriptor migrations should keep JavaScript data values on the `JsValue`
+setter and record the before/after legacy-setter signal in the delivery
+evidence so reviewers do not have to reconstruct whether the selected slice was
+fully migrated.

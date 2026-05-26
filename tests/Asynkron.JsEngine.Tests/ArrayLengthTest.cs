@@ -39,4 +39,17 @@ public sealed class ArrayLengthTest(ITestOutputHelper output) : InternalTestBase
         Assert.Contains("plainText.length=15824", result?.ToString(), StringComparison.Ordinal);
         Assert.Contains("result.length=3956", result?.ToString(), StringComparison.Ordinal);
     }
+
+    [Fact(Timeout = 60000)]
+    public async Task ArrayLengthDescriptor_HasExpectedValueAndAttributes()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            const a = [1, 2, 3];
+            const d = Object.getOwnPropertyDescriptor(a, 'length');
+            `${d.value}|${d.writable}|${d.enumerable}|${d.configurable}`;
+        ");
+
+        Assert.Equal("3|true|false|false", result?.ToString());
+    }
 }

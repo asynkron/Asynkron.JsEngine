@@ -1218,7 +1218,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
                                new PropertyDescriptor
                                {
-                                   Value = (double)_length,
+                                   JsValue = JsValue.FromDouble(_length),
                                    Writable = true,
                                    Enumerable = false,
                                    Configurable = false
@@ -1432,7 +1432,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _properties.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)_length,
+                JsValue = JsValue.FromDouble(_length),
                 Writable = writable ?? true,
                 Enumerable = false,
                 Configurable = false
@@ -1596,7 +1596,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
                                new PropertyDescriptor
                                {
-                                   Value = (double)_length,
+                                   JsValue = JsValue.FromDouble(_length),
                                    Writable = true,
                                    Enumerable = false,
                                    Configurable = false

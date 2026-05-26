@@ -16,6 +16,14 @@ unless the issue explicitly asks for a major migration.
   can stay small and the resolved package version does not change. Do not turn
   that cleanup into full Central Package Management or a broad package
   modernization inside a routine recurring child.
+- For Jint comparison tooling, treat `tools/ProfileRunner/ProfileRunner.csproj`
+  and the benchmark project at
+  `benchmarks/Asynkron.JsEngine.Benchmarks/Asynkron.JsEngine.Benchmarks.csproj`
+  as one aligned owner set. Keep both `Jint` package references on the shared
+  `$(JintVersion)` property in `Directory.Build.props`. Future Jint updates
+  should edit that property once and prove both owner projects; do not
+  reintroduce project-local Jint literals unless a dedicated issue documents why
+  profiling and BenchmarkDotNet comparisons need separate package baselines.
 - Do not fold major-version migrations into a routine dependency sweep just
   because `latest` reports one. Major upgrades need their own issue, migration
   notes, and behavior-specific proof.
@@ -162,3 +170,13 @@ maintenance sweeps should keep those two project references aligned and record
 real restore/build proof for both affected surfaces: Test262 project restore and
 ProfileRunner Release build were the accepted narrow compatibility signals for
 this patch update.
+
+Issue #2099 / PR #2107 found `Jint` `4.9.2` hard-coded in both the
+ProfileRunner comparison tool and the BenchmarkDotNet comparison project. The
+safe maintenance slice did not change the resolved package version; it moved
+the version to `Directory.Build.props` as `JintVersion` and kept both owner
+projects on `$(JintVersion)`. Future Jint comparison dependency work should
+preserve that shared property unless a dedicated issue documents an intentional
+split. The accepted narrow proof was `git diff --check` plus Release builds for
+ProfileRunner and the benchmark project. Related ADR:
+`docs/adrs/0174-keep-jint-comparison-version-centralized.md`.

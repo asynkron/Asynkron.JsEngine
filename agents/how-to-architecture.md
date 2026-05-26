@@ -298,7 +298,7 @@ private static InstructionResult HandleStoreResumeValue(...)
     else if (resumeKind == ResumePayloadKind.Return)
         context.SetReturn(resumePayload); // Early return
     else if (instruction.TargetSymbol is { } slot)
-        StoreSymbolValue(environment, slot, resumePayload);  // Normal: x = yield
+        StoreSymbolValueJsValue(environment, slot, resumePayload);  // Normal: x = yield
 
     return InstructionResult.Continue;
 }

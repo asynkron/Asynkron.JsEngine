@@ -189,6 +189,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before editing, use file-level line-count evidence for the deleted slice, and
   treat a focused filter with no remaining matching tests as confidence that no
   compiled test contract was removed, not as a behavioral regression proof.
+- If the code-reduction slice targets an active scratch or debug test method
+  with assertions, delete it only after naming the maintained owner test that
+  already proves the same behavior more directly. Preserve neighboring scratch
+  probes when no stronger owner exists, record the owner-test path in the
+  handoff, and prove the retained owner plus the touched scratch class with a
+  focused filter; line-count reduction alone is not behavioral proof.
 - When the code-reduction slice targets duplicated smoke-test fixtures rather
   than dead helpers, extract only the invariant fixture body and leave semantic
   differences explicit through named parameters or separate call sites. Prove
@@ -633,6 +639,19 @@ probes only after proving they are not the owner contract, checking neighboring
 asserted coverage, recording the file-level line-count deletion, and running
 the focused owner test filter. Do not treat every `DebugTest` suffix as dead
 code, and do not claim runtime proof from line-count reduction alone.
+
+Issue `autrun-disnezru01ow-917e81d28d` / PR #2126 was the asserted active
+scratch-test variant of that boundary. The safe slice removed only
+`IntlScratchTests.InspectSupportedValuesCoercion` after confirming that
+`IntlSupportedValuesTests.SupportedValuesCoerceKeysWithToString` already
+compared direct `Intl.supportedValuesOf("calendar")` output against both
+`new String("calendar")` and plain-object `toString()` coercion. The build kept
+the other `IntlScratchTests` probes because no stronger owner was identified,
+recorded the `IntlScratch.cs` line-count drop from 105 to 64 C# lines, and
+proved the retained owner plus scratch class with the focused
+`IntlScratchTests|IntlSupportedValuesTests` filter. Future active scratch-test
+reductions should make that retained-owner proof explicit before deleting
+asserted tests.
 
 Issue `autrun-diskyo8ie1gg-e962a681ea` / PR #2113 applied recurring code
 reduction to duplicated async-generator step settlement. `CreateStepPromise`

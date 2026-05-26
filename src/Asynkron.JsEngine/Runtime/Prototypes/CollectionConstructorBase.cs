@@ -1,10 +1,3 @@
-#region
-
-using static Asynkron.JsEngine.StdLib.ReflectHelper;
-using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
-
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -16,23 +9,13 @@ public abstract class CollectionConstructorBase<TInstance>(
     IJsObjectLike prototype,
     RealmState realm,
     string constructorName)
-    : JsConstructor(prototype, realm)
+    : ConstructingInstanceConstructorBase<TInstance>(prototype, realm, constructorName)
     where TInstance : IJsObjectLike
 {
-    private HostFunction? _constructor;
-
-    /// <summary>
-    ///     Gets the constructor name for error messages.
-    /// </summary>
-    private string ConstructorName { get; } = constructorName;
-
-    private HostFunction ConstructFallback =>
-        _constructor ?? throw new InvalidOperationException($"{ConstructorName} constructor not initialized");
-
     /// <summary>
     ///     Creates a new instance of the collection type.
     /// </summary>
-    protected abstract TInstance CreateInstance();
+    protected abstract override TInstance CreateInstance();
 
     /// <summary>
     ///     Populates the instance with data from the constructor arguments.
@@ -42,41 +25,24 @@ public abstract class CollectionConstructorBase<TInstance>(
     /// <summary>
     ///     Configures realm-specific properties (e.g., Realm.XxxConstructor, Realm.XxxPrototype).
     /// </summary>
-    protected abstract void ConfigureRealmProperties(HostFunction constructor);
+    protected abstract override void ConfigureRealmProperties(HostFunction constructor);
 
-    protected sealed override JsValue ConstructInstance(JsValue thisValue, IReadOnlyList<JsValue> args)
+    protected sealed override bool TryGetNewTargetCallable(JsValue newTarget, out IJsCallable callable)
     {
-        if (thisValue.IsObject && thisValue.AsObject() is { IsConstructing: true })
+        if (newTarget.TryGetObject<IJsCallable>(out var resolvedCallable) && resolvedCallable is not null)
         {
-            return JsValue.FromObjectUnsafe(ConstructCollection(args, _constructor ?? ConstructFallback));
+            callable = resolvedCallable;
+            return true;
         }
 
-        throw ThrowTypeError($"Constructor {ConstructorName} requires 'new'", realm: Realm);
+        callable = default!;
+        return false;
     }
 
-    protected sealed override void ConfigureConstructor(HostFunction constructor)
+    protected sealed override JsValue BuildReturnValue(TInstance instance, IReadOnlyList<JsValue> args)
     {
-        _constructor = constructor;
-        ConfigureRealmProperties(constructor);
-
-        constructor.SetInvokeWithContext((args, _, _, newTarget) =>
-        {
-            if (!newTarget.TryGetObject<IJsCallable>(out var callable))
-            {
-                throw ThrowTypeError($"Constructor {ConstructorName} requires 'new'", realm: Realm);
-            }
-
-            var target = _constructor ?? constructor;
-            return JsValue.FromObjectUnsafe(ConstructCollection(args, callable, target));
-        });
-    }
-
-    private object ConstructCollection(IReadOnlyList<JsValue> args, IJsCallable newTarget, IJsCallable? targetCtor = null)
-    {
-        var proto = ResolveConstructPrototype(newTarget, targetCtor ?? newTarget, Realm) ?? Prototype;
-        var instance = CreateInstance();
-        instance.SetPrototype(proto);
+        ArgumentNullException.ThrowIfNull(instance);
         PopulateInstance(instance, args);
-        return instance;
+        return JsValue.FromObjectUnsafe(instance);
     }
 }

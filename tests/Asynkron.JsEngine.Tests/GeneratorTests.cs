@@ -13,6 +13,17 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.IteratorRuntime)]
 public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private const string BasicAssertSameValueHarness = """
+        function assert(mustBeTrue, message) {
+          if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
+        }
+        assert.sameValue = function(actual, expected, message) {
+          if (actual !== expected) {
+            throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
+          }
+        };
+        """;
+
     // NOTE: This test may timeout when run in parallel with other tests due to event queue processing delays.
     // The feature is implemented correctly and the test passes when run individually.
 
@@ -4124,16 +4135,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var engine = CreateEngine();
 
         // First define assert.sameValue
-        await engine.Evaluate("""
-            function assert(mustBeTrue, message) {
-              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
-            }
-            assert.sameValue = function(actual, expected, message) {
-              if (actual !== expected) {
-                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
-              }
-            };
-        """);
+        await engine.Evaluate(BasicAssertSameValueHarness);
 
         // Now run the exact Test262 test code
         var testCode = """
@@ -4175,16 +4177,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var engine = CreateEngine();
 
         // Everything in a single evaluation
-        var testCode = """
-            function assert(mustBeTrue, message) {
-              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
-            }
-            assert.sameValue = function(actual, expected, message) {
-              if (actual !== expected) {
-                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
-              }
-            };
-
+        var testCode = BasicAssertSameValueHarness + """
             var args, thisValue;
             var callCount = 0;
             var spyIterator = {
@@ -4548,16 +4541,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
-        await engine.Evaluate("""
-            function assert(mustBeTrue, message) {
-              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
-            }
-            assert.sameValue = function(actual, expected, message) {
-              if (actual !== expected) {
-                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
-              }
-            };
-        """);
+        await engine.Evaluate(BasicAssertSameValueHarness);
 
         // Second eval - use yield* then assert.sameValue
         var testCode = """
@@ -4594,16 +4578,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
-        await engine.Evaluate("""
-            function assert(mustBeTrue, message) {
-              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
-            }
-            assert.sameValue = function(actual, expected, message) {
-              if (actual !== expected) {
-                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
-              }
-            };
-        """);
+        await engine.Evaluate(BasicAssertSameValueHarness);
 
         // Second eval - use yield* then MULTIPLE assert.sameValue calls
         var testCode = """
@@ -4646,16 +4621,7 @@ public sealed class GeneratorTests(ITestOutputHelper output) : InternalTestBase(
         var engine = CreateEngine();
 
         // First eval - define assert with sameValue method
-        await engine.Evaluate("""
-            function assert(mustBeTrue, message) {
-              if (mustBeTrue !== true) throw new Error(message || 'assertion failed');
-            }
-            assert.sameValue = function(actual, expected, message) {
-              if (actual !== expected) {
-                throw new Error('Expected: ' + expected + ', Got: ' + actual + (message ? ' ' + message : ''));
-              }
-            };
-        """);
+        await engine.Evaluate(BasicAssertSameValueHarness);
 
         // Second eval - use yield* then TWO assert.sameValue calls
         var testCode = """

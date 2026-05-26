@@ -140,12 +140,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   that can be misclassified as failed stage outcomes in issue logs.
 - When a recurring documentation slice updates agent/operator workflow commands,
   align command examples with the current agent invocation contract and
-  canonical local gate. In this repo, commands that an agent is expected to run
-  should show the `rtk` prefix and normal verification should point at
-  `rtk make quality`, while repository executable targets themselves must stay
-  wrapper-free per `.claude/rules/pre-pr-required.md`. Treat `rtk make quality`
-  as local build/test evidence only; it does not replace the mandatory pre-PR
-  checklist in `.claude/rules/pre-pr-required.md`.
+  canonical local gate, including example README run/smoke snippets. In this
+  repo, commands that an agent is expected to run should show the `rtk` prefix
+  and normal verification should point at `rtk make quality`, while repository
+  executable targets themselves must stay wrapper-free per
+  `.claude/rules/pre-pr-required.md`. Treat `rtk make quality` as local
+  build/test evidence only; it does not replace the mandatory pre-PR checklist
+  in `.claude/rules/pre-pr-required.md`.
 - When fixing docs command examples, make the final command copy/paste-safe as
   a single shell invocation when possible. Do not use `rtk cd ...` as a setup
   line or rely on cwd state crossing command examples; prefer explicit path
@@ -557,6 +558,13 @@ was not actually copy/paste safe because cwd state does not carry between
 independent command invocations. Future docs command maintenance should collapse
 that kind of setup into one runnable command, for example by passing
 `--project` with an explicit path.
+
+Issue #2172 / PR #2177 repeated the command-example drift in an example-specific
+README: the Avalonia SVG Browser demo run and smoke-test snippets used bare
+`dotnet run --project examples/AvaloniaSvgBrowserDemo` lines even though they
+are copy/paste operator commands. Future example README maintenance should
+treat run/smoke snippets as agent-facing command surfaces and normalize them in
+place to the repo invocation contract without changing demo behavior.
 
 Issue #1717 / PR #1719 applied that same command-shape lesson to the top-level
 README demo section. Several examples still used `cd examples/<Demo>` followed

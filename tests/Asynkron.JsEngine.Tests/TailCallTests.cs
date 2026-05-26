@@ -165,6 +165,28 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_ForBodyLegacyRestartRefreshesArgumentsObject()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function countdown(n) {
+                "use strict";
+                if (n === 0) {
+                    return arguments[0];
+                }
+
+                for (var x = 0; ;) {
+                    return countdown(n - 1);
+                }
+            }
+
+            countdown(2);
+            """);
+
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_RebindsMemberReceiverOnRestart()
     {
         await using var engine = CreateEngine();

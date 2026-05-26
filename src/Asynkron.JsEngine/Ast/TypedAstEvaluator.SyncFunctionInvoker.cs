@@ -1751,25 +1751,6 @@ public static partial class TypedAstEvaluator
             IReadOnlyList<JsValue> currentArguments = arguments;
             try
             {
-                // Create arguments object per ES2024 9.2.12 steps 17-20
-                // Note: argumentsObjectNeeded handles all spec conditions (arrow, param name, lexical binding)
-                if (_argumentsObjectNeeded)
-                {
-                    // Create the `arguments` binding up front so parameter default expressions can reference it.
-                    var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment, RealmState,
-                        this,
-                        _isStrict);
-                    executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                        isLexicalBinding: false);
-                    parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                        isLexicalBinding: false);
-                    if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
-                    {
-                        functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
-                            isLexicalBinding: false);
-                    }
-                }
-
                 // Named function expressions should see their name inside the body.
                 if (!IsArrowFunction && _function.Name is { } functionName && !_hasFunctionNameEnvironment)
                 {
@@ -1784,6 +1765,25 @@ public static partial class TypedAstEvaluator
                 {
                 LegacyTailCallRestart:
                     context.ClearReturn();
+
+                    // Create the `arguments` binding before parameter defaults can observe it.
+                    // Legacy tail restarts update currentArguments, so the observable object must be refreshed here.
+                    if (_argumentsObjectNeeded)
+                    {
+                        var argumentsObject = _function.CreateArgumentsObject(currentArguments, executionEnvironment,
+                            RealmState,
+                            this,
+                            _isStrict);
+                        executionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                            isLexicalBinding: false);
+                        parameterEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                            isLexicalBinding: false);
+                        if (!ReferenceEquals(parameterEnvironment, functionEnvironment))
+                        {
+                            functionEnvironment.DefineJsValue(Symbol.Arguments, JsValue.FromObjectUnsafe(argumentsObject),
+                                isLexicalBinding: false);
+                        }
+                    }
 
                     // Bind parameters
                     _function.BindFunctionParameters(currentArguments, parameterEnvironment, context);

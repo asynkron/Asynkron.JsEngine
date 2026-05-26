@@ -7,13 +7,13 @@ navigation, slide transitions, and SVG overlays through a small native bridge.
 Run it:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo
 ```
 
 You can also start on a specific page:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation 12
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation 12
 ```
 
 The converted presentation assets live in `assets/beyond-the-vibe/`:
@@ -65,23 +65,23 @@ Returning `true` from `key` consumes that key for the current slide.
 Smoke-test the JS navigation without opening a window:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-smoke
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-smoke
 ```
 
 Smoke-test the generated SVG image-mask handling used by the angel slide:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-mask-smoke
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-mask-smoke
 ```
 
 Smoke-test per-slide sidecar registration and animation hooks:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-sidecar-smoke
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-sidecar-smoke
 ```
 
 Smoke-test startup preloading without opening the window:
 
 ```bash
-dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-preload-smoke
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-preload-smoke
 ```

@@ -93,6 +93,66 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_SuperSpreadArgumentsEvaluateBeforeConstructorCheck()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+
+            var iterable = {
+              [Symbol.iterator]() {
+                log.push("iterator");
+                return {
+                  next() {
+                    log.push("next");
+                    return { done: true };
+                  }
+                };
+              }
+            };
+
+            class C extends null {
+              constructor() {
+                super(...iterable);
+              }
+            }
+
+            try {
+              new C();
+            } catch (err) {
+              log.push(err && err.name);
+            }
+
+            var throwingIterable = {
+              [Symbol.iterator]() {
+                log.push("throw-iterator");
+                return {
+                  next() {
+                    throw new Error("spread");
+                  }
+                };
+              }
+            };
+
+            class D extends null {
+              constructor() {
+                super(...throwingIterable);
+              }
+            }
+
+            try {
+              new D();
+            } catch (err) {
+              log.push(err && err.message);
+            }
+
+            log.join("|");
+            """);
+
+        Assert.Equal("iterator|next|TypeError|throw-iterator|spread", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DerivedDefaultConstructor_InitializesInstanceFieldsAfterSuper()
     {
         await using var engine = CreateEngine();

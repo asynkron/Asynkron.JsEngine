@@ -3293,6 +3293,17 @@ public static partial class TypedAstEvaluator
 
                 callDepthIncremented = true;
 
+                var spreadIndices = superConstruct.GetSpreadIndices(spreadMaskConstants);
+                var materializedArguments = spreadIndices.IsDefaultOrEmpty
+                    ? null
+                    : MaterializeProgramArguments(
+                        superConstruct.ArgumentCount,
+                        spreadIndices,
+                        stack,
+                        baseIndex,
+                        context,
+                        out pooledArguments);
+
                 if (!JsOps.IsConstructor(constructorValue) ||
                     !constructorValue.TryGetObject<IJsCallable>(out var callable))
                 {
@@ -3313,8 +3324,7 @@ public static partial class TypedAstEvaluator
                     ? nt
                     : callable;
 
-                var spreadIndices = superConstruct.GetSpreadIndices(spreadMaskConstants);
-                var result = spreadIndices.IsDefaultOrEmpty
+                var result = materializedArguments is null
                     ? ExecuteProgramConstructNoSpread(
                         callable,
                         newTargetCallable,
@@ -3322,15 +3332,7 @@ public static partial class TypedAstEvaluator
                         baseIndex,
                         superConstruct.ArgumentCount,
                         context.RealmState)
-                    : ExecuteProgramConstructWithMaterializedArguments(
-                        callable,
-                        newTargetCallable,
-                        superConstruct.ArgumentCount,
-                        spreadIndices,
-                        stack,
-                        baseIndex,
-                        context,
-                        out pooledArguments);
+                    : ReflectHelper.Construct(callable, materializedArguments, newTargetCallable, context.RealmState);
 
                 var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
                 object? thisAfterSuper = callResultObject;

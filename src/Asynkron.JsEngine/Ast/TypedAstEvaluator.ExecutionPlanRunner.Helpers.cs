@@ -2988,27 +2988,41 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var objectValue = value.ObjectValue;
+            if (objectValue is null)
+            {
+                return false;
+            }
+
+            if (TryGetEscapedClosureScanCacheResult(objectValue, out var cachedResult))
+            {
+                return cachedResult;
+            }
+
             if (value.TryGetObject<SyncFunctionInvoker>(out var captured) &&
                 !ReferenceEquals(captured, _callable) &&
                 captured.CapturesActivationBetween(environment, _closure))
             {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                 return true;
             }
 
             // Proxy ownKeys/getOwnPropertyDescriptor can run user code. Tail-restart
             // eligibility checks must stay non-observable, so skip proxy traversal.
-            if (value.ObjectValue is JsProxy)
+            if (objectValue is JsProxy)
             {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
                 return false;
             }
 
-            if (value.ObjectValue is not IJsPropertyAccessor accessor)
+            if (objectValue is not IJsPropertyAccessor accessor)
             {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
                 return false;
             }
 
             visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
-            if (!visitedObjects.Add(value.ObjectValue))
+            if (!visitedObjects.Add(objectValue))
             {
                 return false;
             }
@@ -3024,6 +3038,7 @@ public static partial class TypedAstEvaluator
                 if (descriptor.HasValue &&
                     HasEscapedActivationCapturingClosureValue(descriptor.JsValue, environment, ref visitedObjects))
                 {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;
                 }
 
@@ -3031,6 +3046,7 @@ public static partial class TypedAstEvaluator
                     !ReferenceEquals(getter, _callable) &&
                     getter.CapturesActivationBetween(environment, _closure))
                 {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;
                 }
 
@@ -3038,11 +3054,42 @@ public static partial class TypedAstEvaluator
                     !ReferenceEquals(setter, _callable) &&
                     setter.CapturesActivationBetween(environment, _closure))
                 {
+                    StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
                     return true;
                 }
             }
 
+            StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
             return false;
+        }
+
+        private bool TryGetEscapedClosureScanCacheResult(object objectValue, out bool containsEscapedClosure)
+        {
+            if (objectValue is not JsObject jsObject ||
+                _escapedClosureScanCache is null ||
+                !_escapedClosureScanCache.TryGetValue(objectValue, out var cacheEntry) ||
+                cacheEntry.MutationVersion != jsObject.CurrentMutationVersion)
+            {
+                containsEscapedClosure = false;
+                return false;
+            }
+
+            containsEscapedClosure = cacheEntry.ContainsEscapedClosure;
+            return true;
+        }
+
+        private void StoreEscapedClosureScanCacheResult(object objectValue, bool containsEscapedClosure)
+        {
+            if (objectValue is not JsObject jsObject)
+            {
+                return;
+            }
+
+            _escapedClosureScanCache ??= new Dictionary<object, EscapedClosureScanCacheEntry>(
+                ReferenceEqualityComparer<object>.Instance);
+            _escapedClosureScanCache[objectValue] = new EscapedClosureScanCacheEntry(
+                jsObject.CurrentMutationVersion,
+                containsEscapedClosure);
         }
 
         private bool CanRestartCurrentTailCall()

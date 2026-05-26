@@ -340,7 +340,7 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(1d, result);
     }
 
-    [Fact(Timeout = 5000)]
+    [Fact(Timeout = 15000)]
     public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotGrowCallDepth()
     {
         await using var engine = CreateEngine();
@@ -355,7 +355,7 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
                 function getF() { return f; }
                 return getF()(n - 1);
-            }(1500));
+            }(100000));
             callCount;
             """);
 

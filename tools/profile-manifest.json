@@ -450,6 +450,22 @@
         { "file": "built-ins/RegExp/property-escapes/generated/Script_Extensions_-_Syriac.js", "strict": true }
       ]
     },
+    "test262-regexp-property-punctuation": {
+      "name": "Test262RegExpPropertyPunctuationProfile",
+      "description": "Focused Test262 RegExp Unicode property-escape punctuation crash cluster",
+      "script": "",
+      "mode": "test262",
+      "iterations": 1,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true,
+      "include_in_all": false,
+      "test262_cases": [
+        { "file": "built-ins/RegExp/property-escapes/generated/General_Category_-_Close_Punctuation.js", "strict": true },
+        { "file": "built-ins/RegExp/property-escapes/generated/General_Category_-_Connector_Punctuation.js", "strict": false },
+        { "file": "built-ins/RegExp/property-escapes/generated/General_Category_-_Connector_Punctuation.js", "strict": true }
+      ]
+    },
     "test262-weakset-add": {
       "name": "Test262WeakSetAddProfile",
       "description": "Reported slow/crash Test262 WeakSet.prototype.add cases",

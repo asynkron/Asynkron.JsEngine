@@ -200,6 +200,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   differences explicit through named parameters or separate call sites. Prove
   every affected fixture variant with a focused test filter; line-count
   reduction alone is not behavioral proof.
+- When the code-reduction slice targets duplicated JavaScript regression
+  harness setup, extract only the invariant harness into a local helper or
+  constant. Preserve per-test source bodies, eval boundaries, and named
+  semantic differences; prove the affected regression family with a focused
+  filter plus the usual code-size and diff checks.
 - When the code-reduction slice targets duplicated behavioral dispatch in a
   sensitive runtime path, first look for an existing semantic owner that already
   handles every case. Prefer delegating to that owner over creating a new helper
@@ -617,6 +622,16 @@ and `for...of` traversal differences visible at the two test call sites, then
 proved both tests with one focused filter. Future fixture-dedup slices should
 follow ADR 0147: shared setup belongs in the builder, semantic differences stay
 named, and every affected fixture variant remains in the proof command.
+
+Issue `autrun-disooxlrk6co-208b40e934` / PR #2138 applied the same boundary to
+duplicated generator/yield* regression harness setup. The safe slice extracted
+only the repeated minimal `assert.sameValue` helpers into
+`BasicAssertSameValueHarness`, kept the Test262-derived scenario bodies and
+separate eval boundaries intact, recorded `GeneratorTests.cs` reductions from
+6684 to 6650 lines and 5380 to 5346 counted C# lines, and proved the affected
+family with the focused `FullyQualifiedName~Generator_YieldStar` filter. Future
+regression-harness reductions should share identical setup, not delete coverage
+or collapse scenario-specific scripts only to reduce lines.
 
 Issue `autrun-dis5yv0b12so-8430e3939a` / PR #1958 removed three fully
 commented-out dormant test source files:

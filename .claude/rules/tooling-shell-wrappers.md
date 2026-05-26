@@ -18,6 +18,12 @@ Repository shell wrappers must preserve argument boundaries exactly.
 - For wrappers that add default flags, prove both paths: defaults are injected
   when the caller omits the flag, and caller-supplied flags are preserved without
   an extra blank token.
+- If a profile wrapper fails before the target runner starts because an optional
+  Bash array is unset, isolate the target by running the underlying runner
+  directly before judging the profile evidence. For Test262 manifest profiles,
+  use `rtk dotnet run --project tools/ProfileRunner/ProfileRunner.csproj -c Release -- <profile>`
+  as the direct proof path, then record the wrapper failure separately instead
+  of expanding a manifest-only slice into wrapper repair work.
 
 ## Why
 
@@ -36,3 +42,11 @@ and used a zero-token expansion for Python fan-out arguments. Future wrapper
 maintenance should smoke-test discovery/list paths as well as the main profiling
 path, because those modes often run before callers have supplied any forwarded
 arguments.
+
+Issue #2051 / PR #2058 accepted a focused Test262 manifest profile only after
+the direct `ProfileRunner` command proved it, because `rtk ./tools/profile
+test262-regexp-property-punctuation` failed in the wrapper with
+`profiler_args[@]: unbound variable` before exercising the target profile. The
+durable lesson is to separate wrapper preflight failures from profile validity:
+direct-run the owning runner for evidence, and leave wrapper repair to a scoped
+tooling change with empty-array proofs.

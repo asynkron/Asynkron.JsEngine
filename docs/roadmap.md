@@ -49,11 +49,14 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Activation call trampoline frame capacity now has focused activation-params evidence, with remaining activation-params-lite setup/trampoline overhead explicitly tracked as follow-up work rather than treated as solved (`docs/performance/activation-params-trampoline-frame-capacity.md`, [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
 - Sync IR trampoline frame capacity is now explicitly shallow-first and pool-owned, with future capacity growth constrained to new profile evidence (`docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`).
 - `StringPrototype.Split`/join follow-through now has explicit consumer-materialization ownership evidence under ADR 0163, with remaining stringops materialization cost tracked as a narrow next-step issue (`docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`, [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
+- Direct-eval program caching now removes repeated parse/plan rebuild on the `activation-evalscope-lite` profile while preserving eval observability boundaries; remaining evalscope-lite overhead is tracked as a bounded follow-up rather than treated as full parity (`docs/performance/activation-evalscope-eval-program-cache.md`, `src/Asynkron.JsEngine/EvalHostFunction.cs`, [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
+- ADR 0184 now fixes split/join consumer ownership boundaries with an explicit semantics-first join fallback for side-effectful coercion, while requiring comparable selected-profile rows for future reduction claims (`docs/adrs/0184-keep-stringops-split-join-consumers-guarded-and-observable.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`, `src/Asynkron.JsEngine/StdLib/Array/ArrayPrototype.Transformations.cs`, [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
 - Empty-separator `split("")` character reuse is now explicitly consumer-owned and cache-bounded for ASCII-heavy workloads without widening observable split semantics (`docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`).
 - Super-constructor private resolver routing is now explicitly JsValue-native and captured as a durable ownership boundary for future constructor-path optimization slices (`docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`, `src/Asynkron.JsEngine/Ast/JsEnvironmentExtensions.cs`).
 - No-spread expression-program `new`/`super(...)` argument-carrier fast paths are now explicitly separated from spread/generic construction, while preserving spread-order and constructor-error semantics (`docs/adrs/0171-keep-no-spread-construct-argument-carriers-and-super-spread-order.md`).
 - Observable arguments setup now has an explicit profile-owned and plan-proven boundary: descriptor/hoist improvements are accepted, while residual lexical-name setup remains an evidence-backed follow-up seam (`docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`, `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`).
 - Jint comparison policy now keeps the comparison version centralized and explicit, so benchmark deltas remain interpretable across optimization slices (`docs/adrs/0174-keep-jint-comparison-version-centralized.md`).
+- Unified bytecode prototype boundaries are now explicitly IR-owned and all-or-nothing under ADR 0181, so production routing still requires separate parity/performance proof before any broader runtime claim (`docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`).
 - Async generators still carry a known weaker seam: invoker wiring currently runs through a sync-generator IR step wrapper with ThreadStatic resume callback caches; this remains a bounded follow-up surface rather than a settled runtime contract (`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`).
 
 ### What Works Worse
@@ -98,6 +101,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
 29. Continue activation-arguments follow-through after ADR 0173 by reducing remaining lexical-name setup overhead with selected-profile proof while preserving observable semantics boundaries (tracked in [#2123](https://github.com/asynkron/Asynkron.JsEngine/issues/2123)).
 30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
+31. Continue direct-eval follow-through after the eval program-cache slice by reducing remaining `activation-evalscope-lite` overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
+32. Continue ADR 0184 stringops split/join consumer follow-through by reducing remaining consumer materialization overhead with comparable selected-profile before/after rows and semantics-first fallback proof (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -129,6 +134,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/json-default-data-properties-and-quote-fast-path.md`
   - `docs/performance/activation-params-trampoline-frame-capacity.md`
   - `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`
+  - `docs/performance/activation-evalscope-eval-program-cache.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -162,6 +168,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`
   - `docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`
   - `docs/adrs/0174-keep-jint-comparison-version-centralized.md`
+  - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
+  - `docs/adrs/0184-keep-stringops-split-join-consumers-guarded-and-observable.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

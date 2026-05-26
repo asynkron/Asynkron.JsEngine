@@ -2,6 +2,7 @@
 
 using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
@@ -26,6 +27,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private readonly LinkedList<KeyValuePair<EvalProgramCacheKey, ProgramNode>> _programCacheLru = new();
     private readonly Dictionary<EvalProgramCacheKey, LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>>
         _programCache = new();
+    private EvalProgramCacheEntry? _lastProgramCacheEntry;
 
     public EvalHostFunction(JsEngine engine)
     {
@@ -732,12 +734,19 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private ProgramNode GetOrParseProgram(string code, bool forceStrict)
     {
         var key = new EvalProgramCacheKey(code, forceStrict);
+        var lastEntry = Volatile.Read(ref _lastProgramCacheEntry);
+        if (lastEntry is not null && lastEntry.Key.Equals(key))
+        {
+            return lastEntry.Program;
+        }
+
         lock (_programCacheLock)
         {
             if (_programCache.TryGetValue(key, out var cachedNode))
             {
                 _programCacheLru.Remove(cachedNode);
                 _programCacheLru.AddLast(cachedNode);
+                Volatile.Write(ref _lastProgramCacheEntry, new EvalProgramCacheEntry(key, cachedNode.Value.Value));
                 return cachedNode.Value.Value;
             }
         }
@@ -755,6 +764,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             var node = new LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>(new(key, program));
             _programCacheLru.AddLast(node);
             _programCache.Add(key, node);
+            Volatile.Write(ref _lastProgramCacheEntry, new EvalProgramCacheEntry(key, program));
             if (_programCache.Count > MaxProgramCacheEntries && _programCacheLru.First is { } first)
             {
                 _programCache.Remove(first.Value.Key);
@@ -766,6 +776,8 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     }
 
     private readonly record struct EvalProgramCacheKey(string Code, bool ForceStrict);
+
+    private sealed record EvalProgramCacheEntry(EvalProgramCacheKey Key, ProgramNode Program);
 
     private static bool IsDirectEvalCallerMethod(JsEnvironment? callingEnvironment)
     {

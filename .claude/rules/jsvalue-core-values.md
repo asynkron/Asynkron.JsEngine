@@ -19,6 +19,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`
   - `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`
   - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
+  - `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`
 
 ## Rules
 
@@ -150,6 +151,16 @@ When working inside the core engine, keep JavaScript values represented as
     unavoidable `JsValue.FromObjectUnsafe(...)` wrapping inside the resolver
     boundary for known runtime objects and prove the caller-side rewraps are
     gone.
+20. When private program/script/eval execution wrappers feed callsites that
+    already consume JavaScript values, keep the wrapper and immediate callsites
+    typed as `JsValue`. Public `Evaluate*` facades may unwrap at the API edge,
+    and module-body result storage can remain a separate `object?` migration
+    surface until it is the selected slice. Do not call `EvaluateProgram(...)`
+    or return `object?` from private execution plumbing only to immediately
+    rewrap with `JsValue.FromObjectUnsafe(...)`; prefer
+    `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram`, and
+    focused eval/Function/ShadowRealm proof. Related ADR:
+    `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
 
 ## Why
 
@@ -419,3 +430,15 @@ return while keeping the resolved callable/accessor payload typed. Future
 optional resolver migrations should use the same shape instead of treating
 `object?` nullability as a private JavaScript-value carrier. Related ADR:
 `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`.
+
+Issue `autrun-disjor8mq4lk-f2e8b924c2` / PR #2087 migrated the private
+`JsEngine.ExecuteProgram` seam from `object?` to `JsValue`. The old script/eval
+wrapper called `EvaluateProgram(...)`, then direct eval, ShadowRealm evaluate,
+the Function constructor, and dynamic generator constructors converted the
+result back with `JsValue.FromObjectUnsafe(...)` or equivalent guards. That
+boundary was not public interop; it was private execution plumbing. Future
+program/eval execution cleanup should keep direct eval and dynamic constructor
+callers on `EvaluateProgramJsValue(...)` or a `JsValue`-returning wrapper, while
+preserving public `Evaluate*` unwrapping and leaving module `LastValue` storage
+for a separate focused slice. Related ADR:
+`docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.

@@ -39,6 +39,7 @@ This step is **critical** - agent investigation findings are lost if not documen
   - Split unrelated reads into small commands instead of large chained `sed`/`rg`/log commands.
   - Scope `rg` to specific existing paths and avoid broad `.faktorial/worktrees` searches unless the task explicitly requires that path.
   - When raw logs are required, use narrow snippets (targeted patterns and line caps) rather than full dumps.
+  - For recurring maintenance child runs, ensure `## Build Update` explicitly includes a `Sibling check:` line (or states the lookup was unavailable) so evidence gates can verify overlap avoidance.
 - For each session, update an existing issue or create one if none fit.
 - Find/confirm an issue:
   - `gh issue list -S "keyword"`

@@ -119,7 +119,9 @@ capture a cheap baseline signal before editing and the matching final signal
 after editing, and avoid adding recurrence infrastructure. Build updates should
 use the stable evidence shape (`Baseline signal`, `Final signal`,
 `Sibling check`, `Slice check`, `Scope note`) from
-[`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md).
+[`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md). Policy
+ownership for recurring-child scope and durable compaction rules lives in
+[`.claude/rules/recurring-maintenance-child-runs.md`](.claude/rules/recurring-maintenance-child-runs.md).
 
 ---
 

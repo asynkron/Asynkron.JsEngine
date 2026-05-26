@@ -13,6 +13,14 @@ optimization.
 2. Keep CPU and memory evidence separate. A CPU hotspot in call entry does not
    prove an allocation win, and an allocation type table does not prove exact
    allocation provenance without a call tree.
+2a. When one performance issue groups multiple benchmark profiles, prove and
+    report the owner for each profile independently before choosing an
+    implementation surface. Similar domain labels or allocation types are not
+    enough evidence for a shared fix. Issue #2079 / PR #2097 grouped `json` and
+    `stringops`, but profiling showed `JsonHelper` storage and
+    `StringPrototype.Split` consumer materialization were separate owners, so
+    the delivery changed only the string split consumer and left JSON as a
+    JsonHelper-specific residual.
 3. Preserve `PERF_PROFILES` override behavior when changing aggregate profiler
    defaults. Default guardrails may expand, but operators must still be able to
    run a narrowed profile set.
@@ -142,8 +150,10 @@ optimization.
     `StringPrototype.Split` or another string consumer's result
     materialization, keep the optimization at that consumer boundary: pre-size
     result storage only after proving the constructor is capacity-only, avoid
-    intermediate element arrays where observable order is unchanged, and do not
-    turn a split/join hotspot into a rope or generic addition policy change.
+    intermediate element arrays where observable order is unchanged, reuse
+    cached single-code-unit strings only on a profiled and semantics-pinned
+    path such as ASCII `split("")`, and do not turn a split/join hotspot into a
+    rope or generic addition policy change.
 16. For sync IR trampoline performance work, separate semantically tail-position
     calls from calls the current trampoline executor can actually complete.
     Before widening eligibility, prove the selected profile's call shape
@@ -159,6 +169,15 @@ optimization.
      optimized. Capacity tuning must not change eligibility, active frame
      count, argument/receiver binding, expression stack state, or fallback
      behavior.
+16b. For sync IR trampoline frame-pooling work, keep frame ownership explicit.
+     Do not use `[ThreadStatic]`, `AsyncLocal<T>`, or shared scratch frame
+     caches to avoid allocation. If top-level `SyncIrFrame[]` storage is pooled,
+     growth cleanup and final cleanup must stay separate: after copying live
+     frames to a new rented array, reset only the old frame structs before
+     returning the old backing array, because the copied frames still own their
+     nested slot, expression-stack, and flag arrays. Final cleanup must clear
+     those nested arrays and non-scratch references such as `Plan` and
+     `ActivationSlots` before returning the invocation's backing array.
 17. For lexical scope-entry TDZ performance work, prove that the selected
     profile is paying repeated scope-entry metadata work before changing the
     runner. If slot layout is already known by lowering or stamping, carry
@@ -461,6 +480,17 @@ profile timings by about 42% on average. The durable lesson is that trampoline
 capacity work should be profile-owned and capacity-only: optimize the shallow
 startup case without changing eligibility, active frame semantics, or fallback
 behavior. Related ADR:
+`docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`.
+
+Issue #2075 / PR #2091 extended that same owner surface from frame capacity to
+frame-array pooling. Review rejected a `[ThreadStatic]` scratch cache because
+repo policy disallows thread-static shared state and nested trampoline use can
+reuse the same scratch storage. The follow-up lifecycle fix separated growth
+cleanup from final cleanup: growth only resets old frame structs after copying
+live frames, while final invocation cleanup clears nested scratch arrays and
+retained `Plan` / `ActivationSlots` references before pool return. The durable
+lesson is that pooled trampoline frame storage is an ownership change, not just
+an allocation micro-optimization. Related ADR:
 `docs/adrs/0167-keep-sync-ir-trampoline-frame-capacity-shallow-first.md`.
 
 Issue `autrun-dirzemwhwz7s-0f70b9a325` / PR #1915 selected `destructuring`

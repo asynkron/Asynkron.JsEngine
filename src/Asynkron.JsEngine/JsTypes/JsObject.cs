@@ -252,6 +252,16 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
     }
 
+    internal void EnsureDescriptorCapacity(int capacity)
+    {
+        if (capacity > 0)
+        {
+            var state = State;
+            state.Descriptors.EnsureCapacity(capacity);
+            state.PropertyInsertionOrder.EnsureCapacity(capacity);
+        }
+    }
+
     private bool WouldCreatePrototypeCycle(IJsPropertyAccessor? candidate)
     {
         IJsPropertyAccessor? current = candidate;

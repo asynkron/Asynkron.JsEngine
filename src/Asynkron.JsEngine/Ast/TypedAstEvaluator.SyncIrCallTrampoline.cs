@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using System.Buffers;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -44,7 +45,7 @@ public static partial class TypedAstEvaluator
                     return true;
                 }
 
-                var frames = new SyncIrFrame[InitialFrameCapacity];
+                var frames = RentFrameStorage();
                 var depth = 0;
                 var maxDepth = 0;
 
@@ -185,7 +186,18 @@ public static partial class TypedAstEvaluator
                 {
                     context.CallDepth = originalCallDepth;
                     ClearFrameStorage(frames, maxDepth);
+                    ReturnFrameStorage(frames);
                 }
+            }
+
+            private static SyncIrFrame[] RentFrameStorage()
+            {
+                return ArrayPool<SyncIrFrame>.Shared.Rent(InitialFrameCapacity);
+            }
+
+            private static void ReturnFrameStorage(SyncIrFrame[] frames)
+            {
+                ArrayPool<SyncIrFrame>.Shared.Return(frames, clearArray: false);
             }
 
             private static bool CanUseTrampoline(SyncFunctionInvoker invoker, ExecutionPlan plan, JsValue newTarget)
@@ -452,7 +464,7 @@ public static partial class TypedAstEvaluator
                 ExecutionPlan plan)
                 where TArgs : IReadOnlyList<JsValue>
             {
-                EnsureFrameCapacity(ref frames, depth + 1);
+                EnsureFrameCapacity(ref frames, depth + 1, depth);
                 ref var frame = ref frames[depth];
                 InitializeFrame(ref frame, invoker, thisValue, plan);
 
@@ -765,20 +777,19 @@ public static partial class TypedAstEvaluator
                 ClearExpressionStackFlags(ref frame);
             }
 
-            private static void EnsureFrameCapacity(ref SyncIrFrame[] frames, int required)
+            private static void EnsureFrameCapacity(ref SyncIrFrame[] frames, int required, int depth)
             {
                 if (required <= frames.Length)
                 {
                     return;
                 }
 
-                var newLength = checked(frames.Length * 2);
-                while (newLength < required)
-                {
-                    newLength = checked(newLength * 2);
-                }
-
-                Array.Resize(ref frames, newLength);
+                var oldFrames = frames;
+                var newLength = checked(Math.Max(oldFrames.Length * 2, required));
+                frames = ArrayPool<SyncIrFrame>.Shared.Rent(newLength);
+                Array.Copy(oldFrames, frames, oldFrames.Length);
+                ClearFrameSlots(oldFrames, depth);
+                ArrayPool<SyncIrFrame>.Shared.Return(oldFrames, clearArray: false);
             }
 
             private static void EnsureSlotCapacity(ref SyncIrFrame frame, int required)
@@ -862,7 +873,25 @@ public static partial class TypedAstEvaluator
                     {
                         Array.Clear(flags);
                     }
+                    frames[i].Invoker = null;
+                    frames[i].Plan = default!;
+                    frames[i].ActivationSlots = null;
+                    frames[i].ThisValue = JsValue.Undefined;
+                    frames[i].ProgramCounter = 0;
+                    frames[i].ExpressionActive = false;
+                    frames[i].ExpressionPurpose = ExpressionPurpose.None;
+                    frames[i].ExpressionProgram = ExpressionProgram.Empty;
+                    frames[i].ExpressionProgramCounter = 0;
+                    frames[i].ExpressionStackIndex = 0;
+                    frames[i].BranchConsequent = -1;
+                    frames[i].BranchAlternate = -1;
+                }
+            }
 
+            private static void ClearFrameSlots(SyncIrFrame[] frames, int maxDepth)
+            {
+                for (var i = 0; i < maxDepth; i++)
+                {
                     frames[i] = default;
                 }
             }

@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
         /// </summary>
         private sealed class BreakableState
         {
-            public readonly Stack<BreakableFrame> BreakableStack = new();
+            public readonly Stack<BreakableFrame> BreakableStack = new(4);
         }
 
         /// <summary>

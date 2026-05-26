@@ -2818,7 +2818,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 plan.SlotSymbols,
                 activationSlots.LayoutId,
                 activationSlots.ScopeId,
-                activationSlots.SlotNames);
+                activationSlots.SlotNames,
+                activationSlots.LexicalSlotIndices);
 
             var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
             functionEnvironment._thisValue = boundThis;

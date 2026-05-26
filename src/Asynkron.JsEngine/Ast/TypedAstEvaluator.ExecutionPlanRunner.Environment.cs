@@ -149,7 +149,8 @@ public static partial class TypedAstEvaluator
                     _plan.SlotSymbols,
                     activationSlots.LayoutId,
                     activationSlots.ScopeId,
-                    activationSlots.SlotNames);
+                    activationSlots.SlotNames,
+                    activationSlots.LexicalSlotIndices);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:
@@ -167,9 +168,6 @@ public static partial class TypedAstEvaluator
                 executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
 isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
-
-            // Store YieldResumeContext reference in the environment for yield expressions
-            var yieldState = YieldStateRef;
 
             var generatorContext = _context is not null &&
                                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
@@ -256,9 +254,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
-            functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol,
-                JsValue.FromObjectUnsafe(yieldState.ResumeContext));
-            functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
+            if (_isGenerator)
+            {
+                // Store YieldResumeContext reference in the environment for yield expressions.
+                var yieldState = YieldStateRef;
+                functionEnvironment.DefineJsValue(Symbol.YieldResumeContextSymbol,
+                    JsValue.FromObjectUnsafe(yieldState.ResumeContext));
+                functionEnvironment.DefineJsValue(Symbol.GeneratorInstanceSymbol, JsValue.FromObjectUnsafe(this));
+            }
 
             var superPrototype = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
                                  _homeObject?.Prototype;
@@ -366,7 +369,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 capacity += 2; // new.target + active function.
             }
 
-            capacity += 2; // yield resume context + runner instance.
+            if (_isGenerator)
+            {
+                capacity += 2; // yield resume context + runner instance.
+            }
 
             if (isArrowFunction && _lexicalThisEnvironment is not null)
             {

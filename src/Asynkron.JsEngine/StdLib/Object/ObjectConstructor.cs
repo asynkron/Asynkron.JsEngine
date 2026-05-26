@@ -803,7 +803,7 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         {
             foreach (var key in moduleNamespace.OwnKeys())
             {
-                if (key is JsSymbol symbol)
+                if (key.TryGetSymbol(out var symbol))
                 {
                     symbols.Push(symbol);
                 }

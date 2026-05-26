@@ -401,6 +401,13 @@ agent-facing focused proof examples from bare `dotnet test` to
 `rtk dotnet test`, without changing Test262 policy, source code, recurrence
 infrastructure, or broader proof guidance.
 
+Issue #1974 / PR #1977 found the same stale command shape in the Test262
+harness-policy rule, where a historical focused proof still showed bare
+`dotnet test` even though agents must run shell commands through `rtk`. Future
+workflow-doc slices should treat durable rule examples as agent-facing command
+surfaces too: fix the stale invocation in place, keep the historical proof
+meaning intact, and avoid widening the slice into Test262 harness behavior.
+
 Issue #1925 / PR #1930 closed the adjacent Test262 README ambiguity: the
 operator command is `rtk ./tools/run-test262-regressions.sh`, while the raw
 `dotnet test` line shown underneath is the script's internal runner invocation,

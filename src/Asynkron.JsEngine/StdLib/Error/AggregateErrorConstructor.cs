@@ -23,36 +23,11 @@ public sealed partial class AggregateErrorConstructor(IJsObjectLike prototype, R
     /// </summary>
     protected override void InitializeError(JsObject instance, IReadOnlyList<JsValue> args)
     {
-        instance.RealmState ??= Realm;
-
-        // ES spec: Set [[ErrorData]] internal slot
-        instance.DefineProperty("_errorData",
-            new PropertyDescriptor { JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
-
         // args[0] = errors, args[1] = message, args[2] = options
         var errorsArg = args.Count > 0 ? args[0] : JsValue.Undefined;
         var messageArg = args.Count > 1 ? args[1] : JsValue.Undefined;
         var optionsArg = args.Count > 2 ? args[2] : JsValue.Undefined;
-
-        // Set message if provided and not undefined
-        if (!messageArg.IsUndefined)
-        {
-            var message = messageArg.IsNull ? "null" : JsOps.ToJsString(messageArg);
-            instance.DefineProperty("message",
-                new PropertyDescriptor { JsValue = message, Writable = true, Enumerable = false, Configurable = true });
-        }
-
-        // ES2022: InstallErrorCause - handle options.cause
-        if (optionsArg.IsObject)
-        {
-            if (optionsArg.TryGetObject<IJsPropertyAccessor>(out var optionsAccessor) &&
-                HasProperty(optionsAccessor, "cause"))
-            {
-                JsOps.TryGetPropertyValue(optionsArg, "cause", out var cause);
-                instance.DefineProperty("cause",
-                    new PropertyDescriptor { JsValue = cause, Writable = true, Enumerable = false, Configurable = true });
-            }
-        }
+        InitializeErrorShared(instance, messageArg, optionsArg);
 
         // Per spec: Perform ! CreateDataPropertyOrThrow(O, "errors", CreateArrayFromList(errorsList)).
         // Step 3: Let errorsList be ? IterableToList(errors).

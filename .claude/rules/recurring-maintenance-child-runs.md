@@ -42,6 +42,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   file/line diagnostic, treat it as a verification-context gap first. Re-run
   `rtk git diff --check` and the exact local gate before changing source, and
   patch only when current evidence points at deterministic source drift.
+- If a docs-only recurring child hits an unrelated internal-test failure or
+  flake, do not make the PR pass by changing test timeouts, assertions, or
+  source behavior. Re-run or record the quality evidence, then split any
+  deterministic test/runtime problem into its own issue or delivery slice.
 - When multiple recurring-maintenance children are active, check active sibling
   child log summaries before choosing a slice so two children do not target the
   same narrow docs cleanup in parallel.
@@ -487,6 +491,15 @@ showed schema-like interim status entries during a recurring-child run. The
 delivery also reverted an out-of-scope activation test assertion change, which
 confirms future recurring-child fixes should keep process guidance docs-only
 when the selected slice is operational documentation.
+
+Issue #2171 / PR #2176 repeated the same scope-control failure mode through a
+docs-only README status slice: after the local quality gate exposed an async
+test timeout-shaped failure, the branch briefly widened into longer async test
+timeouts before review forced a revert and merged only the README wording fix.
+Future recurring documentation children must not absorb unrelated test-timeout
+or runtime-stability repairs just to get a docs slice through verification; keep
+that evidence in the handoff and split deterministic test work into a separate
+issue.
 
 Issue #1882 refined the same policy to be stage-neutral: schema-shaped output
 belongs only in the actual final stage response, not just in build-stage

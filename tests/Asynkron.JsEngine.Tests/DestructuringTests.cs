@@ -82,6 +82,27 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DestructuringAssignmentClosesDefaultArrayIteratorOnAbruptAssignment()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let calls = 0;
+            const arrayIteratorPrototype = Object.getPrototypeOf([][Symbol.iterator]());
+            arrayIteratorPrototype.return = function() {
+                calls++;
+                return { done: true };
+            };
+            const x = 0;
+            try {
+                [x] = [1, 2];
+            } catch {
+            }
+            calls;
+            """);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithDefaults()
     {
         await using var engine = CreateEngine();

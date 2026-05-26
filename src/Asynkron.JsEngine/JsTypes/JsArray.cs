@@ -139,6 +139,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return true;
         }
 
+        if (iteratorPrototype.TryGetProperty("return", out var returnValue) && !returnValue.IsNullOrUndefined)
+        {
+            return false;
+        }
+
         return iteratorPrototype.TryGetProperty("next", out var nextValue) &&
                nextValue.TryGetObject<HostFunction>(out var nextFunction) &&
                nextFunction.HasNativeSourceDisplayName("next");

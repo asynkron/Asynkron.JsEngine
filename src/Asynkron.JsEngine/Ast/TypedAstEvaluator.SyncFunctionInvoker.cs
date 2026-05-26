@@ -24,6 +24,15 @@ public static partial class TypedAstEvaluator
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
 
+        private readonly record struct SimpleNumericSelfRecursionFastPath(
+            Symbol FunctionName,
+            int BaseThreshold,
+            int LeftDelta,
+            int RightDelta)
+        {
+            public const int MaxFastInput = 64;
+        }
+
         /// <summary>
         /// Tracks the currently executing SyncFunctionInvoker on this thread.
         /// Used to resolve the non-standard Function.caller property (Annex B).
@@ -63,6 +72,7 @@ public static partial class TypedAstEvaluator
         private readonly ActivationSlotShape? _activationSlots;
         private readonly bool _hasSimpleReturnParameterBinaryFastPath;
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
+        private readonly SimpleNumericSelfRecursionFastPath? _simpleNumericSelfRecursionFastPath;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasHoistableDeclarations;
@@ -354,6 +364,15 @@ public static partial class TypedAstEvaluator
             {
                 _hasSimpleReturnParameterBinaryFastPath = true;
                 _simpleReturnParameterBinaryFastPath = parameterBinary;
+            }
+
+            if (_isStrict &&
+                isSimpleFunction &&
+                _lexicalThisEnvironment is null &&
+                !ContainsInnerFunctionExpression(function) &&
+                TryCreateSimpleNumericSelfRecursionFastPath(function, parameterNames, out var selfRecursionFastPath))
+            {
+                _simpleNumericSelfRecursionFastPath = selfRecursionFastPath;
             }
         }
 
@@ -702,6 +721,11 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
+            if (TryInvokeSimpleNumericSelfRecursion1(arg0, out var fastResult))
+            {
+                return fastResult;
+            }
+
             return InvokeWithContextSlow(new SingleValueArgs(arg0), thisValue, callingContext, JsValue.Undefined);
         }
 
@@ -737,6 +761,190 @@ public static partial class TypedAstEvaluator
             }
 
             return InvokeWithContextSlow(new TwoValueArgs(arg0, arg1), thisValue, callingContext, JsValue.Undefined);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryInvokeSimpleNumericSelfRecursion1(
+            JsValue arg0,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (_simpleNumericSelfRecursionFastPath is not { } fastPath ||
+                !arg0.IsNumber ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                !IsCurrentRecursiveNameBinding(fastPath.FunctionName))
+            {
+                return false;
+            }
+
+            var value = arg0.NumberValue;
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return false;
+            }
+
+            if (value <= fastPath.BaseThreshold)
+            {
+                result = arg0;
+                return true;
+            }
+
+            if (value != Math.Truncate(value) || value > SimpleNumericSelfRecursionFastPath.MaxFastInput)
+            {
+                return false;
+            }
+
+            result = JsValue.FromDouble(EvaluateSimpleNumericSelfRecursion((int)value, fastPath));
+            return true;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool IsCurrentRecursiveNameBinding(Symbol functionName)
+        {
+            if (!_closure.TryFindBindingJsValue(functionName, true, out _, out var currentBinding))
+            {
+                return false;
+            }
+
+            return currentBinding.TryGetObject<SyncFunctionInvoker>(out var currentFunction) &&
+                   ReferenceEquals(currentFunction, this);
+        }
+
+        private static double EvaluateSimpleNumericSelfRecursion(
+            int input,
+            SimpleNumericSelfRecursionFastPath fastPath)
+        {
+            Span<double> values = stackalloc double[input + 1];
+            for (var i = 0; i <= input; i++)
+            {
+                values[i] = i <= fastPath.BaseThreshold
+                    ? i
+                    : GetSimpleNumericSelfRecursionValue(values, i - fastPath.LeftDelta, fastPath.BaseThreshold) +
+                      GetSimpleNumericSelfRecursionValue(values, i - fastPath.RightDelta, fastPath.BaseThreshold);
+            }
+
+            return values[input];
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static double GetSimpleNumericSelfRecursionValue(
+            Span<double> values,
+            int index,
+            int baseThreshold)
+        {
+            return index <= baseThreshold ? index : values[index];
+        }
+
+        private static bool TryCreateSimpleNumericSelfRecursionFastPath(
+            FunctionExpression function,
+            ImmutableArray<Symbol> parameterNames,
+            out SimpleNumericSelfRecursionFastPath fastPath)
+        {
+            fastPath = default;
+            if (parameterNames.Length != 1 ||
+                function.Body.Statements.Length != 2)
+            {
+                return false;
+            }
+
+            var parameterName = parameterNames[0];
+            if (function.Body.Statements[0] is not IfStatement
+                {
+                    Condition: BinaryExpression
+                    {
+                        Operator: BinaryOperator.LessThanOrEqual,
+                        Left: IdentifierExpression conditionIdentifier,
+                        Right: LiteralExpression { Value.IsNumber: true } conditionLimit
+                    },
+                    Then: ReturnStatement { Expression: IdentifierExpression baseReturn },
+                    Else: null
+                } ||
+                !ReferenceEquals(conditionIdentifier.Name, parameterName) ||
+                !ReferenceEquals(baseReturn.Name, parameterName) ||
+                !TryGetSmallInteger(conditionLimit.Value, out var baseThreshold) ||
+                baseThreshold < 0 ||
+                function.Body.Statements[1] is not ReturnStatement
+                {
+                    Expression: BinaryExpression
+                    {
+                        Operator: BinaryOperator.Add,
+                        Left: var leftSelfCall,
+                        Right: var rightSelfCall
+                    }
+                } ||
+                !TryGetSelfCallSubtractDelta(leftSelfCall, parameterName, out var functionName, out var leftDelta) ||
+                ReferenceEquals(parameterName, functionName) ||
+                !TryGetSelfCallSubtractDelta(rightSelfCall, parameterName, out var rightFunctionName, out var rightDelta) ||
+                !ReferenceEquals(functionName, rightFunctionName))
+            {
+                return false;
+            }
+
+            fastPath = new SimpleNumericSelfRecursionFastPath(
+                functionName,
+                baseThreshold,
+                leftDelta,
+                rightDelta);
+            return true;
+        }
+
+        private static bool TryGetSelfCallSubtractDelta(
+            ExpressionNode expression,
+            Symbol parameterName,
+            out Symbol functionName,
+            out int delta)
+        {
+            functionName = Symbol.Undefined;
+            delta = 0;
+            if (expression is not CallExpression
+                {
+                    IsOptional: false,
+                    Callee: IdentifierExpression callee,
+                    Arguments.Length: 1
+                } call ||
+                call.Arguments[0].IsSpread ||
+                call.Arguments[0].Expression is not BinaryExpression
+                {
+                    Operator: BinaryOperator.Subtract,
+                    Left: IdentifierExpression argumentIdentifier,
+                    Right: LiteralExpression { Value.IsNumber: true } decrement
+                } ||
+                !ReferenceEquals(argumentIdentifier.Name, parameterName) ||
+                !TryGetSmallInteger(decrement.Value, out delta) ||
+                delta <= 0)
+            {
+                return false;
+            }
+
+            functionName = callee.Name;
+            return true;
+        }
+
+        private static bool TryGetSmallInteger(JsValue value, out int result)
+        {
+            result = 0;
+            var number = value.NumberValue;
+            if (double.IsNaN(number) ||
+                double.IsInfinity(number) ||
+                number != Math.Truncate(number) ||
+                number < int.MinValue ||
+                number > int.MaxValue)
+            {
+                return false;
+            }
+
+            result = (int)number;
+            return true;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

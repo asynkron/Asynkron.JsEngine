@@ -91,13 +91,6 @@ internal static class JsEnvironmentPool
         return env;
     }
 
-    [Obsolete("Use JsEnvironmentPool.Return(JsEnvironment) instead.", true)]
-    public static void Return(RentedEnvironment? environment, ILogger? logger = null)
-    {
-        throw new ArgumentException(
-            "Do not pass RentedEnvironment to Return - it is a disposable wrapper. Use JsEnvironmentPool.Return(JsEnvironment) instead.");
-    }
-
     /// <summary>
     /// Returns an environment to the pool. Safe to call on captured or null environments (no-op).
     /// </summary>

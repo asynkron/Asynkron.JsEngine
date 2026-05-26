@@ -44,6 +44,17 @@ optimization.
     change remains. When a no-win run isolates concrete failed experiments,
     name them in the build update so future optimizer agents do not retry the
     same micro-slices without fresh profile evidence.
+6b. Treat a cleaner CPU profile as supporting evidence, not a retained
+    performance win. If an experiment removes a sampled subtree such as
+    `CastHelpers.Box` but repeated selected-profile timings regress or miss the
+    issue threshold, revert the code and record the failed shape. Runner-level
+    argument storage is separate from ADR 0101/0171 call and construct
+    boundary carriers; do not replace `ExecutionPlanRunner` argument storage
+    with a copied value container unless current repeated benchmark timings
+    prove that storage shape pays for itself. Issue
+    `autrun-disltaszb6mo-e6c0f409f5` / PR #2122 caused this rule after the
+    classdef runner argument-container attempt removed the sampled boxing
+    subtree but regressed focused timings.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
@@ -232,6 +243,20 @@ optimization.
     exercises the earlier shape. Report repeated focused timing, the CPU owner,
     and the activation proof-pack result before claiming the shortcut is
     retained.
+23. For parameter-only binary or binary-chain activation work, prove that the
+    selected profile is paying call setup, context setup, or sync trampoline
+    frames before bypassing it. Keep the return shape owned by `ExecutionPlan`
+    metadata over the lowered `ExpressionProgram`, not source text or benchmark
+    names. A pre-context caller shortcut may cover only exact arity and runtime
+    operands it directly models, such as number-only `JsValue` arguments for
+    `(a + b) ^ c`; coercing or omitted-argument cases must use shared
+    JavaScript operator helpers behind the existing simple IR/trampoline
+    eligibility guard. Unsupported operators, locals, globals, `arguments`,
+    dynamic/private/super/home-object, class, async, generator, and captured
+    activation cases must stay on existing fallback paths. When wall-clock
+    timings are noisy, report the CPU owner shape, such as disappearance of
+    `InvokeWithContextSlow` or trampoline frames, plus the focused activation
+    proof pack.
 
 ## Why
 
@@ -273,6 +298,16 @@ experimental edits were reverted and PR creation was deferred because the branch
 had no retained commits. The durable lesson is that failed micro-slices are
 useful evidence only when named explicitly; they are not performance
 documentation and should not be retried unchanged without new owner evidence.
+
+Issue `autrun-disltaszb6mo-e6c0f409f5` / PR #2122 repeated the no-win pattern
+with a subtler signal split. The `classdef` CPU profile showed
+`CastHelpers.Box` under constructor and `super(...)` invocation, and the runner
+argument-container experiment removed that sampled subtree, but repeated
+focused timings regressed to 1939 ms and 2143 ms. The runtime code was reverted
+and the retained delivery became a failed-attempt note. The durable lesson is
+that removing a sampled call-tree cost is not enough: runner storage changes
+need repeated selected-profile timing proof before they become code. Related
+ADR: `docs/adrs/0177-keep-runner-argument-storage-benchmark-proven.md`.
 
 Issue `autrun-diqwn50g1d08-a853a50d18` / PR #1682 selected `ir-arithmetic` from
 a broader `rtk ./benchmark.sh` table because that profile mapped directly to
@@ -562,6 +597,18 @@ pair for the selected slice. The durable lesson is that follow-up performance
 docs must state which slice the numbers prove and avoid presenting a
 no-regression profile pair as a fresh throughput win. Related ADR:
 `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.
+
+Issue #2083 / PR #2128 returned to `activation-params-lite` after the sync IR
+trampoline frame-capacity work. The accepted slice kept the new `(a + b) ^ c`
+shortcut split between plan-owned binary-chain metadata, a trampoline-eligible
+generic direct-return path for coercion-correct semantics, and an exact
+number-only three-argument caller fast path for the selected profile. Final
+benchmark samples were noisy, so the durable evidence was the CPU call tree
+showing `InvokeWithContextSlow` disappeared for the numeric caller path plus
+the focused activation proof pack. The durable lesson is that parameter-chain
+activation shortcuts must be plan-proven, runtime-guarded, and profile-owned
+rather than inferred from the benchmark body. Related ADR:
+`docs/adrs/0178-keep-activation-params-binary-chain-fast-path-plan-and-runtime-guarded.md`.
 
 Issue #2076 / PR #2088 selected `arrayops` again after earlier dense callback
 carrier work and proved the current owners with CPU and memory profiles:

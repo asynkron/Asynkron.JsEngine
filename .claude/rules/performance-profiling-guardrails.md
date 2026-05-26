@@ -77,11 +77,17 @@ optimization.
     owner with a CPU profile, then pin descriptor visibility, insertion order,
     extensibility, virtual-provider/private-field exclusions, and later
     `Object.defineProperty` promotion semantics.
-11. For compact JSON serialization optimizations, keep streaming shortcuts on
-    the compact/no-gap path and preserve the semantic fallback for replacers,
-    `toJSON`, raw JSON, pretty-printing, proxy-aware key enumeration, circular
-    checks, and reviver source tracking. Future `json` work must prove the hot
-    owner with a CPU profile, then separate avoidable intermediate string/list
+11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
+    the owning runtime storage helper and preserve semantic fallbacks. Default
+    data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only
+    when JSON is creating fresh ordinary own properties with default
+    writable/enumerable/configurable attributes, including `__proto__` as data
+    instead of setter behavior. Compact serialization and quoting shortcuts
+    must stay on the compact/no-gap or proven no-escape path and preserve the
+    semantic fallback for replacers, `toJSON`, raw JSON, pretty-printing,
+    proxy-aware key enumeration, circular checks, surrogate escaping, and
+    reviver source tracking. Future `json` work must prove the hot owner with a
+    CPU profile, then separate avoidable intermediate string/list/descriptor
     allocation from metadata that is required for observable JSON semantics.
 12. For activation environment capacity work, prove that the hot owner is slot
     growth or slot-array copying on the selected profile before changing runner
@@ -289,6 +295,19 @@ the non-observable compact/no-reviver cases while leaving the semantic
 replacer, raw JSON, pretty-printing, proxy, circular-check, and reviver paths on
 their existing fallbacks. Detailed measurement note:
 `docs/performance/json-compact-serialization.md`.
+
+Issue `autrun-discqnniowqw-45a6add5dd` / PR #2018 selected `json` again and
+proved the next bounded owner with a `JsonHelper` CPU call tree: JSON-created
+fresh objects and reviver wrappers were paying full descriptor setup for
+ordinary default data properties, while compact string quoting still paid the
+escape builder for strings that required no escaping. The accepted slice reused
+`JsObject.DefineDefaultDataProperty` only for JSON-created fresh own data
+properties and added a `QuoteString` no-escape fast path that still falls back
+for quotes, backslashes, controls, and surrogate code units. The durable lesson
+is that JSON performance work should reuse the storage-owned default-property
+boundary and no-escape quoting proof only where the ECMAScript JSON algorithm
+cannot observe the shortcut. Related ADR:
+`docs/adrs/0158-keep-json-default-property-and-quote-fast-paths-profile-owned.md`.
 
 Issue `autrun-dir4p2zvmkps-4dd788bea7` / PR #1740 selected `classdef` from the
 benchmark table and proved the hot owner with a `classdef` CPU call tree:

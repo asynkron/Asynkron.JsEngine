@@ -10,8 +10,9 @@ all-or-nothing until a separate routing issue proves production readiness.
    already lowers and annotates.
 2. Keep eligibility at compile time, including function kind. Unsupported
    statement shapes, expression ops, identifiers, async/generator functions,
-   local/declaration forms outside the exact accepted slice, control flow, or
-   dynamic shapes must return an unsupported reason before VM execution.
+   local/declaration forms outside the exact accepted slice, control flow
+   outside the acyclic branch slice, or dynamic shapes must return an
+   unsupported reason before VM execution.
    Do not infer sync-only eligibility from `ExecutionPlan` shape alone.
 3. Do not add fallback inside `UnifiedBytecodeVirtualMachine` to
    `ExpressionProgram` evaluation, AST evaluation, or `ExecutionPlanRunner`.
@@ -33,6 +34,12 @@ all-or-nothing until a separate routing issue proves production readiness.
 7. Keep JavaScript semantic claims narrow. A prototype op such as numeric
    `Add` proves only the tested VM behavior; full JavaScript operator coercion
    requires an explicit migration and parity proof.
+8. When expanding across branch/control flow, keep the accepted CFG acyclic and
+   compiler-owned. Pre-scan reachable IR instructions for cycles, compile with
+   an IR-instruction-index to unified-bytecode-PC map, patch forward branch and
+   jump operands after targets are emitted, and reject loops or unsupported
+   branch payloads before VM execution. Do not treat acyclic branch support as
+   loop support or as permission to call back into existing evaluators.
 
 ## Why
 
@@ -61,7 +68,16 @@ expression ops decline before execution. Adding a generic expression-program
 eval opcode would hide coverage gaps and make the fallback-free VM boundary
 untrue.
 
+Issue #2166 / PR #2173 crossed the prototype from linear body walking into
+acyclic branch CFG compilation. The lesson is that branch support needs an
+explicit bytecode-PC owner: map IR instruction indices to emitted PCs, patch
+`JumpIfFalse` and `Jump` targets after blocks are emitted, and reject
+loop-shaped graphs before unsupported body details hide the real boundary. This
+keeps branch joins, local updates, and condition bytecode owned by the unified
+compiler without implying loop support or production routing.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
 - `docs/adrs/0189-keep-unified-bytecode-linear-expression-packs-flattened.md`
+- `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`

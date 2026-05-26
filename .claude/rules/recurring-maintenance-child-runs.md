@@ -42,6 +42,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   file/line diagnostic, treat it as a verification-context gap first. Re-run
   `rtk git diff --check` and the exact local gate before changing source, and
   patch only when current evidence points at deterministic source drift.
+- If a docs-only recurring child hits an unrelated internal-test failure or
+  flake, do not make the PR pass by changing test timeouts, assertions, or
+  source behavior. Re-run or record the quality evidence, then split any
+  deterministic test/runtime problem into its own issue or delivery slice.
 - When multiple recurring-maintenance children are active, check active sibling
   child log summaries before choosing a slice so two children do not target the
   same narrow docs cleanup in parallel.
@@ -140,12 +144,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   that can be misclassified as failed stage outcomes in issue logs.
 - When a recurring documentation slice updates agent/operator workflow commands,
   align command examples with the current agent invocation contract and
-  canonical local gate. In this repo, commands that an agent is expected to run
-  should show the `rtk` prefix and normal verification should point at
-  `rtk make quality`, while repository executable targets themselves must stay
-  wrapper-free per `.claude/rules/pre-pr-required.md`. Treat `rtk make quality`
-  as local build/test evidence only; it does not replace the mandatory pre-PR
-  checklist in `.claude/rules/pre-pr-required.md`.
+  canonical local gate, including example README run/smoke snippets. In this
+  repo, commands that an agent is expected to run should show the `rtk` prefix
+  and normal verification should point at `rtk make quality`, while repository
+  executable targets themselves must stay wrapper-free per
+  `.claude/rules/pre-pr-required.md`. Treat `rtk make quality` as local
+  build/test evidence only; it does not replace the mandatory pre-PR checklist
+  in `.claude/rules/pre-pr-required.md`.
 - When fixing docs command examples, make the final command copy/paste-safe as
   a single shell invocation when possible. Do not use `rtk cd ...` as a setup
   line or rely on cwd state crossing command examples; prefer explicit path
@@ -487,6 +492,15 @@ delivery also reverted an out-of-scope activation test assertion change, which
 confirms future recurring-child fixes should keep process guidance docs-only
 when the selected slice is operational documentation.
 
+Issue #2171 / PR #2176 repeated the same scope-control failure mode through a
+docs-only README status slice: after the local quality gate exposed an async
+test timeout-shaped failure, the branch briefly widened into longer async test
+timeouts before review forced a revert and merged only the README wording fix.
+Future recurring documentation children must not absorb unrelated test-timeout
+or runtime-stability repairs just to get a docs slice through verification; keep
+that evidence in the handoff and split deterministic test work into a separate
+issue.
+
 Issue #1882 refined the same policy to be stage-neutral: schema-shaped output
 belongs only in the actual final stage response, not just in build-stage
 handoffs. The evidence was investigate-stage progress updates that resembled a
@@ -557,6 +571,13 @@ was not actually copy/paste safe because cwd state does not carry between
 independent command invocations. Future docs command maintenance should collapse
 that kind of setup into one runnable command, for example by passing
 `--project` with an explicit path.
+
+Issue #2172 / PR #2177 repeated the command-example drift in an example-specific
+README: the Avalonia SVG Browser demo run and smoke-test snippets used bare
+`dotnet run --project examples/AvaloniaSvgBrowserDemo` lines even though they
+are copy/paste operator commands. Future example README maintenance should
+treat run/smoke snippets as agent-facing command surfaces and normalize them in
+place to the repo invocation contract without changing demo behavior.
 
 Issue #1717 / PR #1719 applied that same command-shape lesson to the top-level
 README demo section. Several examples still used `cd examples/<Demo>` followed

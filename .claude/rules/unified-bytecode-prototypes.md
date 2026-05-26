@@ -11,8 +11,8 @@ all-or-nothing until a separate routing issue proves production readiness.
 2. Keep eligibility at compile time, including function kind. Unsupported
    statement shapes, expression ops, identifiers, async/generator functions,
    local/declaration forms outside the exact accepted slice, control flow
-   outside the accepted branch-plus-canonical-while slice, or dynamic shapes
-   must return an unsupported reason before VM execution.
+   outside the accepted branch-plus-canonical-loop-back-edge slice, or dynamic
+   shapes must return an unsupported reason before VM execution.
    Do not infer sync-only eligibility from `ExecutionPlan` shape alone.
 3. Do not add fallback inside `UnifiedBytecodeVirtualMachine` to
    `ExpressionProgram` evaluation, AST evaluation, or `ExecutionPlanRunner`.
@@ -35,13 +35,14 @@ all-or-nothing until a separate routing issue proves production readiness.
    `Add` proves only the tested VM behavior; full JavaScript operator coercion
    requires an explicit migration and parity proof.
 8. When expanding across branch/control flow, keep accepted CFG ownership
-   compiler-side and explicit. Branch shapes plus one canonical guarded `while`
-   back-edge shape are accepted; all other loop/control-flow families must be
-   rejected before VM execution. Compile with an IR-instruction-index to
-   unified-bytecode-PC map, patch forward branch/jump operands after targets
-   are emitted, and reject unsupported branch payloads or non-canonical loop
-   shapes before execution. Do not treat this bounded while support as broad
-   loop support or as permission to call back into existing evaluators.
+   compiler-side and explicit. Branch shapes plus one canonical
+   condition-first loop back-edge IR shape are accepted; all other
+   loop/control-flow families must be rejected before VM execution. Compile with
+   an IR-instruction-index to unified-bytecode-PC map, patch forward branch/jump
+   operands after targets are emitted, and reject unsupported branch payloads or
+   non-canonical loop shapes before execution. Do not treat this bounded loop
+   support as broad loop support or as permission to call back into existing
+   evaluators.
 
 ## Why
 
@@ -79,9 +80,11 @@ Issue #2182 / PR #2186 then extended that boundary to one canonical
 condition-first back-edge IR shape (currently produced by guarded `while` and
 equivalent condition-only `for` forms without initializer/post-update or loop
 control statements). The lesson is to keep this loop support narrow and
-compiler-owned: accept only the proven canonical shape, reject other
+compiler-owned: accept only the proven canonical IR topology, reject other
 loop/control-flow families before unsupported details hide the real boundary,
-and keep production routing unchanged.
+and keep production routing unchanged. The review correction on #2182 is part
+of the rule: this is not a source-syntax `while` exception; source forms are
+eligible only when lowering produces the same condition-first back-edge shape.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

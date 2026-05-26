@@ -18,7 +18,7 @@ public class DurationFormatDebugTest
             }
             result;
         ");
-        var str = result.ToString();
+        var str = Assert.IsType<string>(result.ToString());
         Assert.Contains("years=short", str);
     }
 
@@ -31,7 +31,7 @@ public class DurationFormatDebugTest
             var duration = {years: 1, months: 2, weeks: 3, days: 3, hours: 4, minutes: 5, seconds: 6, milliseconds: 7, microseconds: 8, nanoseconds: 9};
             df.format(duration);
         ");
-        var str = result.ToString();
+        var str = Assert.IsType<string>(result.ToString());
         Assert.NotEmpty(str);
     }
 
@@ -119,7 +119,7 @@ public class DurationFormatDebugTest
             }
             results.join('\\n');
         ");
-        var str = result.ToString();
+        var str = Assert.IsType<string>(result.ToString());
         Assert.Contains("years:", str);
     }
 }

@@ -1806,34 +1806,36 @@ public sealed partial class StringPrototype
 
     private static JsArray SplitBySeparator(string value, string separator, uint limit, RealmState? realm)
     {
-        var cap = (int)Math.Min((long)limit, value.Length + 1L);
-        var array = new JsArray(realm, cap);
         if (limit == 0)
         {
-            return array;
+            return new JsArray(realm, 0);
         }
 
         var sepLength = separator.Length;
-        var startIndex = 0;
-        uint count = 0;
-        while (count + 1 < limit)
+        var scanIndex = 0;
+        uint splitCount = 0;
+        while (splitCount + 1 < limit)
         {
-            var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
+            var matchIndex = value.IndexOf(separator, scanIndex, StringComparison.Ordinal);
             if (matchIndex < 0)
             {
                 break;
             }
 
+            splitCount++;
+            scanIndex = matchIndex + sepLength;
+        }
+
+        var array = new JsArray(realm, checked((int)(splitCount + 1)));
+        var startIndex = 0;
+        for (uint emitted = 0; emitted < splitCount; emitted++)
+        {
+            var matchIndex = value.IndexOf(separator, startIndex, StringComparison.Ordinal);
             array.Push(new JsValue(value.Substring(startIndex, matchIndex - startIndex)));
-            count++;
             startIndex = matchIndex + sepLength;
         }
 
-        if (count < limit)
-        {
-            array.Push(new JsValue(value.Substring(startIndex)));
-        }
-
+        array.Push(new JsValue(value.Substring(startIndex)));
         return array;
     }
 

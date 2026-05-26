@@ -70,6 +70,9 @@ public sealed partial class ArrayPrototype
             return false;
         }
 
+        long totalLength = length == 0
+            ? 0
+            : separator.Length * (length - 1);
         for (uint i = 0; i < (uint)length; i++)
         {
             if (!array.HasOwnIndex(i))
@@ -77,13 +80,20 @@ public sealed partial class ArrayPrototype
                 return false;
             }
 
-            if (!array.GetElement(i).IsString)
+            var value = array.GetElement(i);
+            if (!value.IsString)
+            {
+                return false;
+            }
+
+            totalLength += value.AsString().Length;
+            if (totalLength > int.MaxValue)
             {
                 return false;
             }
         }
 
-        var builder = new StringBuilder();
+        var builder = new StringBuilder((int)totalLength);
         for (uint i = 0; i < (uint)length; i++)
         {
             if (i > 0)

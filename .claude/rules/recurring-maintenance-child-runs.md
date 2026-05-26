@@ -134,7 +134,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When fixing docs command examples, make the final command copy/paste-safe as
   a single shell invocation when possible. Do not use `rtk cd ...` as a setup
   line or rely on cwd state crossing command examples; prefer explicit path
-  flags such as `--project <path>` so the example works exactly as pasted.
+  flags such as `--project <path>` or, for npm script examples,
+  `rtk npm --prefix <path> ...` so the example works exactly as pasted from
+  the repo root.
 - When a roadmap or documentation-maintenance slice adds or preserves evidence
   links to repository files, check that each cited path exists before finalizing
   the slice. If a planned ADR or report citation does not exist, either cite the
@@ -479,6 +481,13 @@ by `rtk dotnet run`, which made the snippet depend on shell state instead of
 being a direct runnable command. Future README/demo command slices should prefer
 `rtk dotnet run --project examples/<Demo>` when the example can be expressed as
 one stable invocation.
+
+Issue #2032 / PR #2046 found the same command-shape drift inside
+`examples/NodeHostDemo/README.md`: the README still showed bare `dotnet run`,
+bare `npm`, and `cd examples/NodeHostDemo` setup lines. Future example-doc
+slices should keep both .NET and package-script commands runnable from the repo
+root, using `rtk dotnet run --project ...` and `rtk npm --prefix ...` rather
+than relying on caller cwd state.
 
 Issue #1729 / PR #1733 found the follow-up drift in the agent build/test
 playbook: the README already listed the maintained runnable demo set

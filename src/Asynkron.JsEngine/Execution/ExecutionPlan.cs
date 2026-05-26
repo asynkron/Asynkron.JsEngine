@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.JsTypes;
 
 #endregion
 
@@ -63,6 +64,9 @@ internal sealed record ExecutionPlan(
 
     public SimpleReturnParameterBinaryExpression? SimpleReturnParameterBinary { get; } =
         ComputeSimpleReturnParameterBinary(Instructions, EntryPoint, ActivationSlots);
+
+    public SimpleReturnLiteralExpression? SimpleReturnLiteral { get; } =
+        ComputeSimpleReturnLiteral(Instructions, EntryPoint);
 
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
@@ -177,6 +181,21 @@ internal sealed record ExecutionPlan(
             binary.Operator,
             leftParameterIndex,
             rightParameterIndex);
+    }
+
+    private static SimpleReturnLiteralExpression? ComputeSimpleReturnLiteral(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint)
+    {
+        if (ComputeSimpleReturnProgram(instructions, entryPoint) is not { OperationCount: 1 } program)
+        {
+            return null;
+        }
+
+        var operation = program.GetOperation(0);
+        return operation.Kind == ExpressionOpKind.LoadLiteral
+            ? new SimpleReturnLiteralExpression(operation.GetLiteral(program.LiteralConstants.AsSpan()))
+            : null;
     }
 
     private static bool IsSupportedSimpleParameterBinaryOperator(BinaryOperator op) =>
@@ -298,6 +317,8 @@ internal readonly record struct SimpleReturnParameterBinaryExpression(
     BinaryOperator Operator,
     int LeftParameterIndex,
     int RightParameterIndex);
+
+internal readonly record struct SimpleReturnLiteralExpression(JsValue Value);
 
 internal enum IrCallShape
 {

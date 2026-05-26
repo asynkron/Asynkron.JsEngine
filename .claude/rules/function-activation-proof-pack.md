@@ -81,6 +81,15 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     activation shortcut. Pair the positive simple-arrow value-semantics proof
     with negative lexical binding coverage so dependency-bearing arrows keep
     full arrow invocation semantics.
+14. When adding direct-return shortcuts that skip invocation context,
+    environment, or sync trampoline frame setup, require the ordinary simple IR
+    activation eligibility plus a plan-proven return shape. A no-argument
+    literal-return shortcut may return before activation setup only when
+    `ExecutionPlan` proves the one-literal return and the invoker guard rejects
+    constructor/class, async/generator, `arguments`, captured activation,
+    dynamic scope, private-name, `super`, home-object, and instance-field
+    cases. Pair the positive literal fast-path proof with negative
+    activation-observable coverage.
 
 ## Why
 
@@ -223,3 +232,15 @@ callback value semantics, and pin negative lexical binding behavior.
 
 Related ADR:
 `docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`.
+
+Issue `autrun-dise0lhwhiaw-0099fde2a6` / PR #2027 showed the no-argument
+literal-return activation trap: `activation-noargs-lite` was spending most of
+the selected hot path in sync invocation context and trampoline frame setup even
+though the function's lowered plan returned a literal. The accepted fix kept the
+shortcut behind the existing simple IR activation guard and plan-owned
+`SimpleReturnLiteral` metadata, then proved the positive literal path and the
+activation semantics pack. Future direct-return work should preserve that
+plan-proven boundary instead of weakening activation-observable fallbacks.
+
+Related ADR:
+`docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`.

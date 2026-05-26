@@ -45,6 +45,11 @@ model explicitly.
     may reuse equivalent .NET matcher objects, but it must not skip syntax
     validation, capture metadata, `lastIndex`, statics, or observable execution
     paths.
+11. For duplicate-named capture quantifier-reset insertion, keep the actual
+    `insertsByPosition` map as the single source of truth for whether resets
+    exist and where they are emitted. Do not add a separate presence-only
+    position scan that can drift from the insertion map or survive as dead
+    maintenance code.
 
 ## Why
 
@@ -93,6 +98,15 @@ only because lookup happens after the same normalization and large-quantifier
 capping as the uncached path, and because the key includes `RegexOptions`.
 Future RegExp bridge performance work should preserve that runtime-shape key
 boundary instead of caching by raw JavaScript source alone.
+
+Issue `autrun-disdwro4s8eg-d1bcce42c8` / PR #2025 removed redundant
+`JsRegExp.InsertQuantifierResets` plumbing during a recurring code-reduction
+run. Review sent the first delivery back because it still kept an
+`insertPositions` pre-scan whose only remaining purpose duplicated the later
+`insertsByPosition` scan. Future RegExp bridge maintenance should let the
+actual insertion map drive both early return and output construction, so reset
+planning has one owned representation and code-reduction children do not leave
+parallel bookkeeping behind.
 
 Related ADR:
 `docs/adrs/0112-keep-regexp-instance-cache-bounded-and-keyed-by-runtime-shape.md`.

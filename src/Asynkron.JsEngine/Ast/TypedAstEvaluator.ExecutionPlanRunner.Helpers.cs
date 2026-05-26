@@ -84,14 +84,6 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
-        private static void StoreSymbolValue(JsEnvironment environment, Symbol symbol, object? /* intentional */ value)
-        {
-            // Handle case where value is already a boxed JsValue
-            var jsVal = value is JsValue jv ? jv : JsValue.FromObjectUnsafe(value);
-            StoreSymbolValueJsValue(environment, symbol, jsVal);
-        }
-
-        [MethodImpl(JsEngineConstants.Inlining)]
         private static void StoreSymbolValueJsValue(JsEnvironment environment, Symbol symbol, JsValue value)
         {
             // DefineOrAssignJsValue is O(1) on the current environment -

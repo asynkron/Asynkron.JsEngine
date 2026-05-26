@@ -197,7 +197,7 @@ public static partial class TypedAstEvaluator
                 !stateValue.TryGetObject<YieldStarState>(out var yieldStarState))
             {
                 yieldStarState = new YieldStarState();
-                StoreSymbolValue(environment, stateSlotSymbol, yieldStarState);
+                StoreSymbolValueJsValue(environment, stateSlotSymbol, JsValue.FromObjectUnsafe(yieldStarState));
             }
 
             if (yieldStarState.PendingAbrupt != AbruptKind.None &&
@@ -384,7 +384,7 @@ public static partial class TypedAstEvaluator
                     environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
                     if (instruction.ResultSlotSymbol is { } throwResultSlot)
                     {
-                        StoreSymbolValue(environment, throwResultSlot, iteratorResult.Value);
+                        StoreSymbolValueJsValue(environment, throwResultSlot, iteratorResult.Value);
                     }
 
                     runner._programCounter = instruction.Next;
@@ -398,7 +398,7 @@ public static partial class TypedAstEvaluator
                     environment.AssignJsValue(stateSlotSymbol, JsValue.Null);
                     if (instruction.ResultSlotSymbol is { } resultSlot)
                     {
-                        StoreSymbolValue(environment, resultSlot, iteratorResult.Value);
+                        StoreSymbolValueJsValue(environment, resultSlot, iteratorResult.Value);
                     }
 
                     runner._programCounter = instruction.Next;

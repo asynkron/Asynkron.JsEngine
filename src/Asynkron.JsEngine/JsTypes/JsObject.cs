@@ -423,6 +423,11 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         return TryGetPropertyJsValue(name, receiver, 0, null, out value);
     }
 
+    internal bool TryGetProperty(string name, JsValue receiver, EvaluationContext? context, out JsValue value)
+    {
+        return TryGetPropertyJsValue(name, receiver, 0, context, out value);
+    }
+
     public IEnumerable<string> GetOwnPropertyNames()
     {
         foreach (var key in EnumerateOwnKeysInOrder(false, true))

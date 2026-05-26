@@ -109,6 +109,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         _entries.Remove(keyObj);
         _entries.Add(keyObj, new WeakMapValueBox(value));
         TrackKnownKey(keyObj);
+        JsObject.MarkGlobalMutation();
         return this;
     }
 
@@ -157,6 +158,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
         if (removed)
         {
             RemoveKnownKey(keyObj);
+            JsObject.MarkGlobalMutation();
         }
 
         return removed;

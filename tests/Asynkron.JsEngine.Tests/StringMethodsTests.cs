@@ -304,6 +304,45 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Split_NonEmptySeparator_CoercesLimitBeforeSeparator()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let order = [];
+                                                       let limit = {
+                                                           valueOf() {
+                                                               order.push("limit");
+                                                               return 2;
+                                                           }
+                                                       };
+                                                       let separator = {
+                                                           toString() {
+                                                               order.push("separator");
+                                                               return ",";
+                                                           }
+                                                       };
+                                                       let parts = "a,b,c".split(separator, limit);
+                                                       order.join("|") + ":" + parts.length + ":" + parts[0] + ":" + parts[1];
+
+                                           """);
+        Assert.Equal("limit|separator:2:a:b", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task String_Split_NonEmptySeparator_RespectsLimit()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let parts = "a,b,c,d".split(",", 3);
+                                                       parts.join("|");
+
+                                           """);
+        Assert.Equal("a|b|c", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_Replace()
     {
         await using var engine = CreateEngine();

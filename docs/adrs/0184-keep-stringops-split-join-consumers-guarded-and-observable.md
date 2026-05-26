@@ -37,6 +37,9 @@ Base no-build: stringops  asynkron_ms=382  asynkron_kb=76051.8
 
 The earlier build-stage updates had focused semantic tests but did not report a
 full before/after stringops row, so review had to reconstruct that evidence.
+Issue #2150 follows through on that gap by requiring comparable selected-profile
+rows and explicitly separating timing and allocation claims when timing is
+noisy.
 
 ## Decision
 
@@ -84,6 +87,7 @@ Keep this follow-up split/join optimization consumer-owned and semantics-first:
 
 - `docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`
 - `docs/adrs/0172-keep-split-empty-character-cache-consumer-owned.md`
+- `docs/performance/stringops-split-join-consumer-follow-through.md`
 - `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`
 - `src/Asynkron.JsEngine/StdLib/Array/ArrayPrototype.Transformations.cs`
 - `.claude/rules/performance-profiling-guardrails.md`

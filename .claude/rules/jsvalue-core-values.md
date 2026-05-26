@@ -108,10 +108,13 @@ When working inside the core engine, keep JavaScript values represented as
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
-    focused semantic proof for that descriptor cluster. Do not turn the
-    compatibility setter into error-level obsoletion inside a small descriptor
-    slice when the exposed callers are repo-wide or include generated code;
-    record that deferral and keep the bounded migration moving.
+    focused semantic proof for that descriptor cluster. For helper migrations,
+    prove the helper body as well as the signature and callsites: changing a
+    parameter to `JsValue` is incomplete if an initializer still says
+    `Value = value`. Do not turn the compatibility setter into error-level
+    obsoletion inside a small descriptor slice when the exposed callers are
+    repo-wide or include generated code; record that deferral and keep the
+    bounded migration moving.
 16. When a private runtime property-read helper already has a JavaScript
     receiver, keep the context-aware read path typed as `JsValue` for both the
     receiver and the returned value. Do not unbox primitive receivers into CLR
@@ -322,6 +325,17 @@ turn a nine-line descriptor cleanup into an unbounded migration. Future
 descriptor migrations should keep using the scoped before/after setter search,
 move only proven JavaScript data values to `JsValue =`, and save strict setter
 obsoletion for a dedicated repository-wide closeout. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-disdwrowfjf4-2cfa8decbc` / PR #2024 migrated
+`StandardLibrary.DefineConstantProperty` from `object?` to `JsValue`. Review
+rejected the first build because the helper signature and fallback
+`SetProperty` call were typed, but the descriptor initializer still used
+`Value = value`, which invoked the compatibility setter and
+`JsValue.FromObjectUnsafe(value)`. Future descriptor-helper migrations must
+prove every sink in the helper body, not just the exposed signature or callsite
+compilation; include the owner-file `Value = value` /
+`FromObjectUnsafe(value)` search in the delivery evidence. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
 
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`

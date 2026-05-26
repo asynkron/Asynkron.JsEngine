@@ -15,7 +15,7 @@ public static partial class TypedAstEvaluator
     {
         private static class SyncIrCallTrampoline
         {
-            private const int InitialFrameCapacity = 64;
+            private const int InitialFrameCapacity = 4;
             private const byte TrampolineEligibilityUnknown = 0;
             private const byte TrampolineEligibilityRejected = 1;
             private const byte TrampolineEligibilityAccepted = 2;

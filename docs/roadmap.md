@@ -44,7 +44,6 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Prototype constructor deduplication boundaries now keep `newTarget` callable extraction and return-value construction hook-split by constructor family, preserving observable semantics while reducing structural duplication (`docs/adrs/0149-keep-prototype-constructor-newtarget-hooks-split.md`).
 - Destructuring now has explicit dense-array fast-path evidence with a JsValue-native ToObject coercion boundary; this reduces setup overhead on proven dense shapes while keeping coercion semantics and fallback ownership explicit (`docs/performance/destructuring-dense-array-fast-path.md`, `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`).
 - `fib` now has explicit simple numeric self-recursion evidence with guarded call-shape and binding boundaries, adding a Node.js-competitive hotspot proof point without widening semantics-sensitive recursion paths (`docs/performance/fib-simple-numeric-self-recursion.md`, `docs/adrs/0152-keep-simple-numeric-self-recursion-fast-path-shape-and-binding-guarded.md`).
-- Promise constructor initialization order is now captured as a shared-initialization boundary so follow-up compliance work can stay spec-ordered without duplicating constructor argument mapping behavior (`docs/adrs/0151-keep-error-constructor-shared-initialization-argument-mapped.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -80,7 +79,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 21. Keep argument-carrier and callback-argument follow-through aligned to ADR 0101 boundaries, proving one-argument typed-dispatch and dense-array callback changes with narrow profile evidence before widening call-shape shortcuts.
 22. Continue simple-arrow IR activation follow-through only behind proven lexical-dependency guards, and require focused profile plus semantics proof before widening to broader arrow/function shapes under ADR 0150.
 23. Preserve constructor-family `newTarget` and return-value hook boundaries while pursuing prototype-constructor deduplication so observable constructor semantics remain explicit under ADR 0149.
-24. Continue destructuring and recursive hot-path follow-through only where dense-array shape and simple numeric self-recursion guards are proven, and keep Promise constructor/combinator spec-order slices evidence-first under ADR 0151/0152/0153 boundaries.
+24. Continue destructuring and recursive hot-path follow-through only where dense-array shape and simple numeric self-recursion guards are proven; keep any future Promise constructor/combinator spec-order slices evidence-first and cite dedicated Promise evidence surfaces before adding roadmap claims.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.

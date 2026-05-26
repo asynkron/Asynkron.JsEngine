@@ -531,7 +531,7 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ExpressionOpKind.LoadNewTarget:
-                            var effectiveNewTarget = _newTarget;
+                            var effectiveNewTarget = _currentNewTarget;
                             if (effectiveNewTarget.IsUndefined &&
                                 environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget))
                             {
@@ -2700,7 +2700,13 @@ public static partial class TypedAstEvaluator
 
             if (tailPosition &&
                 call.SpreadMaskConstantIndex < 0 &&
-                TryRequestSameFunctionTailRestart(callable, thisValue, call.ArgumentCount, stack, calleeIndex + 1))
+                TryRequestSameFunctionTailRestart(
+                    callable,
+                    thisValue,
+                    call.ArgumentCount,
+                    stack,
+                    calleeIndex + 1,
+                    environment))
             {
                 stack[baseIndex] = JsValue.Undefined;
                 stackFlags.Set(baseIndex, false);
@@ -2869,7 +2875,8 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             int argumentCount,
             Span<JsValue> stack,
-            int argumentStartIndex)
+            int argumentStartIndex,
+            JsEnvironment environment)
         {
             if (_isScriptMode ||
                 _isAsync ||
@@ -2877,6 +2884,7 @@ public static partial class TypedAstEvaluator
                 _executionEnvironment is null ||
                 !ReferenceEquals(callable, _callable) ||
                 !_isStrict && !thisValue.IsUndefined ||
+                !CanReuseCurrentTailRestartActivation(environment) ||
                 !CanRestartCurrentTailCall())
             {
                 return false;
@@ -2890,8 +2898,25 @@ public static partial class TypedAstEvaluator
 
             _tailRestartArguments = arguments;
             _tailRestartThisValue = thisValue;
+            _tailRestartNewTargetValue = JsValue.Undefined;
             _tailRestartRequested = true;
             _tailRestartVersion++;
+            return true;
+        }
+
+        private bool CanReuseCurrentTailRestartActivation(JsEnvironment environment)
+        {
+            var current = environment;
+            while (current is not null && !ReferenceEquals(current, _closure))
+            {
+                if (current.IsCaptured)
+                {
+                    return false;
+                }
+
+                current = current.Enclosing;
+            }
+
             return true;
         }
 
@@ -2952,6 +2977,8 @@ public static partial class TypedAstEvaluator
             {
                 RebindStrictTailRestartThis(_tailRestartThisValue);
             }
+
+            RebindTailRestartNewTarget(_tailRestartNewTargetValue);
 
             if (plan.ActivationSlots is { ParameterSlotIndices.IsDefault: false } activationSlots)
             {
@@ -3021,6 +3048,7 @@ public static partial class TypedAstEvaluator
             _tailRestartRequested = false;
             _tailRestartArguments = null;
             _tailRestartThisValue = JsValue.Undefined;
+            _tailRestartNewTargetValue = JsValue.Undefined;
         }
 
         private void RebindStrictTailRestartThis(JsValue thisValue)
@@ -3036,6 +3064,26 @@ public static partial class TypedAstEvaluator
             if (thisEnvironment.TryGetSlotIndex(Symbol.This, out var thisSlotIndex))
             {
                 thisEnvironment.SetSlotDirect(thisSlotIndex, thisValue);
+            }
+        }
+
+        private void RebindTailRestartNewTarget(JsValue newTargetValue)
+        {
+            _currentNewTarget = newTargetValue;
+            if (_executionEnvironment is null ||
+                _function.IsArrow ||
+                !_executionEnvironment.TryFindBindingJsValue(
+                    Symbol.NewTarget,
+                    allowUninitialized: true,
+                    out var newTargetEnvironment,
+                    out _))
+            {
+                return;
+            }
+
+            if (newTargetEnvironment.TryGetSlotIndex(Symbol.NewTarget, out var newTargetSlotIndex))
+            {
+                newTargetEnvironment.SetSlotDirect(newTargetSlotIndex, newTargetValue);
             }
         }
 

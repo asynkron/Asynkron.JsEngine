@@ -492,6 +492,63 @@ public static partial class TypedAstEvaluator
     private static JsValue EvaluateReturnJsValue(this ReturnStatement statement, JsEnvironment environment,
         EvaluationContext context)
     {
+        if (statement.Expression is CallExpression callExpression &&
+            SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget(
+                callExpression,
+                environment,
+                context,
+                out var tailCallTarget))
+        {
+            var tailCallValue = JsValue.Undefined;
+            var tailCallArguments = new JsValue[callExpression.Arguments.Length];
+            var argumentMayCaptureActivation = false;
+            for (var i = 0; i < callExpression.Arguments.Length; i++)
+            {
+                var argumentExpression = callExpression.Arguments[i].Expression;
+                argumentMayCaptureActivation |=
+                    ContainsInnerFunctionExpression(argumentExpression) ||
+                    DynamicScopeDetector.ContainsDirectEval(argumentExpression);
+                tailCallArguments[i] = EvaluateDynamicExpressionProgram(
+                    argumentExpression,
+                    environment,
+                    context,
+                    "Dynamic tail-call argument");
+                if (context.ShouldStopEvaluation)
+                {
+                    return tailCallValue;
+                }
+            }
+
+            if (argumentMayCaptureActivation ||
+                !tailCallTarget.CanReuseLegacyTailRestartActivation(environment))
+            {
+                var result = InvokeCallableJsValue(
+                    tailCallTarget,
+                    tailCallArguments,
+                    JsValue.Undefined,
+                    context,
+                    environment);
+                if (!context.ShouldStopEvaluation)
+                {
+                    context.SetReturn(result);
+                }
+
+                return result;
+            }
+
+            context.SetLegacyTailCallRestart(
+                tailCallTarget,
+                tailCallArguments,
+                JsValue.Undefined,
+                JsValue.Undefined);
+            if (!context.ShouldStopEvaluation)
+            {
+                context.SetReturn(tailCallValue);
+            }
+
+            return tailCallValue;
+        }
+
         var jsValue = statement.Expression is null
             ? JsValue.Undefined
             : EvaluateDynamicExpressionProgram(
@@ -589,6 +646,7 @@ public static partial class TypedAstEvaluator
         }
 
         var savedState = context.SaveCompletionState();
+        var savedLegacyTailCallRestart = context.SaveLegacyTailCallRestartState();
         GeneratorPendingCompletion? pending = null;
         var isGenerator = environment.IsGeneratorContext();
         if (isGenerator && savedState.HasCompletion)
@@ -611,6 +669,7 @@ public static partial class TypedAstEvaluator
         }
 
         context.Clear();
+        context.ClearLegacyTailCallRestart();
         var finallyResult = statement.Finally.EvaluateBlockJsValue(environment, context);
         if (context.ShouldStopEvaluation)
         {
@@ -636,6 +695,7 @@ public static partial class TypedAstEvaluator
         else
         {
             context.RestoreCompletionState(savedState);
+            context.RestoreLegacyTailCallRestartState(savedLegacyTailCallRestart);
         }
 
         context.RealmState.Logger?.LogInformation(

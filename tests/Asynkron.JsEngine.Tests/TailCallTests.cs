@@ -464,4 +464,20 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
 
         Assert.Equal(1d, result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallIgnoresUnrelatedProxySlotDuringEscapeCheck()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let p = new Proxy({}, { ownKeys() { throw new Error("boom"); } });
+            (function f(n) {
+                "use strict";
+                function getF() { return f; }
+                return n ? getF()(n - 1) : 1;
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
 }

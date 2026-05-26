@@ -2995,6 +2995,13 @@ public static partial class TypedAstEvaluator
                 return true;
             }
 
+            // Proxy ownKeys/getOwnPropertyDescriptor can run user code. Tail-restart
+            // eligibility checks must stay non-observable, so skip proxy traversal.
+            if (value.ObjectValue is JsProxy)
+            {
+                return false;
+            }
+
             if (value.ObjectValue is not IJsPropertyAccessor accessor)
             {
                 return false;

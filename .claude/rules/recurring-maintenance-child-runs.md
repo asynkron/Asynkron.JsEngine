@@ -143,6 +143,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   edit, pair it with a code-size signal such as `rtk cloc --vcs=git
   --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
   out of scope unless the exact deletion no longer compiles.
+- If the code-reduction slice targets dormant test source files, only delete
+  files that are entirely non-compiled/commented-out or otherwise proven absent
+  from the test project. Confirm no live references or explicit project includes
+  before editing, use file-level line-count evidence for the deleted slice, and
+  treat a focused filter with no remaining matching tests as confidence that no
+  compiled test contract was removed, not as a behavioral regression proof.
 - When the code-reduction slice targets duplicated smoke-test fixtures rather
   than dead helpers, extract only the invariant fixture body and leave semantic
   differences explicit through named parameters or separate call sites. Prove
@@ -460,3 +466,15 @@ and `for...of` traversal differences visible at the two test call sites, then
 proved both tests with one focused filter. Future fixture-dedup slices should
 follow ADR 0147: shared setup belongs in the builder, semantic differences stay
 named, and every affected fixture variant remains in the proof command.
+
+Issue `autrun-dis5yv0b12so-8430e3939a` / PR #1958 removed three fully
+commented-out dormant test source files:
+`TypedAstEvaluatorTests.cs`, `SunSpiderTests.cs`, and `NBodyFiveBodyTest.cs`.
+The useful lesson was not to preserve commented test archives in the active
+test project: after checking that the files had no compiled members and no
+project-file includes, the build stage deleted only those files, recorded the
+228-line slice reduction, ran `git diff --check`, and used the now-empty
+focused filter as a cheap compile/test confidence check. Future dormant
+test-source reductions should keep that boundary clear so agents do not delete
+active scratch tests, resurrect obsolete fixtures, or overstate a no-match
+filter as proof of runtime behavior.

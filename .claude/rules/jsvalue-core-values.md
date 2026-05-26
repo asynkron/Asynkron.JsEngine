@@ -24,6 +24,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`
   - `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`
   - `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`
+  - `docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`
 
 ## Rules
 
@@ -87,7 +88,10 @@ When working inside the core engine, keep JavaScript values represented as
     caller that already requires `JsValue`, migrate the helper return type to
     `JsValue` and delete caller-side `JsValue.FromObjectUnsafe(...)` rewraps.
     Keep adjacent async, promise, or host-interop helpers separate unless the
-    selected slice proves that boundary too.
+    selected slice proves that boundary too. Once a promise-producing helper
+    proves that every setup branch returns the same JavaScript promise object to
+    a `JsValue` host-function callsite, wrap the promise at the helper return
+    boundary and return the helper result directly from the callsite.
 11. When replacing untyped `JsValue.TryGetObject(out object?)` extraction, audit
     the old payload surface before narrowing to a concrete runtime type. If the
     old object-carrier branch accepted interface-backed host or object-like
@@ -255,6 +259,17 @@ the durable lesson is to let the private helper own the typed return value and
 return it directly from the host/constructor callsite. `Array.fromAsync` stayed
 out of scope because its promise/async path is a separate boundary that needs
 its own focused proof.
+
+Issue `autrun-disubnwdoxb4-4df588ff17` / PR #2197 closed that async-specific
+Array static helper gap by migrating `ArrayFromAsync(...)` from `object?` to
+`JsValue`. The old helper always returned the created promise object and the
+attached `fromAsync` host function immediately rewrapped the result with
+`JsValue.FromObjectUnsafe(...)`; the delivery moved that wrapping into the
+helper return points and returned the helper value directly at the callsite.
+Future promise-producing helper cleanup should keep async scheduling and
+rejection semantics unchanged while removing only the private object-carrier
+bridge. Related ADR:
+`docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`.
 
 Issue `autrun-dirl74f4ybwo-4a2a4b907a` / PR #1765 migrated the internal
 `JsArray.SetLength` helper boundary by adding a `JsValue` overload and marking

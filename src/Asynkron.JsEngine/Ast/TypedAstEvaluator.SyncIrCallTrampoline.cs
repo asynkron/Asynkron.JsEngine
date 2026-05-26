@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using System.Buffers;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
@@ -19,8 +20,6 @@ public static partial class TypedAstEvaluator
             private const byte TrampolineEligibilityUnknown = 0;
             private const byte TrampolineEligibilityRejected = 1;
             private const byte TrampolineEligibilityAccepted = 2;
-            [ThreadStatic] private static SyncIrFrame[]? t_frameScratch;
-            [ThreadStatic] private static bool t_frameScratchInUse;
 
             internal static bool TryInvoke<TArgs>(
                 SyncFunctionInvoker invoker,
@@ -193,24 +192,12 @@ public static partial class TypedAstEvaluator
 
             private static SyncIrFrame[] RentFrameStorage()
             {
-                if (!t_frameScratchInUse && t_frameScratch is { } cached)
-                {
-                    t_frameScratchInUse = true;
-                    return cached;
-                }
-
-                t_frameScratchInUse = true;
-                return new SyncIrFrame[InitialFrameCapacity];
+                return ArrayPool<SyncIrFrame>.Shared.Rent(InitialFrameCapacity);
             }
 
             private static void ReturnFrameStorage(SyncIrFrame[] frames)
             {
-                if (t_frameScratch is null || frames.Length > t_frameScratch.Length)
-                {
-                    t_frameScratch = frames;
-                }
-
-                t_frameScratchInUse = false;
+                ArrayPool<SyncIrFrame>.Shared.Return(frames, clearArray: false);
             }
 
             private static bool CanUseTrampoline(SyncFunctionInvoker invoker, ExecutionPlan plan, JsValue newTarget)
@@ -477,7 +464,7 @@ public static partial class TypedAstEvaluator
                 ExecutionPlan plan)
                 where TArgs : IReadOnlyList<JsValue>
             {
-                EnsureFrameCapacity(ref frames, depth + 1);
+                EnsureFrameCapacity(ref frames, depth + 1, depth);
                 ref var frame = ref frames[depth];
                 InitializeFrame(ref frame, invoker, thisValue, plan);
 
@@ -790,7 +777,7 @@ public static partial class TypedAstEvaluator
                 ClearExpressionStackFlags(ref frame);
             }
 
-            private static void EnsureFrameCapacity(ref SyncIrFrame[] frames, int required)
+            private static void EnsureFrameCapacity(ref SyncIrFrame[] frames, int required, int depth)
             {
                 if (required <= frames.Length)
                 {
@@ -799,8 +786,10 @@ public static partial class TypedAstEvaluator
 
                 var oldFrames = frames;
                 var newLength = checked(Math.Max(oldFrames.Length * 2, required));
-                frames = new SyncIrFrame[newLength];
+                frames = ArrayPool<SyncIrFrame>.Shared.Rent(newLength);
                 Array.Copy(oldFrames, frames, oldFrames.Length);
+                ClearFrameStorage(oldFrames, depth);
+                ArrayPool<SyncIrFrame>.Shared.Return(oldFrames, clearArray: false);
             }
 
             private static void EnsureSlotCapacity(ref SyncIrFrame frame, int required)

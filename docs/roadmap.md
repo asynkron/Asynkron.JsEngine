@@ -46,6 +46,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - `fib` now has explicit simple numeric self-recursion evidence with guarded call-shape and binding boundaries, adding a Node.js-competitive hotspot proof point without widening semantics-sensitive recursion paths (`docs/performance/fib-simple-numeric-self-recursion.md`, `docs/adrs/0152-keep-simple-numeric-self-recursion-fast-path-shape-and-binding-guarded.md`).
 - No-argument literal-return call activation now has plan-proven direct-return evidence and guardrails, reducing sync activation overhead while preserving dynamic/observable fallback seams (`docs/performance/activation-noargs-literal-return-fast-path.md`, `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`).
 - JSON parse/stringify now has profile-owned default data-property and compact quote fast-path evidence with explicit semantics boundaries for `__proto__`, escaping, surrogates, reviver, and replacer behavior (`docs/performance/json-default-data-properties-and-quote-fast-path.md`, `docs/adrs/0158-keep-json-default-property-and-quote-fast-paths-profile-owned.md`).
+- Activation call trampoline frame capacity now has focused activation-params evidence, with remaining activation-params-lite setup/trampoline overhead explicitly tracked as follow-up work rather than treated as solved (`docs/performance/activation-params-trampoline-frame-capacity.md`, [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
+- `StringPrototype.Split`/join follow-through now has explicit consumer-materialization ownership evidence under ADR 0163, with remaining stringops materialization cost tracked as a narrow next-step issue (`docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`, `src/Asynkron.JsEngine/StdLib/String/StringPrototype.cs`, [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
+- Super-constructor private resolver routing is now explicitly JsValue-native and captured as a durable ownership boundary for future constructor-path optimization slices (`docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`, `src/Asynkron.JsEngine/Ast/JsEnvironmentExtensions.cs`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -84,6 +87,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 24. Continue destructuring and recursive hot-path follow-through only where dense-array shape and simple numeric self-recursion guards are proven; keep any future Promise constructor/combinator spec-order slices evidence-first and cite dedicated Promise evidence surfaces before adding roadmap claims.
 25. Continue activation no-args fast-path follow-through only through plan-owned eligibility widening and focused activation proof-pack evidence under ADR 0159 constraints (tracked in [#2040](https://github.com/asynkron/Asynkron.JsEngine/issues/2040)).
 26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in [#2041](https://github.com/asynkron/Asynkron.JsEngine/issues/2041)).
+27. Continue activation follow-through by reducing remaining activation-params-lite call setup/trampoline overhead only through focused profile-backed slices that preserve current eligibility/semantics boundaries (tracked in [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
+28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2084](https://github.com/asynkron/Asynkron.JsEngine/issues/2084)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -113,6 +118,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/fib-simple-numeric-self-recursion.md`
   - `docs/performance/activation-noargs-literal-return-fast-path.md`
   - `docs/performance/json-default-data-properties-and-quote-fast-path.md`
+  - `docs/performance/activation-params-trampoline-frame-capacity.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -139,6 +145,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0153-keep-destructuring-toobject-coercion-jsvalue-native.md`
   - `docs/adrs/0158-keep-json-default-property-and-quote-fast-paths-profile-owned.md`
   - `docs/adrs/0159-keep-noargs-literal-return-fast-path-plan-proven.md`
+  - `docs/adrs/0163-keep-stringops-follow-up-consumer-materialization-owned.md`
+  - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

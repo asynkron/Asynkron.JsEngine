@@ -11,20 +11,26 @@ internal static class UnifiedBytecodeVirtualMachine
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
 
-        foreach (var instruction in program.Instructions)
+        var programCounter = 0;
+        var instructions = program.Instructions;
+        while ((uint)programCounter < (uint)instructions.Length)
         {
+            var instruction = instructions[programCounter];
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.LoadSlot:
                     stack[stackPointer++] = slots[instruction.Operand];
+                    programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.LoadLiteral:
                     stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
+                    programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
+                    programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.Binary:
@@ -38,8 +44,23 @@ internal static class UnifiedBytecodeVirtualMachine
                         BinaryOperator.Multiply => JsValue.FromDouble(left.AsDouble() * right.AsDouble()),
                         BinaryOperator.Divide => JsValue.FromDouble(left.AsDouble() / right.AsDouble()),
                         BinaryOperator.Modulo => JsValue.FromDouble(JsOps.MathMod(left.AsDouble(), right.AsDouble())),
+                        BinaryOperator.LessThan => JsOps.LessThan(left, right) ? JsValue.True : JsValue.False,
+                        BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right) ? JsValue.True : JsValue.False,
+                        BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right) ? JsValue.True : JsValue.False,
+                        BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right) ? JsValue.True : JsValue.False,
                         _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
                     };
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Jump:
+                    programCounter = instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfFalse:
+                    programCounter = stack[--stackPointer].IsTruthy
+                        ? programCounter + 1
+                        : instruction.Operand;
                     break;
 
                 case UnifiedBytecodeOpCode.Return:

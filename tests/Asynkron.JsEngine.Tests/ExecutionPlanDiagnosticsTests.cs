@@ -51,19 +51,26 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
                 var c = a + b;
                 return c;
             }
+
+            function literal() {
+                return 1;
+            }
             """);
 
         var add = AssertFunctionPlanBuilds(pipeline.Analyzed, "add");
         var addViaLocal = AssertFunctionPlanBuilds(pipeline.Analyzed, "addViaLocal");
+        var literal = AssertFunctionPlanBuilds(pipeline.Analyzed, "literal");
 
         Assert.Equal(IrCallShape.SimpleReturnExpression, add.IrCallShape);
         Assert.NotNull(add.SimpleReturnProgram);
         Assert.Equal(BinaryOperator.Add, add.SimpleReturnParameterBinary?.Operator);
         Assert.Equal(0, add.SimpleReturnParameterBinary?.LeftParameterIndex);
         Assert.Equal(1, add.SimpleReturnParameterBinary?.RightParameterIndex);
+        Assert.Equal(1d, literal.SimpleReturnLiteral?.Value.NumberValue);
         Assert.Equal(IrCallShape.None, addViaLocal.IrCallShape);
         Assert.Null(addViaLocal.SimpleReturnProgram);
         Assert.Null(addViaLocal.SimpleReturnParameterBinary);
+        Assert.Null(addViaLocal.SimpleReturnLiteral);
     }
 
     [Fact]

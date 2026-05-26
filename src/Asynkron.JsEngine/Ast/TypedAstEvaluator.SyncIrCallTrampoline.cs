@@ -38,6 +38,12 @@ public static partial class TypedAstEvaluator
                 }
 
                 var originalCallDepth = context.CallDepth;
+                if (plan.SimpleReturnLiteral is { } simpleReturnLiteral)
+                {
+                    result = simpleReturnLiteral.Value;
+                    return true;
+                }
+
                 var frames = new SyncIrFrame[InitialFrameCapacity];
                 var depth = 0;
                 var maxDepth = 0;

@@ -72,6 +72,8 @@ public static partial class TypedAstEvaluator
         private readonly ActivationSlotShape? _activationSlots;
         private readonly bool _hasSimpleReturnParameterBinaryFastPath;
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
+        private readonly bool _hasSimpleReturnLiteralFastPath;
+        private readonly JsValue _simpleReturnLiteralFastPath;
         private readonly SimpleNumericSelfRecursionFastPath? _simpleNumericSelfRecursionFastPath;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
@@ -364,6 +366,14 @@ public static partial class TypedAstEvaluator
             {
                 _hasSimpleReturnParameterBinaryFastPath = true;
                 _simpleReturnParameterBinaryFastPath = parameterBinary;
+            }
+
+            if (_canUseSimpleIrActivationFastBase &&
+                planSeed.Plan is { SimpleReturnLiteral: { } literal } literalPlan &&
+                CanUseSimpleIrActivationPlanShape(literalPlan))
+            {
+                _hasSimpleReturnLiteralFastPath = true;
+                _simpleReturnLiteralFastPath = literal.Value;
             }
 
             if (_isStrict &&
@@ -698,6 +708,11 @@ public static partial class TypedAstEvaluator
             EvaluationContext? callingContext,
             JsValue newTarget = default)
         {
+            if (TryInvokeSimpleReturnLiteralFastPath(newTarget, out var fastResult))
+            {
+                return fastResult;
+            }
+
             return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
         }
 
@@ -709,6 +724,11 @@ public static partial class TypedAstEvaluator
             JsValue newTarget = default)
             where TArgs : IReadOnlyList<JsValue>
         {
+            if (TryInvokeSimpleReturnLiteralFastPath(newTarget, out var fastResult))
+            {
+                return fastResult;
+            }
+
             return InvokeWithContextSlow(arguments, thisValue, callingContext, newTarget);
         }
 
@@ -721,6 +741,11 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
+            if (TryInvokeSimpleReturnLiteralFastPath(JsValue.Undefined, out var literalResult))
+            {
+                return literalResult;
+            }
+
             if (TryInvokeSimpleNumericSelfRecursion1(arg0, out var fastResult))
             {
                 return fastResult;
@@ -755,12 +780,45 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
+            if (TryInvokeSimpleReturnLiteralFastPath(JsValue.Undefined, out var literalResult))
+            {
+                return literalResult;
+            }
+
             if (TryInvokePrecomputedSimpleNumberParameterBinary2(arg0, arg1, out var fastResult))
             {
                 return fastResult;
             }
 
             return InvokeWithContextSlow(new TwoValueArgs(arg0, arg1), thisValue, callingContext, JsValue.Undefined);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool TryInvokeSimpleReturnLiteralFastPath(
+            JsValue newTarget,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (!_hasSimpleReturnLiteralFastPath ||
+                !newTarget.IsUndefined ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _needsArgumentsBinding ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            result = _simpleReturnLiteralFastPath;
+            return true;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

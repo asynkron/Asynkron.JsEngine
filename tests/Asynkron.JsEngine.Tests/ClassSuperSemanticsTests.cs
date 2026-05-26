@@ -93,6 +93,66 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task DerivedConstructor_SuperSpreadArgumentsEvaluateBeforeConstructorCheck()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+
+            var iterable = {
+              [Symbol.iterator]() {
+                log.push("iterator");
+                return {
+                  next() {
+                    log.push("next");
+                    return { done: true };
+                  }
+                };
+              }
+            };
+
+            class C extends null {
+              constructor() {
+                super(...iterable);
+              }
+            }
+
+            try {
+              new C();
+            } catch (err) {
+              log.push(err && err.name);
+            }
+
+            var throwingIterable = {
+              [Symbol.iterator]() {
+                log.push("throw-iterator");
+                return {
+                  next() {
+                    throw new Error("spread");
+                  }
+                };
+              }
+            };
+
+            class D extends null {
+              constructor() {
+                super(...throwingIterable);
+              }
+            }
+
+            try {
+              new D();
+            } catch (err) {
+              log.push(err && err.message);
+            }
+
+            log.join("|");
+            """);
+
+        Assert.Equal("iterator|next|TypeError|throw-iterator|spread", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DerivedDefaultConstructor_InitializesInstanceFieldsAfterSuper()
     {
         await using var engine = CreateEngine();
@@ -195,6 +255,52 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
         Assert.Equal(2d, array.Items[3].NumberValue);
         Assert.Equal(3d, array.Items[4].NumberValue);
         Assert.True(array.Items[5].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ConstructorAndSuperFixedArityArguments_RemainObservable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+
+            function Capture() {
+              log.push("new:" + (new.target === Capture) + ":" + arguments.length + ":" +
+                Array.prototype.join.call(arguments, ","));
+            }
+
+            new Capture();
+            new Capture("a");
+            new Capture("a", "b");
+            new Capture("a", "b", "c");
+            new Capture("a", "b", "c", "d");
+
+            class Base {
+              constructor() {
+                log.push("super:" + new.target.name + ":" + arguments.length + ":" +
+                  Array.prototype.join.call(arguments, ","));
+              }
+            }
+
+            class D0 extends Base { constructor() { super(); } }
+            class D1 extends Base { constructor() { super("a"); } }
+            class D2 extends Base { constructor() { super("a", "b"); } }
+            class D3 extends Base { constructor() { super("a", "b", "c"); } }
+            class D4 extends Base { constructor() { super("a", "b", "c", "d"); } }
+
+            new D0();
+            new D1();
+            new D2();
+            new D3();
+            new D4();
+
+            log.join("|");
+            """);
+
+        Assert.Equal(
+            "new:true:0:|new:true:1:a|new:true:2:a,b|new:true:3:a,b,c|new:true:4:a,b,c,d|" +
+            "super:D0:0:|super:D1:1:a|super:D2:2:a,b|super:D3:3:a,b,c|super:D4:4:a,b,c,d",
+            result);
     }
 
     [Fact(Timeout = 2000)]

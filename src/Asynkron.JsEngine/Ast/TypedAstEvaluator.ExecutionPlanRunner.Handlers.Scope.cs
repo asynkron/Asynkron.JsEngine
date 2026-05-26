@@ -198,10 +198,7 @@ public static partial class TypedAstEvaluator
                 // assignment carry direct indices so hot loop scopes avoid set/dictionary probes.
                 if (!instruction.LexicalSlotIndices.IsDefaultOrEmpty)
                 {
-                    foreach (var slotIndex in instruction.LexicalSlotIndices)
-                    {
-                        newIterationEnv.SetSlotLexicalUninitialized(slotIndex);
-                    }
+                    newIterationEnv.SetSlotsLexicalUninitialized(instruction.LexicalSlotIndices);
                 }
                 else if (instruction.LexicalBindings is { Count: > 0 } && !instruction.SlotMap.IsEmpty)
                 {

@@ -59,6 +59,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Unified bytecode prototype boundaries are now explicitly IR-owned and all-or-nothing under ADR 0181, so production routing still requires separate parity/performance proof before any broader runtime claim (`docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`).
 - Unified bytecode prototype control-flow now proves branch shapes plus one canonical condition-first loop back-edge IR shape with explicit unsupported-loop-control-flow declines, while still keeping production routing unchanged (`docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`).
 - Class-method simple IR activation is now explicitly super-guarded so methods with `super` dependencies do not take the shortcut (`docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`, `docs/performance/classdef-homeobject-simple-ir-activation.md`).
+- Runner breakable-frame stack capacity is now explicitly profile-owned under ADR 0195, with evidence showing improved `activation-arguments-lite` startup cost while leaving lexical/environment setup as a bounded follow-up seam (`docs/adrs/0195-keep-runner-breakable-stack-capacity-profile-owned.md`, `docs/performance/activation-arguments-breakable-stack-presizing.md`, [#2201](https://github.com/asynkron/Asynkron.JsEngine/issues/2201)).
+- Intl receiver brand validation is now explicitly JsValue-native under ADR 0196, with remaining private object-carrier helper cleanup constrained as a narrow standard-library follow-up (`docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`, `src/Asynkron.JsEngine/StdLib/Intl/IntlBrandExtensions.cs`, [#2202](https://github.com/asynkron/Asynkron.JsEngine/issues/2202)).
 - Async generators still carry a known weaker seam: invoker wiring currently runs through a sync-generator IR step wrapper with ThreadStatic resume callback caches; this remains a bounded follow-up surface rather than a settled runtime contract (`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`).
 
 ### What Works Worse
@@ -101,12 +103,13 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 26. Continue JSON parse/stringify optimization only through profile-owned `JsonHelper` owner surfaces with focused JSON tests and repeated selected-profile timing under ADR 0158 constraints (tracked in [#2041](https://github.com/asynkron/Asynkron.JsEngine/issues/2041)).
 27. Continue activation follow-through by reducing remaining activation-params-lite call setup/trampoline overhead only through focused profile-backed slices that preserve current eligibility/semantics boundaries (tracked in [#2083](https://github.com/asynkron/Asynkron.JsEngine/issues/2083)).
 28. Continue stringops split/join follow-through under ADR 0163 by reducing remaining consumer materialization overhead with focused profile plus regression proof before any broader widening (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150); comparable row evidence in `docs/performance/stringops-split-join-consumer-follow-through.md`).
-29. Continue activation-arguments follow-through after ADR 0173 by reducing remaining lexical-name setup overhead with selected-profile proof while preserving observable semantics boundaries (tracked in [#2123](https://github.com/asynkron/Asynkron.JsEngine/issues/2123)).
+29. Continue activation-arguments follow-through after ADR 0195 by reducing residual lexical/environment setup overhead on `activation-arguments-lite` with selected-profile proof while preserving observable semantics boundaries (tracked in [#2201](https://github.com/asynkron/Asynkron.JsEngine/issues/2201)).
 30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
 31. Continue direct-eval follow-through after the eval program-cache slice by reducing remaining `activation-evalscope-lite` overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
 32. Continue ADR 0184 stringops split/join consumer follow-through by reducing remaining consumer materialization overhead with comparable selected-profile before/after rows and semantics-first fallback proof (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
 33. Preserve the unified bytecode prototype control-flow boundary proven in [#2182](https://github.com/asynkron/Asynkron.JsEngine/issues/2182): branch shapes plus one canonical condition-first loop back-edge IR shape stay accepted, while other loop/control-flow families remain explicitly declined under ADR 0192.
 34. Reduce remaining `classdef` constructor and `super(...)` dispatch cost in one narrow evidence-backed slice while preserving ADR 0193 super-guarded activation boundaries (tracked in [#2183](https://github.com/asynkron/Asynkron.JsEngine/issues/2183)).
+35. Continue Intl/stdlib brand-helper cleanup after ADR 0196 by removing remaining private object-carrier overload use in one bounded helper cluster with focused Intl regression proof (tracked in [#2202](https://github.com/asynkron/Asynkron.JsEngine/issues/2202)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -138,6 +141,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/json-default-data-properties-and-quote-fast-path.md`
   - `docs/performance/activation-params-trampoline-frame-capacity.md`
   - `docs/performance/activation-arguments-descriptor-and-hoist-fast-path.md`
+  - `docs/performance/activation-arguments-breakable-stack-presizing.md`
   - `docs/performance/activation-evalscope-eval-program-cache.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
@@ -177,6 +181,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0184-keep-stringops-split-join-consumers-guarded-and-observable.md`
   - `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`
   - `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`
+  - `docs/adrs/0195-keep-runner-breakable-stack-capacity-profile-owned.md`
+  - `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

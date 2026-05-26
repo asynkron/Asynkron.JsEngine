@@ -40,6 +40,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Array iteration callback-argument setup now has explicit dense-array follow-through evidence, keeping callback semantics stable while reducing `arrayops` callback callsite overhead (`docs/performance/arrayops-dense-iteration-callback-args.md`).
 - Recursive one-argument typed call dispatch now has explicit `fib`-profile evidence, narrowing hot-path dispatch cost without widening host-call shortcuts (`docs/performance/fib-single-argument-typed-call-dispatch.md`).
 - Resizable TypedArray smoke coverage now has a shared fixture-policy ADR boundary, reducing cross-suite drift while keeping semantics unchanged (`docs/adrs/0147-keep-resizable-typedarray-smoke-fixtures-shared.md`).
+- Classdef simple-arrow execution now has explicit IR-activation evidence with lexical-dependency guardrails, keeping activation fast-path expansion proof-driven and semantics-safe (`docs/performance/classdef-arrow-simple-ir-activation.md`, `docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`).
+- Prototype constructor deduplication boundaries now keep `newTarget` callable extraction and return-value construction hook-split by constructor family, preserving observable semantics while reducing structural duplication (`docs/adrs/0149-keep-prototype-constructor-newtarget-hooks-split.md`).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
@@ -73,6 +75,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 19. Keep JsOps coercion maintenance explicit: preserve HTMLDDA precedence ordering while optimizing adjacent string-conversion paths only with focused regression proof under ADR 0141 boundaries.
 20. Keep FunctionCode activation work aligned with ADR 0146: preserve activation isolation as the gate for IR fast-path eligibility, and require focused proof signals before widening activation-path optimization scope.
 21. Keep argument-carrier and callback-argument follow-through aligned to ADR 0101 boundaries, proving one-argument typed-dispatch and dense-array callback changes with narrow profile evidence before widening call-shape shortcuts.
+22. Continue simple-arrow IR activation follow-through only behind proven lexical-dependency guards, and require focused profile plus semantics proof before widening to broader arrow/function shapes under ADR 0150.
+23. Preserve constructor-family `newTarget` and return-value hook boundaries while pursuing prototype-constructor deduplication so observable constructor semantics remain explicit under ADR 0149.
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -97,6 +101,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/classdef-array-callback-single-arg.md`
   - `docs/performance/arrayops-dense-iteration-callback-args.md`
   - `docs/performance/fib-single-argument-typed-call-dispatch.md`
+  - `docs/performance/classdef-arrow-simple-ir-activation.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
@@ -116,6 +121,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`
   - `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`
   - `docs/adrs/0147-keep-resizable-typedarray-smoke-fixtures-shared.md`
+  - `docs/adrs/0149-keep-prototype-constructor-newtarget-hooks-split.md`
+  - `docs/adrs/0150-keep-simple-arrow-ir-activation-lexical-dependency-guarded.md`
 - Activation boundary decisions for call setup and arguments behavior:
   - `docs/adrs/0099-keep-function-activation-slot-shape-plan-owned.md`
   - `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`

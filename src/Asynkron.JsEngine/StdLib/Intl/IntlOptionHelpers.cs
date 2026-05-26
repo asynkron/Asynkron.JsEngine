@@ -116,4 +116,49 @@ internal static class IntlOptionHelpers
 
         return (int)Math.Floor(value);
     }
+
+    public static int GetDigitOption(
+        IJsPropertyAccessor? options,
+        string property,
+        int minimum,
+        int maximum,
+        int fallback,
+        RealmState realm,
+        string typeName)
+    {
+        if (!TryGetDigitOption(options, property, minimum, maximum, realm, typeName, out var result))
+        {
+            return fallback;
+        }
+
+        return result.GetValueOrDefault();
+    }
+
+    public static bool TryGetDigitOption(
+        IJsPropertyAccessor? options,
+        string property,
+        int minimum,
+        int maximum,
+        RealmState realm,
+        string typeName,
+        out int? result)
+    {
+        result = null;
+        if (options is null ||
+            !options.TryGetProperty(property, out var value) ||
+            value.IsUndefined)
+        {
+            return false;
+        }
+
+        var number = JsOps.ToNumber(value);
+        if (double.IsNaN(number) || number < minimum || number > maximum)
+        {
+            throw StandardLibrary.ThrowRangeError(
+                $"Intl.{typeName} {property} option must be between {minimum} and {maximum}", realm: realm);
+        }
+
+        result = (int)Math.Floor(number);
+        return true;
+    }
 }

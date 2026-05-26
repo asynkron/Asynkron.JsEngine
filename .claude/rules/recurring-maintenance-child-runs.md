@@ -246,6 +246,15 @@ Without a template, recurring maintenance children can still mention the right
 fields while varying the structure enough that review has to reconstruct the
 slice, before/after signals, diff hygiene, and scope boundaries by hand.
 
+Issue #2030 / PR #2036 was an evidence-only NodeHostDemo
+dependency-maintenance child where the README change and dependency decision
+were correct, but review sent the build stage back because the handoff lacked
+explicit evidence for active sibling lookup, package/lockfile pins,
+`npm outdated` wanted/latest output, diff hygiene, and no-unrelated-change
+scope. The accepted closeout was to restate those AC-1/AC-2/AC-6/AC-7 signals
+in the Build Update, with an evidence-only marker commit, rather than changing
+the already-delivered README or package files again.
+
 Issue #1845 / PR #1888 closed the top-level README drift around that same
 evidence shape. `README.md` already pointed at the maintenance-child playbook,
 but it did not name sibling-summary checks or the stable `Baseline signal`,

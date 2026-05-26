@@ -255,7 +255,13 @@ optimization.
     direct lexical slot-index payloads on the environment-push instruction and
     let the runtime mark TDZ state by index. Keep symbol/set iteration and
     `SlotMap` probing as an unstamped diagnostic or compatibility fallback, not
-    the ordinary hot path.
+    the ordinary hot path. When the payload is already `LexicalSlotIndices`,
+    consume it through the environment-owned batch helper
+    `SetSlotsLexicalUninitialized` instead of reintroducing a runner-local
+    per-index method-call loop. WHY: issue #2201 / PR #2208 showed
+    `activation-arguments-lite` still paying `HandlePushEnvironment` overhead
+    after slot indices were plan-stamped because the hot path looped over each
+    index instead of using the existing batch helper.
 18. For object-literal known-new property optimizations, keep freshness as a
     compiler-carried proof and keep the storage shortcut owned by `JsObject`.
     A static property may skip duplicate checks only while all earlier literal

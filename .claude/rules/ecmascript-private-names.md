@@ -26,6 +26,13 @@ or IR execution context setup, treat private names as lexical scope state.
    field-initializer function expressions. When touching parse-time validation,
    also include direct eval inside a class method and the owning Test262 method
    group when the issue came from Test262.
+7. Keep runtime private-field entries descriptor-typed. `JsObjectState`
+   `PrivateFields` stores `PropertyDescriptor` values for private data fields
+   and private accessors; do not reintroduce mixed `object?` slots or fallback
+   branches such as `JsValue.FromObjectUnsafe(slot)` for private-slot reads.
+   When touching this storage, prove the carrier with a scoped before/after
+   search for `PrivateFields`, `Dictionary<string, object?>`, and
+   `JsValue.FromObjectUnsafe(slot)`, plus focused private field/accessor tests.
 
 ## Why
 
@@ -41,3 +48,11 @@ that direct eval and the Function constructor already have specialized
 scope-aware validation. Running those dynamic-code paths through the new
 empty-scope top-level validator would reject valid direct eval inside class
 methods before the caller's private-name scopes can be applied.
+
+Issue `autrun-disl2i2p0adk-86311e5aad` / PR #2115 removed a legacy
+`object?` carrier from `JsObjectState.PrivateFields`. All real writers were
+already storing `PropertyDescriptor` entries, but the mixed dictionary type kept
+dead object fallback reads alive and made private-field clone/read/write paths
+carry avoidable object-boxing compatibility code. Private fields and accessors
+must remain descriptor-backed runtime state, while private brands stay separate
+identity state.

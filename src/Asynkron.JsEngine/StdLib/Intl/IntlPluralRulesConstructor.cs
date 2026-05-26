@@ -31,13 +31,19 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
         var notation = IntlOptionHelpers.GetStringOption(options, "notation", Realm, "PluralRules",
             ["standard", "scientific", "engineering", "compact"], "standard");
 
-        var minimumIntegerDigits = GetDigitOption(options, "minimumIntegerDigits", 1, 21, 1);
-        var hasMinFrac = TryGetDigitOption(options, "minimumFractionDigits", 0, 20, out var minimumFractionDigits);
-        var hasMaxFrac = TryGetDigitOption(options, "maximumFractionDigits", 0, 20, out var maximumFractionDigits);
-        var hasMinSig = TryGetDigitOption(options, "minimumSignificantDigits", 1, 21, out var minimumSignificantDigits);
-        var hasMaxSig = TryGetDigitOption(options, "maximumSignificantDigits", 1, 21, out var maximumSignificantDigits);
+        var minimumIntegerDigits = IntlOptionHelpers.GetDigitOption(
+            options, "minimumIntegerDigits", 1, 21, 1, Realm, "PluralRules");
+        var hasMinFrac = IntlOptionHelpers.TryGetDigitOption(
+            options, "minimumFractionDigits", 0, 20, Realm, "PluralRules", out var minimumFractionDigits);
+        var hasMaxFrac = IntlOptionHelpers.TryGetDigitOption(
+            options, "maximumFractionDigits", 0, 20, Realm, "PluralRules", out var maximumFractionDigits);
+        var hasMinSig = IntlOptionHelpers.TryGetDigitOption(
+            options, "minimumSignificantDigits", 1, 21, Realm, "PluralRules", out var minimumSignificantDigits);
+        var hasMaxSig = IntlOptionHelpers.TryGetDigitOption(
+            options, "maximumSignificantDigits", 1, 21, Realm, "PluralRules", out var maximumSignificantDigits);
 
-        var roundingIncrement = GetDigitOption(options, "roundingIncrement", 1, 5000, 1);
+        var roundingIncrement = IntlOptionHelpers.GetDigitOption(
+            options, "roundingIncrement", 1, 5000, 1, Realm, "PluralRules");
         var roundingMode = IntlOptionHelpers.GetStringOption(options, "roundingMode", Realm, "PluralRules",
             ["ceil", "floor", "expand", "trunc", "halfCeil", "halfFloor", "halfExpand", "halfTrunc", "halfEven"],
             "halfExpand");
@@ -162,48 +168,4 @@ public sealed partial class IntlPluralRulesConstructor(IJsObjectLike prototype, 
         return ConstructInstance(new JsValue(instance), args);
     }
 
-    private int GetDigitOption(IJsPropertyAccessor? options, string property, int minimum, int maximum, int fallback)
-    {
-        if (options is null ||
-            !options.TryGetProperty(property, out var value) ||
-            value.IsUndefined)
-        {
-            return fallback;
-        }
-
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || number < minimum || number > maximum)
-        {
-            throw ThrowRangeError(
-                $"Intl.PluralRules {property} option must be between {minimum} and {maximum}", realm: Realm);
-        }
-
-        return (int)Math.Floor(number);
-    }
-
-    private bool TryGetDigitOption(
-        IJsPropertyAccessor? options,
-        string property,
-        int minimum,
-        int maximum,
-        out int? result)
-    {
-        result = null;
-        if (options is null ||
-            !options.TryGetProperty(property, out var value) ||
-            value.IsUndefined)
-        {
-            return false;
-        }
-
-        var number = JsOps.ToNumber(value);
-        if (double.IsNaN(number) || number < minimum || number > maximum)
-        {
-            throw ThrowRangeError(
-                $"Intl.PluralRules {property} option must be between {minimum} and {maximum}", realm: Realm);
-        }
-
-        result = (int)Math.Floor(number);
-        return true;
-    }
 }

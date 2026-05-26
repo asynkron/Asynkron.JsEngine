@@ -137,42 +137,11 @@ public sealed partial class SetPrototype
 
     private void IterateSetRecordKeys(SetRecord record, Action<JsValue> onValue)
     {
-        var otherJsValue = JsValue.FromObjectUnsafe(record.Set);
-        var iteratorResult = record.Keys.Invoke([], otherJsValue);
-        if (!iteratorResult.TryGetObjectLike(out var iteratorObj))
+        IterateSetRecordKeysWithEarlyExit(record, value =>
         {
-            throw StandardLibrary.ThrowTypeError("keys() must return an iterator object", realm: Realm);
-        }
-
-        if (!iteratorObj.TryGetProperty("next", out var nextProp) ||
-            !nextProp.TryGetObject<IJsCallable>(out var nextMethod))
-        {
-            throw StandardLibrary.ThrowTypeError("Iterator must have a callable next method", realm: Realm);
-        }
-
-        var iteratorJsValue = JsValue.FromObjectUnsafe(iteratorObj);
-        while (true)
-        {
-            var stepResult = nextMethod.Invoke([], iteratorJsValue);
-            if (!stepResult.TryGetObjectLike(out var stepObj))
-            {
-                throw StandardLibrary.ThrowTypeError("Iterator result must be an object", realm: Realm);
-            }
-
-            if (stepObj.TryGetProperty("done", out var doneProp) && JsOps.ToBoolean(doneProp))
-            {
-                break;
-            }
-
-            var value = stepObj.TryGetProperty("value", out var valueProp) ? valueProp : JsValue.Undefined;
-
-            if (value.IsNumber && IsNegativeZero(value.NumberValue))
-            {
-                value = JsValue.Zero;
-            }
-
             onValue(value);
-        }
+            return true;
+        });
     }
 
     private void IterateSetRecordKeysWithEarlyExit(SetRecord record, Func<JsValue, bool> onValue)

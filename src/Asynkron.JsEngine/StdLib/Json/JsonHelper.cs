@@ -77,13 +77,7 @@ public static class JsonHelper
         var parsed = ParseJsonValue(jsonDoc.RootElement, realm, root, "", sourceTracker);
 
         // Step 7c: Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
-        root.DefineProperty("", new PropertyDescriptor
-        {
-            Value = parsed,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
-        });
+        root.DefineDefaultDataProperty("", parsed);
 
         // Step 7e: Return ? InternalizeJSONProperty(root, rootName, reviver).
         return InternalizeJsonProperty(root, "", reviver, realm, sourceTracker);
@@ -98,15 +92,8 @@ public static class JsonHelper
                 var obj = new JsObject(realm.ObjectPrototype) { RealmState = realm };
                 foreach (var prop in element.EnumerateObject())
                 {
-                    // Use DefineProperty to avoid __proto__ setter behavior
                     var propValue = ParseJsonValue(prop.Value, realm, obj, prop.Name, tracker);
-                    obj.DefineProperty(prop.Name, new PropertyDescriptor
-                    {
-                        Value = propValue,
-                        Writable = true,
-                        Enumerable = true,
-                        Configurable = true
-                    });
+                    obj.DefineDefaultDataProperty(prop.Name, propValue);
                 }
 
                 return new JsValue(obj);
@@ -272,13 +259,7 @@ public static class JsonHelper
         if (sourceText is not null)
         {
             // Primitive value: context has a "source" property
-            context.DefineProperty("source", new PropertyDescriptor
-            {
-                Value = new JsValue(sourceText),
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            });
+            context.DefineDefaultDataProperty("source", new JsValue(sourceText));
         }
         // For objects/arrays: context has no properties (empty object)
 
@@ -415,13 +396,7 @@ public static class JsonHelper
         var wrapper = realm is not null
             ? new JsObject(realm.ObjectPrototype) { RealmState = realm }
             : new JsObject();
-        wrapper.DefineProperty("", new PropertyDescriptor
-        {
-            Value = value,
-            Writable = true,
-            Enumerable = true,
-            Configurable = true
-        });
+        wrapper.DefineDefaultDataProperty("", value);
 
         // Step 10: Call SerializeJSONProperty with the wrapper
         var result = SerializeJsonProperty(state, "", wrapper);
@@ -788,6 +763,11 @@ public static class JsonHelper
     /// </summary>
     private static string QuoteString(string value)
     {
+        if (!RequiresJsonStringEscaping(value))
+        {
+            return string.Concat("\"", value, "\"");
+        }
+
         var sb = new System.Text.StringBuilder(value.Length + 2);
         sb.Append('"');
         for (var i = 0; i < value.Length; i++)
@@ -853,6 +833,20 @@ public static class JsonHelper
         }
         sb.Append('"');
         return sb.ToString();
+    }
+
+    private static bool RequiresJsonStringEscaping(string value)
+    {
+        for (var i = 0; i < value.Length; i++)
+        {
+            var c = value[i];
+            if (c < 0x20 || c == '"' || c == '\\' || char.IsSurrogate(c))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string FormatNumber(double d)

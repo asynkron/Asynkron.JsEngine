@@ -1736,20 +1736,14 @@ internal static class JsOps
                 }
             // Handle primitives (Boolean, Number) - need prototype chain lookup
             case JsValueKind.Boolean when (context?.RealmState?.BooleanPrototype is { } booleanProto &&
-                                           booleanProto.TryGetProperty(propertyName, target.AsBoolean(), context, out var boolValue)):
-                {
-                    value = boolValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(boolValue);
-                    return true;
-                }
+                                           booleanProto.TryGetProperty(propertyName, target, context, out value)):
+                return true;
             case JsValueKind.Boolean:
                 value = JsValue.Undefined;
                 return false;
             case JsValueKind.Number when (context?.RealmState?.NumberPrototype is { } numberProto &&
-                                          numberProto.TryGetProperty(propertyName, target.NumberValue, context, out var numValue)):
-                {
-                    value = numValue is JsValue jv ? jv : JsValue.FromObjectUnsafe(numValue);
-                    return true;
-                }
+                                          numberProto.TryGetProperty(propertyName, target, context, out value)):
+                return true;
             default:
                 value = JsValue.Undefined;
                 return false;
@@ -1855,14 +1849,7 @@ internal static class JsOps
                     switch (propertyAccessor)
                     {
                         case JsObject jsObject:
-                            if (jsObject.TryGetProperty(propertyName, target, context, out var jsObjVal))
-                            {
-                                value = jsObjVal is JsValue jsv ? jsv : JsValue.FromObjectUnsafe(jsObjVal);
-                                return true;
-                            }
-
-                            value = JsValue.Undefined;
-                            return false;
+                            return jsObject.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value);
                         // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
                         case JsSymbol symbol when symbol.TryGetProperty(propertyName, out var symbolJsValue):
                             value = symbolJsValue;
@@ -1872,9 +1859,8 @@ internal static class JsOps
                             {
                                 var symbolProto = context?.RealmState?.SymbolPrototype;
                                 if (symbolProto is not null &&
-                                    symbolProto.TryGetProperty(propertyName, target, context, out var protoVal))
+                                    symbolProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
                                 {
-                                    value = protoVal is JsValue protoJs ? protoJs : JsValue.FromObjectUnsafe(protoVal);
                                     return true;
                                 }
 
@@ -1900,32 +1886,26 @@ internal static class JsOps
                 }
             case bool:
                 if (context?.RealmState?.BooleanPrototype is { } booleanProto &&
-                    booleanProto.TryGetProperty(propertyName, target, context, out var boolVal))
+                    booleanProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
                 {
-                    value = boolVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(boolVal);
                     return true;
                 }
-
                 value = JsValue.Undefined;
                 return false;
             case double:
                 if (context?.RealmState?.NumberPrototype is { } numberProto &&
-                    numberProto.TryGetProperty(propertyName, target, context, out var numVal))
+                    numberProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
                 {
-                    value = numVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(numVal);
                     return true;
                 }
-
                 value = JsValue.Undefined;
                 return false;
             case JsBigInt:
                 if (context?.RealmState?.BigIntPrototype is { } bigIntProto &&
-                    bigIntProto.TryGetProperty(propertyName, target, context, out var bigIntVal))
+                    bigIntProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
                 {
-                    value = bigIntVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(bigIntVal);
                     return true;
                 }
-
                 value = JsValue.Undefined;
                 return false;
             case string str:
@@ -1943,12 +1923,10 @@ internal static class JsOps
                 }
 
                 if (context?.RealmState?.StringPrototype is { } stringProto &&
-                    stringProto.TryGetProperty(propertyName, target, context, out var stringVal))
+                    stringProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
                 {
-                    value = stringVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(stringVal);
                     return true;
                 }
-
                 value = JsValue.Undefined;
                 return false;
             case JsRopeString rope:
@@ -1968,12 +1946,10 @@ internal static class JsOps
                     }
 
                     if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
-                        ropeStringProto.TryGetProperty(propertyName, ropeStr, context, out var ropeVal))
+                        ropeStringProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(ropeStr), context, out value))
                     {
-                        value = ropeVal is JsValue jv ? jv : JsValue.FromObjectUnsafe(ropeVal);
                         return true;
                     }
-
                     value = JsValue.Undefined;
                     return false;
                 }

@@ -33,7 +33,7 @@ public sealed partial class ArrayPrototype
         }
 
         if (accessor is JsArray array &&
-            TryJoinDenseOwnStringArray(array, length, separator, evalContext, Realm, out var denseJoin))
+            TryJoinDenseOwnStringArray(array, length, separator, out var denseJoin))
         {
             return new JsValue(denseJoin);
         }
@@ -57,8 +57,6 @@ public sealed partial class ArrayPrototype
         JsArray array,
         long length,
         string separator,
-        EvaluationContext? evalContext,
-        RealmState? realm,
         out string result)
     {
         result = string.Empty;
@@ -78,6 +76,11 @@ public sealed partial class ArrayPrototype
             {
                 return false;
             }
+
+            if (!array.GetElement(i).IsString)
+            {
+                return false;
+            }
         }
 
         var builder = new StringBuilder();
@@ -89,7 +92,7 @@ public sealed partial class ArrayPrototype
             }
 
             var value = array.GetElement(i);
-            builder.Append(JsOps.ToJsStringForArray(value, evalContext, realm));
+            builder.Append(value.AsString());
         }
 
         result = builder.ToString();

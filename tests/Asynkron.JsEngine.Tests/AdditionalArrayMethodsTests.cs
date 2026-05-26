@@ -903,6 +903,22 @@ public sealed class AdditionalArrayMethodsTests(ITestOutputHelper output) : Inte
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_Join_FallsBackWhenElementToStringHasSideEffects()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       Array.prototype[1] = "proto";
+                                                       let a = [{ toString() { delete a[1]; return "first"; } }, "second"];
+                                                       let joined = a.join("|");
+                                                       delete Array.prototype[1];
+                                                       joined;
+
+                                           """);
+        Assert.Equal("first|proto", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_Slice_SkipsMissingProxyIndex()
     {
         await using var engine = CreateEngine();

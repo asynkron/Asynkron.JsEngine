@@ -81,12 +81,12 @@ public static partial class TypedAstEvaluator
 
                 // Add Symbol.toStringTag property per ES spec (non-writable, non-enumerable, configurable)
                 asyncGenFuncProto.DefineProperty(SymbolKeys.ToStringTag,
-                    new PropertyDescriptor { Value = "AsyncGeneratorFunction", Writable = false, Enumerable = false, Configurable = true });
+                    new PropertyDescriptor { JsValue = "AsyncGeneratorFunction", Writable = false, Enumerable = false, Configurable = true });
 
                 asyncGenFuncProto.DefineProperty("prototype",
                     new PropertyDescriptor
                     {
-                        Value = RealmState.AsyncGeneratorPrototype,
+                        JsValue = RealmState.AsyncGeneratorPrototype,
                         Writable = false,
                         Enumerable = false,
                         Configurable = true
@@ -104,7 +104,7 @@ public static partial class TypedAstEvaluator
                     asyncGenCtor.DefineProperty("prototype",
                         new PropertyDescriptor
                         {
-                            Value = asyncGenFuncProto,
+                            JsValue = asyncGenFuncProto,
                             Writable = false,
                             Enumerable = false,
                             Configurable = false
@@ -114,7 +114,7 @@ public static partial class TypedAstEvaluator
                 asyncGenFuncProto.DefineProperty("constructor",
                     new PropertyDescriptor
                     {
-                        Value = RealmState.AsyncGeneratorFunctionConstructor,
+                        JsValue = RealmState.AsyncGeneratorFunctionConstructor,
                         Writable = false,
                         Enumerable = false,
                         Configurable = true
@@ -130,7 +130,7 @@ public static partial class TypedAstEvaluator
                     asyncGenProto.DefineProperty("constructor",
                         new PropertyDescriptor
                         {
-                            Value = asyncGenFuncProto,
+                            JsValue = asyncGenFuncProto,
                             Writable = false,
                             Enumerable = false,
                             Configurable = true
@@ -155,7 +155,7 @@ public static partial class TypedAstEvaluator
             prototypeObject.DefineProperty("constructor",
                 new PropertyDescriptor
                 {
-                    Value = this,
+                    JsValue = JsValue.FromObjectUnsafe(this),
                     Writable = true,
                     Enumerable = false,
                     Configurable = true

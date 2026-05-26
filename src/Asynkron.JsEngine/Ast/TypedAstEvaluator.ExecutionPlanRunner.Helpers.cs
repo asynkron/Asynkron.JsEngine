@@ -2794,6 +2794,17 @@ public static partial class TypedAstEvaluator
                                 environment);
                             break;
 
+                        case 3:
+                            result = InvokeCallableThreeArgs(
+                                callable,
+                                stack[calleeIndex + 1],
+                                stack[calleeIndex + 2],
+                                stack[calleeIndex + 3],
+                                thisValue,
+                                context,
+                                environment);
+                            break;
+
                         default:
                             var arguments = MaterializeProgramArguments(
                                 call.ArgumentCount,

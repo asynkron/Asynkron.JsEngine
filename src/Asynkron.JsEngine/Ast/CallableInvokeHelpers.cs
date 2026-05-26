@@ -69,6 +69,24 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
+    /// Invokes a callable with three arguments and returns the result as JsValue.
+    /// This overload avoids array allocation for common ternary helper calls.
+    /// </summary>
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static JsValue InvokeCallableThreeArgs(
+        IJsCallable callable,
+        JsValue arg0,
+        JsValue arg1,
+        JsValue arg2,
+        JsValue thisValue,
+        EvaluationContext? callingContext,
+        JsEnvironment? callingEnvironment = null)
+    {
+        var args = new ThreeValueArgs(arg0, arg1, arg2);
+        return InvokeCallableJsValueGeneric(callable, args, thisValue, callingContext, callingEnvironment);
+    }
+
+    /// <summary>
     /// Invokes a callable with a single argument and returns the result as JsValue.
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>

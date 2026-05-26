@@ -12,34 +12,35 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     [Fact]
     public void TryCompile_SimpleReturnAdd_ProducesUnifiedOps()
     {
-        var plan = GetFunctionPlan("""
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function add(x, y) {
                 return x + y;
             }
             """,
             "add");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, out var program, out var reason);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
 
         Assert.True(result, reason);
         Assert.Equal(4, program.Instructions.Length);
         Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[0].OpCode);
         Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[1].OpCode);
-        Assert.Equal(UnifiedBytecodeOpCode.Add, program.Instructions[2].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.Binary, program.Instructions[2].OpCode);
+        Assert.Equal((int)BinaryOperator.Add, program.Instructions[2].Operand);
         Assert.Equal(UnifiedBytecodeOpCode.Return, program.Instructions[3].OpCode);
     }
 
     [Fact]
     public void Execute_AddProgram_ReturnsFiveForTwoAndThree()
     {
-        var plan = GetFunctionPlan("""
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function add(x, y) {
                 return x + y;
             }
             """,
             "add");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, out var program, out var reason);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
         Assert.True(result, reason);
 
         var slotCount = Math.Max(plan.ActivationSlots!.SlotCount, 2);
@@ -52,9 +53,9 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_LocalDeclarationBeforeReturn_Declines()
+    public void TryCompile_LocalDeclarationBeforeReturn_ProducesLinearProgram()
     {
-        var plan = GetFunctionPlan("""
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function addViaLocal(a, b) {
                 var c = a + b;
                 return c;
@@ -62,19 +63,81 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "addViaLocal");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, out _, out var reason);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
 
+        Assert.True(result, reason);
+        Assert.Equal(6, program.Instructions.Length);
+        Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[0].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[1].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.Binary, program.Instructions[2].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.StoreSlot, program.Instructions[3].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[4].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.Return, program.Instructions[5].OpCode);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 3)];
+        slots[program.Instructions[0].Operand] = JsValue.FromDouble(2);
+        slots[program.Instructions[1].Operand] = JsValue.FromDouble(3);
+        var value = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        Assert.Equal(5d, value.AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_NonLinearPlan_Declines()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function addOrSub(a, b, pickAdd) {
+                if (pickAdd) {
+                    return a + b;
+                }
+
+                return a - b;
+            }
+            """,
+            "addOrSub");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
         Assert.False(result);
         Assert.NotEmpty(reason);
     }
 
-    private static ExecutionPlan GetFunctionPlan(string source, string functionName)
+    [Fact]
+    public void TryCompile_AsyncSimpleReturn_Declines()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            async function add(x, y) {
+                return x + y;
+            }
+            """,
+            "add");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("not eligible", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryCompile_GeneratorSimpleReturn_Declines()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function* addViaLocal(a, b) {
+                var c = a + b;
+                return c;
+            }
+            """,
+            "addViaLocal");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("not eligible", reason, StringComparison.Ordinal);
+    }
+
+    private static (ExecutionPlan Plan, bool IsAsync, bool IsGenerator) GetFunctionPlan(string source, string functionName)
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
-        return Assert.IsType<ExecutionPlan>(cache.Plan);
+        return (Assert.IsType<ExecutionPlan>(cache.Plan), declaration.Function.IsAsync, declaration.Function.IsGenerator);
     }
 }

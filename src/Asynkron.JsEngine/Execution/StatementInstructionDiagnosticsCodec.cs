@@ -21,7 +21,8 @@ internal enum EncodedStatementOpcode : byte
     StoreResumeValue = 13,
     FunctionDeclaration = 14,
     ClassDeclaration = 15,
-    PushEnvironment = 16
+    PushEnvironment = 16,
+    PopEnvironment = 17
 }
 
 internal readonly record struct CompactStatementInstruction(
@@ -248,6 +249,7 @@ internal static class StatementInstructionDiagnosticsCodec
             InstructionKind.StoreResumeValue or
             InstructionKind.FunctionDeclaration or
             InstructionKind.PushEnvironment or
+            InstructionKind.PopEnvironment or
             InstructionKind.ClassDeclaration;
     }
 
@@ -363,6 +365,15 @@ internal static class StatementInstructionDiagnosticsCodec
                         pushEnvironment.SlotCount),
                     new CompactStatementPayload(
                         PushEnvironmentPayload: pushEnvironmentPayload));
+                return true;
+            case PopEnvironmentInstruction popEnvironment:
+                encoded = new CompactStatementInstruction(
+                    new CompactStatementHeader(
+                        EncodedStatementOpcode.PopEnvironment,
+                        popEnvironment.Next,
+                        popEnvironment.ScopeId,
+                        popEnvironment.AllowPooling ? 1 : 0),
+                    CompactStatementPayload.Empty);
                 return true;
             case StoreResumeValueInstruction storeResumeValue:
                 encoded = new CompactStatementInstruction(
@@ -549,6 +560,10 @@ internal static class StatementInstructionDiagnosticsCodec
                 AwaitStateKey: encoded.Payload.PrimarySymbol,
                 AwaitedProgram: ResolveExpressionProgram(encoded.Payload.SecondaryExpressionProgramReferenceId, encoded.Payload.SecondaryExpressionProgram, expressionPrograms)),
             EncodedStatementOpcode.PushEnvironment => DecodePushEnvironmentInstruction(encoded.Payload, header),
+            EncodedStatementOpcode.PopEnvironment => new PopEnvironmentInstruction(
+                ScopeId: header.Operand,
+                AllowPooling: header.Extra != 0,
+                Next: header.NextOrTarget),
             EncodedStatementOpcode.StoreResumeValue => new StoreResumeValueInstruction(
                 header.NextOrTarget,
                 encoded.Payload.PrimarySymbol),

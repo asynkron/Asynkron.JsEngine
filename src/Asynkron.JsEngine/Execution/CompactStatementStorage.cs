@@ -55,7 +55,7 @@ internal static class CompactStatementInstructionTaxonomy
             InstructionKind.FunctionDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.FunctionDeclarationDescriptor, true),
             InstructionKind.ClassDeclaration => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.ClassDeclarationDescriptor, true),
             InstructionKind.PushEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.EnvironmentTransitionNormalized, true),
-            InstructionKind.PopEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredDeclarationAndScope, false),
+            InstructionKind.PopEnvironment => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.EnvironmentTransitionNormalized, true),
             InstructionKind.EnterTry => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),
             InstructionKind.EnterCatch => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),
             InstructionKind.LeaveTry => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredSuspendAndExceptionFlow, false),

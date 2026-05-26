@@ -3264,7 +3264,7 @@ public static partial class TypedAstEvaluator
 
         private void StoreEscapedClosureScanCacheResult(object objectValue, bool containsEscapedClosure)
         {
-            if (objectValue is not JsObject jsObject)
+            if (!containsEscapedClosure || objectValue is not JsObject jsObject)
             {
                 return;
             }

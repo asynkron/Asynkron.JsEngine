@@ -13,6 +13,14 @@ optimization.
 2. Keep CPU and memory evidence separate. A CPU hotspot in call entry does not
    prove an allocation win, and an allocation type table does not prove exact
    allocation provenance without a call tree.
+2a. When one performance issue groups multiple benchmark profiles, prove and
+    report the owner for each profile independently before choosing an
+    implementation surface. Similar domain labels or allocation types are not
+    enough evidence for a shared fix. Issue #2079 / PR #2097 grouped `json` and
+    `stringops`, but profiling showed `JsonHelper` storage and
+    `StringPrototype.Split` consumer materialization were separate owners, so
+    the delivery changed only the string split consumer and left JSON as a
+    JsonHelper-specific residual.
 3. Preserve `PERF_PROFILES` override behavior when changing aggregate profiler
    defaults. Default guardrails may expand, but operators must still be able to
    run a narrowed profile set.
@@ -142,8 +150,10 @@ optimization.
     `StringPrototype.Split` or another string consumer's result
     materialization, keep the optimization at that consumer boundary: pre-size
     result storage only after proving the constructor is capacity-only, avoid
-    intermediate element arrays where observable order is unchanged, and do not
-    turn a split/join hotspot into a rope or generic addition policy change.
+    intermediate element arrays where observable order is unchanged, reuse
+    cached single-code-unit strings only on a profiled and semantics-pinned
+    path such as ASCII `split("")`, and do not turn a split/join hotspot into a
+    rope or generic addition policy change.
 16. For sync IR trampoline performance work, separate semantically tail-position
     calls from calls the current trampoline executor can actually complete.
     Before widening eligibility, prove the selected profile's call shape

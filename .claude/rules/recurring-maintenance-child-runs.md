@@ -70,6 +70,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   an explicit non-failing inventory command over making agents probe an invalid
   argument just to see an error message. Keep the listing path backed by the
   same computed source that validation uses.
+- When a recurring maintenance slice adds or changes top-level Makefile quality
+  or test entrypoints, keep the non-failing `make help` inventory aligned with
+  those targets and keep `agents/how-to-build-and-test.md` as a short pointer.
+  Preserve existing target command bodies unless the slice explicitly changes
+  behavior.
 - When documenting runner inventory output, state whether it is a static list
   or a live failure snapshot, and define what any displayed counts measure
   before agents use those counts for maintenance scoping.
@@ -304,6 +309,14 @@ successfully and print the same pack list used by invalid-pack validation.
 Before that, agents had to call an intentionally invalid pack name to discover
 available regression packs, which turned normal workflow discovery into a
 failing command and added avoidable noise to recurring maintenance evidence.
+
+Issue #2101 / PR #2112 applied the same non-failing inventory pattern to the
+repo Makefile quality/test entrypoints. `quality`, `build-internal`,
+`test-internal`, and `test-internal-no-build` existed, but there was no `help`
+target, so agents had to scan files or guess supported commands. Future
+Makefile maintenance should keep `make help` as the discoverable target list
+and only update the build/test playbook as a pointer unless command behavior is
+the selected slice.
 
 Issue #1549 / PR #1558 tightened that same runner-inventory documentation: the
 Test262 `--list` output is a static inventory of runnable regression-pack files,

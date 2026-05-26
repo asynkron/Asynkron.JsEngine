@@ -16,9 +16,9 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensibilityControl,
     IPrototypeAccessorProvider, IAsJsValue
 {
-    // Use ConditionalWeakTable for weak reference semantics
-    // Keys must be objects, values stored as object? (boxing unavoidable due to ConditionalWeakTable constraint)
-    private readonly ConditionalWeakTable<object, object?> _entries = new();
+    // Use ConditionalWeakTable for weak reference semantics.
+    // Values are wrapped in a reference type because CWT values must be reference types.
+    private readonly ConditionalWeakTable<object, WeakMapValueBox> _entries = new();
     private readonly JsObject _properties = new();
     private readonly JsValue _cachedJsValue;
     public bool IsExtensible => _properties.IsExtensible;
@@ -104,34 +104,10 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
             throw StandardLibrary.ThrowTypeError("Invalid value used as weak map key");
         }
 
-        // Use AddOrUpdate to set the value
-        // Store the underlying object (boxing unavoidable for ConditionalWeakTable)
+        // Use remove/add to replace the entry while keeping CWT semantics.
         _entries.Remove(keyObj);
-        _entries.Add(keyObj, ExtractValueObject(value));
+        _entries.Add(keyObj, new WeakMapValueBox(value));
         return this;
-    }
-
-    /// <summary>
-    /// Extracts the underlying value from a JsValue for storage.
-    /// For primitives, returns a boxed value. For objects, returns the object reference.
-    /// </summary>
-    private static object? ExtractValueObject(JsValue value)
-    {
-        return value.Kind switch
-        {
-            JsValueKind.Undefined => Symbol.Undefined,
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => value.NumberValue != 0, // Box boolean
-            JsValueKind.Number => value.NumberValue, // Box number
-            JsValueKind.String => value.ObjectValue ?? string.Empty,
-            JsValueKind.Symbol => value.ObjectValue ??
-                                  throw new InvalidOperationException("Symbol value cannot be null"),
-            JsValueKind.BigInt => value.ObjectValue ??
-                                  throw new InvalidOperationException("BigInt value cannot be null"),
-            JsValueKind.Object => value.ObjectValue ??
-                                  throw new InvalidOperationException("Object value cannot be null"),
-            _ => throw new InvalidOperationException($"Unexpected value kind: {value.Kind}")
-        };
     }
 
     /// <summary>
@@ -148,7 +124,7 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
 
         if (_entries.TryGetValue(keyObj, out var value))
         {
-            return JsValue.FromObjectUnsafe(value);
+            return value.Value;
         }
 
         return JsValue.Undefined;
@@ -171,6 +147,16 @@ public sealed class JsWeakMap : IJsObjectLike, IPropertyDefinitionHost, IExtensi
     {
         var keyObj = JsWeakCollectionHelpers.ExtractWeakKeyObject(key);
         return keyObj != null && _entries.Remove(keyObj);
+    }
+
+    private sealed class WeakMapValueBox
+    {
+        public WeakMapValueBox(JsValue value)
+        {
+            Value = value;
+        }
+
+        public JsValue Value { get; }
     }
 
 }

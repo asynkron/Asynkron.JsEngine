@@ -266,6 +266,11 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case BreakableEnterInstruction breakableEnter:
+                        if (!IsSupportedBreakableEnter(breakableEnter, out reason))
+                        {
+                            return false;
+                        }
+
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 breakableEnter.Next,
@@ -606,6 +611,25 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        return true;
+    }
+
+    private static bool IsSupportedBreakableEnter(BreakableEnterInstruction breakableEnter, out string reason)
+    {
+        if (breakableEnter.Label is not null)
+        {
+            reason = "Unsupported breakable construct: labels are not eligible for unified bytecode compilation.";
+            return false;
+        }
+
+        if (breakableEnter.ConstructKind != BreakableKind.ResetsCompletionValue)
+        {
+            reason =
+                "Unsupported breakable construct: only loop-style breakable wrappers are eligible for unified bytecode compilation.";
+            return false;
+        }
+
+        reason = string.Empty;
         return true;
     }
 

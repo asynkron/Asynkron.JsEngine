@@ -267,6 +267,50 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_LabeledWhileLoop_DeclinesWithLabelReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function labeledSumTo(n) {
+                var total = 0;
+                outer: while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeledSumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TryCompile_LabeledNonLoopStatement_DeclinesWithLabelReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function labeledBlock(flag) {
+                var total = 0;
+                blockLabel: {
+                    if (flag) {
+                        break blockLabel;
+                    }
+                    total = 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeledBlock");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        Assert.False(result);
+        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void TryCompile_ForLoopWithConditionAndPostUpdate_DeclinesWithExplicitReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

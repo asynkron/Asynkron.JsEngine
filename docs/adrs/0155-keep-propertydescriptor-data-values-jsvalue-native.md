@@ -25,6 +25,13 @@ repo-wide `Value` callsites, including generated-code surfaces, meant strict
 obsoletion would have changed the scope from a focused descriptor migration
 into a repository-wide closeout.
 
+Issue `autrun-disdwrowfjf4-2cfa8decbc` / PR #2024 later applied the same
+decision to `StandardLibrary.DefineConstantProperty`. The first build changed
+the helper parameter and fallback setter to `JsValue`, but review caught that
+the `PropertyDescriptor` initializer still used `Value = value`. Because the
+compatibility setter delegates to `JsValue.FromObjectUnsafe(value)`, the helper
+still had an object-carrier sink even though the signature compiled cleanly.
+
 ## Decision
 
 Keep core `PropertyDescriptor` data values on the `JsValue` setter whenever the
@@ -40,7 +47,8 @@ For descriptor cleanup slices:
 3. treat `PropertyDescriptor.Value` as a compatibility bridge, not the normal
    core-runtime data descriptor path;
 4. prove each bounded migration with a before/after search for legacy
-   descriptor setters such as `\bValue\s*=` in the selected file set; and
+   descriptor setters such as `\bValue\s*=` in the selected file set, including
+   helper bodies when the migration changes a helper signature; and
 5. defer `[Obsolete(..., true)]` on the compatibility setter unless the selected
    work explicitly owns the full repository-wide and generated-code migration.
 

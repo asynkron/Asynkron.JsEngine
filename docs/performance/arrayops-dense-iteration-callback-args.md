@@ -64,6 +64,45 @@ The repeated final Asynkron runs averaged about 937 ms versus the 1480 ms
 baseline signal, about a 37% improvement. Each repeated final run stayed above
 the requested 10% threshold despite normal local timing noise.
 
+## Follow-up: reducer two-argument callbacks
+
+Issue #2076 / PR #2088 selected `arrayops` again after the full reducer carrier
+slice. The baseline allocation run was:
+
+```text
+arrayops  asynkron_ms=805  asynkron_kb=925094.5
+```
+
+The focused CPU profile still showed callback invocation under `Map`, `Filter`,
+and `Reduce`. The memory profile showed repeated `HashSet<Symbol>` allocation
+under array iteration callback eligibility.
+
+The accepted follow-up kept the observable callback paths intact and narrowed
+only the current owners:
+
+- `SyncFunctionInvoker` caches the simple array-iteration and reducer
+  callback-eligibility predicates once per invoker instead of rebuilding shape
+  sets inside callback loops.
+- `Array.prototype.reduce` / `reduceRight` use `TwoValueArgs` only for guarded
+  simple typed arrow callbacks that cannot observe `index`, `array`, or
+  callback-local `arguments`.
+- Ordinary functions, rest/default/destructured parameters, async/generator
+  callbacks, and callbacks with explicit index or array parameters stay on the
+  full four-argument reducer path.
+
+Final allocation signal:
+
+```text
+arrayops  asynkron_ms=1025  asynkron_kb=856317.6
+memory profile total: 44.77 MB -> 41.40 MB
+```
+
+The timing sample was noisy and slower than the baseline run, but managed
+allocation dropped by about 68.8 MB. The focused semantic proof was
+`rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~FoundationTests.Array_Reduce"`,
+which passed 6 tests covering reducer values, prototype holes, accessors,
+proxies, and observable callback arguments.
+
 ## Verification
 
 Focused semantic verification:

@@ -69,6 +69,15 @@ callbacks through `InvokeWithContext<FourValueArgs>` instead of allocating a
 temporary `JsValue[]` per callback. The focused proof pinned
 `arguments.length`, index, and array-observability for reduce.
 
+Issue #2076 / PR #2088 continued that reducer path after the `arrayops`
+allocation profile still showed dense callback invocation pressure. The memory
+profile also showed repeated `HashSet<Symbol>` allocation while checking the
+simple array-callback eligibility predicate. The accepted slice cached the
+constructor-stable predicate on `SyncFunctionInvoker` and added a two-argument
+reducer path only for simple typed arrow callbacks whose extra reducer
+arguments are unobservable. Observable reducer callbacks still use the full
+four-argument path.
+
 ## Decision
 
 Keep function-call hot paths typed over their argument carrier until the
@@ -91,9 +100,12 @@ For sync-function invocation and simple IR activation:
    widening the simple activation predicate; and
 7. when reducing an array-iteration callback arity, prove that the callback
    shape cannot observe omitted arguments before replacing the spec callback
-   carrier. Ordinary functions, rest parameters, parameter expressions,
-   callbacks with explicit index/array parameters, async functions, and
-   generators must keep the observable full-argument path unless a separate
+   carrier. For reducers, the full carrier is
+   `(accumulator, value, index, array)`, and a two-argument reducer path is
+   valid only for guarded simple arrows that cannot observe `index`, `array`, or
+   callback-local `arguments`. Ordinary functions, rest parameters, parameter
+   expressions, callbacks with explicit index/array parameters, async functions,
+   and generators must keep the observable full-argument path unless a separate
    proof establishes a narrower safe shape; and
 8. when bypassing shared callable dispatch for a single-argument typed
    JavaScript call, keep the shortcut keyed to the concrete
@@ -104,7 +116,11 @@ For sync-function invocation and simple IR activation:
 9. for reducer callbacks that must expose four spec arguments, use a concrete
    four-value carrier through the typed invocation path rather than allocating a
    temporary argument array, and keep the generic fallback for non-typed
-   callables.
+   callables; and
+10. cache callback-shape eligibility only when every predicate input is stable
+    for the invoker lifetime. Do not rebuild `HashSet<Symbol>` or parameter
+    shape scans inside per-element callback loops, but also do not memoize a
+    predicate that depends on mutable invocation state.
 
 `TwoValueArgs`, `ThreeValueArgs`, `FourValueArgs`, and future arity-specific
 struct carriers remain valid only when the concrete struct type is preserved
@@ -129,7 +145,11 @@ crossing an interface-typed hot-path boundary.
   execution, or extra formal parameters can observe the omitted values.
 - Reducer callbacks still need the full four-argument carrier when the callback
   shape can observe `arguments`, index, or the receiver array. The optimization
-  is typed-carrier preservation, not argument omission.
+  is typed-carrier preservation or proven-safe prefix omission, not a generic
+  reducer-arity shortcut.
+- Cached callback-shape predicates are part of the allocation story. If a hot
+  loop repeatedly proves the same immutable function shape, cache the predicate
+  on the function/invoker owner rather than allocating per callback.
 - Dynamic-call cleanup should scan both the public/private helper methods and
   the backing pool fields. A no-caller search for `ReturnArgumentArray` is not
   enough if `ObjectPool<object?[]>` fields remain allocated and named as a

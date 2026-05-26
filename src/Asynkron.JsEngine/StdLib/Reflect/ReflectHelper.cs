@@ -488,9 +488,7 @@ public static class ReflectHelper
 
         if (target is ModuleNamespace moduleNamespace)
         {
-            return JsValue.FromJsArray(new JsArray(moduleNamespace
-                .OwnKeys()
-                .Select(static key => JsValue.FromObjectUnsafe(key)), realm));
+            return JsValue.FromJsArray(new JsArray(moduleNamespace.OwnKeys(), realm));
         }
 
         if (target is JsProxy proxy)

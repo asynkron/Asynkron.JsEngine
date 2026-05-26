@@ -1406,4 +1406,33 @@ export default function() { return 23; };
 
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task ModuleNamespace_ReflectOwnKeysIncludesExportsAndToStringTagSymbol()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 export const alpha = 1;
+                                                 export const beta = 2;
+                                                 import * as ns from "main.js";
+                                                 Reflect.ownKeys(ns).map(k => typeof k === "symbol" ? k.toString() : k).join(",");
+                                                 """, "main.js");
+
+        Assert.Equal("alpha,beta,Symbol(Symbol.toStringTag)", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ModuleNamespace_GetOwnPropertySymbolsReturnsOnlyToStringTag()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.EvaluateModule("""
+                                                 export const alpha = 1;
+                                                 import * as ns from "main.js";
+                                                 Object.getOwnPropertySymbols(ns).map(s => s.toString()).join(",");
+                                                 """, "main.js");
+
+        Assert.Equal("Symbol(Symbol.toStringTag)", result);
+    }
 }

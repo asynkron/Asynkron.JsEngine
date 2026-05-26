@@ -274,6 +274,16 @@ optimization.
     timings are noisy, report the CPU owner shape, such as disappearance of
     `InvokeWithContextSlow` or trampoline frames, plus the focused activation
     proof pack.
+24. For repeated direct-eval program-cache performance work, prove that the
+    selected `activation-evalscope` profile is paying parse and plan-build cost
+    under `EvalHostFunction` before caching. Cache parsed `ProgramNode`
+    instances and warmed AST caches, not eval environments, declaration
+    instantiation, execution results, caller bindings, or validation outcomes.
+    Key the cache by source text plus forced strictness, keep it per engine and
+    bounded, and keep private-name validation, `super` / `new.target`
+    validation, and current caller-environment execution after the cache
+    lookup. Prove retained wins with repeated selected-profile timings plus the
+    focused activation/eval/private-name proof pack.
 
 ## Why
 
@@ -650,3 +660,15 @@ destructuring fast paths must be profile-owned and iterator-protocol guarded:
 native `values` and dense own elements are not enough if `next` or `return` can
 be observed during normal stepping or abrupt `IteratorClose`. Related ADR:
 `docs/adrs/0154-keep-dense-array-destructuring-fast-path-iterator-observable.md`.
+
+Issue `autrun-disol3tkc92g-850bc475d9` / PR #2142 selected
+`activation-evalscope-lite` and proved the hot owner with a CPU call tree:
+repeated stable direct eval source was reparsed and rebuilt through
+`EvalHostFunction.Invoke -> JsEngine.ParseProgram -> ScriptPlanCache.Build`.
+The accepted slice cached parsed `ProgramNode` instances in a bounded
+per-engine LRU keyed by source text and forced strictness, then kept declaration
+instantiation, private-name validation, caller-context validation, and execution
+on the current eval environment. The durable lesson is that direct-eval parse
+caches may reuse immutable program structure, but must not cache caller state or
+use a source-only key. Related ADR:
+`docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.

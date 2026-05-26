@@ -88,9 +88,13 @@ optimization.
     must stay on the compact/no-gap or proven no-escape path and preserve the
     semantic fallback for replacers, `toJSON`, raw JSON, pretty-printing,
     proxy-aware key enumeration, circular checks, surrogate escaping, and
-    reviver source tracking. Future `json` work must prove the hot owner with a
-    CPU profile, then separate avoidable intermediate string/list/descriptor
-    allocation from metadata that is required for observable JSON semantics.
+    reviver source tracking. When eliminating quoted-key temporaries, append
+    directly to the active compact builder only after the property value has
+    been serialized and kept, and route escape-required keys through the shared
+    `QuoteString` path instead of duplicating escape/surrogate handling. Future
+    `json` work must prove the hot owner with a CPU profile, then separate
+    avoidable intermediate string/list/descriptor allocation from metadata that
+    is required for observable JSON semantics.
 12. For activation environment capacity work, prove that the hot owner is slot
     growth or slot-array copying on the selected profile before changing runner
     sizing. Capacity helpers may reserve space for known activation appends, but
@@ -327,6 +331,17 @@ is that JSON performance work should reuse the storage-owned default-property
 boundary and no-escape quoting proof only where the ECMAScript JSON algorithm
 cannot observe the shortcut. Related ADR:
 `docs/adrs/0158-keep-json-default-property-and-quote-fast-paths-profile-owned.md`.
+
+Issue #2041 / PR #2048 continued the same `JsonHelper` owner surface after ADR
+0158: compact object-key emission still allocated a quoted key string before
+appending it to the active object builder. The accepted slice appended
+no-escape keys directly to that builder, but kept escaping-required keys on the
+shared `QuoteString` path so quote, backslash, control-character, surrogate-pair,
+and lone-surrogate semantics stayed single-owned. The durable lesson is that
+JSON key-quoting performance work may remove intermediate strings, but it must
+not fork escape semantics or write keys before the existing property/value
+serialization rules decide the member is observable. Related ADR:
+`docs/adrs/0160-keep-json-compact-key-quoting-append-shared.md`.
 
 Issue `autrun-dir4p2zvmkps-4dd788bea7` / PR #1740 selected `classdef` from the
 benchmark table and proved the hot owner with a `classdef` CPU call tree:

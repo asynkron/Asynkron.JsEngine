@@ -3088,8 +3088,34 @@ public static partial class TypedAstEvaluator
                 }
             }
 
+            var prototypeAccessor = GetEscapedClosureScanPrototypeAccessor(objectValue);
+            if (prototypeAccessor is not null &&
+                HasEscapedActivationCapturingClosureValue(
+                    JsValue.FromObjectUnsafe(prototypeAccessor),
+                    environment,
+                    ref visitedObjects))
+            {
+                StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: true);
+                return true;
+            }
+
             StoreEscapedClosureScanCacheResult(objectValue, containsEscapedClosure: false);
             return false;
+        }
+
+        private static IJsPropertyAccessor? GetEscapedClosureScanPrototypeAccessor(object objectValue)
+        {
+            if (objectValue is IPrototypeAccessorProvider { PrototypeAccessor: { } prototypeAccessor })
+            {
+                return prototypeAccessor;
+            }
+
+            if (objectValue is IJsObjectLike { Prototype: { } prototype })
+            {
+                return prototype;
+            }
+
+            return null;
         }
 
         private bool TryGetEscapedClosureScanCacheResult(object objectValue, out bool containsEscapedClosure)

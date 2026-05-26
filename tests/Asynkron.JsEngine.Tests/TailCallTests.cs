@@ -512,6 +512,31 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictSameFunctionTailCall_IndirectHelperCallDoesNotReuseClosureLeakedViaArgumentPrototypeChain()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function f(n, localHolder) {
+                "use strict";
+                if (!localHolder) localHolder = {};
+                function getN() { return n; }
+                function getF() {
+                    Object.setPrototypeOf(localHolder, { saved: getN });
+                    return f;
+                }
+
+                if (n === 0) {
+                    return localHolder.saved();
+                }
+
+                return getF()(n - 1, localHolder);
+            }(1));
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_IndirectHelperCallIgnoresUnrelatedProxySlotDuringEscapeCheck()
     {
         await using var engine = CreateEngine();

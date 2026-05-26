@@ -339,6 +339,17 @@ optimization.
     preserved for every other value. Do not turn a sampled constructor/super
     subtree into broad activation widening or constructor-dispatch bypass
     without focused class/super and lowering proof.
+26. For activation-arguments TDZ or generator-state performance work, prove the
+    selected profile is paying activation setup under
+    `InvokeWithContextSlow -> CreateExecutionEnvironment` before editing root
+    slot layout, `JsEnvironment.ResetSlotLayoutForPlan`, or generator-internal
+    activation bindings. Keep TDZ marking metadata compiler/plan-owned through
+    `ActivationSlotShape` lexical slot indices, with the symbol-set path only as
+    a fallback for layouts without index metadata. Keep generator-only bindings
+    gated by the actual runner kind; do not infer the shortcut from the
+    benchmark name, source text, or an ordinary-function profile alone. Report
+    repeated selected-profile timing, the follow-up CPU owner shape, the
+    activation proof pack, and generator-focused coverage.
 
 ## Why
 
@@ -760,3 +771,16 @@ durable lesson is that internal sentinel fast paths can trim hot derived
 constructor checks only when they are profile-owned, kind-guarded, and do not
 change `super()` dispatch semantics or evaluation order. Related ADR:
 `docs/adrs/0194-keep-super-constructor-thisinitialized-guard-boolean-fast-path.md`.
+
+Issue `autrun-disu408v4ns8-3128f4f119` / PR #2198 selected
+`activation-arguments-lite` after prior observable-arguments and lexical
+template wins, then proved the remaining hot owner with a CPU call tree:
+`CreateExecutionEnvironment -> ResetSlotLayoutForPlan ->
+MarkSlotsLexicalUninitialized` still enumerated lexical symbol sets on every
+ordinary function activation, and the ordinary path also paid for
+generator-only internal bindings. The accepted slice moved root lexical TDZ
+metadata into plan-owned `ActivationSlotShape` slot indices and gated generator
+state to actual generator runners. The durable lesson is that follow-up
+activation setup wins should remove the currently profiled setup owner without
+widening observable arguments or generator activation policy. Related ADR:
+`docs/adrs/0199-keep-activation-tdz-slot-indices-plan-owned-and-generator-state-gated.md`.

@@ -146,6 +146,16 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     dynamic identifier-cache cases on their existing fallbacks. Do not replace
     the bytecode-owned super scan with source text, method names, benchmark
     names, or callback-shape predicates.
+19. When optimizing root activation TDZ setup for functions with a planned slot
+    layout, keep lexical slot-index metadata plan-owned. `ActivationSlotShape`
+    may carry precomputed root lexical slot indices, and runtime setup may mark
+    those indices directly before falling back to symbol-set enumeration for
+    layouts without index metadata. Do not derive this in `ExecutionPlanRunner`
+    from source text, benchmark names, or runner-local AST predicates. When
+    trimming activation bindings, gate generator-only internals such as
+    `YieldResumeContext` and the generator-instance back-reference on the
+    actual generator runner kind; ordinary sync functions must not define or
+    pre-size those bindings.
 
 ## Why
 
@@ -388,3 +398,17 @@ claiming a retained optimization.
 
 Related ADR:
 `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`.
+
+Issue `autrun-disu408v4ns8-3128f4f119` / PR #2198 showed the final
+activation-arguments root-TDZ trap in the same optimizer chain: after ADR 0173
+and ADR 0183 removed observable-arguments descriptor, no-op hoist, and lexical
+template cloning costs, `activation-arguments-lite` still spent time under
+`ResetSlotLayoutForPlan -> MarkSlotsLexicalUninitialized` enumerating immutable
+lexical symbol sets. The accepted fix moved root lexical slot indices into
+`ActivationSlotShape` and used direct index marking, while also gating
+`YieldResumeContext` / generator-instance bindings so ordinary sync functions
+do not pay for generator-only activation state. Future work should keep this
+plan-owned metadata boundary and prove generator paths separately.
+
+Related ADR:
+`docs/adrs/0199-keep-activation-tdz-slot-indices-plan-owned-and-generator-state-gated.md`.

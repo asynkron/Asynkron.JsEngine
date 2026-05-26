@@ -163,6 +163,60 @@ public class RegressionTests
             Is.EqualTo(new[] { "before", "timed-out" }));
     }
 
+    [Test]
+    public async Task AtomicsWait_ExchangeDoesNotCauseSpuriousWakeup()
+    {
+        await using var engine = Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false);
+        using var agentRuntime = new Test262AgentRuntime(
+            () => Test262Test.CreateTest262Engine(logger: null, debugMode: false, useSnapshot: false),
+            State.Sources);
+
+        engine.SetGlobalValue("$262", new JsObject
+        {
+            ["agent"] = agentRuntime.CreateMainAgentObject(),
+        });
+
+        var result = await engine.Evaluate(
+            """
+            var i32a = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+
+            $262.agent.start(`
+              $262.agent.receiveBroadcast(function(sab) {
+                try {
+                  var i32a = new Int32Array(sab);
+                  var start = Date.now();
+                  var outcome = Atomics.wait(i32a, 0, 0, 200);
+                  var elapsed = Date.now() - start;
+                  $262.agent.report(outcome + ":" + elapsed);
+                } catch (error) {
+                  $262.agent.report("error:" + error.name + ":" + error.message);
+                }
+                $262.agent.leaving();
+              });
+            `);
+
+            $262.agent.broadcast(i32a.buffer);
+            $262.agent.sleep(100);
+            Atomics.exchange(i32a, 0, 1);
+
+            var report = null;
+            for (var i = 0; i < 60 && report === null; i++) {
+              $262.agent.sleep(10);
+              report = $262.agent.getReport();
+            }
+
+            var notifyCount = Atomics.notify(i32a, 0);
+            [report, notifyCount];
+            """);
+
+        var values = result as JsArray ?? throw new AssertionException("Expected array result");
+        var report = values.Items[0].AsString();
+        var parts = report.Split(':');
+        Assert.That(parts[0], Is.EqualTo("timed-out"));
+        Assert.That(int.Parse(parts[1]), Is.GreaterThanOrEqualTo(180));
+        Assert.That(values.Items[1].AsDouble(), Is.EqualTo(0d));
+    }
+
     [TestCase("built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     [TestCase("test/built-ins/decodeURIComponent/S15.1.3.2_A2.5_T1.js")]
     public void DecodeURIComponentFourByteFixture_UsesExtendedExecutionTimeout(string fileName)

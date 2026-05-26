@@ -466,14 +466,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 // regardless of whether an arguments binding already exists.
                 // Check the calling environment (not varEnv) because GetVarEnvironment() returns
                 // the function scope, not the parameter environment.
-                // Exception: Arrow functions don't have their own 'arguments' binding, so this
-                // restriction doesn't apply to them.
+                // For arrows, this only applies when the parameter environment itself
+                // declares an `arguments` binding (for example a parameter named arguments).
                 var declaresArguments =
                     string.Equals(name.Name, "arguments", StringComparison.Ordinal);
                 if (isDirectEval &&
                     environment.IsParameterEnvironment &&
                     declaresArguments &&
-                    (environment.IsArrowFunctionEnvironment || environment.HasOwnBinding(Symbol.Arguments)))
+                    environment.HasOwnBinding(Symbol.Arguments))
                 {
                     throw StandardLibrary.ThrowSyntaxError(
                         "Cannot declare 'arguments' in direct eval inside a function with non-simple parameters.",

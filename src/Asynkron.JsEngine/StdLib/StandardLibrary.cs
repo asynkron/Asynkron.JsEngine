@@ -149,7 +149,7 @@ public static partial class StandardLibrary
     {
         var descriptor = new PropertyDescriptor
         {
-            Value = value,
+            JsValue = value,
             Writable = false,
             Enumerable = false,
             Configurable = configurable

@@ -208,6 +208,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ContinueControlFlow_DeclinesWithBreakContinueCode()
+    {
+        var plan = GetFunctionPlan("""
+            function continueLoop(n) {
+                while (n > 0) {
+                    n = n - 1;
+                    continue;
+                }
+
+                return n;
+            }
+            """,
+            "continueLoop");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.BreakOrContinueControlFlow, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_BinaryOpcodePlan_DeclinesAsPrototypeOnly()
     {
         var plan = GetFunctionPlan("""

@@ -518,12 +518,10 @@ public static partial class TypedAstEvaluator
                 throw StandardLibrary.ThrowSyntaxError("Invalid function parameter list", evalContext, realm);
             }
 
-            var createdObj = engine.ExecuteProgram(
+            var created = engine.ExecuteProgram(
                 program,
                 engine.GlobalEnvironment,
                 CancellationToken.None);
-
-            var created = JsValue.FromObjectUnsafe(createdObj);
 
             if (created.TryUnwrap(out IJsObjectLike? objectLike))
             {

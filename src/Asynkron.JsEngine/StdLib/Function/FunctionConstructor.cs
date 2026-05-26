@@ -101,9 +101,9 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             engine.GlobalEnvironment,
             CancellationToken.None);
 
-        if (created is not IJsObjectLike objectLike)
+        if (!created.TryUnwrap(out IJsObjectLike? objectLike))
         {
-            return JsValue.FromObjectUnsafe(created);
+            return created;
         }
 
         var proto = ResolveConstructPrototype(newTarget, constructorFallback, realm);
@@ -112,7 +112,7 @@ public sealed partial class FunctionConstructor(IJsObjectLike prototype, RealmSt
             objectLike.SetPrototype(proto);
         }
 
-        return JsValue.FromObjectUnsafe(created);
+        return created;
     }
 
     internal static string ToFunctionArgumentString(JsValue value, EvaluationContext evalContext, RealmState realmState)

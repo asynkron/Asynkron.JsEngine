@@ -78,7 +78,7 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
             """);
 
         await engine.Evaluate(program);
-        var result = await engine.Evaluate("bind([2, 3, 4]);");
+        var result = await engine.Evaluate("bind({ x: 1, y: 3 });");
         Assert.Equal(4d, result);
 
         var declaration = Assert.IsType<FunctionDeclaration>(program.Body[0]);

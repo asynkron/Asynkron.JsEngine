@@ -8,7 +8,7 @@ loads a JavaScript file, and exposes native .NET host modules through
 Run the first script:
 
 ```bash
-dotnet run --project examples/NodeHostDemo
+rtk dotnet run --project examples/NodeHostDemo
 ```
 
 Then open:
@@ -27,7 +27,7 @@ The initial module surface is intentionally tiny:
 Run the larger tiny-Express-style app:
 
 ```bash
-dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/tiny-express/app.js
+rtk dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/tiny-express/app.js
 ```
 
 Then try:
@@ -47,7 +47,7 @@ params, query parsing, `res.send`, `res.html`, `res.json`, relative
 Run the issue tracker app:
 
 ```bash
-dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/issue-tracker/app.js
+rtk dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/issue-tracker/app.js
 ```
 
 Then try the browser UI and JSON API:
@@ -73,9 +73,8 @@ persistence through host-backed `fs.writeFileSync`.
 Run the real Express package app:
 
 ```bash
-cd examples/NodeHostDemo
-npm install
-npm run express
+rtk npm --prefix examples/NodeHostDemo install
+rtk npm --prefix examples/NodeHostDemo run express
 ```
 
 Then try:
@@ -104,9 +103,8 @@ trail, and 404 handling.
 Run an unchanged example from the official Express repository:
 
 ```bash
-cd examples/NodeHostDemo
-npm run prepare:official-express-ejs
-npm run official-express-ejs
+rtk npm --prefix examples/NodeHostDemo run prepare:official-express-ejs
+rtk npm --prefix examples/NodeHostDemo run official-express-ejs
 ```
 
 Then try:
@@ -127,9 +125,8 @@ request/response host methods.
 Run the real Polka package app:
 
 ```bash
-cd examples/NodeHostDemo
-npm install
-npm run polka
+rtk npm --prefix examples/NodeHostDemo install
+rtk npm --prefix examples/NodeHostDemo run polka
 ```
 
 Then try:

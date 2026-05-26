@@ -20,7 +20,8 @@ The accepted delivery changed the synchronous helper returns to `JsValue` and
 removed the duplicate caller-side wrapping in `ArrayConstructor.Of(...)` and the
 attached `Array.from` host function. `ArrayFromAsync` was deliberately left as a
 separate slice because it returns through the promise/async path and was outside
-the bounded synchronous helper migration.
+the bounded synchronous helper migration. That async-specific boundary is now
+owned by ADR 0198.
 
 ## Decision
 
@@ -35,8 +36,8 @@ flows:
    `JsValue.FromObjectUnsafe(result)`;
 3. return the helper result directly from the host/constructor callsite instead
    of re-wrapping it; and
-4. keep `Array.fromAsync` out of this synchronous helper policy until a separate
-   promise/async migration proves that boundary safe.
+4. keep promise-producing helpers under their own proof boundary rather than
+   folding async behavior into the synchronous helper migration.
 
 ## Consequences
 
@@ -44,9 +45,8 @@ flows:
   `JsValue.FromObjectUnsafe(...)` bridges when the helper can own the typed
   return value.
 - A focused signature scan is the right proof shape for this class:
-  `ArrayOf`, `ArrayFrom`, and `ArrayFromIterable` should be `JsValue`, while
-  `ArrayFromAsync` may remain `object?` until an async-specific slice changes
-  it.
+  `ArrayOf`, `ArrayFrom`, and `ArrayFromIterable` should be `JsValue`. The
+  async `ArrayFromAsync` carrier is governed by ADR 0198.
 - Static-method semantic proof should stay focused on the Array static-method
   tests first, then widen only when the touched helper participates in broader
   Array semantics.
@@ -58,3 +58,4 @@ flows:
 
 - `.claude/rules/jsvalue-core-values.md`
 - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`
+- `docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`

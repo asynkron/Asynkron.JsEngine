@@ -276,7 +276,8 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("NaN + 5;");
-        Assert.True(double.IsNaN((double)result));
+        var value = Assert.IsType<double>(result);
+        Assert.True(double.IsNaN(value));
     }
 
     [Fact]
@@ -284,7 +285,8 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("5 / 0;");
-        Assert.True(double.IsPositiveInfinity((double)result));
+        var value = Assert.IsType<double>(result);
+        Assert.True(double.IsPositiveInfinity(value));
     }
 
     [Fact]
@@ -292,7 +294,7 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("-0 % 5;");
-        var d = (double)result;
+        var d = Assert.IsType<double>(result);
         Assert.Equal(0d, d);
         // Check if it's negative zero
         Assert.True(BitConverter.DoubleToInt64Bits(d) == BitConverter.DoubleToInt64Bits(-0.0));

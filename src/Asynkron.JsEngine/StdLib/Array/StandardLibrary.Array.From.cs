@@ -142,7 +142,7 @@ public static partial class StandardLibrary
         return JsValue.FromObjectUnsafe(result);
     }
 
-    internal static object? ArrayFromAsync(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
+    internal static JsValue ArrayFromAsync(HostFunction host, JsValue thisValue, IReadOnlyList<JsValue> args,
         RealmState? realm)
     {
         const string MethodName = "Array.fromAsync";
@@ -158,7 +158,7 @@ public static partial class StandardLibrary
         if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
         {
             promise.Reject(CreateTypeError("Array.fromAsync requires an array-like or iterable", realm: realm));
-            return promise.JsObject;
+            return JsValue.FromObjectUnsafe(promise.JsObject);
         }
 
         var items = args[0];
@@ -173,7 +173,7 @@ public static partial class StandardLibrary
             {
                 promise.Reject(CreateTypeError("Array.fromAsync: when provided, the mapping callback must be callable",
                     realm: realm));
-                return promise.JsObject;
+                return JsValue.FromObjectUnsafe(promise.JsObject);
             }
 
             mapper = callableMapper;
@@ -187,7 +187,7 @@ public static partial class StandardLibrary
         catch (ThrowSignal signal)
         {
             promise.Reject(signal.ThrownValue);
-            return promise.JsObject;
+            return JsValue.FromObjectUnsafe(promise.JsObject);
         }
 
         try
@@ -215,7 +215,7 @@ public static partial class StandardLibrary
             promise.Reject(signal.ThrownValue);
         }
 
-        return promise.JsObject;
+        return JsValue.FromObjectUnsafe(promise.JsObject);
     }
 
     internal static JsValue ArrayFromIterable(HostFunction host, JsValue thisValue, JsValue items,

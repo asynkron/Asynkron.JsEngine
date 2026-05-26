@@ -1,4 +1,4 @@
-# ADR 0192: Keep unified bytecode acyclic control flow compiler-owned
+# ADR 0192: Keep unified bytecode control-flow expansion compiler-owned
 
 ## Status
 
@@ -7,8 +7,9 @@ Accepted
 ## Context
 
 Issue #2166 / PR #2173 expanded the unified bytecode prototype past linear
-sync function bodies. The accepted slice compiles acyclic branch-shaped
-`ExecutionPlan`s into one `UnifiedBytecodeProgram`:
+sync function bodies. A later bounded follow-up (issue #2182) adds one
+canonical while-loop shape. The accepted slice compiles branch-shaped
+`ExecutionPlan`s plus a guarded single-head loop into one `UnifiedBytecodeProgram`:
 
 ```text
 BranchInstruction condition
@@ -32,37 +33,37 @@ and the unified VM may not hide unsupported coverage by calling back into
 
 ## Decision
 
-Keep unified bytecode branch/control-flow expansion compiler-owned, acyclic,
-and fallback-free.
+Keep unified bytecode branch/control-flow expansion compiler-owned and
+fallback-free, with loops still constrained to one proven canonical shape.
 
 - Compile from the already-lowered `ExecutionPlan`; do not introduce a parallel
   AST-to-unified-bytecode control-flow compiler.
-- Pre-scan the reachable IR graph from `ExecutionPlan.EntryPoint` and reject
-  cyclic plans with a loop-shaped reason before unsupported body details can
-  mask the boundary.
 - Use an IR-instruction-index to bytecode-PC map as the owner of branch target
   identity. Patch forward `Jump` and `JumpIfFalse` operands after target blocks
   are emitted.
+- Permit only one canonical loop back-edge shape: a body instruction with a
+  supported slot write/update `Next` edge that jumps back to an already-active
+  `BranchInstruction` loop head.
 - Emit branch conditions, local assignment joins, compound assignment joins,
   comparison operators, and returns only as owned unified bytecode operations
   for the currently proven expression-op subset.
 - Reject unsupported branch payloads, awaited paths, async/generator functions,
-  loops, invalid targets, and unproven expression operations at compile time.
+  unsupported loop control flow (for example `break`/`continue` shaped jumps),
+  invalid targets, and unproven expression operations at compile time.
 - Keep `UnifiedBytecodeVirtualMachine` PC-based and limited to emitted unified
   opcodes; do not add a VM callback to the existing evaluators.
 
 ## Consequences
 
-- Acyclic branch plans can now prove non-linear control flow without changing
-  production runtime routing.
-- Loop support remains intentionally absent. Future loop work needs its own VM
-  semantics and proof pack instead of reusing the acyclic branch machinery by
-  accident.
+- Branch plans and one canonical while-loop shape can now prove non-linear
+  control flow without changing production runtime routing.
+- Loop support is still intentionally narrow. Future loop work needs explicit
+  proof for each additional control-flow shape.
 - Unsupported branch coverage remains visible as a compile-time decline rather
   than being masked by mixed execution.
 - Future branch/control-flow slices should include opcode assertions, both-arm
-  execution proofs, joined-local-update proofs, unsupported-payload declines,
-  and loop-shape decline tests.
+  execution proofs, joined-local-update proofs, canonical-loop execution proofs,
+  and unsupported-loop-control-flow decline tests.
 - The comparison and arithmetic operators accepted here are the currently
   proven unified VM surface only. Broader JavaScript expression/operator
   coverage still requires explicit parity evidence.

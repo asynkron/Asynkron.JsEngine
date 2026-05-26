@@ -201,6 +201,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before editing, use file-level line-count evidence for the deleted slice, and
   treat a focused filter with no remaining matching tests as confidence that no
   compiled test contract was removed, not as a behavioral regression proof.
+- If the code-reduction slice targets an active scratch or debug smoke test
+  with no assertions, delete it only after proving it is output-only or
+  non-owning and naming the maintained owner coverage that remains. Do not
+  treat `Output.WriteLine`, temporary result collection, or line-count
+  reduction as behavioral proof; run a focused filter that covers the retained
+  owner plus the touched scratch class when possible.
 - If the code-reduction slice targets an active scratch or debug test method
   with assertions, delete it only after naming the maintained owner test that
   already proves the same behavior more directly. Preserve neighboring scratch
@@ -704,6 +710,20 @@ proved the retained owner plus scratch class with the focused
 `IntlScratchTests|IntlSupportedValuesTests` filter. Future active scratch-test
 reductions should make that retained-owner proof explicit before deleting
 asserted tests.
+
+Issue `autrun-disu06f97he8-c70475043e` / PR #2193 was the no-assert active
+scratch-smoke variant of that boundary. The safe slice removed only
+`IntlScratchTests.ListFormatExists`, which evaluated `Intl.ListFormat`, captured
+formatted strings, and wrote the result to output without assertions. The build
+handoff named retained `Intl.ListFormat` constructor coverage in
+`IntlLocaleDebugTests.IntlConstructors_TolerateUnsupportedUnicodeExtensionValuesInLocale`,
+recorded the `IntlScratch.cs` line-count drop from 73 to 57 lines, ran
+`git diff --check`, and proved the retained owner plus scratch class with the
+focused `IntlScratchTests` plus
+`IntlLocaleDebugTests.IntlConstructors_TolerateUnsupportedUnicodeExtensionValuesInLocale`
+filter. Future no-assert scratch-smoke reductions should use that owner-proof
+shape instead of preserving output-only probes or claiming coverage from
+printed values.
 
 Issue `autrun-diskyo8ie1gg-e962a681ea` / PR #2113 applied recurring code
 reduction to duplicated async-generator step settlement. `CreateStepPromise`

@@ -23,6 +23,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`
   - `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`
   - `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`
+  - `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`
 
 ## Rules
 
@@ -453,6 +454,17 @@ important closeout lesson is that once a core runtime type has complete
 `JsValue` coverage and a focused signature search shows the old overload family
 can disappear, keeping those overloads no longer protects compatibility; it
 preserves an accidental object-carrier entry point for future runtime code.
+
+Issue `autrun-diss73i9hwy8-488bb99c17` / PR #2192 applied the same closeout
+decision to `IntlBrandExtensions.EnsureBrand`. Intl prototype receivers already
+flowed through the `JsValue` overload, and the focused signature search showed
+no live `EnsureBrand(this object? ...)` callers. The fix deleted the private
+object-carrier receiver overload instead of leaving a permanent obsolete
+tripwire. Future brand-validation cleanup should use `[Obsolete(..., true)]`
+only to expose real callers or preserve an intentional boundary; when a private
+helper already has complete `JsValue` coverage, remove the legacy overload and
+prove the result with the scoped before/after search. Related ADR:
+`docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`.
 
 Issue `autrun-disb2mdhzcvs-0a8e873051` / PR #1996 migrated
 `ToObjectForDestructuringJsValue` from a manual primitive unwrap switch plus

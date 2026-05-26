@@ -46,8 +46,8 @@ public sealed partial class ErrorPrototype : JsPrototype
     protected override void ConfigurePrototype()
     {
         Prototype.DefineProperty("name",
-            new PropertyDescriptor { Value = "Error", Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = "Error", Writable = true, Enumerable = false, Configurable = true });
         Prototype.DefineProperty("message",
-            new PropertyDescriptor { Value = string.Empty, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = string.Empty, Writable = true, Enumerable = false, Configurable = true });
     }
 }

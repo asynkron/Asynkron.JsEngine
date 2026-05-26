@@ -34,11 +34,11 @@ public sealed partial class ErrorConstructor(IJsObjectLike prototype, RealmState
             }, Realm, false);
         isErrorFn.DefineProperty("name", new PropertyDescriptor
         {
-            Value = (JsValue)"isError", Writable = false, Enumerable = false, Configurable = true
+            JsValue = (JsValue)"isError", Writable = false, Enumerable = false, Configurable = true
         });
         isErrorFn.DefineProperty("length", new PropertyDescriptor
         {
-            Value = JsValue.FromDouble(1), Writable = false, Enumerable = false, Configurable = true
+            JsValue = JsValue.FromDouble(1), Writable = false, Enumerable = false, Configurable = true
         });
         constructor.SetHostedProperty("isError", isErrorFn, Realm);
     }

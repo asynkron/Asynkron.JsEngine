@@ -1,11 +1,13 @@
 #region
 
+using System.Buffers;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -24,6 +26,9 @@ public static partial class TypedAstEvaluator
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
+        private const byte UnifiedBytecodeEligibilityUnknown = 0;
+        private const byte UnifiedBytecodeEligibilityRejected = 1;
+        private const byte UnifiedBytecodeEligibilityAccepted = 2;
 
         private readonly record struct SimpleNumericSelfRecursionFastPath(
             Symbol FunctionName,
@@ -96,6 +101,9 @@ public static partial class TypedAstEvaluator
         private bool _canUseSimpleIrActivationFastBase;
         private ExecutionPlan? _syncIrTrampolineEligibilityPlan;
         private byte _syncIrTrampolineEligibility;
+        private ExecutionPlan? _unifiedBytecodeProductionEligibilityPlan;
+        private byte _unifiedBytecodeProductionEligibility;
+        private UnifiedBytecodeProgram? _unifiedBytecodeProductionProgram;
         private ImmutableArray<PrivateNameScope> _capturedPrivateNameScopes = ImmutableArray<PrivateNameScope>.Empty;
         private IJsObjectLike? _homeObject;
         private ImmutableArray<ResolvedClassField> _instanceFields = ImmutableArray<ResolvedClassField>.Empty;
@@ -2504,6 +2512,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
 
+            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                TryInvokeProductionUnifiedBytecode(arguments, plan, context, callingContext, out result))
+            {
+                return true;
+            }
+
             if (!canUseSimpleIrActivationFastPath)
             {
                 return false;
@@ -2571,6 +2585,133 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 // Context lifetime is owned by InvokeWithContextSlow; only the transient
                 // activation environments created above are owned by this fast path.
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
+            }
+        }
+
+        private bool TryInvokeProductionUnifiedBytecode<TArgs>(
+            TArgs arguments,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            EvaluationContext? callingContext,
+            out JsValue result)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            result = JsValue.Undefined;
+            if (!TryGetProductionUnifiedBytecodeProgram(plan, out var program))
+            {
+                return false;
+            }
+
+            var activationSlots = plan.ActivationSlots!;
+            var slotStorage = ArrayPool<JsValue>.Shared.Rent(activationSlots.SlotCount);
+            try
+            {
+                var slots = slotStorage.AsSpan(0, activationSlots.SlotCount);
+                slots.Fill(JsValue.Undefined);
+                PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, activationSlots);
+
+                RealmState.Logger?.LogInformation(
+                    "unified-bytecode-production-fast-path func={Function} argc={ArgumentCount}",
+                    _function.Name?.Name ?? "<anonymous>",
+                    arguments.Count);
+
+                result = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+                return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+            }
+            finally
+            {
+                ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+            }
+        }
+
+        private bool TryGetProductionUnifiedBytecodeProgram(
+            ExecutionPlan plan,
+            out UnifiedBytecodeProgram program)
+        {
+            if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
+                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
+            {
+                program = _unifiedBytecodeProductionProgram!;
+                return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
+            }
+
+            var result = UnifiedBytecodeProductionEligibility.Evaluate(
+                plan,
+                CreateProductionUnifiedBytecodeActivationDescriptor());
+            _unifiedBytecodeProductionEligibilityPlan = plan;
+            _unifiedBytecodeProductionEligibility = result.IsEligible
+                ? UnifiedBytecodeEligibilityAccepted
+                : UnifiedBytecodeEligibilityRejected;
+            _unifiedBytecodeProductionProgram = result.IsEligible ? result.Program : null;
+
+            program = result.Program;
+            return result.IsEligible;
+        }
+
+        private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
+        {
+            if (!newTarget.IsUndefined ||
+                IsClassConstructor ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _hasParameterExpressions ||
+                !_hasOnlySimpleIdentifierParameters ||
+                _usesArguments ||
+                _needsArgumentsBinding ||
+                !_allowIdentifierCache ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                _function.Name is { } functionName && HasParameterNamed(functionName))
+            {
+                return false;
+            }
+
+            return CanUseSimpleIrActivationPlanShape(plan);
+        }
+
+        private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
+        {
+            return new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: IsAsyncLike,
+                IsGenerator: _function.IsGenerator,
+                HasCapturedOrDynamicActivation: _hasCapturedActivationInClosure || !_allowIdentifierCache,
+                HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding,
+                HasCallDependency: _hasNonParameterCalleeCall,
+                HasDynamicLookupDependency: !_allowIdentifierCache);
+        }
+
+        private bool HasParameterNamed(Symbol name)
+        {
+            var parameters = _parameterNames;
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                if (string.Equals(parameters[i].Name, name.Name, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private void PopulateProductionUnifiedBytecodeParameterSlots<TArgs>(
+            TArgs arguments,
+            Span<JsValue> slots,
+            ActivationSlotShape activationSlots)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+            for (var i = 0; i < _parameterNames.Length; i++)
+            {
+                slots[parameterSlotIndices[i]] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
             }
         }
 

@@ -55,11 +55,34 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             function literal() {
                 return 1;
             }
+
+            function firstParameter(a, b) {
+                return a;
+            }
+
+            function fromLocal(a) {
+                var value = a;
+                return value;
+            }
+
+            function fromGlobal() {
+                return marker;
+            }
+
+            const marker = 5;
+
+            function fromArguments(a) {
+                return arguments[0];
+            }
             """);
 
         var add = AssertFunctionPlanBuilds(pipeline.Analyzed, "add");
         var addViaLocal = AssertFunctionPlanBuilds(pipeline.Analyzed, "addViaLocal");
         var literal = AssertFunctionPlanBuilds(pipeline.Analyzed, "literal");
+        var firstParameter = AssertFunctionPlanBuilds(pipeline.Analyzed, "firstParameter");
+        var fromLocal = AssertFunctionPlanBuilds(pipeline.Analyzed, "fromLocal");
+        var fromGlobal = AssertFunctionPlanBuilds(pipeline.Analyzed, "fromGlobal");
+        var fromArguments = AssertFunctionPlanBuilds(pipeline.Analyzed, "fromArguments");
 
         Assert.Equal(IrCallShape.SimpleReturnExpression, add.IrCallShape);
         Assert.NotNull(add.SimpleReturnProgram);
@@ -67,10 +90,16 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
         Assert.Equal(0, add.SimpleReturnParameterBinary?.LeftParameterIndex);
         Assert.Equal(1, add.SimpleReturnParameterBinary?.RightParameterIndex);
         Assert.Equal(1d, literal.SimpleReturnLiteral?.Value.NumberValue);
+        Assert.Equal(0, firstParameter.SimpleReturnParameter?.ParameterIndex);
         Assert.Equal(IrCallShape.None, addViaLocal.IrCallShape);
         Assert.Null(addViaLocal.SimpleReturnProgram);
         Assert.Null(addViaLocal.SimpleReturnParameterBinary);
         Assert.Null(addViaLocal.SimpleReturnLiteral);
+        Assert.Null(add.SimpleReturnParameter);
+        Assert.Null(literal.SimpleReturnParameter);
+        Assert.Null(fromLocal.SimpleReturnParameter);
+        Assert.Null(fromGlobal.SimpleReturnParameter);
+        Assert.Null(fromArguments.SimpleReturnParameter);
     }
 
     [Fact]

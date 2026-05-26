@@ -68,6 +68,9 @@ internal sealed record ExecutionPlan(
     public SimpleReturnLiteralExpression? SimpleReturnLiteral { get; } =
         ComputeSimpleReturnLiteral(Instructions, EntryPoint);
 
+    public SimpleReturnParameterExpression? SimpleReturnParameter { get; } =
+        ComputeSimpleReturnParameter(Instructions, EntryPoint, ActivationSlots);
+
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
             Instructions,
@@ -198,6 +201,31 @@ internal sealed record ExecutionPlan(
             : null;
     }
 
+    private static SimpleReturnParameterExpression? ComputeSimpleReturnParameter(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int entryPoint,
+        ActivationSlotShape? activationSlots)
+    {
+        if (activationSlots is null ||
+            ComputeSimpleReturnProgram(instructions, entryPoint) is not { OperationCount: 1 } program)
+        {
+            return null;
+        }
+
+        var operation = program.GetOperation(0);
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return null;
+        }
+
+        var parameterIndex = ResolveParameterSlotIndex(
+            operation.GetIdentifier(program.IdentifierConstants.AsSpan()),
+            activationSlots);
+        return parameterIndex >= 0
+            ? new SimpleReturnParameterExpression(parameterIndex)
+            : null;
+    }
+
     private static bool IsSupportedSimpleParameterBinaryOperator(BinaryOperator op) =>
         op is BinaryOperator.Add or
             BinaryOperator.Subtract or
@@ -319,6 +347,8 @@ internal readonly record struct SimpleReturnParameterBinaryExpression(
     int RightParameterIndex);
 
 internal readonly record struct SimpleReturnLiteralExpression(JsValue Value);
+
+internal readonly record struct SimpleReturnParameterExpression(int ParameterIndex);
 
 internal enum IrCallShape
 {

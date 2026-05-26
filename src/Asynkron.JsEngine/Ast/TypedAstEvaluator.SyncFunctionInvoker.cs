@@ -74,6 +74,7 @@ public static partial class TypedAstEvaluator
         private readonly SimpleReturnParameterBinaryExpression _simpleReturnParameterBinaryFastPath;
         private readonly bool _hasSimpleReturnLiteralFastPath;
         private readonly JsValue _simpleReturnLiteralFastPath;
+        private readonly bool _hasSimpleReturnParameterNoArgsFastPath;
         private readonly SimpleNumericSelfRecursionFastPath? _simpleNumericSelfRecursionFastPath;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
@@ -374,6 +375,13 @@ public static partial class TypedAstEvaluator
             {
                 _hasSimpleReturnLiteralFastPath = true;
                 _simpleReturnLiteralFastPath = literal.Value;
+            }
+
+            if (_canUseSimpleIrActivationFastBase &&
+                planSeed.Plan is { SimpleReturnParameter: not null } parameterPlan &&
+                CanUseSimpleIrActivationPlanShape(parameterPlan))
+            {
+                _hasSimpleReturnParameterNoArgsFastPath = true;
             }
 
             if (_isStrict &&
@@ -708,7 +716,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext? callingContext,
             JsValue newTarget = default)
         {
-            if (TryInvokeSimpleReturnLiteralFastPath(newTarget, out var fastResult))
+            if (TryInvokeSimpleReturnFastPath(arguments.Count, newTarget, out var fastResult))
             {
                 return fastResult;
             }
@@ -724,7 +732,7 @@ public static partial class TypedAstEvaluator
             JsValue newTarget = default)
             where TArgs : IReadOnlyList<JsValue>
         {
-            if (TryInvokeSimpleReturnLiteralFastPath(newTarget, out var fastResult))
+            if (TryInvokeSimpleReturnFastPath(arguments.Count, newTarget, out var fastResult))
             {
                 return fastResult;
             }
@@ -741,7 +749,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (TryInvokeSimpleReturnLiteralFastPath(JsValue.Undefined, out var literalResult))
+            if (TryInvokeSimpleReturnFastPath(1, JsValue.Undefined, out var literalResult))
             {
                 return literalResult;
             }
@@ -780,7 +788,7 @@ public static partial class TypedAstEvaluator
             JsValue thisValue,
             EvaluationContext callingContext)
         {
-            if (TryInvokeSimpleReturnLiteralFastPath(JsValue.Undefined, out var literalResult))
+            if (TryInvokeSimpleReturnFastPath(2, JsValue.Undefined, out var literalResult))
             {
                 return literalResult;
             }
@@ -794,12 +802,13 @@ public static partial class TypedAstEvaluator
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
-        private bool TryInvokeSimpleReturnLiteralFastPath(
+        private bool TryInvokeSimpleReturnFastPath(
+            int argumentCount,
             JsValue newTarget,
             out JsValue result)
         {
             result = JsValue.Undefined;
-            if (!_hasSimpleReturnLiteralFastPath ||
+            if ((!_hasSimpleReturnLiteralFastPath && !_hasSimpleReturnParameterNoArgsFastPath) ||
                 !newTarget.IsUndefined ||
                 IsClassConstructor ||
                 IsArrowFunction ||
@@ -817,8 +826,22 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            result = _simpleReturnLiteralFastPath;
-            return true;
+            if (_hasSimpleReturnLiteralFastPath)
+            {
+                result = _simpleReturnLiteralFastPath;
+                return true;
+            }
+
+            if (_hasSimpleReturnParameterNoArgsFastPath && argumentCount == 0)
+            {
+                RealmState.Logger?.LogInformation(
+                    "simple-ir-return-fast-path func={Function} argc=0",
+                    _function.Name?.Name ?? "<anonymous>");
+                result = JsValue.Undefined;
+                return true;
+            }
+
+            return false;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

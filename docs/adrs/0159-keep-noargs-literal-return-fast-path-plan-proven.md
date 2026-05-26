@@ -1,4 +1,4 @@
-# ADR 0159: Keep no-args literal return fast path plan-proven
+# ADR 0159: Keep no-args direct return fast path plan-proven
 
 ## Status
 
@@ -33,17 +33,20 @@ profile samples moved Asynkron from the 634 ms baseline to 276, 262, and 265 ms.
 
 ## Decision
 
-Keep the no-argument literal-return shortcut plan-proven and activation-guarded.
+Keep the no-argument direct-return shortcut plan-proven and activation-guarded.
 
-The only acceptable direct-return shape is:
+The only acceptable direct-return shapes are:
 
 1. the function's lowered `ExecutionPlan` has a simple return expression whose
-   expression program is exactly one literal operation;
-2. the existing simple IR activation eligibility check still passes for the
+   expression program is exactly one literal operation; or
+2. the function's lowered `ExecutionPlan` has a simple return expression whose
+   expression program is exactly one parameter-slot load, and the call has zero
+   arguments so the observable return remains `undefined`;
+3. the existing simple IR activation eligibility check still passes for the
    call;
-3. the function is a sync ordinary function, not a constructor/class,
+4. the function is a sync ordinary function, not a constructor/class,
    generator, async function, or async generator; and
-4. the invocation cannot observe skipped activation setup through `arguments`,
+5. the invocation cannot observe skipped activation setup through `arguments`,
    captured activation environments, dynamic scope, private names, `super`,
    home-object state, instance fields, or other activation-sensitive metadata.
 
@@ -52,16 +55,19 @@ small", "no parameters", or "looks like return 1". The executable proof surface
 is the lowered plan and expression bytecode because that is the payload the
 runtime would otherwise execute.
 
-Do not generalize this into a broad return fast path for parameter reads,
-binary expressions, object literals, closures, class constructors, or dynamic
-activation cases. Those shapes can be optimized only after their own plan-owned
-proof and focused activation coverage.
+Do not generalize this into a broad return fast path for binary expressions,
+object literals, closures, class constructors, or dynamic activation cases.
+Those shapes can be optimized only after their own plan-owned proof and focused
+activation coverage.
 
 ## Consequences
 
 - No-argument literal-return functions can skip context rental, environment
   setup, and sync trampoline frame work only when those operations are
   unobservable for the proven plan shape.
+- No-argument parameter-return functions can use the same skip only when the
+  plan proves a single parameter-slot load shape and the call has zero
+  arguments.
 - `ExecutionPlan` remains the owner for reusable return-shape metadata; runtime
   callers consume it instead of rebuilding shape checks from AST or source text.
 - Future activation optimizations must keep the proof pack broad enough to

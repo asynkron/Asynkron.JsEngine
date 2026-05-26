@@ -75,8 +75,10 @@ acyclic branch CFG compilation. The lesson is that branch support needs an
 explicit bytecode-PC owner: map IR instruction indices to emitted PCs and patch
 `JumpIfFalse` and `Jump` targets after blocks are emitted.
 
-Issue #2182 / PR #2182 then extended that boundary to one canonical guarded
-`while` back-edge shape. The lesson is to keep this loop support narrow and
+Issue #2182 / PR #2186 then extended that boundary to one canonical
+condition-first back-edge IR shape (currently produced by guarded `while` and
+equivalent condition-only `for` forms without initializer/post-update or loop
+control statements). The lesson is to keep this loop support narrow and
 compiler-owned: accept only the proven canonical shape, reject other
 loop/control-flow families before unsupported details hide the real boundary,
 and keep production routing unchanged.

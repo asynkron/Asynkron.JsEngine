@@ -243,6 +243,56 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_ConditionOnlyForLoop_ProducesBackwardJump()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0;) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(
+            program.Instructions.Select((instruction, index) => (instruction, index)),
+            pair => pair.instruction.OpCode == UnifiedBytecodeOpCode.Jump && pair.instruction.Operand < pair.index);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4, 10)]
+    public void Execute_ConditionOnlyForLoop_ReturnsExpectedResult(int n, int expected)
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                for (; n > 0;) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "n", JsValue.FromDouble(n));
+        Assert.Equal(expected, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+    }
+
+    [Fact]
     public void TryCompile_WhileWithBreak_DeclinesWithExplicitReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

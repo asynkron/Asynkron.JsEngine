@@ -1,10 +1,11 @@
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeVirtualMachine
 {
-    public static JsValue Execute(UnifiedBytecodeProgram program, ReadOnlySpan<JsValue> slots)
+    public static JsValue Execute(UnifiedBytecodeProgram program, Span<JsValue> slots)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
@@ -17,10 +18,19 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = slots[instruction.Operand];
                     break;
 
-                case UnifiedBytecodeOpCode.Add:
+                case UnifiedBytecodeOpCode.StoreSlot:
+                    slots[instruction.Operand] = stack[--stackPointer];
+                    break;
+
+                case UnifiedBytecodeOpCode.Binary:
+                    var op = (BinaryOperator)instruction.Operand;
                     var right = stack[--stackPointer];
                     var left = stack[--stackPointer];
-                    stack[stackPointer++] = JsValue.FromDouble(left.AsDouble() + right.AsDouble());
+                    stack[stackPointer++] = op switch
+                    {
+                        BinaryOperator.Add => JsValue.FromDouble(left.AsDouble() + right.AsDouble()),
+                        _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
+                    };
                     break;
 
                 case UnifiedBytecodeOpCode.Return:

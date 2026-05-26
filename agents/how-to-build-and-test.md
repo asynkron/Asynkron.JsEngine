@@ -10,6 +10,9 @@ rtk dotnet build
 
 # Main test suite
 rtk dotnet test tests/Asynkron.JsEngine.Tests
+
+# Discover supported repo quality/test entrypoints
+rtk make help
 ```
 When running shell commands in this repo via Codex/Faktorial runtime, prefix
 them with `rtk` (see `/Users/rogerjohansson/.codex/RTK.md`).

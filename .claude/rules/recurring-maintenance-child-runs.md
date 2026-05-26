@@ -23,6 +23,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   and durable compaction lessons. Include the sibling-summary check plus stable
   evidence field names, but do not duplicate the whole checklist or policy
   body in the entrypoint.
+- When issue/workflow playbooks describe Faktorial context gathering or build
+  handoffs, keep them aligned with the owned recurring-child evidence contract:
+  supplied Source Context or API first, compact summaries before raw logs, no
+  host `faktorial` daemon reads, and an explicit `Sibling check` in recurring
+  child `## Build Update` evidence. Do not rely on the build/test checklist
+  alone when review gates evaluate the issue-update handoff.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
 - Treat issue context markers such as `Part of automation template` or
@@ -70,6 +76,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   an explicit non-failing inventory command over making agents probe an invalid
   argument just to see an error message. Keep the listing path backed by the
   same computed source that validation uses.
+- When a recurring maintenance slice adds or changes top-level Makefile quality
+  or test entrypoints, keep the non-failing `make help` inventory aligned with
+  those targets and keep `agents/how-to-build-and-test.md` as a short pointer.
+  Preserve existing target command bodies unless the slice explicitly changes
+  behavior.
 - When documenting runner inventory output, state whether it is a static list
   or a live failure snapshot, and define what any displayed counts measure
   before agents use those counts for maintenance scoping.
@@ -183,6 +194,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   differences explicit through named parameters or separate call sites. Prove
   every affected fixture variant with a focused test filter; line-count
   reduction alone is not behavioral proof.
+- When the code-reduction slice targets duplicated behavioral dispatch in a
+  sensitive runtime path, first look for an existing semantic owner that already
+  handles every case. Prefer delegating to that owner over creating a new helper
+  or reshaping the surrounding feature, and prove the owner surface with a
+  focused test filter plus the usual code-size and diff checks.
 
 ## Why
 
@@ -282,6 +298,16 @@ split: point runnable checklist/template ownership at
 `agents/how-to-build-and-test.md`, point semantic policy ownership here, and
 avoid turning README into a second policy body.
 
+Issue #2100 / PR #2108 exposed the same mirror problem in the issue/workflow
+playbook. `agents/how-to-build-and-test.md` already required `Sibling check`
+evidence for recurring children, but `agents/how-to-workflow-and-issues.md`
+owned the Faktorial issue-logging flow and did not name that evidence gate.
+Review failed AC-4 until the handoff and workflow doc explicitly carried the
+sibling-check requirement. Future workflow-doc maintenance should keep that
+issue-logging mirror aligned with the owned recurring-child evidence template
+and Faktorial runtime read-order rules instead of expecting reviewers or agents
+to infer them from another playbook.
+
 Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
 was already handling the README stale-link candidate
 (`docs/remaining-test262-gaps.md`). The durable lesson for #1324 was not to
@@ -304,6 +330,14 @@ successfully and print the same pack list used by invalid-pack validation.
 Before that, agents had to call an intentionally invalid pack name to discover
 available regression packs, which turned normal workflow discovery into a
 failing command and added avoidable noise to recurring maintenance evidence.
+
+Issue #2101 / PR #2112 applied the same non-failing inventory pattern to the
+repo Makefile quality/test entrypoints. `quality`, `build-internal`,
+`test-internal`, and `test-internal-no-build` existed, but there was no `help`
+target, so agents had to scan files or guess supported commands. Future
+Makefile maintenance should keep `make help` as the discoverable target list
+and only update the build/test playbook as a pointer unless command behavior is
+the selected slice.
 
 Issue #1549 / PR #1558 tightened that same runner-inventory documentation: the
 Test262 `--list` output is a static inventory of runnable regression-pack files,
@@ -599,6 +633,16 @@ probes only after proving they are not the owner contract, checking neighboring
 asserted coverage, recording the file-level line-count deletion, and running
 the focused owner test filter. Do not treat every `DebugTest` suffix as dead
 code, and do not claim runtime proof from line-count reduction alone.
+
+Issue `autrun-diskyo8ie1gg-e962a681ea` / PR #2113 applied recurring code
+reduction to duplicated async-generator step settlement. `CreateStepPromise`
+carried the same `Yield`/`Completed`/`Throw`/`Pending` switch already owned by
+`ResolveFromStep`, so the safe reduction was to delegate to that existing
+semantic owner, record the file-level C# line count drop from 233 to 218, run
+`git diff --check`, and prove the async-generator owner surface with
+`AsyncGeneratorTests` (19 tests). Future runtime dispatch reductions should use
+that evidence shape; line-count reduction alone is not enough proof when the
+dispatch path settles promises or other observable runtime behavior.
 
 Issue #1971 / PR #1976 clarified a persistent ADR/rule compaction child whose
 issue context included automation markers such as `Part of automation template`

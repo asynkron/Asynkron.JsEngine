@@ -43,6 +43,14 @@ class-field-initializer state, caller context, and caller environment are
 invocation-local eval inputs, so the shared eval core must receive them as
 parameters rather than reading mutable state from the engine-global eval host.
 
+Issue `autrun-disvdy376ya8-659d67a91b` / PR #2212 revisited the same selected
+profile after the LRU existed. The hot owner had moved from parse and
+plan-build work to repeated cache hits still paying the LRU lock and dictionary
+path inside `EvalHostFunction.GetOrParseProgram`. The retained follow-up added
+a lock-free single-entry front cache for the most recent eval
+`EvalProgramCacheKey` and `ProgramNode`, while keeping the existing bounded LRU
+as the miss path and backing store.
+
 ## Decision
 
 Keep repeated direct-eval program caching inside the eval host boundary and
@@ -58,6 +66,13 @@ The cache stays per engine through `EvalHostFunction`, bounded, and eviction
 based. Parse errors are not cached. If a future slice changes parser options or
 adds another eval parse-shaping flag, that flag must become part of the cache
 key before the parsed program can be reused across calls.
+
+A single-entry front cache may bypass the LRU lock only when it mirrors the
+same parse-shaping key as the LRU entry. It must store only the exact
+`EvalProgramCacheKey` and immutable `ProgramNode`; it must not become a
+separate cache for caller context, eval environments, declaration
+instantiation, private-name validation, or execution results. Misses and less
+stable source patterns continue through the bounded LRU path.
 
 Direct eval execution must continue to run declaration instantiation and program
 execution against the current eval environment. Private-name validation and
@@ -82,6 +97,8 @@ profile timings.
 
 - Repeated stable eval source can avoid reparsing and rebuilding execution
   plans without freezing the caller activation observed by direct eval.
+- Repeated hits for the same eval source and strictness can avoid the LRU lock
+  and dictionary path without changing the semantic cache key.
 - Strict and sloppy eval source stay separated by cache key instead of relying
   on later runtime checks to repair a wrongly parsed program.
 - Cache size remains an engine-local operational bound, not a process-global
@@ -96,6 +113,7 @@ profile timings.
 ## Related
 
 - `docs/performance/activation-evalscope-eval-program-cache.md`
+- `docs/performance/activation-evalscope-eval-program-last-entry-cache.md`
 - `docs/adrs/0015-keep-direct-eval-caller-lexical-context.md`
 - `docs/adrs/0128-keep-private-name-parse-validation-entrypoint-owned.md`
 - `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`

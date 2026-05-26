@@ -3,6 +3,10 @@
 ## Profiler Script (Preferred)
 Use `rtk ./tools/profile` (builds ProfileRunner, runs asynkron-profiler, converts traces, prints hot functions and allocation call graphs).
 
+For the benchmark-first workflow, including how to pick a losing benchmark and
+run deep CPU or allocation call trees with `asynkron-profiler`, see
+[CPU and allocation profiling workflow](how-to-profile.md).
+
 Examples:
 ```bash
 rtk ./tools/profile fib                        # separate CPU-only + memory-only passes, scoped to Asynkron.JsEngine

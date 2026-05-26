@@ -105,8 +105,15 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     plan-proven no-op hoist work. Strict-mode Annex B blocked-name construction
     can be skipped because the legacy hoist path is sloppy-only; function-body
     hoist scans can be skipped only when `HoistableDeclarationsPlan` proves no
-    hoistable declarations. Do not replace these guards with source scans,
-    benchmark-name checks, or runner-local AST predicates.
+    hoistable declarations. If the residual owner is lexical-name setup, use
+    `HoistPlan` cached templates as the source of truth: `BodyLexicalTemplate`
+    owns the lexical-minus-simple-catch set, and mutable lexical/catch sets
+    should be built only for consumers that mutate or retain them, such as
+    `JsEnvironment` body-lexical checks or `HoistVarDeclarations`. Do not pool
+    those retained sets across generator, async, or async-generator suspension
+    unless the ownership boundary is separately proven. Do not replace these
+    guards with source scans, benchmark-name checks, or runner-local AST
+    predicates.
 16. When pooling or reusing sync IR activation environments, treat pool return
     as a lifecycle ownership change. Rent and return only transient ordinary
     sync invocation environments whose lifetime ends with `RunSync` or the
@@ -317,6 +324,18 @@ and skip hoist work only from strict-mode or cached-plan facts.
 
 Related ADR:
 `docs/adrs/0173-keep-observable-arguments-setup-profile-owned-and-plan-proven.md`.
+
+Issue #2123 / PR #2132 showed the follow-up lexical-template trap: after ADR
+0173 removed descriptor and no-op hoist setup costs, the focused CPU profile
+still showed `HashSet<Symbol>.ConstructFrom` under activation environment setup.
+The accepted fix used cached `HoistPlan` templates, treated
+`BodyLexicalTemplate` as the body-lexical source of truth, and built mutable
+hoist working sets only when `HoistableDeclarationsPlan` proved a hoist
+consumer. Future activation-arguments work should not reintroduce unconditional
+lexical/simple-catch set cloning on the no-hoist path.
+
+Related ADR:
+`docs/adrs/0183-keep-activation-lexical-name-templates-hoist-owned.md`.
 
 Issue #2080 / PR #2121 showed the sync IR activation pooling trap: the
 `closures-lite` and `recursion-lite` allocation gap was largely transient

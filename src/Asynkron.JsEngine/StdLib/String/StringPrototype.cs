@@ -19,6 +19,9 @@ namespace Asynkron.JsEngine.StdLib;
 [JsMethodAlias("trimRight", "trimEnd")]
 public sealed partial class StringPrototype
 {
+    private const int CachedSingleCharacterStringCount = 128;
+    private static readonly string[] CachedSingleCharacterStrings = CreateSingleCharacterStringCache();
+
     [JsHostMethod("toString", Length = 0d)]
     private JsValue ToString(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
@@ -1801,10 +1804,28 @@ public sealed partial class StringPrototype
         var array = new JsArray(realm, charCount);
         for (var i = 0; i < charCount; i++)
         {
-            array.Push(new JsValue(value[i].ToString()));
+            array.Push(new JsValue(GetSingleCharacterString(value[i])));
         }
 
         return array;
+    }
+
+    private static string[] CreateSingleCharacterStringCache()
+    {
+        var result = new string[CachedSingleCharacterStringCount];
+        for (var i = 0; i < result.Length; i++)
+        {
+            result[i] = ((char)i).ToString();
+        }
+
+        return result;
+    }
+
+    private static string GetSingleCharacterString(char value)
+    {
+        return value < CachedSingleCharacterStringCount
+            ? CachedSingleCharacterStrings[value]
+            : value.ToString();
     }
 
     [JsHostMethod("isWellFormed", Length = 0d)]

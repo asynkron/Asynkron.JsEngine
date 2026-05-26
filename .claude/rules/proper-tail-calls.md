@@ -57,6 +57,17 @@ tail restart behavior, keep runtime context ownership explicit.
     unsafe pooling/trampoline shape. Do not use a broad recursive or
     script-mode opt-out that breaks already-proven strict same-function tail
     calls.
+13. Treat activation capture as a post-argument tail-restart gate. A
+    same-function restart must not reuse the current frame if the active
+    environment chain is captured before the restart request, or if evaluating
+    the tail-call arguments can capture it through an escaping closure or direct
+    eval. Materialize arguments first, re-check capture state, and fall back to
+    ordinary invocation for unsafe shapes.
+14. Legacy statement-body restart bridges must rerun observable call-entry
+    state when reusing a frame: refreshed `arguments` object, rebound
+    parameters, reset function-scoped `var` and top-level lexical bindings,
+    strict `this` rebinding, `new.target` reset/rebinding, and preserved
+    `finally` completion ordering.
 
 ## Why
 
@@ -109,9 +120,20 @@ observe hoistable FunctionCode state, while preserving strict same-function
 tail-call eligibility and adding the same recursive guard to the sync IR
 trampoline.
 
+Issue #2003 / PR #2022 exposed the activation-capture restart trap in Test262
+for-body TCO rows. The first legacy same-function restart bridge made loop-body
+returns stack-stable, but review found that a tail-call argument can create an
+escaping closure over the current frame before the restart is applied. The fix
+made both the legacy bridge and IR restart path reject captured activation
+chains, and made the legacy bridge re-check after argument materialization. The
+same delivery also refreshed call-entry state on legacy restarts so `arguments`,
+function-scoped `var`, top-level lexical TDZ, `new.target`, strict `this`, and
+`finally` completion replacement stayed observable as a fresh call.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
 - `docs/adrs/0140-keep-sync-ir-trampoline-eligibility-executor-exact.md`
 - `docs/adrs/0144-keep-dictionary-tail-restarts-strict-and-simple.md`
 - `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`
+- `docs/adrs/0162-keep-tail-restarts-activation-capture-safe-after-arguments.md`

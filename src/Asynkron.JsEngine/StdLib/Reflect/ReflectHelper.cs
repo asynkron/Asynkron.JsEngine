@@ -107,6 +107,13 @@ public static class ReflectHelper
     internal static JsValue Construct(IJsCallable target, IReadOnlyList<JsValue> argList, IJsCallable newTarget,
         RealmState realm)
     {
+        return Construct<IReadOnlyList<JsValue>>(target, argList, newTarget, realm);
+    }
+
+    internal static JsValue Construct<TArgs>(IJsCallable target, TArgs argList, IJsCallable newTarget,
+        RealmState realm)
+        where TArgs : IReadOnlyList<JsValue>
+    {
         // Route through JsProxy construct trap when target is a proxy
         if (target is JsProxy proxyTarget)
         {

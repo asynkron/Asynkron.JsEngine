@@ -3111,23 +3111,28 @@ public static partial class TypedAstEvaluator
                 return constructorIndex + 1;
             }
 
+            var spreadIndices = construct.GetSpreadIndices(spreadMaskConstants);
             JsValue[]? pooledArguments = null;
 
             try
             {
-                var arguments = MaterializeProgramArguments(
-                    construct.ArgumentCount,
-                    construct.GetSpreadIndices(spreadMaskConstants),
-                    stack,
-                    constructorIndex + 1,
-                    context,
-                    out pooledArguments);
-
-                stack[constructorIndex] = global::Asynkron.JsEngine.StdLib.ReflectHelper.Construct(
-                    callable,
-                    arguments,
-                    callable,
-                    context.RealmState);
+                stack[constructorIndex] = spreadIndices.IsDefaultOrEmpty
+                    ? ExecuteProgramConstructNoSpread(
+                        callable,
+                        callable,
+                        stack,
+                        constructorIndex + 1,
+                        construct.ArgumentCount,
+                        context.RealmState)
+                    : ExecuteProgramConstructWithMaterializedArguments(
+                        callable,
+                        callable,
+                        construct.ArgumentCount,
+                        spreadIndices,
+                        stack,
+                        constructorIndex + 1,
+                        context,
+                        out pooledArguments);
                 stackFlags.Set(constructorIndex, false);
             }
             catch (ThrowSignal signal)
@@ -3145,6 +3150,88 @@ public static partial class TypedAstEvaluator
             }
 
             return constructorIndex + 1;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static JsValue ExecuteProgramConstructNoSpread(
+            IJsCallable callable,
+            IJsCallable newTargetCallable,
+            Span<JsValue> stack,
+            int firstArgumentIndex,
+            int argumentCount,
+            RealmState realm)
+        {
+            return argumentCount switch
+            {
+                0 => ReflectHelper.Construct(callable, EmptyValueArgs.Instance, newTargetCallable, realm),
+                1 => ReflectHelper.Construct(
+                    callable,
+                    new SingleValueArgs(stack[firstArgumentIndex]),
+                    newTargetCallable,
+                    realm),
+                2 => ReflectHelper.Construct(
+                    callable,
+                    new TwoValueArgs(stack[firstArgumentIndex], stack[firstArgumentIndex + 1]),
+                    newTargetCallable,
+                    realm),
+                3 => ReflectHelper.Construct(
+                    callable,
+                    new ThreeValueArgs(stack[firstArgumentIndex], stack[firstArgumentIndex + 1],
+                        stack[firstArgumentIndex + 2]),
+                    newTargetCallable,
+                    realm),
+                4 => ReflectHelper.Construct(
+                    callable,
+                    new FourValueArgs(stack[firstArgumentIndex], stack[firstArgumentIndex + 1],
+                        stack[firstArgumentIndex + 2], stack[firstArgumentIndex + 3]),
+                    newTargetCallable,
+                    realm),
+                _ => ExecuteProgramConstructNoSpreadMany(
+                    callable,
+                    newTargetCallable,
+                    stack,
+                    firstArgumentIndex,
+                    argumentCount,
+                    realm)
+            };
+        }
+
+        private static JsValue ExecuteProgramConstructNoSpreadMany(
+            IJsCallable callable,
+            IJsCallable newTargetCallable,
+            Span<JsValue> stack,
+            int firstArgumentIndex,
+            int argumentCount,
+            RealmState realm)
+        {
+            var arguments = new JsValue[argumentCount];
+            for (var i = 0; i < argumentCount; i++)
+            {
+                arguments[i] = stack[firstArgumentIndex + i];
+            }
+
+            return ReflectHelper.Construct(callable, arguments, newTargetCallable, realm);
+        }
+
+        private JsValue ExecuteProgramConstructWithMaterializedArguments(
+            IJsCallable callable,
+            IJsCallable newTargetCallable,
+            int argumentCount,
+            ImmutableArray<int> spreadIndices,
+            Span<JsValue> stack,
+            int firstArgumentIndex,
+            EvaluationContext context,
+            out JsValue[]? pooledArguments)
+        {
+            var arguments = MaterializeProgramArguments(
+                argumentCount,
+                spreadIndices,
+                stack,
+                firstArgumentIndex,
+                context,
+                out pooledArguments);
+
+            return ReflectHelper.Construct(callable, arguments, newTargetCallable, context.RealmState);
         }
 
         private int ExecuteProgramSuperConstruct(
@@ -3206,14 +3293,6 @@ public static partial class TypedAstEvaluator
 
                 callDepthIncremented = true;
 
-                var arguments = MaterializeProgramArguments(
-                    superConstruct.ArgumentCount,
-                    superConstruct.GetSpreadIndices(spreadMaskConstants),
-                    stack,
-                    baseIndex,
-                    context,
-                    out pooledArguments);
-
                 if (!JsOps.IsConstructor(constructorValue) ||
                     !constructorValue.TryGetObject<IJsCallable>(out var callable))
                 {
@@ -3234,7 +3313,24 @@ public static partial class TypedAstEvaluator
                     ? nt
                     : callable;
 
-                var result = ReflectHelper.Construct(callable, arguments, newTargetCallable, context.RealmState);
+                var spreadIndices = superConstruct.GetSpreadIndices(spreadMaskConstants);
+                var result = spreadIndices.IsDefaultOrEmpty
+                    ? ExecuteProgramConstructNoSpread(
+                        callable,
+                        newTargetCallable,
+                        stack,
+                        baseIndex,
+                        superConstruct.ArgumentCount,
+                        context.RealmState)
+                    : ExecuteProgramConstructWithMaterializedArguments(
+                        callable,
+                        newTargetCallable,
+                        superConstruct.ArgumentCount,
+                        spreadIndices,
+                        stack,
+                        baseIndex,
+                        context,
+                        out pooledArguments);
 
                 var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
                 object? thisAfterSuper = callResultObject;

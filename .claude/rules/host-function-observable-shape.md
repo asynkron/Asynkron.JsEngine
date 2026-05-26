@@ -52,6 +52,27 @@ of merging constructor semantics under the appearance of duplicate code.
 Related ADR:
 `docs/adrs/0149-keep-prototype-constructor-newtarget-hooks-split.md`.
 
+## Direct Factory Wrappers
+
+When deduplicating registered host helpers and public/direct `HostFunction`
+factory wrappers, extract the shared behavior behind explicit runtime
+dependencies and keep each live entrypoint as a thin adapter. Do not delete an
+obsolete factory, change its `HostFunction` overload, or force it through a
+realm-aware registered-helper path while local callers still invoke the returned
+function directly.
+
+WHY: issue `autrun-disq6cxaox20-ce13f02487` / PR #2153 reduced duplicate async
+iteration helper code in `IterationHelper`. The safe extraction introduced
+`GetAsyncIteratorCore(..., JsEngineInstance)` and
+`IteratorNextCore(..., JsEngineInstance)`, then kept
+`CreateGetAsyncIteratorHelper` and `CreateIteratorNextHelper` as direct wrappers
+for the `JsEngine` top-level-await bridge. Future host-helper deduplication
+should preserve caller-visible wrapper shape until the bridge or caller has
+moved to a different owner with focused proof.
+
+Related ADR:
+`docs/adrs/0187-keep-async-iteration-helper-entrypoints-core-shared.md`.
+
 ## Why
 
 Issue #816 / PR #1016 fixed global `parseInt` and `Number.parseInt` after the

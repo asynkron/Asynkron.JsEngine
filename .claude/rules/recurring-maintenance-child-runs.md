@@ -449,6 +449,15 @@ no-recurrence/no-unrelated-scope note. Future code-reduction re-entries should
 repair the evidence fields only and leave the merged delivery branch lifecycle
 intact.
 
+Issue `autrun-disq6cxaox20-ce13f02487` / PR #2153 repeated the evidence-field
+edge case for a code-reduction child whose implementation was already complete:
+review only needed the `Build Update` to explicitly carry the sibling-overlap
+gate from the investigation handoff. The corrective build pass was
+evidence-only, recorded that only this active Code reduction child overlapped
+the slice, and kept the delivery PR lifecycle intact. Future recurring
+code-reduction re-entries should repair missing sibling/no-overlap evidence in
+the handoff instead of making another source change.
+
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,
 Array prototype result helpers, and number receiver extraction already owned

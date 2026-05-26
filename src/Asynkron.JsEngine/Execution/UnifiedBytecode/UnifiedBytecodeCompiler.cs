@@ -35,70 +35,426 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var instructionIndex = plan.EntryPoint;
         var instructions = plan.Instructions;
+        if (ContainsLoopShape(plan.EntryPoint, instructions))
+        {
+            program = EmptyProgram();
+            reason = "Loop-shaped unified bytecode plan detected.";
+            return false;
+        }
+
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
+        var instructionPcMap = new Dictionary<int, int>();
+        var activeInstructions = new HashSet<int>();
         var maxStackDepth = 0;
 
-        while (true)
+        if (!TryCompileBlock(
+                plan.EntryPoint,
+                instructions,
+                plan.ActivationSlots,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                ref maxStackDepth,
+                out reason))
         {
-            if ((uint)instructionIndex >= (uint)instructions.Length)
-            {
-                program = EmptyProgram();
-                reason = "Linear instruction flow reached an invalid target index.";
-                return false;
-            }
-
-            switch (instructions[instructionIndex])
-            {
-                case SimpleVariableDeclarationInstruction
-                    {
-                        InitializerProgram: { } initializerProgram,
-                        AwaitedProgram: null,
-                        TargetSymbol: { } targetSymbol
-                    } declaration:
-                    if (!TryResolveActivationSlot(targetSymbol, plan.ActivationSlots, out var storeSlot))
-                    {
-                        program = EmptyProgram();
-                        reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
-                        return false;
-                    }
-
-                    if (!TryAppendExpressionProgramOps(initializerProgram, plan.ActivationSlots, unified, literalConstants, out reason))
-                    {
-                        program = EmptyProgram();
-                        return false;
-                    }
-
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
-                    maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
-                    instructionIndex = declaration.Next;
-                    continue;
-
-                case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
-                    if (!TryAppendExpressionProgramOps(returnProgram, plan.ActivationSlots, unified, literalConstants, out reason))
-                    {
-                        program = EmptyProgram();
-                        return false;
-                    }
-
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
-                    maxStackDepth = Math.Max(maxStackDepth, returnProgram.MaxStackDepth);
-                    program = new UnifiedBytecodeProgram(unified.ToImmutable(), maxStackDepth, literalConstants.ToImmutable());
-                    reason = string.Empty;
-                    return true;
-
-                default:
-                    program = EmptyProgram();
-                    reason = "Entrypoint must be a linear chain of non-awaited simple local declarations followed by a non-awaited ReturnInstruction.";
-                    return false;
-            }
+            program = EmptyProgram();
+            return false;
         }
+
+        program = new UnifiedBytecodeProgram(unified.ToImmutable(), maxStackDepth, literalConstants.ToImmutable());
+        reason = string.Empty;
+        return true;
     }
 
     private static UnifiedBytecodeProgram EmptyProgram() =>
         new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0, ImmutableArray<JsValue>.Empty);
+
+    private static bool TryCompileBlock(
+        int instructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions,
+        ActivationSlotShape activationSlots,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ref int maxStackDepth,
+        out string reason)
+    {
+        var activated = new List<int>();
+        try
+        {
+            while (true)
+            {
+                if ((uint)instructionIndex >= (uint)instructions.Length)
+                {
+                    reason = "Instruction flow reached an invalid target index.";
+                    return false;
+                }
+
+                if (activeInstructions.Contains(instructionIndex))
+                {
+                    reason = $"Loop-shaped unified bytecode plan detected at instruction {instructionIndex}.";
+                    return false;
+                }
+
+                if (instructionPcMap.TryGetValue(instructionIndex, out var existingProgramCounter))
+                {
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, existingProgramCounter));
+                    reason = string.Empty;
+                    return true;
+                }
+
+                activeInstructions.Add(instructionIndex);
+                activated.Add(instructionIndex);
+                instructionPcMap[instructionIndex] = unified.Count;
+
+                switch (instructions[instructionIndex])
+                {
+                    case SimpleVariableDeclarationInstruction
+                        {
+                            InitializerProgram: { } initializerProgram,
+                            AwaitedProgram: null,
+                            TargetSymbol: { } targetSymbol
+                        } declaration:
+                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var storeSlot))
+                        {
+                            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                initializerProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
+                        maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                declaration.Next,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = declaration.Next;
+                        continue;
+
+                    case AssignmentSlotInstruction
+                        {
+                            ValueProgram: { } valueProgram,
+                            AwaitedProgram: null,
+                            TargetSymbol: { } targetSymbol
+                        } assignment:
+                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var assignmentSlot))
+                        {
+                            reason = $"Unsupported assignment target '{targetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                valueProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, assignmentSlot));
+                        maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                assignment.Next,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = assignment.Next;
+                        continue;
+
+                    case CompoundAssignmentSlotInstruction
+                        {
+                            RhsProgram: { } rhsProgram,
+                            AwaitedProgram: null,
+                            TargetSymbol: { } targetSymbol
+                        } compoundAssignment
+                        when IsSupportedBinaryOperator(compoundAssignment.Operator):
+                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var compoundSlot))
+                        {
+                            reason = $"Unsupported compound assignment target '{targetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, compoundSlot));
+                        if (!TryAppendExpressionProgramOps(
+                                rhsProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.Binary,
+                            (int)compoundAssignment.Operator));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, compoundSlot));
+                        maxStackDepth = Math.Max(maxStackDepth, rhsProgram.MaxStackDepth + 1);
+                        if (TryAppendJumpToCompiledTarget(
+                                compoundAssignment.Next,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = compoundAssignment.Next;
+                        continue;
+
+                    case JumpInstruction jump:
+                        var jumpIndex = unified.Count;
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump));
+                        if (!TryCompileTarget(
+                                jump.TargetIndex,
+                                instructions,
+                                activationSlots,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                literalConstants,
+                                ref maxStackDepth,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        PatchOperand(unified, jumpIndex, instructionPcMap[jump.TargetIndex]);
+                        return true;
+
+                    case SetCompletionValueInstruction setCompletionValue:
+                        if (TryAppendJumpToCompiledTarget(
+                                setCompletionValue.Next,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = setCompletionValue.Next;
+                        continue;
+
+                    case BranchInstruction branch:
+                        if (!TryAppendExpressionProgramOps(
+                                branch.ConditionProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        maxStackDepth = Math.Max(maxStackDepth, branch.ConditionProgram.MaxStackDepth);
+                        var jumpIfFalseIndex = unified.Count;
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfFalse));
+
+                        if (!TryCompileTarget(
+                                branch.ConsequentIndex,
+                                instructions,
+                                activationSlots,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                literalConstants,
+                                ref maxStackDepth,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        if (!TryCompileTarget(
+                                branch.AlternateIndex,
+                                instructions,
+                                activationSlots,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                literalConstants,
+                                ref maxStackDepth,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        PatchOperand(unified, jumpIfFalseIndex, instructionPcMap[branch.AlternateIndex]);
+                        return true;
+
+                    case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
+                        if (!TryAppendExpressionProgramOps(returnProgram, activationSlots, unified, literalConstants, out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+                        maxStackDepth = Math.Max(maxStackDepth, returnProgram.MaxStackDepth);
+                        reason = string.Empty;
+                        return true;
+
+                    default:
+                        reason = $"Unsupported instruction in unified bytecode plan: {instructions[instructionIndex].GetType().Name}.";
+                        return false;
+                }
+            }
+        }
+        finally
+        {
+            foreach (var activatedInstruction in activated)
+            {
+                activeInstructions.Remove(activatedInstruction);
+            }
+        }
+    }
+
+    private static bool TryCompileTarget(
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions,
+        ActivationSlotShape activationSlots,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ref int maxStackDepth,
+        out string reason)
+    {
+        if ((uint)targetIndex >= (uint)instructions.Length)
+        {
+            reason = "Instruction flow reached an invalid target index.";
+            return false;
+        }
+
+        if (activeInstructions.Contains(targetIndex))
+        {
+            reason = $"Loop-shaped unified bytecode plan detected at instruction {targetIndex}.";
+            return false;
+        }
+
+        if (instructionPcMap.ContainsKey(targetIndex))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        return TryCompileBlock(
+            targetIndex,
+            instructions,
+            activationSlots,
+            instructionPcMap,
+            activeInstructions,
+            unified,
+            literalConstants,
+            ref maxStackDepth,
+            out reason);
+    }
+
+    private static bool TryAppendJumpToCompiledTarget(
+        int targetIndex,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        out string reason)
+    {
+        if (activeInstructions.Contains(targetIndex))
+        {
+            reason = $"Loop-shaped unified bytecode plan detected at instruction {targetIndex}.";
+            return false;
+        }
+
+        if (!instructionPcMap.TryGetValue(targetIndex, out var targetProgramCounter))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, targetProgramCounter));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static void PatchOperand(
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        int instructionIndex,
+        int operand)
+    {
+        var instruction = unified[instructionIndex];
+        unified[instructionIndex] = instruction with { Operand = operand };
+    }
+
+    private static bool ContainsLoopShape(
+        int entryPoint,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        var visited = new HashSet<int>();
+        var visiting = new HashSet<int>();
+        return Visit(entryPoint, instructions, visited, visiting);
+    }
+
+    private static bool Visit(
+        int instructionIndex,
+        ImmutableArray<ExecutionInstruction> instructions,
+        HashSet<int> visited,
+        HashSet<int> visiting)
+    {
+        if ((uint)instructionIndex >= (uint)instructions.Length)
+        {
+            return false;
+        }
+
+        if (visiting.Contains(instructionIndex))
+        {
+            return true;
+        }
+
+        if (!visited.Add(instructionIndex))
+        {
+            return false;
+        }
+
+        visiting.Add(instructionIndex);
+        var instruction = instructions[instructionIndex];
+        var hasLoop = instruction switch
+        {
+            BranchInstruction branch =>
+                Visit(branch.ConsequentIndex, instructions, visited, visiting) ||
+                Visit(branch.AlternateIndex, instructions, visited, visiting),
+            JumpInstruction jump => Visit(jump.TargetIndex, instructions, visited, visiting),
+            ReturnInstruction or ThrowInstruction => false,
+            _ when instruction.Next >= 0 => Visit(instruction.Next, instructions, visited, visiting),
+            _ => false
+        };
+
+        visiting.Remove(instructionIndex);
+        return hasLoop;
+    }
 
     private static bool TryAppendExpressionProgramOps(
         ExpressionProgram expressionProgram,
@@ -135,12 +491,7 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
-                case ExpressionOpKind.Binary when operation.Operator is
-                    BinaryOperator.Add or
-                    BinaryOperator.Subtract or
-                    BinaryOperator.Multiply or
-                    BinaryOperator.Divide or
-                    BinaryOperator.Modulo:
+                case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
 
@@ -153,6 +504,18 @@ internal static class UnifiedBytecodeCompiler
         reason = string.Empty;
         return true;
     }
+
+    private static bool IsSupportedBinaryOperator(BinaryOperator binaryOperator) =>
+        binaryOperator is
+            BinaryOperator.Add or
+            BinaryOperator.Subtract or
+            BinaryOperator.Multiply or
+            BinaryOperator.Divide or
+            BinaryOperator.Modulo or
+            BinaryOperator.LessThan or
+            BinaryOperator.LessThanOrEqual or
+            BinaryOperator.GreaterThan or
+            BinaryOperator.GreaterThanOrEqual;
 
     private static bool TryResolveActivationSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots, out int slotIndex)
     {

@@ -128,39 +128,109 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_NonLinearPlan_Declines()
+    public void TryCompile_DirectBranchReturn_ProducesJumpProgram()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
-            function addOrSub(a, b, pickAdd) {
-                if (pickAdd) {
-                    return a + b;
+            function min(a, b) {
+                if (a < b) {
+                    return a;
                 }
 
-                return a - b;
+                return b;
             }
             """,
-            "addOrSub");
+            "min");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.NotEmpty(reason);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.LessThan });
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "a", JsValue.FromDouble(2));
+        SetSlot(plan, slots, "b", JsValue.FromDouble(3));
+        Assert.Equal(2d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+
+        SetSlot(plan, slots, "a", JsValue.FromDouble(5));
+        SetSlot(plan, slots, "b", JsValue.FromDouble(3));
+        Assert.Equal(3d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
     }
 
     [Fact]
-    public void TryCompile_AssignmentStatement_Declines()
+    public void TryCompile_BranchJoinAssignment_ProducesJumpProgram()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
-            function assignThenReturn(a, b) {
-                let c = a;
-                c = b;
+            function choose(a, b, pick) {
+                var c = a + b;
+
+                if (pick) {
+                    c = c * 2;
+                } else {
+                    c = c - 1;
+                }
+
                 return c;
             }
             """,
-            "assignThenReturn");
+            "choose");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 4)];
+        SetSlot(plan, slots, "a", JsValue.FromDouble(2));
+        SetSlot(plan, slots, "b", JsValue.FromDouble(3));
+        SetSlot(plan, slots, "pick", JsValue.True);
+        Assert.Equal(10d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+
+        SetSlot(plan, slots, "a", JsValue.FromDouble(2));
+        SetSlot(plan, slots, "b", JsValue.FromDouble(3));
+        SetSlot(plan, slots, "pick", JsValue.False);
+        Assert.Equal(4d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_LoopPlan_DeclinesWithLoopReason()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumTo(n) {
+                var total = 0;
+                while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+            """,
+            "sumTo");
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
         Assert.False(result);
+        Assert.Contains("Loop-shaped", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryCompile_UnsupportedBranchPayload_DeclinesWholeProgram()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function unsupported(a, b, pick) {
+                if (pick) {
+                    return Math.max(a, b);
+                }
+
+                return b;
+            }
+            """,
+            "unsupported");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.False(result);
         Assert.NotEmpty(reason);
+        Assert.Empty(program.Instructions);
     }
 
     [Fact]
@@ -202,5 +272,11 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return (Assert.IsType<ExecutionPlan>(cache.Plan), declaration.Function.IsAsync, declaration.Function.IsGenerator);
+    }
+
+    private static void SetSlot(ExecutionPlan plan, JsValue[] slots, string name, JsValue value)
+    {
+        Assert.True(plan.ActivationSlots!.SlotMap.TryGetValue(Symbol.Intern(name), out var slotIndex), name);
+        slots[slotIndex] = value;
     }
 }

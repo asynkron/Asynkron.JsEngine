@@ -40,6 +40,13 @@ made explicit with `JsValue.FromObjectUnsafe(this)` instead of preserving
 `Value = this`. That kept async-generator prototype wiring on the same
 core-runtime descriptor contract while leaving descriptor attributes unchanged.
 
+Issue #2052 / PR #2060 applied the same descriptor contract to the `JsArray`
+length owner surface under ADR 0114. Even though `JsArray.SetLength` was already
+`JsValue`-native, fallback and initial length descriptors still used
+`Value = (double)_length`, which invoked the compatibility setter for an
+internal JavaScript length value. The delivery moved those sites to
+`JsValue.FromDouble(_length)` while preserving length descriptor attributes.
+
 ## Decision
 
 Keep core `PropertyDescriptor` data values on the `JsValue` setter whenever the
@@ -71,9 +78,13 @@ For descriptor cleanup slices:
   explicitly accepts the full caller migration.
 - Generated-code or broad standard-library callsite exposure is a scope signal,
   not a reason to abandon typed descriptor migration.
+- Descriptor cleanup can be required next to an already typed helper boundary;
+  a `JsValue` helper signature does not prove the helper body has no
+  compatibility setter sink.
 
 ## Related
 
 - `.claude/rules/jsvalue-core-values.md`
+- `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
 - `docs/adrs/0106-keep-object-literal-default-data-properties-implicit.md`
 - `docs/adrs/0145-keep-known-new-object-literal-property-fast-path-compiler-proven.md`

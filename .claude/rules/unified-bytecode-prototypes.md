@@ -43,6 +43,13 @@ all-or-nothing until a separate routing issue proves production readiness.
    non-canonical loop shapes before execution. Do not treat this bounded loop
    support as broad loop support or as permission to call back into existing
    evaluators.
+9. When adding or using production-routing eligibility, keep it decline-first
+   and narrower than the prototype compiler until runtime proof widens it. Use
+   `ExecutionPlan` plus explicit activation metadata, return stable decline
+   codes/reasons before VM execution, and accept only the exact production
+   opcode subset that has been proven. Prototype opcodes such as `Binary`,
+   `Jump`, and `JumpIfFalse` stay prototype-only for production routing until a
+   separate routing slice proves their observable semantics.
 
 ## Why
 
@@ -86,8 +93,18 @@ and keep production routing unchanged. The review correction on #2182 is part
 of the rule: this is not a source-syntax `while` exception; source forms are
 eligible only when lowering produces the same condition-first back-edge shape.
 
+Faktorial issue
+`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-de-8d0f3a4e16`
+and PR #2205 introduced the first production-routing eligibility selector. The
+lesson is that production eligibility is a separate contract from prototype
+compile coverage: the first route accepts only neutral slot/literal/store/return
+bytecode and declines async/generator functions, captured or dynamic activation,
+arguments-object dependency, `this`, `new.target`, calls, dynamic lookup,
+labels, break/continue, and prototype-only opcodes before VM execution.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
 - `docs/adrs/0189-keep-unified-bytecode-linear-expression-packs-flattened.md`
 - `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`
+- `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`

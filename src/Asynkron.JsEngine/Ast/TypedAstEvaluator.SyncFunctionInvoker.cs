@@ -75,6 +75,7 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasSimpleReturnLiteralFastPath;
         private readonly JsValue _simpleReturnLiteralFastPath;
         private readonly SimpleNumericSelfRecursionFastPath? _simpleNumericSelfRecursionFastPath;
+        private readonly ImmutableArray<Symbol> _legacyTailRestartResetVarNames;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasHoistableDeclarations;
@@ -178,6 +179,7 @@ public static partial class TypedAstEvaluator
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
             _parameterNames = parameterNames;
+            _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
             if (parameterNames.Length == 0)
             {
                 var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
@@ -943,6 +945,56 @@ public static partial class TypedAstEvaluator
             }
 
             return true;
+        }
+
+        private static ImmutableArray<Symbol> BuildLegacyTailRestartResetVarNames(
+            BlockStatement body,
+            ImmutableArray<Symbol> parameterNames)
+        {
+            var declaredNames = new List<Symbol>();
+            VarNameCollector.CollectVarDeclaredNames(body, declaredNames);
+            if (declaredNames.Count == 0)
+            {
+                return ImmutableArray<Symbol>.Empty;
+            }
+
+            HashSet<Symbol>? parameterNameSet = null;
+            if (!parameterNames.IsEmpty)
+            {
+                parameterNameSet = new HashSet<Symbol>(parameterNames, ReferenceEqualityComparer<Symbol>.Instance);
+            }
+
+            var seenNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            var resetNames = ImmutableArray.CreateBuilder<Symbol>();
+            foreach (var name in declaredNames)
+            {
+                if (parameterNameSet?.Contains(name) == true ||
+                    !seenNames.Add(name))
+                {
+                    continue;
+                }
+
+                resetNames.Add(name);
+            }
+
+            return resetNames.Count == 0 ? ImmutableArray<Symbol>.Empty : resetNames.ToImmutable();
+        }
+
+        private void ResetLegacyTailRestartActivation(
+            JsEnvironment varEnvironment,
+            JsEnvironment executionEnvironment)
+        {
+            foreach (var name in _legacyTailRestartResetVarNames)
+            {
+                varEnvironment.DefineFunctionScoped(name, JsValue.Undefined, hasInitializer: true);
+            }
+
+            foreach (var lexicalName in _topLevelLexicalNames)
+            {
+                var isConst = _lexicalDeclarationKinds.TryGetValue(lexicalName, out var c) && c;
+                executionEnvironment.DefineJsValue(lexicalName, JsValue.Uninitialized, isConst: isConst,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
         }
 
         private static double EvaluateSimpleNumericSelfRecursion(
@@ -1807,6 +1859,7 @@ public static partial class TypedAstEvaluator
             }
 
             IReadOnlyList<JsValue> currentArguments = arguments;
+            var isLegacyTailRestart = false;
             try
             {
                 // Named function expressions should see their name inside the body.
@@ -1823,6 +1876,10 @@ public static partial class TypedAstEvaluator
                 {
                 LegacyTailCallRestart:
                     context.ClearReturn();
+                    if (isLegacyTailRestart)
+                    {
+                        ResetLegacyTailRestartActivation(varEnvironment, executionEnvironment);
+                    }
 
                     // Create the `arguments` binding before parameter defaults can observe it.
                     // Legacy tail restarts update currentArguments, so the observable object must be refreshed here.
@@ -1918,6 +1975,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     if (context.TryConsumeLegacyTailCallRestart(this, out var restartArguments, out var restartThisValue))
                     {
                         currentArguments = restartArguments;
+                        isLegacyTailRestart = true;
                         if (_isStrict && !IsArrowFunction)
                         {
                             functionEnvironment._thisValue = restartThisValue;

@@ -10,6 +10,13 @@ searches to specific existing paths, avoid broad `.faktorial/worktrees` scans
 unless the task explicitly requires that surface, and use targeted raw-log
 snippets with line caps when summaries are insufficient.
 
+For agent runtime context gathering, use this practical order: supplied Source
+Context or issue/dashboard API details first, compact `/api/logs/<issue>/summary`
+next, and bounded raw-log snippets only when those are still insufficient.
+Agents must not run the host `faktorial` binary for issue, log, or state reads;
+older guidance that suggests `faktorial issue` or `faktorial log-summary` is
+stale for agent runtime context reads.
+
 For `main is red` or main-health repair issues, re-run the exact failing
 main-health command on the current worktree before changing source code. Treat
 the stored mainverify status as a trigger and evidence pointer, not as proof

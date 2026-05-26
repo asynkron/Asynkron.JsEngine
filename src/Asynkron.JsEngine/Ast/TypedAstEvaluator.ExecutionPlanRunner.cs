@@ -91,6 +91,7 @@ public static partial class TypedAstEvaluator
         private bool _done;
         private bool _completedWithRawSyncReturn;
         private JsEnvironment? _executionEnvironment;
+        private bool _ownsExecutionEnvironment;
         private bool _privateScopesApplied;
         private int _programCounter;
         private JsValue _scriptCompletionValue = JsValue.Unit;

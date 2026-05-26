@@ -341,6 +341,7 @@ public static partial class TypedAstEvaluator
             finally
             {
                 JsEnvironment.Current = previousEnvironment;
+                ReturnOwnedExecutionEnvironment();
             }
         }
 

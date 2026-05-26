@@ -103,7 +103,17 @@ host-runtime shortcuts.
     `Promise.prototype.then` after its local capability helper used pair-level
     guards that drifted from the constructor helper and failed the focused
     Test262 `Promise_prototype_then` fixture.
-16c. For typed-array species-copy operations such as
+16c. When extracting shared Promise combinator helpers, keep each combinator's
+    settlement semantics visible at the call site and add focused coverage for
+    every branch routed through the helper. At minimum, prove `Promise.all` or
+    `Promise.race` behavior that already existed plus explicit `allSettled`
+    mixed fulfilled/rejected result shaping and `Promise.any` all-reject
+    `AggregateError` plus fulfill-short-circuit paths. WHY: issue
+    `autrun-disb2mcqpxv4-8a2d4b67a3` / PR #1997 deduplicated shared iterator
+    and `then` plumbing across `all`, `race`, `allSettled`, and `any`; review
+    required extra internal tests because `allSettled` and `any` were the
+    lower-coverage branches now flowing through the shared helpers.
+16d. For typed-array species-copy operations such as
     `%TypedArray%.prototype.slice`, validate the species-created destination
     after `TypedArraySpeciesCreate` has run, not before constructor/species
     side effects. Reject Number/BigInt content-type mismatches before copying,

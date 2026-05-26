@@ -219,4 +219,44 @@ public sealed class IntlSupportedValuesTests(ITestOutputHelper output) : Interna
         Assert.Equal(baseline.Items, viaStringObject.Items);
         Assert.Equal(baseline.Items, viaPlainObject.Items);
     }
+
+    [Fact]
+    public async Task CollatorPrototypeBorrowedMethodsAcceptBrandedReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function () {
+                var collator = new Intl.Collator("en", { sensitivity: "base" });
+                var getter = Object.getOwnPropertyDescriptor(Intl.Collator.prototype, "compare").get;
+                var borrowedCompare = getter.call(collator);
+                var compareResult = borrowedCompare("a", "A");
+
+                var resolved = Intl.Collator.prototype.resolvedOptions.call(collator);
+                return [typeof borrowedCompare, compareResult, resolved.sensitivity];
+            })();
+            """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("function", array.Items[0].ToObject());
+        Assert.Equal(0d, array.Items[1].ToObject());
+        Assert.Equal("base", array.Items[2].ToObject());
+    }
+
+    [Fact]
+    public async Task CollatorPrototypeBorrowedMethodsRejectIncompatibleReceivers()
+    {
+        await using var engine = CreateEngine();
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("""
+                (function () {
+                    var getter = Object.getOwnPropertyDescriptor(Intl.Collator.prototype, "compare").get;
+                    getter.call({});
+                })();
+                """));
+        Assert.Contains("incompatible receiver", exception.Message, StringComparison.Ordinal);
+
+        exception = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+            await engine.Evaluate("Intl.Collator.prototype.resolvedOptions.call(1);"));
+        Assert.Contains("incompatible receiver", exception.Message, StringComparison.Ordinal);
+    }
 }

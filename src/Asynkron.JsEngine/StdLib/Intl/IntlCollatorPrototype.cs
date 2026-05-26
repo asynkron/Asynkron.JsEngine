@@ -24,8 +24,7 @@ public sealed partial class IntlCollatorPrototype
     [JsHostGetter("compare", DisplayName = "get compare")]
     private JsValue GetCompare(JsValue thisValue)
     {
-        var collator = ValidateCollatorReceiver(thisValue);
-        var slots = GetSlots(collator);
+        var slots = GetSlots(thisValue);
         return (JsValue)slots.GetOrCreateBoundCompare(() => CreateBoundCompareFunction(slots));
     }
 
@@ -52,8 +51,7 @@ public sealed partial class IntlCollatorPrototype
     [JsHostMethod("resolvedOptions", Length = 0d)]
     private JsValue ResolvedOptions(JsValue thisValue, IReadOnlyList<JsValue> _)
     {
-        var collator = ValidateCollatorReceiver(thisValue);
-        var slots = GetSlots(collator);
+        var slots = GetSlots(thisValue);
         var obj = new JsObject(Realm.ObjectPrototype);
         const string operation = "Intl.Collator.prototype.resolvedOptions";
         CreateDataPropertyOrThrowJsValue(obj, "locale", slots.Locale, Realm, operation);
@@ -66,14 +64,10 @@ public sealed partial class IntlCollatorPrototype
         return new JsValue(obj);
     }
 
-    private JsObject ValidateCollatorReceiver(JsValue thisValue)
+    private IntlCollatorInternalSlots GetSlots(JsValue thisValue)
     {
-        return thisValue.EnsureBrand(CollatorBrand, Realm,
+        var collator = thisValue.EnsureBrand(CollatorBrand, Realm,
             "Intl.Collator method called on incompatible receiver");
-    }
-
-    private IntlCollatorInternalSlots GetSlots(JsObject collator)
-    {
         if (collator.TryGetProperty(SlotsKey, out var value) &&
             value.TryGetObject<IntlCollatorInternalSlots>(out var slots))
         {

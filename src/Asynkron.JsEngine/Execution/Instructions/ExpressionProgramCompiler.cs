@@ -1242,7 +1242,8 @@ internal static class ExpressionProgramCompiler
         ImmutableArray<CallArgument> arguments)
     {
         if (TypedAstEvaluator.ContainsInnerFunctionExpression(callee) ||
-            DynamicScopeDetector.ContainsDirectEval(callee))
+            DynamicScopeDetector.ContainsDirectEval(callee) ||
+            TailRestartLeakExpressionDetector.ContainsPotentialLeak(callee))
         {
             return false;
         }
@@ -1251,7 +1252,8 @@ internal static class ExpressionProgramCompiler
         {
             var expression = argument.Expression;
             if (TypedAstEvaluator.ContainsInnerFunctionExpression(expression) ||
-                DynamicScopeDetector.ContainsDirectEval(expression))
+                DynamicScopeDetector.ContainsDirectEval(expression) ||
+                TailRestartLeakExpressionDetector.ContainsPotentialLeak(expression))
             {
                 return false;
             }
@@ -1265,7 +1267,8 @@ internal static class ExpressionProgramCompiler
         ImmutableArray<ExpressionNode> arguments)
     {
         if (TypedAstEvaluator.ContainsInnerFunctionExpression(callee) ||
-            DynamicScopeDetector.ContainsDirectEval(callee))
+            DynamicScopeDetector.ContainsDirectEval(callee) ||
+            TailRestartLeakExpressionDetector.ContainsPotentialLeak(callee))
         {
             return false;
         }
@@ -1273,7 +1276,8 @@ internal static class ExpressionProgramCompiler
         foreach (var argument in arguments)
         {
             if (TypedAstEvaluator.ContainsInnerFunctionExpression(argument) ||
-                DynamicScopeDetector.ContainsDirectEval(argument))
+                DynamicScopeDetector.ContainsDirectEval(argument) ||
+                TailRestartLeakExpressionDetector.ContainsPotentialLeak(argument))
             {
                 return false;
             }

@@ -2917,7 +2917,9 @@ public static partial class TypedAstEvaluator
             bool allowsCapturedActivationTailRestart)
         {
             // Some non-explicit-this call expressions (for example indirect self lookups) can
-            // transiently mark the activation captured without leaking a closure.
+            // mark activations captured while still being restart-safe. The compiler keeps
+            // this fast path disabled for side-effectful callee/argument shapes that can leak
+            // activation-capturing closures.
             if (!hasExplicitThis && allowsCapturedActivationTailRestart)
             {
                 return true;

@@ -2954,6 +2954,7 @@ public static partial class TypedAstEvaluator
 
         private bool HasEscapedActivationCapturingClosure(JsEnvironment environment)
         {
+            HashSet<object>? visitedObjects = null;
             for (var outer = _closure; outer is not null; outer = outer.Enclosing)
             {
                 for (var i = 0; i < outer.SlotCount; i++)
@@ -2967,16 +2968,69 @@ public static partial class TypedAstEvaluator
                         continue;
                     }
 
-                    if (!slot.Value.TryGetObject<SyncFunctionInvoker>(out var captured) ||
-                        ReferenceEquals(captured, _callable))
-                    {
-                        continue;
-                    }
-
-                    if (captured.CapturesActivationBetween(environment, _closure))
+                    if (HasEscapedActivationCapturingClosureValue(slot.Value, environment, ref visitedObjects))
                     {
                         return true;
                     }
+                }
+            }
+
+            return false;
+        }
+
+        private bool HasEscapedActivationCapturingClosureValue(
+            JsValue value,
+            JsEnvironment environment,
+            ref HashSet<object>? visitedObjects)
+        {
+            if (value.Kind != JsValueKind.Object)
+            {
+                return false;
+            }
+
+            if (value.TryGetObject<SyncFunctionInvoker>(out var captured) &&
+                !ReferenceEquals(captured, _callable))
+            {
+                return captured.CapturesActivationBetween(environment, _closure);
+            }
+
+            if (value.ObjectValue is not JsObject objectValue)
+            {
+                return false;
+            }
+
+            visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
+            if (!visitedObjects.Add(objectValue))
+            {
+                return false;
+            }
+
+            foreach (var key in objectValue.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            {
+                var descriptor = objectValue.GetOwnPropertyDescriptor(key);
+                if (descriptor is null)
+                {
+                    continue;
+                }
+
+                if (descriptor.HasValue &&
+                    HasEscapedActivationCapturingClosureValue(descriptor.JsValue, environment, ref visitedObjects))
+                {
+                    return true;
+                }
+
+                if (descriptor.Get is SyncFunctionInvoker getter &&
+                    !ReferenceEquals(getter, _callable) &&
+                    getter.CapturesActivationBetween(environment, _closure))
+                {
+                    return true;
+                }
+
+                if (descriptor.Set is SyncFunctionInvoker setter &&
+                    !ReferenceEquals(setter, _callable) &&
+                    setter.CapturesActivationBetween(environment, _closure))
+                {
+                    return true;
                 }
             }
 

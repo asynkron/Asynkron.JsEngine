@@ -1009,15 +1009,7 @@ public static partial class TypedAstEvaluator
             return objectLike;
         }
 
-        // For primitives, extract and coerce
-        var value = jsValue.Kind switch
-        {
-            JsValueKind.Boolean => jsValue.NumberValue != 0,
-            JsValueKind.Number => jsValue.NumberValue,
-            _ => jsValue.ObjectValue
-        };
-
-        if (StandardLibrary.TryGetObject(value, realm, out var coerced))
+        if (StandardLibrary.TryGetObject(jsValue, realm, out var coerced))
         {
             return coerced;
         }

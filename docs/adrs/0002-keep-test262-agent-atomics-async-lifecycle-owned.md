@@ -40,6 +40,14 @@ then had to repair one quality-gate regression where nested-await lowering
 rewrote a `for await` loop body that contained no await and erased existing
 per-iteration slot stamping.
 
+Issue #2004 / PR #2013 added a regression for the Test262
+`built-ins/Atomics/wait/no-spurious-wakeup-on-exchange.js` scenario. That case
+uses `$262.agent` to park a worker in `Atomics.wait`, mutates the same shared
+index with `Atomics.exchange`, and requires the waiter to remain blocked until
+timeout. After the timeout removes the waiter, `Atomics.notify` must return
+zero. The important distinction is that ordinary atomic read-modify-write
+operations affect shared memory, but they are not waiter notifications.
+
 ## Decision
 
 Treat Test262 agent Atomics fixes as lifecycle ownership work, not as isolated
@@ -73,7 +81,12 @@ class of failures:
    no await just because the surrounding statement is a `ForEachStatement`.
    Preserve the existing slot-stamped body when the lowerer has no semantic work
    to do inside that body.
-9. Prove with the narrow crashing Test262 method group or exact listed files
+9. Keep the Atomics waiter list owned only by wait setup, timeout/cancellation
+   cleanup, and `Atomics.notify`. Do not wake, dequeue, or count waiters from
+   `Atomics.exchange`, stores, or other atomic read-modify-write operations; a
+   waiting agent observes those changes only by timing out or being notified by
+   the host operation that the spec defines as a wake operation.
+10. Prove with the narrow crashing Test262 method group or exact listed files
    first, then run the internal quality gate needed for the delivery branch.
 
 ## Consequences
@@ -87,6 +100,9 @@ class of failures:
   unobservable thenable waits, wrong expected-value storage coercion, async
   agent program drain gaps, and background worker teardown races as first-class
   risks in this area.
+- Reviewers should also reject fixes that make `Atomics.exchange` or other
+  non-notify atomic operations release waiters as a convenient way to avoid
+  hangs. Such fixes turn a timeout-or-notify contract into a spurious wakeup.
 - This ADR is caused by issue #754 / PR #887, issue #755 / PR #905, and issue
-  #1342 / PR #1361, and complements ADR 0001's separate quality-gate build/test
-  contract.
+  #1342 / PR #1361; it was extended by issue #2004 / PR #2013. It complements
+  ADR 0001's separate quality-gate build/test contract.

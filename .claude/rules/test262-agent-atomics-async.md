@@ -37,7 +37,12 @@ problem until proven otherwise.
    rewrite a `for await` loop body unless that body actually contains an await
    and changes. The existing per-iteration slot stamping is part of the loop
    analysis result and must survive unrelated await-normalization work.
-10. Prove the exact crashing Test262 file or method group first, then widen only
+10. Do not treat atomic read-modify-write operations such as
+    `Atomics.exchange` as waiter wakeups. `Atomics.wait` waiters may complete
+    because the expected value mismatches before enqueue, because timeout
+    expires, or because `Atomics.notify` wakes them. A later store/exchange at
+    the same location must not be modeled as a notification side effect.
+11. Prove the exact crashing Test262 file or method group first, then widen only
    as needed.
 
 ## Why
@@ -59,3 +64,11 @@ typed-array storage semantics before comparison. The same delivery also changed
 the Test262 agent runtime to await async worker source evaluation, then repaired
 a quality-gate regression where nested-await lowering rewrote a `for await`
 body that had no await and lost per-iteration slot stamping.
+
+Issue #2004 / PR #2013 pinned the Test262
+`built-ins/Atomics/wait/no-spurious-wakeup-on-exchange.js` behavior after the
+reported crash had already been repaired: a worker blocked in `Atomics.wait`
+must keep waiting after another agent performs `Atomics.exchange` at the same
+index, then time out; after timeout, `Atomics.notify` must report zero waiters.
+This prevents future Atomics repairs from accidentally coupling ordinary atomic
+stores/exchanges to the waiter notification list.

@@ -535,13 +535,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     ///     cons interpreter is no longer part of the runtime path; cons data is only
     ///     used earlier for parsing and transformation.
     /// </summary>
-    internal object? ExecuteProgram(
+    internal JsValue ExecuteProgram(
         ProgramNode program,
         JsEnvironment environment,
         CancellationToken cancellationToken = default,
         ExecutionKind executionKind = ExecutionKind.Script)
     {
-        return program.EvaluateProgram(environment, RealmState, cancellationToken, executionKind);
+        return program.EvaluateProgramJsValue(environment, RealmState, cancellationToken, executionKind);
     }
 
     /// <summary>
@@ -900,7 +900,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             EnsureImportMetaAllowed(program, isModule);
             if (!isModule)
             {
-                return ExecuteProgram(program, GlobalEnvironment, combinedToken);
+                return UnwrapResult(ExecuteProgram(program, GlobalEnvironment, combinedToken));
             }
 
             var entry = GetOrCreateModuleEntry(program, sourcePath);
@@ -980,7 +980,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 _isExecutingSynchronousEvaluation = true;
                 try
                 {
-                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
                 }
                 finally
                 {
@@ -1068,7 +1068,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 return UnwrapResult(entry.LastValue);
             }
 
-            var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
+            var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
             DrainMicrotasks(cancellationToken: combinedToken);
             return UnwrapResult(scriptResult);
         }

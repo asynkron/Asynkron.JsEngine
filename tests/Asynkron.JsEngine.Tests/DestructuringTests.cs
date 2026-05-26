@@ -65,6 +65,23 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task FunctionParameterArrayDestructuringUsesCustomArrayIteratorNext()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let calls = 0;
+            const arrayIteratorPrototype = Object.getPrototypeOf([][Symbol.iterator]());
+            arrayIteratorPrototype.next = function() {
+                calls++;
+                return { value: 7, done: false };
+            };
+            function f([a]) { return a; }
+            f([1]) * 10 + calls;
+            """);
+        Assert.Equal(71d, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayDestructuringWithDefaults()
     {
         await using var engine = CreateEngine();

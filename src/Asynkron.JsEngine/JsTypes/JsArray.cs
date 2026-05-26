@@ -127,7 +127,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         return _properties.TryGetProperty(SymbolKeys.Iterator, _cachedJsValue, out var iteratorValue) &&
                iteratorValue.TryGetObject<HostFunction>(out var iteratorFunction) &&
-               iteratorFunction.HasNativeSourceDisplayName("values");
+               iteratorFunction.HasNativeSourceDisplayName("values") &&
+               HasDefaultArrayIteratorNextForFastDestructuring();
+    }
+
+    private bool HasDefaultArrayIteratorNextForFastDestructuring()
+    {
+        var iteratorPrototype = RealmState?.ArrayIteratorPrototype;
+        if (iteratorPrototype is null)
+        {
+            return true;
+        }
+
+        return iteratorPrototype.TryGetProperty("next", out var nextValue) &&
+               nextValue.TryGetObject<HostFunction>(out var nextFunction) &&
+               nextFunction.HasNativeSourceDisplayName("next");
     }
 
     /// <summary>

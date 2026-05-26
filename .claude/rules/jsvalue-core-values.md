@@ -12,6 +12,7 @@ When working inside the core engine, keep JavaScript values represented as
 - Keep helper-specific carrier boundaries in their accepted ADRs instead of
   duplicating those decisions here:
   - `docs/adrs/0114-keep-array-length-helper-jsvalue-native.md`
+  - `docs/adrs/0115-keep-jsmap-key-storage-jsvalue-native.md`
   - `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`
   - `docs/adrs/0123-keep-number-receiver-object-extraction-typed-and-accessor-compatible.md`
   - `docs/adrs/0143-keep-generator-pending-completion-payloads-jsvalue-native.md`
@@ -21,6 +22,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0164-keep-super-constructor-resolver-jsvalue-native.md`
   - `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`
   - `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`
+  - `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`
 
 ## Rules
 
@@ -54,13 +56,22 @@ When working inside the core engine, keep JavaScript values represented as
    or `new JsValue[] { ... }` so constructor overload resolution stays on the
    `IEnumerable<JsValue>` path.
 7. For JavaScript collection storage (`Set`, `Map`, weak collections, or
-   collection-like helpers), migrate the owning storage and equality comparer
+   collection-like helpers), migrate the owning storage contract as one unit.
+   For collections that own equality, migrate storage and equality comparer
    together. A `JsValue`-backed collection must use `JsValue`-native
    SameValueZero or spec equality semantics directly, including `NaN`,
    positive/negative zero, ordinal strings, symbols, and object identity. Keep
    legacy `object?` comparers only for collection owners that still store
    `object?`; do not route migrated storage through `ToObject`,
    `FromObjectUnsafe`, or side-channel sentinels for `null`/`undefined`.
+   For CWT-backed weak collections, keep the weak-key object identity boundary
+   intentional, but do not treat the value side as permission to box JavaScript
+   values. Store `WeakMap` values as `JsValue` inside a private reference
+   wrapper, use `TryGetValue` to separate presence from a stored
+   `JsValue.Undefined`, and treat `WeakSet` CWT values as presence sentinels
+   rather than JavaScript values unless a separate focused slice proves a new
+   storage contract. Related ADR:
+   `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`.
 8. When a private helper cluster already has complete `JsValue` coverage and a
    targeted search shows the `object?` overload has no internal callers, delete
    the legacy overload instead of keeping it as a speculative compatibility
@@ -277,6 +288,17 @@ collection migrations should canonicalize storage keys at the owning `Set`/
 `Get`/`Has`/`Delete` boundary and prove both lookup behavior and observable
 stored-key behavior. Related ADR:
 `docs/adrs/0115-keep-jsmap-key-storage-jsvalue-native.md`.
+
+Issue `autrun-disqx5obgqv4-52e407689b` / PR #2163 migrated `JsWeakMap` value
+storage from `ConditionalWeakTable<object, object?>` plus
+`ExtractValueObject(...)`/`JsValue.FromObjectUnsafe(...)` conversions to a
+reference wrapper carrying `JsValue`. The weak-key object extraction stayed
+intentional because CWT weak identity requires reference keys, and the wrapper
+exists only because CWT values must also be reference types. Future weak
+collection object-to-`JsValue` cleanup should preserve that split: object
+identity for weak keys, `JsValue` for JavaScript values, and `TryGetValue`
+presence checks so stored `undefined` is not confused with absence. Related ADR:
+`docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`.
 
 Issue `autrun-dirph7vxdbdc-edfa353492` / PR #1798 migrated the internal Array
 prototype `ReduceLike`/`SomeLike` result helpers from `object?` to `JsValue` and

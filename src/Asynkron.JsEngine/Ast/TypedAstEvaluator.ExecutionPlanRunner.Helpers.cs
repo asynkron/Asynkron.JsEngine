@@ -2989,25 +2989,26 @@ public static partial class TypedAstEvaluator
             }
 
             if (value.TryGetObject<SyncFunctionInvoker>(out var captured) &&
-                !ReferenceEquals(captured, _callable))
+                !ReferenceEquals(captured, _callable) &&
+                captured.CapturesActivationBetween(environment, _closure))
             {
-                return captured.CapturesActivationBetween(environment, _closure);
+                return true;
             }
 
-            if (value.ObjectValue is not JsObject objectValue)
+            if (value.ObjectValue is not IJsPropertyAccessor accessor)
             {
                 return false;
             }
 
             visitedObjects ??= new HashSet<object>(ReferenceEqualityComparer<object>.Instance);
-            if (!visitedObjects.Add(objectValue))
+            if (!visitedObjects.Add(value.ObjectValue))
             {
                 return false;
             }
 
-            foreach (var key in objectValue.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+            foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
             {
-                var descriptor = objectValue.GetOwnPropertyDescriptor(key);
+                var descriptor = accessor.GetOwnPropertyDescriptor(key);
                 if (descriptor is null)
                 {
                     continue;

@@ -58,11 +58,17 @@ optimization.
 6c. When a performance issue's acceptance criteria require before/after
     selected-profile evidence, report the comparable rows before review/deploy:
     command, baseline source, current source, timing, allocation, and whether
-    the signal is noisy. If the build stage omits that evidence, review must
-    reconstruct it before accepting the performance claim. WHY: issue #2084 /
-    PR #2127 delivered the stringops split/join allocation reduction, but review
-    had to rerun PR/base `stringops` allocation rows because the build updates
-    only reported semantic tests.
+    the signal is noisy. Also name the changed branch or workload shape that the
+    selected profile actually executed; if the profile does not execute a
+    changed branch, add a dedicated selected workload or label that branch as
+    regression-covered rather than profile-proven. If the build stage omits that
+    evidence, review must reconstruct it before accepting the performance claim.
+    WHY: issue #2084 / PR #2127 delivered the stringops split/join allocation
+    reduction, but review had to rerun PR/base `stringops` allocation rows
+    because the build updates only reported semantic tests. Issue #2150 / PR
+    #2155 then needed a build-back wording fix because `stringops` exercised
+    `split("")`, while the non-empty separator split branch was only covered by
+    focused regressions.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm
@@ -172,7 +178,13 @@ optimization.
     intermediate element arrays where observable order is unchanged, reuse
     cached single-code-unit strings only on a profiled and semantics-pinned
     path such as ASCII `split("")`, and do not turn a split/join hotspot into a
-    rope or generic addition policy change. For `Array.prototype.join`
+    rope or generic addition policy change. Do not claim the standard
+    `stringops` selected profile proves non-empty separator split throughput
+    unless the profile script actually exercises that branch; use a dedicated
+    workload or keep the non-empty separator claim to semantic regression proof.
+    WHY: issue #2150 / PR #2155 had to narrow its final evidence because the
+    selected `stringops` rows covered `split("")` plus dense join, not the
+    changed non-empty separator split branch. For `Array.prototype.join`
     stringops work, a dense fast path may use only ordinary `JsArray` receivers
     with no custom indexed properties, every index present as an own element,
     and every element already tagged as a primitive JavaScript string. Do not

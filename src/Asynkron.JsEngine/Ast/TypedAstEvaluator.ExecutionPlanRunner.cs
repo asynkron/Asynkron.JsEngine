@@ -102,9 +102,15 @@ public static partial class TypedAstEvaluator
         private JsValue _tailRestartThisValue;
         private JsValue _tailRestartNewTargetValue;
         private int _tailRestartVersion;
+        private Dictionary<object, EscapedClosureScanCacheEntry>? _escapedClosureScanCache;
         private JsValue[]? _expressionStackBuffer;
         private ulong[]? _expressionFlagBuffer;
         private int _expressionBufferLeaseCount;
+
+        private readonly record struct EscapedClosureScanCacheEntry(
+            int MutationVersion,
+            long GlobalMutationVersion,
+            bool ContainsEscapedClosure);
 
         /// <summary>
         /// Offset applied to slot indices when running in script mode on GlobalEnvironment.

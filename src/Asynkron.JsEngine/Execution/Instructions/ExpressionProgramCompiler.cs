@@ -758,10 +758,14 @@ internal static class ExpressionProgramCompiler
         }
         else
         {
+            var allowsCapturedActivationTailRestart =
+                !hasExplicitThis &&
+                AllowsCapturedActivationTailRestart(expression.Callee, expression.Arguments);
             builder.Add(PackedExpressionOp.Call(
                 expression.Arguments.Length,
                 HasExplicitThis: hasExplicitThis,
                 IsDirectEval: isDirectEval,
+                AllowsCapturedActivationTailRestart: allowsCapturedActivationTailRestart,
                 SpreadMaskConstantIndex: spreadMaskBuilder is not null
                     ? builder.InternSpreadMask(ImmutableArray.CreateRange(spreadMaskBuilder))
                     : -1));
@@ -1208,7 +1212,11 @@ internal static class ExpressionProgramCompiler
 
         builder.Add(PackedExpressionOp.Call(
             expression.Expressions.Length + 1,
-            HasExplicitThis: hasExplicitThis));
+            HasExplicitThis: hasExplicitThis,
+            AllowsCapturedActivationTailRestart: !hasExplicitThis &&
+                                                  AllowsCapturedActivationTailRestart(
+                                                      expression.Tag,
+                                                      expression.Expressions)));
 
         if (targetNullishJumpIndex >= 0)
         {
@@ -1226,6 +1234,55 @@ internal static class ExpressionProgramCompiler
         }
 
         failureReason = null;
+        return true;
+    }
+
+    private static bool AllowsCapturedActivationTailRestart(
+        ExpressionNode callee,
+        ImmutableArray<CallArgument> arguments)
+    {
+        if (TypedAstEvaluator.ContainsInnerFunctionExpression(callee) ||
+            DynamicScopeDetector.ContainsDirectEval(callee) ||
+            TailRestartLeakExpressionDetector.ContainsPotentialLeak(callee))
+        {
+            return false;
+        }
+
+        foreach (var argument in arguments)
+        {
+            var expression = argument.Expression;
+            if (TypedAstEvaluator.ContainsInnerFunctionExpression(expression) ||
+                DynamicScopeDetector.ContainsDirectEval(expression) ||
+                TailRestartLeakExpressionDetector.ContainsPotentialLeak(expression))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AllowsCapturedActivationTailRestart(
+        ExpressionNode callee,
+        ImmutableArray<ExpressionNode> arguments)
+    {
+        if (TypedAstEvaluator.ContainsInnerFunctionExpression(callee) ||
+            DynamicScopeDetector.ContainsDirectEval(callee) ||
+            TailRestartLeakExpressionDetector.ContainsPotentialLeak(callee))
+        {
+            return false;
+        }
+
+        foreach (var argument in arguments)
+        {
+            if (TypedAstEvaluator.ContainsInnerFunctionExpression(argument) ||
+                DynamicScopeDetector.ContainsDirectEval(argument) ||
+                TailRestartLeakExpressionDetector.ContainsPotentialLeak(argument))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

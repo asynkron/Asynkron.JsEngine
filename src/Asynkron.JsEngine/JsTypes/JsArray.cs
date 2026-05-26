@@ -982,11 +982,21 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             _items[denseIndex] = value;
+            if (!extended && value.Kind == JsValueKind.Object)
+            {
+                JsObject.MarkGlobalMutation();
+            }
+
             return extended;
         }
 
         _sparseItems ??= new Dictionary<uint, JsValue>();
         _sparseItems[index] = value;
+        if (value.Kind == JsValueKind.Object)
+        {
+            JsObject.MarkGlobalMutation();
+        }
+
         return false;
     }
 

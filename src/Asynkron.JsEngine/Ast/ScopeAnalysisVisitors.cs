@@ -667,3 +667,75 @@ internal sealed class VarNameCollector : AstVisitor
     protected override void VisitFunctionExpression(FunctionExpression node) { }
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 }
+
+/// <summary>
+/// Detects expression shapes that can leak existing activation-capturing closures
+/// through side effects while evaluating a call expression.
+/// </summary>
+internal sealed class TailRestartLeakExpressionDetector : AstVisitor
+{
+    [ThreadStatic] private static TailRestartLeakExpressionDetector? _instance;
+
+    private bool _skipFirst;
+    public bool Found { get; private set; }
+
+    private void Reset(bool skipFirst = false)
+    {
+        Found = false;
+        ShouldStop = false;
+        _skipFirst = skipFirst;
+    }
+
+    public static bool ContainsPotentialLeak(ExpressionNode expression)
+    {
+        var detector = _instance ??= new TailRestartLeakExpressionDetector();
+        detector.Reset(skipFirst: expression is FunctionExpression);
+        detector.Visit(expression);
+        return detector.Found;
+    }
+
+    protected override void VisitSequenceExpression(SequenceExpression node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
+
+    protected override void VisitAssignmentExpression(AssignmentExpression node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
+
+    protected override void VisitDestructuringAssignmentExpression(DestructuringAssignmentExpression node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
+
+    protected override void VisitPropertyAssignmentExpression(PropertyAssignmentExpression node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
+
+    protected override void VisitIndexAssignmentExpression(IndexAssignmentExpression node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
+
+    protected override void VisitFunctionExpression(FunctionExpression node)
+    {
+        if (_skipFirst)
+        {
+            _skipFirst = false;
+            base.VisitFunctionExpression(node);
+            return;
+        }
+
+        // Nested function expressions are already blocked by other checks, so don't
+        // treat them as a side-effect leak signal here.
+    }
+
+    protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
+}

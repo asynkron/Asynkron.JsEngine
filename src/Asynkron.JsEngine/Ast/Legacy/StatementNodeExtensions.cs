@@ -2211,6 +2211,7 @@ public static partial class TypedAstEvaluator
         }
     }
 
+    [Obsolete("Legacy object? evaluation wrapper is forbidden for core runtime paths. Use EvaluateProgramJsValue instead.", true)]
     public static object? EvaluateProgram(this ProgramNode program, JsEnvironment environment,
         RealmState realmState,
         CancellationToken cancellationToken = default,

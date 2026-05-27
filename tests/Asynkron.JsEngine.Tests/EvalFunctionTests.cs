@@ -65,6 +65,35 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
         Assert.Equal("undefined,undefined,undefined", result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task StrictDirectEval_WithoutDeclarations_UsesCurrentActivationBindingsAcrossRepeatedCalls()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeReader(offset) {
+              "use strict";
+              return function read(value) {
+                const local = value + offset;
+                return eval("local + shared");
+              };
+            }
+
+            let shared = 1;
+            const first = makeReader(2);
+            const second = makeReader(5);
+
+            const a = first(3);
+            shared = 7;
+            const b = first(4);
+            shared = 11;
+            const c = second(1);
+
+            [a, b, c].join(",");
+            """);
+
+        Assert.Equal("6,13,17", result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Eval_WithString()
     {

@@ -67,3 +67,40 @@ Relative to the baseline reference, Asynkron time dropped by `1189ms` (~70%).
 
 - `rtk dotnet test tests/Asynkron.JsEngine.Tests -c Release --filter "FullyQualifiedName~EvalFunctionTests|FullyQualifiedName~ActivationSemanticsProofPackTests|FullyQualifiedName~ClassElementEvalTests"`
 - Result: 86 tests passed.
+
+## Follow-up (issue #2257): strict direct eval declaration-free no-environment fast path
+
+### Change
+
+For declaration-free strict direct eval in already-strict caller contexts,
+`EvalHostFunction` now skips creating both strict-direct lexical and eval
+declaration environments and executes the eval program directly in the current
+caller environment. Programs with top-level `var`, function, or lexical
+declarations still use the existing eval declaration-instantiation path.
+
+### Signals
+
+- Baseline timestamp: `2026-05-27T05:16:45Z`
+- Baseline command: `rtk ./tools/profile activation-evalscope-lite --cpu --calltree-depth 40 --calltree-width 40`
+- Baseline signal: `InvokeWithContextSlow call-tree root total = 530.35 ms`
+- Final timestamp: `2026-05-27T05:19:49Z`
+- Final command: `rtk ./tools/profile activation-evalscope-lite --cpu --calltree-depth 40 --calltree-width 40`
+- Final signal: `InvokeWithContextSlow call-tree root total = 505.49 ms`
+- Signal delta: `-24.86 ms` (lower is better)
+
+The baseline top-functions table included
+`EvalHostFunction.InvokeSingleArgument` at `82.93 ms`. After the change it
+no longer appears in the top filtered rows, and the follow-up call tree reports
+`EvalHostFunction.InvokeSingleArgument` at `21.10 ms` under direct-eval calls.
+
+### Focused proof
+
+- `rtk dotnet test tests/Asynkron.JsEngine.Tests -c Release --filter "FullyQualifiedName~EvalFunctionTests|FullyQualifiedName~ActivationSemanticsProofPackTests|FullyQualifiedName~ClassElementEvalTests"`
+- Result: `89` tests passed.
+
+### Scope note
+
+This slice is narrow: it keeps eval parse/cache lookup, validation, private-name
+checks, strict-reserved checks, and declaration behavior intact, and avoids
+marking caller environments as eval declaration environments on the no-env
+fast path.

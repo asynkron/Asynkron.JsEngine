@@ -4599,7 +4599,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
 
         // Classes need to be evaluated (they aren't hoisted like functions)
-        ExecuteTypedStatement(declaration.Declaration, moduleEnv, isStrict, false);
+        _ = ExecuteTypedStatementJsValue(declaration.Declaration, moduleEnv, isStrict, false);
         return declaration.Declaration switch
         {
             ClassDeclaration classDeclaration => new LiveExportBinding(() =>
@@ -4644,7 +4644,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     private void EvaluateExportDeclaration(ExportDeclarationStatement statement, JsEnvironment moduleEnv,
         JsObject exports, bool isStrict)
     {
-        ExecuteTypedStatement(statement.Declaration, moduleEnv, isStrict, false);
+        _ = ExecuteTypedStatementJsValue(statement.Declaration, moduleEnv, isStrict, false);
         foreach (var symbol in GetDeclaredSymbols(statement.Declaration))
         {
             exports[symbol.Name] = new LiveExportBinding(() => moduleEnv.GetJsValue(symbol));
@@ -4774,19 +4774,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
             functionNameHint: functionNameHint,
             drainAwaitMicrotasks: drainAwaitMicrotasks);
-    }
-
-    private object? ExecuteTypedStatement(
-        StatementNode statement,
-        JsEnvironment environment,
-        bool isStrict,
-        bool createStrictEnvironment = true,
-        Symbol? functionNameHint = null,
-        bool drainAwaitMicrotasks = true)
-    {
-        var result = ExecuteTypedStatementJsValue(statement, environment, isStrict, createStrictEnvironment,
-            functionNameHint, drainAwaitMicrotasks);
-        return ConvertJsValueToLegacyObject(result);
     }
 
     private static object? ConvertJsValueToLegacyObject(JsValue result)
@@ -5268,7 +5255,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     "Async module execution only supports direct await in exported lexical initializers.");
             }
 
-            _engine.ExecuteTypedStatement(statement.Declaration, env, isStrict, false);
+            _ = _engine.ExecuteTypedStatementJsValue(statement.Declaration, env, isStrict, false);
             return true;
         }
 
@@ -5445,7 +5432,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+                        _ = _engine.ExecuteTypedStatementJsValue(rewrittenDeclaration, tempEnv, isStrict, false);
 
                         if (advanceTopLevelStatement)
                         {
@@ -5511,7 +5498,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        _engine.ExecuteTypedStatement(rewrittenDeclaration, tempEnv, isStrict, false);
+                        _ = _engine.ExecuteTypedStatementJsValue(rewrittenDeclaration, tempEnv, isStrict, false);
                         var classValue = tempEnv.GetJsValue(rewrittenDeclaration.Name);
                         env.DefineJsValue(rewrittenDeclaration.Name, classValue, isLexicalBinding: true,
                             blocksFunctionScopeOverride: true);
@@ -7075,7 +7062,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // which handles the async iteration protocol
             try
             {
-                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                _ = _engine.ExecuteTypedStatementJsValue(statement, env, isStrict, false);
                 return true;
             }
             catch (ThrowSignal signal)
@@ -7131,7 +7118,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             statement.PerIterationSlotIndices,
                             statement.PerIterationBindings);
 
-                        _engine.ExecuteTypedStatement(rewrittenStatement, iterableEnv, isStrict, false);
+                        _ = _engine.ExecuteTypedStatementJsValue(rewrittenStatement, iterableEnv, isStrict, false);
                         _statementIndex++;
                         Run();
                     }
@@ -7530,7 +7517,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                                 statement.PerIterationSlotIndices,
                                 statement.PerIterationBindings);
 
-                            _engine.ExecuteTypedStatement(rewrittenStatement, iterableEnv, isStrict, false);
+                            _ = _engine.ExecuteTypedStatementJsValue(rewrittenStatement, iterableEnv, isStrict, false);
                             _statementIndex++;
                             Run();
                         }
@@ -7544,7 +7531,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             try
             {
-                _engine.ExecuteTypedStatement(statement, env, isStrict, false);
+                _ = _engine.ExecuteTypedStatementJsValue(statement, env, isStrict, false);
                 return true;
             }
             catch (ThrowSignal signal)
@@ -7691,7 +7678,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        _engine.ExecuteTypedStatement(statement.Initializer, env, isStrict, false);
+                        _ = _engine.ExecuteTypedStatementJsValue(statement.Initializer, env, isStrict, false);
                     }
                     catch (ThrowSignal signal)
                     {

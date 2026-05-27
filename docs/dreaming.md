@@ -3,156 +3,185 @@
 Date: 2026-05-27
 
 ## Why this document exists
-This is the architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET. It keeps the who/what/why explicit:
-- Who: maintainers making recurring optimization and compatibility decisions.
-- What: a coherent target runtime architecture from system level down to subcomponents.
-- Why: avoid local wins that fragment semantics, runtime boundaries, or evidence discipline.
+This is the architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
 
-## Critique of the current dream state
-The repository has strong evidence artifacts (ADR boundaries, profile notes, roadmap updates), but historically lacked one durable architecture destination that is easy to reason from top-down. Without that destination, there is a real risk of:
-- slice-level optimization progress without a shared product/runtime narrative,
-- over-rotation into diagnostics/storage implementation details,
-- accidental overclaiming (for example around Node parity, compact statement bytecode runtime use, or async-generator maturity).
+- Who: maintainers making recurring optimization, compatibility, and module/runtime decisions.
+- What: a coherent greenfield target architecture from system level down to subcomponents.
+- Why: keep semantics, runtime ownership, and evidence discipline aligned across slices.
 
-This document intentionally fixes that gap.
+## Critique of the previous dream state
+The prior dream captured the right intent, but it underweighted the current #2342 roadmap reality in four places:
+
+1. module/runtime compatibility boundaries were described broadly, without enough concrete owner surfaces,
+2. host interop language could be misread as stronger parity than the codebase currently proves,
+3. async-generator seam closure was named but not anchored as a first-class architecture risk,
+4. unified-bytecode direction was present without a sufficiently explicit production-routing boundary.
+
+This revision keeps the aspirational architecture, but binds it tightly to current known constraints so it can guide real implementation choices without overclaiming.
 
 ## Product dream
-Asynkron.JsEngine should be a standards-first, production-grade JavaScript runtime on .NET that is:
-- compatibility-driven (long-tail semantics, not only happy-path JavaScript),
-- host-practical (Node-style integration surfaces with explicit compatibility boundaries),
-- performance-evidenced (CPU/allocation wins must be measurable and repeatable),
-- architecture-governed (each optimization belongs to a clearly owned runtime boundary).
+Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
 
-## System architecture (top-down)
+- compatibility-driven: long-tail JavaScript semantics, not only happy-path workloads,
+- host-practical: explicit Node-competitive integration seams with clear ownership,
+- performance-evidenced: CPU/allocation gains must be repeatable and measured,
+- architecture-governed: every fast path is owned, bounded, and test/proof anchored.
+
+## Top-level system (greenfield)
+Top-level thing: **JavaScript Runtime Fabric**.
+
 ```mermaid
 flowchart TD
-    A[Developer / Host App] --> B[Source + Host API Calls]
-    B --> C[Language Frontend]
-    C --> D[Compiler Pipeline]
-    D --> E[Execution Runtime]
-    E --> F[Async & Concurrency Runtime]
-    E --> G[Module & Host Interop Runtime]
-    E --> H[StdLib & Built-ins]
-    F --> I[Promise/Microtask/Timer Scheduling]
-    G --> J[ESM/dynamic import/host bridge]
-    H --> K[Objects/Arrays/RegExp/Intl/Temporal]
-    C --> L[Diagnostics + Semantic Validation]
-    D --> M[IR + Expression Bytecode Artifacts]
-    E --> N[Completion Flow + Environment/Slots]
-    L --> O[Observability, Testing, Profiling Governance]
-    M --> O
-    N --> O
+    A[JavaScript Runtime Fabric] --> B[Language Frontend]
+    A --> C[Compilation and Plan Fabric]
+    A --> D[Execution Fabric]
+    A --> E[Async and Concurrency Fabric]
+    A --> F[Module and Host Fabric]
+    A --> G[Standard Library Fabric]
+    A --> H[Evidence and Governance Fabric]
+
+    D --> D1[IR VM and Expression VM]
+    D --> D2[Environment and Slot Model]
+    D --> D3[Completion and Abrupt Flow]
+
+    E --> E1[Promise Jobs and Microtasks]
+    E --> E2[Await Resume Routing]
+    E --> E3[Async Generator Runtime]
+
+    F --> F1[ESM Registry and Lifecycle]
+    F --> F2[Dynamic import and import.meta]
+    F --> F3[Host Callable and Global Bridge]
+
+    H --> H1[Test262 and focused packs]
+    H --> H2[make quality contract]
+    H --> H3[Profile and benchmark surfaces]
+    H --> H4[ADR and roadmap sync]
 ```
 
-## Runtime module decomposition
+## Module architecture (big to small)
+
 ```mermaid
-graph LR
-    subgraph Frontend[1. Language Frontend]
-        F1[Lexer]
-        F2[Parser]
-        F3[Typed AST + static semantics]
+graph TD
+    subgraph M1[1. Language Frontend]
+        M1A[Lexer and token decoding]
+        M1B[Parser and typed AST]
+        M1C[Static semantics and syntax validation]
     end
 
-    subgraph Compiler[2. Compiler Pipeline]
-        C1[Statement IR lowering]
-        C2[ExpressionProgram lowering]
-        C3[Plan eligibility + fallback classification]
-        C4[Slot/layout assignment]
+    subgraph M2[2. Compilation and Plan Fabric]
+        M2A[Statement IR lowering]
+        M2B[ExpressionProgram lowering]
+        M2C[Eligibility and fallback classification]
+        M2D[Slot and layout assignment]
     end
 
-    subgraph Exec[3. Execution Runtime]
-        E1[ExecutionPlan runner]
-        E2[Expression interpreter]
-        E3[Environment + slots]
-        E4[Completion/abrupt flow]
-        E5[Dynamic/eval fallback seams]
+    subgraph M3[3. Execution Fabric]
+        M3A[ExecutionPlan runner]
+        M3B[Expression interpreter]
+        M3C[Flat slot and lexical environment machinery]
+        M3D[Completion and restart semantics]
+        M3E[Dynamic and eval fallback seams]
     end
 
-    subgraph Async[4. Async & Concurrency]
-        A1[Promise jobs + microtasks]
-        A2[Await scheduling/resume]
-        A3[Async generator state/resume]
+    subgraph M4[4. Async and Concurrency Fabric]
+        M4A[Microtask scheduler]
+        M4B[Await suspension and resume]
+        M4C[Async generator state machines]
+        M4D[Host wakeup and callback ownership]
     end
 
-    subgraph Host[5. Module & Host Interop]
-        H1[Module registry + instantiate/evaluate]
-        H2[dynamic import + import.meta]
-        H3[Host callable bridge + globals]
+    subgraph M5[5. Module and Host Fabric]
+        M5A[ESM instantiate and evaluate]
+        M5B[Module registry and namespace handling]
+        M5C[Dynamic import phases]
+        M5D[Host function bridge]
+        M5E[Compatibility shims and boundary adapters]
     end
 
-    subgraph Std[6. Standard Library & Built-ins]
-        S1[JsValue/JsObject/descriptors]
-        S2[Array/String/Promise/Proxy/Intl]
-        S3[Typed collections + regexp]
+    subgraph M6[6. Standard Library Fabric]
+        M6A[JsValue and JsObject core model]
+        M6B[Built-in constructors and prototypes]
+        M6C[Collections, RegExp, Intl, Temporal]
+        M6D[Descriptor and brand semantics]
     end
 
-    subgraph Gov[7. Governance]
-        G1[Test262 + focused packs]
-        G2[make quality + deterministic test surfaces]
-        G3[ProfileRunner + benchmark matrix]
-        G4[ADR + roadmap sync discipline]
+    subgraph M7[7. Evidence and Governance Fabric]
+        M7A[Focused proof packs]
+        M7B[Canonical quality gate]
+        M7C[Profile loops and benchmark matrix]
+        M7D[ADR boundaries and roadmap traceability]
     end
 
-    Frontend --> Compiler --> Exec
-    Exec --> Async
-    Exec --> Host
-    Exec --> Std
-    Frontend --> Gov
-    Compiler --> Gov
-    Exec --> Gov
-    Async --> Gov
-    Host --> Gov
-    Std --> Gov
+    M1 --> M2 --> M3
+    M3 --> M4
+    M3 --> M5
+    M3 --> M6
+    M1 --> M7
+    M2 --> M7
+    M3 --> M7
+    M4 --> M7
+    M5 --> M7
+    M6 --> M7
 ```
 
-## Module details (system to subcomponents)
+## Component and subcomponent ownership
+
 ### 1) Language Frontend
 Goal: deterministic source-to-semantics transformation.
+
 - Components: lexer/tokenizer, parser, typed immutable AST, strict/module rule validation.
 - Subcomponents: regex/template scanning, hoisting/binding analysis, dynamic-scope risk flags.
 
-### 2) Compiler Pipeline
-Goal: lower typed AST into execution artifacts with predictable behavior and cost.
+### 2) Compilation and Plan Fabric
+Goal: lower typed AST into execution artifacts with explicit ownership and cost boundaries.
+
 - Components: statement IR lowering, expression bytecode lowering, eligibility/fallback classification, slot/layout assignment.
-- Subcomponents: `ExecutionPlanBuilder` family emitters, `ExpressionProgram`/`ExpressionOp` packing, completion-shape lowering, diagnostics for unsupported families.
+- Subcomponents: `ExecutionPlanBuilder` emitter families, `ExpressionProgram`/`ExpressionOp` encoding, completion-shape lowering, unsupported-family diagnostics.
 
-### 3) Execution Runtime
-Goal: run safe plans on fast paths while preserving semantics through explicit fallback seams.
-- Components: ExecutionPlan VM runner, expression interpreter, environment/slot machinery, completion flow machinery, dynamic/eval seams.
-- Subcomponents: instruction dispatch, stack metadata (including short-circuit/assignment-reference side state), lexical/object environment composition, return/throw/break/continue/finally restart flow.
+### 3) Execution Fabric
+Goal: run proven shapes on fast paths while preserving semantics through explicit fallback seams.
 
-### 4) Async and Concurrency Runtime
+- Components: ExecutionPlan VM runner, expression VM, environment/slot machinery, completion flow machinery, dynamic/eval seams.
+- Subcomponents: instruction dispatch, short-circuit side-state, lexical/object environment composition, return/throw/break/continue/finally restart flow.
+
+### 4) Async and Concurrency Fabric
 Goal: deterministic async behavior with clear scheduling and resume ownership.
+
 - Components: microtask queue, async function/async generator machinery, await resume routing, host wakeup bridge.
-- Subcomponents: scheduler contracts, resume-mode state carriers, callback ownership boundaries.
+- Subcomponents: scheduler contracts, resume-mode carriers, callback ownership boundaries, async-generator continuation state.
 
-### 5) Module and Host Interop Runtime
-Goal: practical module/runtime integration without blurring standards boundaries.
-- Components: ESM load/evaluate lifecycle, dynamic import and module registry, host function bridge, compatibility shims.
-- Subcomponents: `import.meta` ownership, JSON module handling, top-level await behavior boundaries, host error translation.
+### 5) Module and Host Fabric
+Goal: Node-competitive interoperability without blurring engine vs host responsibility.
 
-### 6) Standard Library and Built-ins
+- Components: ESM lifecycle runtime, dynamic import pipeline, module registry, host callable bridge, compatibility adapters.
+- Subcomponents: `import.meta` ownership, JSON module boundaries, top-level await integration, host error translation.
+
+### 6) Standard Library Fabric
 Goal: high-fidelity built-ins with runtime-owned semantics and safe fast paths.
-- Components: core value/object model, built-in constructors/prototypes, specialized runtime storage.
-- Subcomponents: descriptor semantics, strictness behavior, cross-realm/brand validation, JsValue-native helper surfaces in hot paths.
 
-### 7) Observability, Testing, and Performance Governance
-Goal: make correctness and performance claims provable and repeatable.
-- Components: Test262 + focused packs, internal quality gate (`make quality`), profile/benchmark surfaces, ADR/roadmap governance.
-- Subcomponents: narrow proof packs, recurring profile loops, baseline/final signal reporting discipline.
+- Components: core value/object model, constructors/prototypes, specialized runtime storage.
+- Subcomponents: descriptor semantics, strictness behavior, cross-realm/brand validation, JsValue-native hot-path helpers.
 
-## Roadmap-aligned constraints (explicit current reality)
-This dream is aspirational and intentionally does not claim current full parity. Current roadmap constraints remain explicit:
-- Expression bytecode + IR direction is strong and active.
-- Statement instruction compact storage exists, but compact statement bytecode is not yet the runtime-active execution contract.
-- Dynamic/eval-sensitive seams still exist and must remain correctness-first.
-- Async-generator behavior remains a known weaker seam and needs dedicated follow-through.
-- Performance claims must stay evidence-first (profile/benchmark + focused proof packs), not inferred.
+### 7) Evidence and Governance Fabric
+Goal: keep correctness/performance claims provable and repeatable.
+
+- Components: Test262 and focused packs, canonical `make quality` gate, profile/benchmark surfaces, ADR/roadmap governance.
+- Subcomponents: narrow proof packs, recurring profile loops, baseline/final signal reporting, architecture traceability checks.
+
+## #2342-aligned architecture constraints (explicit current reality)
+This dream is aspirational and does not claim current full parity.
+
+- **Milestone A (module/runtime boundary):** ESM and async module behavior are proven owner surfaces; no full Node module/CommonJS parity claim.
+- **Milestone B (host interop boundary):** host callable/global integration is explicit, but Node-style host behavior remains an integration-layer concern.
+- **Milestone C (async seam closure):** async-generator runtime still has known seam risk and remains active follow-through work.
+- Unified bytecode direction is strong, but production routing remains bounded by explicit eligibility and opcode/control-flow constraints.
+- Compact statement-bytecode storage is a direction; it is not the current universal execution contract.
+- Dynamic/eval-sensitive paths remain correctness-first and cannot be erased by architecture preference.
 
 ## Non-goals
-- This is not a claim of full Node.js parity today.
-- This is not a replacement for ADRs, performance reports, or roadmap issue tracking.
-- This does not widen eligibility or remove fallback seams by itself; it defines the target shape those changes should converge toward.
+- Not a claim of full Node.js parity today.
+- Not a replacement for ADRs, perf reports, or roadmap issue tracking.
+- Not a license to widen eligibility or remove fallback seams without proof.
 
 ## Operating principle
-Prefer architecture that keeps semantics explicit, optimization local, and evidence mandatory: every fast-path expansion should have clear ownership boundaries, focused proof coverage, and measured baseline/final signals.
+Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

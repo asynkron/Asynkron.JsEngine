@@ -61,6 +61,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - When sibling summaries influence slice selection, record that sibling check
   explicitly in the child-run evidence (issue update) so review can confirm the
   run stayed non-overlapping without reconstructing scheduler state.
+- Do not substitute changed-file scope, changed paths, or PR diff scope for a
+  sibling check. A valid recurring-child sibling check is the active
+  sibling-child summary lookup result, or an explicit lookup-unavailable/gap
+  note recorded before continuing.
 - When a fan-in or conflict-resolution issue discovers two completed children
   that landed the same maintenance slice, consolidate through one canonical
   delivery. Prefer the superset branch when it cleanly contains the duplicate
@@ -378,6 +382,14 @@ sibling-check requirement. Future workflow-doc maintenance should keep that
 issue-logging mirror aligned with the owned recurring-child evidence template
 and Faktorial runtime read-order rules instead of expecting reviewers or agents
 to infer them from another playbook.
+
+Issue #2293 / PR #2301 repeated that evidence gate with a subtler AC-2
+failure: the documentation diff was correct, but review rejected a `Sibling
+check` that only described changed-file scope. The accepted re-entry performed
+the compact summary/API lookup and explicitly recorded that no sibling overlap
+data was available in the summary. Future agents must not substitute diff scope
+for sibling coordination evidence; record the actual sibling-summary result or
+the lookup gap.
 
 Issue #1324 captured a sibling-coordination gap while concurrent issue #1323
 was already handling the README stale-link candidate

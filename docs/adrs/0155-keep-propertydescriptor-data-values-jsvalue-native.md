@@ -49,6 +49,13 @@ initializers to `JsValue = ...`, preserved writable/enumerable/configurable
 attributes exactly, and kept strict obsoletion of the compatibility setter out
 of scope.
 
+Issue `autrun-diteietq3894-3b695787e6` / PR #2343 applied the same decision to
+`StdLib/Intl/IntlHelper`. Intl namespace constructors, `supportedLocalesOf`
+metadata, and the local Temporal.Duration shim descriptors are standard-library
+JavaScript data descriptors. The accepted slice moved the 17 selected
+initializers from `Value = ...` to `JsValue = ...`, preserved descriptor
+attributes exactly, and kept the compatibility setter itself out of scope.
+
 Issue #2052 / PR #2060 applied the same descriptor contract to the `JsArray`
 length owner surface under ADR 0114. Even though `JsArray.SetLength` was already
 `JsValue`-native, fallback and initial length descriptors still used

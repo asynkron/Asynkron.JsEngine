@@ -113,6 +113,16 @@ host-runtime shortcuts.
     and `then` plumbing across `all`, `race`, `allSettled`, and `any`; review
     required extra internal tests because `allSettled` and `any` were the
     lower-coverage branches now flowing through the shared helpers.
+    For `Promise.allSettled`-only callback deduplication, a local helper inside
+    the element loop may share the resolve/reject body only if both callbacks
+    still close over the same per-element `alreadyCalled`, `currentIndex`,
+    `remainingElements`, `results`, and capability state. Do not lift that
+    helper into a broader combinator abstraction unless every observable
+    settlement branch is reproved. WHY: issue
+    `autrun-dit8cl303jhc-6842653dee` / PR #2304 reduced the
+    `Promise.allSettled` callback pair with a local `SettleElement` helper,
+    focused `allSettled` behavior proof, and before/after cloc plus QuickDup
+    evidence.
 16d. For typed-array species-copy operations such as
     `%TypedArray%.prototype.slice`, validate the species-created destination
     after `TypedArraySpeciesCreate` has run, not before constructor/species

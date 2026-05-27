@@ -40,6 +40,7 @@ This step is **critical** - agent investigation findings are lost if not documen
   - Scope `rg` to specific existing paths and avoid broad `.faktorial/worktrees` searches unless the task explicitly requires that path.
   - When raw logs are required, use narrow snippets (targeted patterns and line caps) rather than full dumps.
   - For recurring maintenance child runs, ensure `## Build Update` explicitly includes a `Sibling check:` line (or states the lookup was unavailable) so evidence gates can verify overlap avoidance.
+- In Faktorial issue-stage runs, keep in-flight progress updates as plain prose; reserve machine-readable structured schema output for the actual final stage result.
 - For each session, update an existing issue or create one if none fit.
 - Local/manual `gh` examples (non-Faktorial runtime):
   - Find/confirm an issue: `rtk gh issue list -S "keyword"` and `rtk gh issue view <number>`

@@ -1,7 +1,7 @@
-# Propertyaccess unified-bytecode property-read production evidence (#2313)
+# Propertyaccess unified-bytecode property-read production evidence refresh (#2340)
 
 Date: 2026-05-27
-Issue: #2313
+Issue: #2340
 
 ## Canonical workload surface
 
@@ -11,18 +11,25 @@ Issue: #2313
 
 ## Baseline signal
 
-Baseline source: checked-in row from `docs/performance/propertyaccess-compound-add-fast-path.md` (Date: 2026-05-26).
+Baseline source: prior checked-in rows from this evidence surface (issue #2313, Date: 2026-05-27).
 
-Command used for that historical row:
+Benchmark commands used for the prior checked-in rows:
 
 ```bash
-rtk ./benchmark.sh
+rtk ./benchmark.sh propertyaccess
+rtk ./benchmark.sh --allocations propertyaccess
 ```
 
-Historical baseline row:
+Historical baseline rows:
 
 ```text
-propertyaccess  1735 ms  576 ms  Jint 3.01x faster
+profile                 asynkron_ms  jint_ms  delta
+propertyaccess                 1012      505  Jint 2.00x faster
+```
+
+```text
+profile                 asynkron_ms    asynkron_kb  jint_ms     jint_kb  time_delta             alloc_delta
+propertyaccess                 1035          290.6      477     87298.2  Jint 2.17x faster      Asynkron 300.43x lower alloc
 ```
 
 ## Final signal (current run)
@@ -38,13 +45,18 @@ Rows captured:
 
 ```text
 profile                 asynkron_ms  jint_ms  delta
-propertyaccess                 1012      505  Jint 2.00x faster
+propertyaccess                 2565     2470  Tie
 ```
 
 ```text
 profile                 asynkron_ms    asynkron_kb  jint_ms     jint_kb  time_delta             alloc_delta
-propertyaccess                 1035          290.6      477     87298.2  Jint 2.17x faster      Asynkron 300.43x lower alloc
+propertyaccess                 2566          302.6     2195     87285.7  Jint 1.17x faster      Asynkron 288.47x lower alloc
 ```
+
+Before/after comparison against prior checked-in rows:
+
+- Time row: Asynkron `1012 -> 2565 ms` (+1553 ms), Jint `505 -> 2470 ms` (+1965 ms), delta `Jint 2.00x faster -> Tie`.
+- Allocation row: Asynkron `290.6 -> 302.6 KB` (+12.0 KB), Jint `87298.2 -> 87285.7 KB` (-12.5 KB), allocation delta `Asynkron 300.43x lower -> Asynkron 288.47x lower`.
 
 CPU profile command and key excerpt:
 
@@ -54,8 +66,8 @@ rtk ./tools/profile propertyaccess --cpu --calltree-depth 40 --calltree-width 40
 
 ```text
 Call Tree (Total Time) - root: ExecuteInstructionLoop
-... -> HandleCompoundAssignmentSlotSlow -> EvaluateExpressionProgram
-... -> GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue -> JsObject.TryGetProperty*
+... -> HandleCompoundAssignmentSlot -> HandleCompoundAssignmentSlotSlow -> EvaluateExpressionProgram
+... -> EvaluateExpressionProgram -> GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue -> JsObject.TryGetProperty*
 ```
 
 ## Production-boundary interpretation
@@ -63,15 +75,16 @@ Call Tree (Total Time) - root: ExecuteInstructionLoop
 Accepted first-boundary property-read shapes (eligible for production unified-bytecode routing):
 
 - Direct named property read from an activation-resolved base (`return box.value;`).
-- First-boundary computed property read shape using `RequireObjectCoercible(Depth: 1)` and `ResolvePropertyKey` immediately before `GetComputedProperty` (`return box[key];`).
+- Exact two-hop named property-read chains where both hops are named and non-optional.
+- Exact first-boundary computed property read shape using `RequireObjectCoercible(Depth: 1)` and `ResolvePropertyKey` immediately before `GetComputedProperty` (`return box[key];`).
 
 Primary pre-VM decline families (decline before production VM execution):
 
-- Property reads outside the first boundary (for example computed keys such as `left + right`).
+- Property reads outside the first boundary (for example non-exact computed/read chains such as `left + right` or deeper mixed chains).
 - Optional chaining (`box?.value`, `box?.[key]`).
 - Property writes and updates (`box.value = ...`, `box.value++`).
 - `delete` and `super` property access.
-- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, captured/dynamic activation.
+- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, and captured/dynamic activation.
 
 Reference surfaces:
 

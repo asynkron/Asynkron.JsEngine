@@ -28,6 +28,12 @@ keep callback lifetime explicit and pool-owned.
 8. When documenting this runtime path, describe the current shared
    `ExecutionPlanRunner.ExecuteAsyncStep` bridge. Do not call it a sync-generator
    shim unless the implementation actually reintroduces that coupling.
+9. For code-reduction work in this callback path, keep lifecycle cleanup
+   helpers local to the callback type unless a broader ownership change is
+   proven. A small `ClearState()` helper may centralize captured-reference
+   cleanup, but do not merge the async-function and async-generator callback
+   types or reshape `_isRejection` / pool-return mapping just to remove a few
+   repeated assignments.
 
 ## Why
 
@@ -43,6 +49,12 @@ exercises direct `.next()` calls across pending awaits.
 The durable lesson is that pending-await resume callbacks are lifecycle state,
 not disposable scratch storage. Future allocation reductions in this area must
 make callback ownership and cleanup visible, then prove observable async order.
+
+Issue `autrun-dit5s0fwvhpc-3e5ac4503a` / PR #2272 reduced duplicated
+captured-reference reset code by adding local `ClearState()` helpers in the
+async-function and async-generator resume callbacks. The useful lesson was the
+boundary: local cleanup dedupe is acceptable, but cross-type merging would have
+blurred two callback lifecycles for a tiny code-size win.
 
 Related ADR:
 `docs/adrs/0179-keep-async-generator-resume-callbacks-pool-owned.md`.

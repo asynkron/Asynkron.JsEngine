@@ -1,0 +1,84 @@
+# Propertyaccess unified-bytecode property-read production evidence (#2313)
+
+Date: 2026-05-27
+Issue: #2313
+
+## Canonical workload surface
+
+- Manifest entry: `tools/profile-manifest.json` -> `propertyaccess`
+- Script: `tools/profile-scripts/propertyaccess.js`
+- Workload shape: repeated direct and nested property reads in `sum += ...` loops.
+
+## Baseline signal
+
+Baseline source: checked-in row from `docs/performance/propertyaccess-compound-add-fast-path.md` (Date: 2026-05-26).
+
+Command used for that historical row:
+
+```bash
+rtk ./benchmark.sh
+```
+
+Historical baseline row:
+
+```text
+propertyaccess  1735 ms  576 ms  Jint 3.01x faster
+```
+
+## Final signal (current run)
+
+Benchmark commands run in this worktree:
+
+```bash
+rtk ./benchmark.sh propertyaccess
+rtk ./benchmark.sh --allocations propertyaccess
+```
+
+Rows captured:
+
+```text
+profile                 asynkron_ms  jint_ms  delta
+propertyaccess                 1012      505  Jint 2.00x faster
+```
+
+```text
+profile                 asynkron_ms    asynkron_kb  jint_ms     jint_kb  time_delta             alloc_delta
+propertyaccess                 1035          290.6      477     87298.2  Jint 2.17x faster      Asynkron 300.43x lower alloc
+```
+
+CPU profile command and key excerpt:
+
+```bash
+rtk ./tools/profile propertyaccess --cpu --calltree-depth 40 --calltree-width 40
+```
+
+```text
+Call Tree (Total Time) - root: ExecuteInstructionLoop
+... -> HandleCompoundAssignmentSlotSlow -> EvaluateExpressionProgram
+... -> GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue -> JsObject.TryGetProperty*
+```
+
+## Production-boundary interpretation
+
+Accepted first-boundary property-read shapes (eligible for production unified-bytecode routing):
+
+- Direct named property read from an activation-resolved base (`return box.value;`).
+- First-boundary computed property read shape using `RequireObjectCoercible(Depth: 1)` and `ResolvePropertyKey` immediately before `GetComputedProperty` (`return box[key];`).
+
+Primary pre-VM decline families (decline before production VM execution):
+
+- Property reads outside the first boundary (for example computed keys such as `left + right`).
+- Optional chaining (`box?.value`, `box?.[key]`).
+- Property writes and updates (`box.value = ...`, `box.value++`).
+- `delete` and `super` property access.
+- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, captured/dynamic activation.
+
+Reference surfaces:
+
+- `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs`
+- `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs`
+
+## Claim scope
+
+This note records measured benchmark/profile rows and routing constraints only.
+It does not claim Node.js parity or broad runtime wins beyond these captured rows.

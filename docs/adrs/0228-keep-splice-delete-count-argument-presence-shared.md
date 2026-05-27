@@ -39,6 +39,13 @@ delivery cached the original argument count once in both `splice` and
 `ComputeSpliceDeleteCount(...)`, and added focused `splice(undefined)` coverage
 to match the existing `toSpliced(undefined)` proof.
 
+Issue #2375 / PR #2385 then fixed the remaining boundary leak: a helper that
+knows only "deleteCount is absent" still cannot distinguish `splice()` from
+`splice(start)`. The delivery split the helper input into explicit
+`hasStartArgument` and `hasDeleteCountArgument` booleans, passed the already
+selected `deleteCountValue`, and added no-argument regressions for both
+`splice()` and `toSpliced()`.
+
 Focused evidence recorded by the build and review stages:
 
 ```bash
@@ -49,6 +56,12 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c 
 
 The final focused test run passed 6 tests, Roslynator reported 0 diagnostics,
 and the three-file slice moved from 1599 to 1575 C# code lines.
+PR #2385 also recorded a focused no-argument proof pack:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --filter "Array_splice_WithNoArguments_RemovesNothing|Array_splice_WithMissingDeleteCount_RemovesToEnd|Array_ToSpliced_WithNoArguments_ReturnsCopyWithoutChanges|Array_ToSpliced_WithMissingDeleteCount_RemovesToEnd"
+rtk dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj
+```
 
 ## Decision
 
@@ -59,10 +72,10 @@ The durable boundary is:
 
 1. The call sites must capture the original argument count before deriving
    start, insert-count, or delete-count behavior.
-2. The helper must receive the original argument list, explicit
-   `argumentCount`, `length`, `actualStart`, and the active
-   `EvaluationContext?`.
-3. `argumentCount == 0`, `argumentCount == 1`, and `argumentCount >= 2` are
+2. The call sites must derive and pass explicit `hasStartArgument` and
+   `hasDeleteCountArgument` booleans, plus the selected `deleteCountValue`,
+   `length`, `actualStart`, and the active `EvaluationContext?`.
+3. No start argument, start-without-delete-count, and explicit delete-count are
    semantic branches. Do not normalize missing arguments into
    `JsValue.Undefined` before this branch.
 4. Explicit `undefined` is a supplied value and must flow through
@@ -77,11 +90,14 @@ The durable boundary is:
 ## Consequences
 
 - Future fixes to splice-family delete-count normalization have one owner.
-- Call sites own the observable argument-count snapshot, while the helper owns
-  the shared delete-count branch and numeric bounding.
+- Call sites own the observable argument-presence snapshot, while the helper
+  owns the shared delete-count branch and numeric bounding.
 - Argument absence remains observable independently from explicit
   `undefined`, avoiding the common optional-argument regression where a helper
   sees only normalized values.
+- `hasStartArgument` and `hasDeleteCountArgument` must stay separate; merging
+  them back into a single "missing deleteCount" branch regresses no-argument
+  `splice()`/`toSpliced()` semantics.
 - `splice` and `toSpliced` can share the count calculation without implying that
   their element movement, result construction, or receiver mutation algorithms
   are interchangeable.
@@ -95,6 +111,8 @@ The durable boundary is:
 - PR #2362
 - Issue #2373
 - PR #2382
+- Issue #2375
+- PR #2385
 - `.claude/rules/ecmascript-abstract-operations.md`
 - `src/Asynkron.JsEngine/StdLib/Array/StandardLibrary.Array.Helpers.cs`
 - `src/Asynkron.JsEngine/StdLib/Array/ArrayPrototype.Mutators.cs`

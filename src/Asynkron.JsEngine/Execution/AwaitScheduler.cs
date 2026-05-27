@@ -16,28 +16,17 @@ namespace Asynkron.JsEngine.Execution;
 /// </summary>
 internal static class AwaitScheduler
 {
-    // Reusable callback delegates to avoid allocations in hot path
-    [ThreadStatic] private static PromiseAwaitState? CachedState;
-
     [MethodImpl(JsEngineConstants.Inlining)]
     private static PromiseAwaitState RentState()
     {
-        var state = CachedState;
-        if (state != null)
-        {
-            CachedState = null;
-            state.Reset();
-            return state;
-        }
-
         return new PromiseAwaitState();
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
     private static void ReturnState(PromiseAwaitState state)
     {
+        // Keep explicit reset/return ownership without thread-local reuse.
         state.Reset();
-        CachedState = state;
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]

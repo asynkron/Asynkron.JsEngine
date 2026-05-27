@@ -111,6 +111,7 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
             .ToArray();
 
         Assert.NotEmpty(pushScopes);
+        Assert.Single(pushScopes.Where(push => !push.PerIterationBindings.IsDefaultOrEmpty));
         Assert.DoesNotContain(pushScopes, IsLoopScopeForI);
         Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
     }

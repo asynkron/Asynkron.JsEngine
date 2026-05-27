@@ -68,18 +68,15 @@ internal static class LoopEmitter
 
     private static bool CanElideNonCapturingForLoopScope(LoopPlan plan)
     {
+        // Slot metadata may still be stamped after initial emission, so this
+        // gate stays on semantic shape and lets the slot rewriter fill layout.
         if (plan.Kind != LoopKind.For ||
             plan.PerIterationBindings.IsDefaultOrEmpty ||
             plan.PerIterationBindings.Length != 1 ||
             !plan.AllowIterationEnvironmentPooling ||
             plan.ConditionAfterBody ||
-            plan.BodyNeedsEnvironment ||
             !plan.ConditionPrologue.IsDefaultOrEmpty ||
-            plan.IterationScopeId < 0 ||
-            plan.IterationSlotCount <= 0 ||
-            plan.PerIterationSlotIndices.IsDefaultOrEmpty ||
-            plan.PerIterationSlotIndices.Length != 1 ||
-            plan.PerIterationSlotIndices[0] < 0)
+            plan.IterationScopeId < 0)
         {
             return false;
         }

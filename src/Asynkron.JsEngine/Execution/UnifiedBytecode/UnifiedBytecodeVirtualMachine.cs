@@ -1,3 +1,4 @@
+using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -93,6 +94,82 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.SetNamedProperty:
+                    var namedPropertyValue = stack[--stackPointer];
+                    var namedSetTarget = stack[stackPointer - 1];
+                    SetPropertyValue(
+                        namedSetTarget,
+                        program.StringConstants[instruction.Operand],
+                        namedPropertyValue,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer - 1] = namedPropertyValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedProperty:
+                    var computedPropertyValue = stack[--stackPointer];
+                    var computedSetKey = stack[--stackPointer];
+                    var computedSetTarget = stack[stackPointer - 1];
+                    var computedSetName = JsOps.GetRequiredPropertyName(computedSetKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer - 1] = computedPropertyValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateNamedProperty:
+                    var namedUpdateTarget = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = UpdatePropertyValue(
+                        namedUpdateTarget,
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                    var computedUpdateKey = stack[--stackPointer];
+                    var computedUpdateTarget = stack[stackPointer - 1];
+                    var computedUpdateName = JsOps.GetRequiredPropertyName(computedUpdateKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer - 1] = UpdatePropertyValue(
+                        computedUpdateTarget,
+                        computedUpdateName,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -157,4 +234,122 @@ internal static class UnifiedBytecodeVirtualMachine
             ? directValue
             : JsValue.Undefined;
     }
+
+    private static void SetPropertyValue(
+        JsValue target,
+        string propertyName,
+        JsValue propertyValue,
+        EvaluationContext context)
+    {
+        var handle = PropertyHandle.Resolve(
+            target,
+            propertyName,
+            context,
+            context.CurrentScope.IsStrict,
+            allowPrivate: false);
+        handle.SetValue(propertyValue);
+    }
+
+    private static JsValue UpdatePropertyValue(
+        JsValue target,
+        string propertyName,
+        bool isIncrement,
+        bool isPrefix,
+        EvaluationContext context)
+    {
+        var handle = PropertyHandle.Resolve(
+            target,
+            propertyName,
+            context,
+            context.CurrentScope.IsStrict,
+            allowPrivate: false);
+        var currentValue = handle.GetJsValue();
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        GetUpdatedNumericValue(
+            currentValue,
+            isIncrement,
+            context,
+            out var oldNumericValue,
+            out var newValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        handle.SetValue(newValue);
+        return isPrefix ? newValue : oldNumericValue;
+    }
+
+    private static void GetUpdatedNumericValue(
+        JsValue currentValue,
+        bool isIncrement,
+        EvaluationContext context,
+        out JsValue oldNumericValue,
+        out JsValue newValue)
+    {
+        if (currentValue.Kind == JsValueKind.Number)
+        {
+            oldNumericValue = currentValue;
+            newValue = JsValueCache.GetNumberJsValue(
+                isIncrement
+                    ? currentValue.NumberValue + 1.0
+                    : currentValue.NumberValue - 1.0);
+            return;
+        }
+
+        var numericValue = currentValue.IsBigInt
+            ? currentValue
+            : JsOps.ToNumericAsJsValue(in currentValue, context);
+        if (context.ShouldStopEvaluation)
+        {
+            oldNumericValue = JsValue.Undefined;
+            newValue = JsValue.Undefined;
+            return;
+        }
+
+        oldNumericValue = numericValue;
+        newValue = isIncrement
+            ? IncrementValue(numericValue)
+            : DecrementValue(numericValue);
+    }
+
+    private static JsValue IncrementValue(in JsValue value)
+    {
+        if (value.IsNumber)
+        {
+            return JsValue.FromDouble(value.NumberValue + 1.0);
+        }
+
+        if (value.IsBigInt)
+        {
+            return new JsValue(new JsBigInt(value.AsBigInt().Value + BigInteger.One));
+        }
+
+        return JsValue.NaN;
+    }
+
+    private static JsValue DecrementValue(in JsValue value)
+    {
+        if (value.IsNumber)
+        {
+            return JsValue.FromDouble(value.NumberValue - 1.0);
+        }
+
+        if (value.IsBigInt)
+        {
+            return new JsValue(new JsBigInt(value.AsBigInt().Value - BigInteger.One));
+        }
+
+        return JsValue.NaN;
+    }
+
+    private static int DecodeStringOperand(int operand) => operand >> 2;
+
+    private static bool DecodeIsIncrement(int operand) => (operand & 1) != 0;
+
+    private static bool DecodeIsPrefix(int operand) => (operand & 2) != 0;
 }

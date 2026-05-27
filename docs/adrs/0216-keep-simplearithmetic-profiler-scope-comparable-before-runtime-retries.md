@@ -36,6 +36,14 @@ Neither produced a repeatable 10% win, and both were invalid evidence for this
 selected profile while the profiler workload still diverged from the benchmark
 workload.
 
+Follow-up issue #2278 / PR #2285 implemented the accepted tooling fix without
+changing runtime semantics: `tools/profile simplearithmetic` and the
+`tools/profile all` fan-out now pass `--wrap-iife` before the profile key, so
+the profiler wrapper uses the same fresh lexical scope shape as the benchmark
+comparison. The focused timing sample was noisy (`268` -> `286` ms for
+Asynkron; `77` -> `90` ms for Jint), so the retained result is profiler
+workload parity, not a performance win claim.
+
 ## Decision
 
 Keep future `simplearithmetic` optimizer retries blocked on comparable profiler
@@ -66,9 +74,14 @@ clean wrapped/fresh-scope CPU profile first.
   dedicated profiling-tooling fix, not a runtime shortcut.
 - Performance claims still require repeated focused timing rows and the issue's
   improvement threshold; profiler parity only makes the hotspot evidence usable.
+- The issue #2278 / PR #2285 wrapper change is now the expected
+  `simplearithmetic` profiler shape. Future changes to `tools/profile`, the
+  Python `all` fan-out, or `tools/compare-jint-profiles` must keep the
+  `--wrap-iife` parity intact or prove an equivalent fresh-scope mechanism.
 
 ## Related
 
 - `docs/performance/failed-simplearithmetic-profiler-sync-evaluate-trials.md`
 - `docs/adrs/0207-keep-evaluate-synchronous-completion-task-shaped.md`
 - `.claude/rules/performance-profiling-guardrails.md`
+- `tools/profile`

@@ -141,6 +141,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var truthyResult = await engine.Evaluate("""
+            function chooseByLooseEquality(value) {
+                if (value == 0) {
+                    return 10;
+                }
+
+                return 20;
+            }
+
+            chooseByLooseEquality("0");
+            """);
+
+        var falseResult = await engine.Evaluate("""
+            chooseByLooseEquality(1);
+            """);
+
+        Assert.Equal(10d, truthyResult);
+        Assert.Equal(20d, falseResult);
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=chooseByLooseEquality argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictEqualityBranchFunction_DeclinesUnifiedBytecodeAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function chooseByStrictEquality(value) {
+                if (value === 0) {
+                    return 10;
+                }
+
+                return 20;
+            }
+
+            chooseByStrictEquality("0");
+            """);
+
+        Assert.Equal(20d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=chooseByStrictEquality",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task BranchBothArms_UseUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

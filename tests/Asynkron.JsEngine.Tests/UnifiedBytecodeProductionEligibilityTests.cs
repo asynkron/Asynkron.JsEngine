@@ -316,14 +316,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_UnsupportedBinaryOperator_DeclinesWithOperatorSpecificReason()
+    public void Evaluate_UnsupportedStrictEqualityOperator_DeclinesWithOperatorSpecificReason()
     {
         var plan = GetFunctionPlan("""
-            function equal(a, b) {
-                return a == b;
+            function strictEqual(a, b) {
+                return a === b;
             }
             """,
-            "equal");
+            "strictEqual");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
@@ -331,7 +331,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
-        Assert.Contains("operator 'Equal'", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("operator 'StrictEqual'", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -467,6 +467,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             { "multiply", "*", (int)BinaryOperator.Multiply },
             { "divide", "/", (int)BinaryOperator.Divide },
             { "modulo", "%", (int)BinaryOperator.Modulo },
+            { "equal", "==", (int)BinaryOperator.Equal },
             { "lessThan", "<", (int)BinaryOperator.LessThan },
             { "lessThanOrEqual", "<=", (int)BinaryOperator.LessThanOrEqual },
             { "greaterThan", ">", (int)BinaryOperator.GreaterThan },

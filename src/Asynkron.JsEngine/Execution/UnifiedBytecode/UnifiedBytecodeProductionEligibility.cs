@@ -363,6 +363,7 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Multiply or
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
+            BinaryOperator.Equal or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
@@ -376,6 +377,7 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Multiply => "*",
             BinaryOperator.Divide => "/",
             BinaryOperator.Modulo => "%",
+            BinaryOperator.Equal => "==",
             BinaryOperator.LessThan => "<",
             BinaryOperator.LessThanOrEqual => "<=",
             BinaryOperator.GreaterThan => ">",

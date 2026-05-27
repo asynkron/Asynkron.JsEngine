@@ -913,7 +913,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
 
             EnsureModuleEvaluated(entry);
-            return entry.LastValue.ToObject();
+            return ConvertJsValueToLegacyObject(entry.LastValue);
         }
         finally
         {
@@ -978,7 +978,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     _isExecutingSynchronousEvaluation = false;
                 }
 
-                return CompleteEvaluationAfterSynchronousExecution(entry.LastValue.ToObject(), combinedToken, timeoutCts);
+                return CompleteEvaluationAfterSynchronousExecution(
+                    ConvertJsValueToLegacyObject(entry.LastValue),
+                    combinedToken,
+                    timeoutCts);
             }
 
             _isExecutingSynchronousEvaluation = true;
@@ -1007,7 +1010,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         try
         {
             await EnsureModuleEvaluatedAsync(entry, cancellationToken: combinedToken).ConfigureAwait(false);
-            return await CompleteEvaluationAfterSynchronousExecution(entry.LastValue.ToObject(), combinedToken, timeoutCts)
+            return await CompleteEvaluationAfterSynchronousExecution(
+                    ConvertJsValueToLegacyObject(entry.LastValue),
+                    combinedToken,
+                    timeoutCts)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -1188,7 +1194,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 }
 
                 DrainMicrotasks(cancellationToken: combinedToken);
-                return UnwrapResult(entry.LastValue.ToObject());
+                return UnwrapResult(ConvertJsValueToLegacyObject(entry.LastValue));
             }
 
             var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
@@ -1923,10 +1929,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             if (entry.EvaluationTask is not null)
             {
-                return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+                return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
             }
 
-            return entry.LastValue.ToObject();
+            return ConvertJsValueToLegacyObject(entry.LastValue);
         }
 
         EnsureModuleInstantiated(entry);
@@ -1939,10 +1945,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 if (entry.EvaluationTask is not null)
                 {
-                    return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+                    return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
                 }
 
-                return entry.LastValue.ToObject();
+                return ConvertJsValueToLegacyObject(entry.LastValue);
             }
 
             entry.Evaluating = true;
@@ -1952,10 +1958,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 entry.Evaluated = true;
                 if (entry.EvaluationTask is not null)
                 {
-                    return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+                    return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
                 }
 
-                return entry.LastValue.ToObject();
+                return ConvertJsValueToLegacyObject(entry.LastValue);
             }
             finally
             {
@@ -1973,18 +1979,18 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         if (!waitForAsync)
         {
-            return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+            return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
         }
 
         if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Never attempt to pump the event queue from within the event loop thread.
             // Callers running on the event loop must observe completion asynchronously.
-            return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+            return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
         }
 
-        return (await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken).ConfigureAwait(false))
-            .ToObject();
+        return ConvertJsValueToLegacyObject(
+            await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken).ConfigureAwait(false));
     }
 
     private async Task<JsValue> AwaitModuleEvaluationAsync(Task<JsValue> evaluationTask,
@@ -4189,7 +4195,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     {
         var previousModulePath = _currentModulePath;
         _currentModulePath = modulePath;
-        var lastValue = JsValue.Undefined;
+        var lastValue = JsValue.Null;
 
         // Increment module body execution depth to suppress microtask draining during body execution.
         // This ensures Promise.resolve().then() callbacks only run after the module body completes.
@@ -4828,7 +4834,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
         internal JsObject? ImportMeta { get; set; }
-        internal JsValue LastValue { get; set; } = JsValue.Undefined;
+        internal JsValue LastValue { get; set; } = JsValue.Null;
         internal bool HasAsyncDependency { get; set; }
     }
 
@@ -4908,7 +4914,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         private bool _breakSignaled;
         private bool _continueSignaled;
 
-        private JsValue _lastValue = JsValue.Undefined;
+        private JsValue _lastValue = JsValue.Null;
 
         private int _runEpoch;
         private bool _started;

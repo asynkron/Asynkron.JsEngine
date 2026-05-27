@@ -194,16 +194,17 @@ public static partial class StandardLibrary
 
     internal static long ComputeSpliceDeleteCount(
         IReadOnlyList<JsValue> args,
+        int argumentCount,
         long length,
         long actualStart,
         EvaluationContext? context = null)
     {
-        if (args.Count == 0)
+        if (argumentCount == 0)
         {
             return 0;
         }
 
-        if (args.Count == 1)
+        if (argumentCount == 1)
         {
             return length - actualStart;
         }

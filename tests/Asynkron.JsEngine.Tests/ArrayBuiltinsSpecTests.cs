@@ -481,6 +481,26 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Array_splice_TreatsUndefinedDeleteCountAsZero()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const arr = [1, 2, 3, 4];
+            const removed = arr.splice(1, undefined, 9);
+            removed.length === 0 &&
+            arr.length === 5 &&
+            arr[0] === 1 &&
+            arr[1] === 9 &&
+            arr[2] === 2 &&
+            arr[3] === 3 &&
+            arr[4] === 4;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Array_slice_ThrowsTypeError_WhenResultIsNonExtensible()
     {
         // Test262: target-array-non-extensible.js

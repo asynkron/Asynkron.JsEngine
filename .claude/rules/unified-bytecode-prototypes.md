@@ -49,7 +49,12 @@ all-or-nothing until a separate routing issue proves production readiness.
    codes/reasons before VM execution, and accept only the exact production
    opcode subset that has been proven. Prototype opcodes such as `Binary`,
    `Jump`, and `JumpIfFalse` stay prototype-only for production routing until a
-   separate routing slice proves their observable semantics.
+   separate routing slice proves their observable semantics. When a prototype
+   opcode is declined because of unproven semantic behavior, surface that
+   semantic decline before broader structural declines: for example, `Binary`
+   inside a branch or loop condition must decline as
+   `PrototypeOnlyBinaryOpcode` before `Jump` or `JumpIfFalse`, and the reason
+   should name the operator token when the operand is known.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Route after direct simple-return
     binary/chain shortcuts and `SyncIrCallTrampoline`, before the generic simple
@@ -120,6 +125,14 @@ and the `ActivationSlotShape` slot bridge. Future agents should not bypass that
 bridge with source-shape checks, environment creation, runner callbacks, or VM
 fallbacks.
 
+Faktorial issue
+`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-ba-c0e3afa6d7`
+and PR #2231 hardened the Binary production boundary before branch or loop
+routing can use it. The lesson is that prototype Binary support and numeric VM
+parity do not make `Binary` production-safe. Production eligibility must decline
+the operator family first, include operator-specific diagnostics, and keep
+branch/loop structural routing from admitting unproven condition semantics.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -127,3 +140,4 @@ Related ADRs:
 - `docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`
 - `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`
+- `docs/adrs/0205-keep-unified-bytecode-binary-production-eligibility-operator-explicit.md`

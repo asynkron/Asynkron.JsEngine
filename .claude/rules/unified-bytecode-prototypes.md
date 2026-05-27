@@ -72,6 +72,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     preservation, and nearby declines through public invocation tests plus the
     activation proof pack. If a future slice changes priority again, make that
     explicit and prove the older route remains covered.
+11. When updating docs, ADRs, roadmap text, or evidence reports for unified
+    bytecode production routing, treat ADR 0210 as the current production
+    boundary and keep ADR 0204/#2227 direct-branch wording historical unless a
+    newer accepted ADR supersedes it. The docs must state the no-mixed-execution
+    rule, list the exact eligible opcode/control-flow/operator families, keep
+    unsupported shapes as pre-VM declines, and describe Batch 5 memory/profile
+    evidence as allocation stability only unless a separate before/after proof
+    justifies a performance-improvement claim.
 
 ## Why
 
@@ -165,6 +173,16 @@ also intentionally moved unified production routing ahead of the broad
 of unified bytecode. WHY: the incident showed that admitting control-flow
 opcodes is not the decision by itself; operator semantics, compiler-owned CFG
 shape, route priority, and public route-log evidence must move together.
+
+Faktorial issue
+`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-ba-2dd33add2a`
+and PR #2254 updated the ADR, roadmap, and performance evidence after Batch 5.
+The lesson is that stale docs can become a routing hazard: ADR 0204/#2227
+direct-branch text remained useful history, but ADR 0210 owned the current
+branch-join/canonical-loop production boundary. WHY: the issue existed because
+future agents needed the exact eligible set, unsupported declines,
+no-mixed-execution rule, and allocation-stability-only proof language in the
+same maintained surfaces before widening production eligibility again.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

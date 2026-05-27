@@ -316,7 +316,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (hasJumpIfFalse)
+        if (hasJumpIfFalse && !IsDirectForwardJumpIfFalseBranchReturnProgram(program))
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyJumpIfFalseOpcode;
             declineReason = "JumpIfFalse opcode is prototype-only for production unified bytecode routing.";
@@ -326,6 +326,63 @@ internal static class UnifiedBytecodeProductionEligibility
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
         return false;
+    }
+
+    private static bool IsDirectForwardJumpIfFalseBranchReturnProgram(UnifiedBytecodeProgram program)
+    {
+        var instructions = program.Instructions;
+        var jumpIfFalseIndex = -1;
+        var jumpIfFalseTarget = -1;
+        for (var index = 0; index < instructions.Length; index++)
+        {
+            var instruction = instructions[index];
+            if (instruction.OpCode != UnifiedBytecodeOpCode.JumpIfFalse)
+            {
+                continue;
+            }
+
+            if (jumpIfFalseIndex >= 0)
+            {
+                return false;
+            }
+
+            jumpIfFalseIndex = index;
+            jumpIfFalseTarget = instruction.Operand;
+        }
+
+        if (jumpIfFalseIndex < 0)
+        {
+            return false;
+        }
+
+        if (jumpIfFalseTarget <= jumpIfFalseIndex ||
+            jumpIfFalseTarget != jumpIfFalseIndex + 3 ||
+            jumpIfFalseTarget + 1 >= instructions.Length ||
+            jumpIfFalseTarget + 2 != instructions.Length)
+        {
+            return false;
+        }
+
+        return IsImmediateReturnPair(instructions, jumpIfFalseIndex + 1) &&
+               IsImmediateReturnPair(instructions, jumpIfFalseTarget);
+    }
+
+    private static bool IsImmediateReturnPair(
+        ImmutableArray<UnifiedBytecodeInstruction> instructions,
+        int startIndex)
+    {
+        if (startIndex < 0 || startIndex + 1 >= instructions.Length)
+        {
+            return false;
+        }
+
+        var loadInstruction = instructions[startIndex];
+        if (loadInstruction.OpCode is not (UnifiedBytecodeOpCode.LoadSlot or UnifiedBytecodeOpCode.LoadLiteral))
+        {
+            return false;
+        }
+
+        return instructions[startIndex + 1].OpCode == UnifiedBytecodeOpCode.Return;
     }
 
     private static void TryGetPrototypeOnlyBinaryDecline(

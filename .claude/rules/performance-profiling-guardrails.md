@@ -356,6 +356,25 @@ optimization.
     `activation-arguments-lite` still paying `HandlePushEnvironment` overhead
     after slot indices were plan-stamped because the hot path looped over each
     index instead of using the existing batch helper.
+17a. For activation-arguments loop-scope setup retries, do not retain ordered
+     slot-template initialization, pooled slot-array preservation, or another
+     `HandlePushEnvironment` clear-then-stamp micro-slice unless repeated
+     selected-profile rows clear the issue's explicit improvement threshold
+     beyond timing noise. A stable
+     `HandlePushEnvironment -> Buffer.BulkMoveWithWriteBarrier` call tree is
+     owner evidence, not proof that slot-template clearing pays for itself.
+     Future retained work on this residual owner should prove a larger
+     semantic boundary, such as eliding or reusing a non-capturing loop
+     environment or making the loop binding live in an existing flat-slot path,
+     while preserving closure capture, direct eval, `with`, generator/async
+     suspension, TDZ, per-iteration lexical identity, iterator cleanup, and
+     observable `arguments` materialization. WHY: issue
+     `autrun-ditj75rrj9ts-9a27bab67f` / PR #2398 tried an ordered slot-template
+     initializer plus a pooled slot-preservation variant for
+     `activation-arguments-lite`; both built and the focused activation pack
+     passed, but repeated timing reached only a 6.1% Asynkron-side improvement
+     against a 10%+ gate, so the runtime edits were reverted. ADR:
+     `docs/adrs/0233-keep-activation-loop-scope-template-retries-performance-gated.md`.
 18. For object-literal known-new property optimizations, keep freshness as a
     compiler-carried proof and keep the storage shortcut owned by `JsObject`.
     A static property may skip duplicate checks only while all earlier literal

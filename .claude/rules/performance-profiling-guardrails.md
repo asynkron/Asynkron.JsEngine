@@ -172,13 +172,24 @@ optimization.
      covers production routing. State the exact accepted first-boundary
      named/computed read shapes and the main pre-VM decline families. Do not
      imply that every property read in the selected workload, broad Node.js
-     parity, or broad runtime parity executed through the unified VM. WHY:
+     parity, or broad runtime parity executed through the unified VM. When a
+     later boundary proof-pack child is evidence-only because failures are
+     already zero, append the exact proof commands and outcomes to the existing
+     evidence surface instead of changing runtime code: focused property-read
+     eligibility tests, property-read/indexed invocation tests, the full
+     unified production eligibility/invocation pack, the runner AST-seam scan,
+     and `rtk ./tools/profile forloop --memory`. Treat a 0 -> 0 failure delta
+     as boundary stability evidence, not as proof of a new optimization. WHY:
      issue #2313 / PR #2319 was an evidence-only profile pass after
      property-read production routing became executable; the accepted note
      distinguished the historical 2026-05-26 `1735 ms` baseline from current
      2026-05-27 `1012`/`1035 ms` rows, and constrained claims to the proven
      first-boundary named/computed routing because the workload can still
-     include fallback or declined shapes.
+     include fallback or declined shapes. Faktorial issue
+     `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-5-evi-25c34c1968`
+     / PR #2337 repeated that evidence-only pattern for a batch-5 boundary
+     proof pack: the correct durable artifact was a proof transcript with
+     allocation-stability wording, not an engine change.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

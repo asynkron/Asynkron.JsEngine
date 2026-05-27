@@ -218,10 +218,7 @@ public static partial class TypedAstEvaluator
                 var sibling = _sibling;
 
                 // Clear state before execution
-                _executor = null;
-                _resolve = null;
-                _reject = null;
-                _sibling = null;
+                ClearState();
 
                 var value = args.Count > 0 ? args[0] : JsValue.Undefined;
                 var mode = isRejection
@@ -240,10 +237,7 @@ public static partial class TypedAstEvaluator
                         RejectedPool.Return(this);
                         if (sibling is not null)
                         {
-                            sibling._executor = null;
-                            sibling._resolve = null;
-                            sibling._reject = null;
-                            sibling._sibling = null;
+                            sibling.ClearState();
                             FulfilledPool.Return(sibling);
                         }
                     }
@@ -252,16 +246,21 @@ public static partial class TypedAstEvaluator
                         FulfilledPool.Return(this);
                         if (sibling is not null)
                         {
-                            sibling._executor = null;
-                            sibling._resolve = null;
-                            sibling._reject = null;
-                            sibling._sibling = null;
+                            sibling.ClearState();
                             RejectedPool.Return(sibling);
                         }
                     }
                 }
 
                 return JsValue.Undefined;
+            }
+
+            private void ClearState()
+            {
+                _executor = null;
+                _resolve = null;
+                _reject = null;
+                _sibling = null;
             }
 
             public static (AsyncResumeCallback fulfilled, AsyncResumeCallback rejected) Rent(

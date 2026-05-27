@@ -65,12 +65,14 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Runner symbol stores are now explicitly JsValue-native under ADR 0203, removing the private `object?` compatibility seam and keeping intentional state-object wrapping local at callsites (`docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Helpers.cs`).
 - Direct-eval program-cache follow-through now includes a lock-free last-entry cache in front of the bounded LRU; selected `activation-evalscope-lite` evidence shows a large median reduction while remaining activation/environment overhead is still tracked as follow-up (`docs/performance/activation-evalscope-eval-program-last-entry-cache.md`, `src/Asynkron.JsEngine/EvalHostFunction.cs`).
 - Async generators still carry a known weaker seam: invoker wiring currently runs through a sync-generator IR step wrapper with ThreadStatic resume callback caches; this remains a bounded follow-up surface rather than a settled runtime contract (`src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs`).
+- Recent failed-trial documentation now explicitly captures two open optimization seams so recurring passes can stay evidence-first: `simplearithmetic` ProfileRunner/benchmark-shape parity and `classdef` constructor/`super(...)` dispatch follow-through (`docs/performance/failed-simplearithmetic-profiler-sync-evaluate-trials.md`, `docs/performance/failed-classdef-homeobject-and-construct-trials.md`, [#2281](https://github.com/asynkron/Asynkron.JsEngine/issues/2281), [#2282](https://github.com/asynkron/Asynkron.JsEngine/issues/2282)).
 
 ### What Works Worse
 - Statement execution still relies on record-backed `ExecutionPlan.Instructions`; compact statement storage is diagnostics-oriented rather than runtime-active today.
 - Unsupported statement-family buckets remain in migration diagnostics, so compact runtime-routing and record-backed removal are not yet low-risk.
 - Dynamic/eval seams and activation-sensitive behavior still require careful handling to avoid correctness regressions while optimizing hot paths.
 - Async-generator resume flow still depends on a sync-generator IR wrapper seam and ThreadStatic callback cache ownership, so full async-generator IR support is not complete yet.
+- ProfileRunner `simplearithmetic` still needs explicit workload-shape parity against `benchmark.sh` before reduction claims are treated as durable.
 
 ### What Could Improve Next
 - Continue lowering-time normalization in the unsupported statement families so more instruction shapes become execution-ready without mixed AST/IR fallback seams.
@@ -111,8 +113,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 31. Continue direct-eval follow-through after the eval program-cache and last-entry-cache slices by reducing remaining `activation-evalscope-lite` activation/environment overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2257](https://github.com/asynkron/Asynkron.JsEngine/issues/2257); prior related slices in [#2228](https://github.com/asynkron/Asynkron.JsEngine/issues/2228) and baseline context in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
 32. Continue ADR 0184 stringops split/join consumer follow-through by reducing remaining consumer materialization overhead with comparable selected-profile before/after rows and semantics-first fallback proof (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
 33. Preserve the unified bytecode production-routing boundary from ADR 0210 while widening sync-production eligibility only through narrow parity/profile-proven selector expansions beyond the current accepted opcode/control-flow subset (tracked in [#2256](https://github.com/asynkron/Asynkron.JsEngine/issues/2256); prior related slices in [#2227](https://github.com/asynkron/Asynkron.JsEngine/issues/2227), with control-flow prototype boundary context in [#2182](https://github.com/asynkron/Asynkron.JsEngine/issues/2182), current production evidence in `docs/performance/unified-bytecode-branch-production-routing.md`, and `==` widening evidence captured in ADR 0210).
-34. Reduce remaining `classdef` constructor and `super(...)` dispatch cost in one narrow evidence-backed slice while preserving ADR 0193 super-guarded activation boundaries (tracked in [#2183](https://github.com/asynkron/Asynkron.JsEngine/issues/2183)).
+34. Reduce remaining `classdef` constructor and `super(...)` dispatch cost in one narrow evidence-backed slice while preserving ADR 0193 super-guarded activation boundaries (tracked in [#2183](https://github.com/asynkron/Asynkron.JsEngine/issues/2183); failed-trial follow-through task in [#2282](https://github.com/asynkron/Asynkron.JsEngine/issues/2282)).
 35. Continue Intl/stdlib brand-helper cleanup after ADR 0196 by removing remaining private object-carrier overload use in one bounded helper cluster with focused Intl regression proof (tracked in [#2202](https://github.com/asynkron/Asynkron.JsEngine/issues/2202)).
+36. Align ProfileRunner `simplearithmetic` workload shape with `benchmark.sh` and isolate remaining IIFE overhead before claiming further simplearithmetic reductions (tracked in [#2281](https://github.com/asynkron/Asynkron.JsEngine/issues/2281)).
 
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
@@ -147,6 +150,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/activation-arguments-breakable-stack-presizing.md`
   - `docs/performance/activation-evalscope-eval-program-cache.md`
   - `docs/performance/activation-evalscope-eval-program-last-entry-cache.md`
+  - `docs/performance/failed-simplearithmetic-profiler-sync-evaluate-trials.md`
+  - `docs/performance/failed-classdef-homeobject-and-construct-trials.md`
   - `docs/unsupported-expression-program-backlog-2026-05-21.md`
 - Storage/semantics guardrail ADRs for hot-path follow-through:
   - `docs/adrs/0103-keep-array-dense-writes-storage-owned.md`

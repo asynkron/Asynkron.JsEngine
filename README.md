@@ -89,6 +89,11 @@ Runs the Node-shaped host sample that exposes a small `require(...)` module surf
 
 ## Building and Testing
 
+Prerequisite: install a .NET 10 SDK before running repo build commands. The
+engine, internal tests, and profiling tooling currently target `net10.0`.
+After SDK setup, run `rtk make help` to list canonical entrypoints and
+`rtk make quality` for the default local quality gate.
+
 ```bash
 # Canonical local quality gate
 rtk make quality

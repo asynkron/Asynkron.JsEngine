@@ -82,3 +82,47 @@ Reference surfaces:
 
 This note records measured benchmark/profile rows and routing constraints only.
 It does not claim Node.js parity or broad runtime wins beyond these captured rows.
+
+## Batch-5 property-read boundary proof pack (issue child run)
+
+Run timestamp (UTC): 2026-05-27T08:30:58Z
+Issue: `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-5-evi-25c34c1968`
+
+Commands and outcome:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~PropertyRead"
+```
+
+Result: `18 tests passed`.
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&(FullyQualifiedName~PropertyRead|FullyQualifiedName~IndexedReads)"
+```
+
+Result: `18 tests passed`.
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"
+```
+
+Result: `89 tests passed`.
+
+```bash
+rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*
+```
+
+Result: no matches.
+
+```bash
+rtk ./tools/profile forloop --memory
+```
+
+Result excerpt:
+
+```text
+Metric          Value
+Total allocated 6.80 MB
+```
+
+Allocation interpretation for this evidence run: allocation-stable for the route under this proof pack, with no new allocator regression signal in the captured output.

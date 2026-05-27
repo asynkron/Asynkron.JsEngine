@@ -470,6 +470,88 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyReadInsideBranch_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readWhen(flag, box) {
+                if (flag) {
+                    return box.value;
+                }
+
+                return 0;
+            }
+
+            readWhen(true, { value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readWhen argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyReadWithCanonicalLoopShape_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readAfterLoop(box, count) {
+                while (count > 0) {
+                    count = count - 1;
+                }
+
+                return box.value;
+            }
+
+            readAfterLoop({ value: 42 }, 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readAfterLoop argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData(
+        """
+        function readAt(values) {
+            return values[1];
+        }
+
+        readAt([10, 32]);
+        """,
+        "readAt",
+        32d)]
+    [InlineData(
+        """
+        function charAt(value) {
+            return value[1];
+        }
+
+        charAt("xyz");
+        """,
+        "charAt",
+        "y")]
+    public async Task IndexedReads_UseUnifiedBytecodeProductionFastPathWhenAdmitted(
+        string source,
+        string functionName,
+        object expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName} argc=1",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [MemberData(nameof(UnsupportedControlFlowFunctions))]
     public async Task UnsupportedControlFlowShapes_DeclineUnifiedBytecodeAndFallBack(
@@ -520,6 +602,77 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [Theory(Timeout = 5000)]
     [InlineData(
         """
+        function callMember(box) {
+            return box.read();
+        }
+
+        callMember({ read() { return 3; } });
+        """,
+        "callMember",
+        3d)]
+    [InlineData(
+        """
+        function assignMember(box) {
+            box.value = 9;
+            return box.value;
+        }
+
+        assignMember({ value: 1 });
+        """,
+        "assignMember",
+        9d)]
+    [InlineData(
+        """
+        function updateMember(box) {
+            box.value++;
+            return box.value;
+        }
+
+        updateMember({ value: 1 });
+        """,
+        "updateMember",
+        2d)]
+    [InlineData(
+        """
+        function deleteMember(box) {
+            delete box.value;
+            return "value" in box ? 1 : 0;
+        }
+
+        deleteMember({ value: 1 });
+        """,
+        "deleteMember",
+        0d)]
+    [InlineData(
+        """
+        class Base {
+            get value() { return 2; }
+        }
+
+        class Derived extends Base {
+            readViaSuperBoundary() { return super.value; }
+        }
+
+        function readSuper() {
+            return new Derived().readViaSuperBoundary();
+        }
+
+        readSuper();
+        """,
+        "readViaSuperBoundary",
+        2d)]
+    [InlineData(
+        """
+        function readThis() {
+            return this.value;
+        }
+
+        readThis.call({ value: 7 });
+        """,
+        "readThis",
+        7d)]
+    [InlineData(
+        """
         function readOptional(box) {
             return box?.value;
         }
@@ -539,10 +692,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readDynamic",
         2d)]
-    public async Task UnsupportedPropertyReadVariants_DeclineUnifiedBytecodeAndFallBack(
+    public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
-        double expected)
+        object expected)
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(source);

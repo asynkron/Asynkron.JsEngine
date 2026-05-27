@@ -40,6 +40,15 @@ made explicit with `JsValue.FromObjectUnsafe(this)` instead of preserving
 `Value = this`. That kept async-generator prototype wiring on the same
 core-runtime descriptor contract while leaving descriptor attributes unchanged.
 
+Issue `autrun-ditb0akizpyw-733760a3b3` / PR #2331 applied the same decision to
+`JsEngine` global bootstrap descriptors for `Array`, `BigInt`, `Infinity`,
+`NaN`, and `undefined`. Those descriptors mirror globals already registered via
+`SetGlobal(...)`, but the follow-up `DefineProperty(...)` calls still create
+core JavaScript data descriptors. The accepted slice moved only those five
+initializers to `JsValue = ...`, preserved writable/enumerable/configurable
+attributes exactly, and kept strict obsoletion of the compatibility setter out
+of scope.
+
 Issue #2052 / PR #2060 applied the same descriptor contract to the `JsArray`
 length owner surface under ADR 0114. Even though `JsArray.SetLength` was already
 `JsValue`-native, fallback and initial length descriptors still used
@@ -78,6 +87,9 @@ For descriptor cleanup slices:
   explicitly accepts the full caller migration.
 - Generated-code or broad standard-library callsite exposure is a scope signal,
   not a reason to abandon typed descriptor migration.
+- Global bootstrap descriptors in `JsEngine` follow the same rule as
+  standard-library metadata descriptors; duplicated `SetGlobal(...)` plus
+  `DefineProperty(...)` setup is not a host-interop boundary.
 - Descriptor cleanup can be required next to an already typed helper boundary;
   a `JsValue` helper signature does not prove the helper body has no
   compatibility setter sink.

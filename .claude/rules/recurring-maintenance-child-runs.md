@@ -46,6 +46,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   marker can send an otherwise-correct bounded rule update back to build.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
+- When a docs-only recurring child adds Mermaid diagrams, validate only the
+  extracted Mermaid fence bodies with a focused parser/renderer check when that
+  tool is available. Use temporary `.mmd` inputs rather than fragile shell
+  extraction forms, and do not treat generic markdownlint output as a source
+  blocker unless this repo has configured markdownlint as a required gate.
 - If canonical quality verification reports a recurring-child docs or rule
   slice as failed but the available log is truncated or lacks a concrete
   file/line diagnostic, treat it as a verification-context gap first. Re-run
@@ -240,6 +245,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before editing, use file-level line-count evidence for the deleted slice, and
   treat a focused filter with no remaining matching tests as confidence that no
   compiled test contract was removed, not as a behavioral regression proof.
+- If the code-reduction slice targets a top-level scratch playground project,
+  first prove it is absent from solution files, maintained docs, scripts, and
+  external references. When deleting it, remove paired `InternalsVisibleTo`
+  grants and tracked generated or binary artifacts in the same slice; do not
+  leave orphaned internal-access grants or delete maintained `examples/` or
+  `tools/` entries by analogy.
 - If the code-reduction slice targets an active scratch or debug smoke test
   with no assertions, delete it only after proving it is output-only or
   non-owning and naming the maintained owner coverage that remains. Do not
@@ -422,6 +433,15 @@ Makefile maintenance should keep `make help` as the discoverable target list
 and only update the build/test playbook as a pointer unless command behavior is
 the selected slice.
 
+Issue `autrun-ditb2qor9jzc-2ff03f0be6` / PR #2332 refreshed
+`docs/dreaming.md` with Mermaid diagrams. Review proved the diagrams only after
+writing the fenced bodies to explicit `/tmp/*.mmd` files; an earlier process
+substitution check reached Mermaid CLI as empty input, and default
+markdownlint-cli output produced style noise even though the repo does not name
+markdownlint as a gate. Future docs-only Mermaid slices should validate the
+diagram syntax directly and keep optional generic markdown style output from
+becoming source churn.
+
 Issue #2292 / PR #2300 closed the adjacent first-time setup prerequisite drift:
 `README.md` showed the canonical local quality gate but did not tell operators
 to install a .NET 10 SDK even though the engine, internal tests, and profiling
@@ -537,6 +557,14 @@ evidence-only, recorded that only this active Code reduction child overlapped
 the slice, and kept the delivery PR lifecycle intact. Future recurring
 code-reduction re-entries should repair missing sibling/no-overlap evidence in
 the handoff instead of making another source change.
+
+Issue `autrun-ditawgqprig0-51fe82c197` / PR #2330 removed the unused top-level
+`playground/` project, scratch probes, a tracked binary, and the paired
+`InternalsVisibleTo("Playground")` grant after investigation proved the surface
+was absent from the solution and maintained references. The durable lesson is
+that an internal-access grant for a proven-dead scratch project is part of the
+dead surface; future code-reduction children should remove both together and
+record final absence evidence.
 
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,

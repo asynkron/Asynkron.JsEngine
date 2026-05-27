@@ -3,155 +3,156 @@
 Date: 2026-05-27
 
 ## Why this document exists
-This is the architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET. It describes the target product/system shape first, then modules, components, and subcomponents. It complements the roadmap by keeping long-lived intent explicit.
+This is the architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET. It keeps the who/what/why explicit:
+- Who: maintainers making recurring optimization and compatibility decisions.
+- What: a coherent target runtime architecture from system level down to subcomponents.
+- Why: avoid local wins that fragment semantics, runtime boundaries, or evidence discipline.
 
-## Short critique of current documentation state
-Before this file, the repository had a detailed roadmap and architecture deep dive but no dedicated dream document. That made it easy to accumulate optimization slices and ADR boundaries without a single top-down destination map. The risk is a technically rich ledger of improvements that drifts from product-level coherence.
+## Critique of the current dream state
+The repository has strong evidence artifacts (ADR boundaries, profile notes, roadmap updates), but historically lacked one durable architecture destination that is easy to reason from top-down. Without that destination, there is a real risk of:
+- slice-level optimization progress without a shared product/runtime narrative,
+- over-rotation into diagnostics/storage implementation details,
+- accidental overclaiming (for example around Node parity, compact statement bytecode runtime use, or async-generator maturity).
+
+This document intentionally fixes that gap.
 
 ## Product dream
-Asynkron.JsEngine is a standards-first, production-grade JavaScript runtime for .NET with:
-- broad ECMAScript compatibility (including long-tail semantics, not just happy paths)
-- predictable Node.js-style host integration and module behavior
-- evidence-driven performance that stays competitive under real workloads
-- explicit architectural boundaries that allow aggressive optimization without semantic regressions
+Asynkron.JsEngine should be a standards-first, production-grade JavaScript runtime on .NET that is:
+- compatibility-driven (long-tail semantics, not only happy-path JavaScript),
+- host-practical (Node-style integration surfaces with explicit compatibility boundaries),
+- performance-evidenced (CPU/allocation wins must be measurable and repeatable),
+- architecture-governed (each optimization belongs to a clearly owned runtime boundary).
 
-## System dream (top-level modules)
-1. Language Frontend
-2. Compiler Pipeline
-3. Execution Runtime
-4. Async and Concurrency Runtime
-5. Module and Host Interop Runtime
-6. Standard Library and Built-ins
-7. Observability, Testing, and Performance Governance
+## System architecture (top-down)
+```mermaid
+flowchart TD
+    A[Developer / Host App] --> B[Source + Host API Calls]
+    B --> C[Language Frontend]
+    C --> D[Compiler Pipeline]
+    D --> E[Execution Runtime]
+    E --> F[Async & Concurrency Runtime]
+    E --> G[Module & Host Interop Runtime]
+    E --> H[StdLib & Built-ins]
+    F --> I[Promise/Microtask/Timer Scheduling]
+    G --> J[ESM/dynamic import/host bridge]
+    H --> K[Objects/Arrays/RegExp/Intl/Temporal]
+    C --> L[Diagnostics + Semantic Validation]
+    D --> M[IR + Expression Bytecode Artifacts]
+    E --> N[Completion Flow + Environment/Slots]
+    L --> O[Observability, Testing, Profiling Governance]
+    M --> O
+    N --> O
+```
 
-## 1) Language Frontend
-### Goal
-Turn source text into typed semantic structures with strict, deterministic parse/analyze behavior.
+## Runtime module decomposition
+```mermaid
+graph LR
+    subgraph Frontend[1. Language Frontend]
+        F1[Lexer]
+        F2[Parser]
+        F3[Typed AST + static semantics]
+    end
 
-### Components
-- Lexer and tokenization
-- Parser and typed immutable AST
-- Early strictness/module rule validation
-- AST-local semantic caches
+    subgraph Compiler[2. Compiler Pipeline]
+        C1[Statement IR lowering]
+        C2[ExpressionProgram lowering]
+        C3[Plan eligibility + fallback classification]
+        C4[Slot/layout assignment]
+    end
 
-### Subcomponents
-- token scanning for strings/regex/templates and diagnostics
-- parse pipelines for program/statement/expression/function/class
-- static semantic analysis for hoisting, bindings, and dynamic-scope risk flags
-- reusable AST cache entries for repeated compile/execution paths
+    subgraph Exec[3. Execution Runtime]
+        E1[ExecutionPlan runner]
+        E2[Expression interpreter]
+        E3[Environment + slots]
+        E4[Completion/abrupt flow]
+        E5[Dynamic/eval fallback seams]
+    end
 
-## 2) Compiler Pipeline
-### Goal
-Lower typed AST into execution artifacts designed for predictable performance.
+    subgraph Async[4. Async & Concurrency]
+        A1[Promise jobs + microtasks]
+        A2[Await scheduling/resume]
+        A3[Async generator state/resume]
+    end
 
-### Components
-- Statement IR lowering
-- Expression bytecode lowering (`ExpressionProgram` + `ExpressionOp`)
-- Plan eligibility and fallback classification
-- Static slot/layout assignment
+    subgraph Host[5. Module & Host Interop]
+        H1[Module registry + instantiate/evaluate]
+        H2[dynamic import + import.meta]
+        H3[Host callable bridge + globals]
+    end
 
-### Subcomponents
-- `ExecutionPlanBuilder` + statement-family emitters
-- expression compiler for stack-machine payloads and pool packing
-- control-flow and completion-shape lowering
-- flat-slot mapping and layout identity
-- unsupported-family diagnostics and migration backlog tracking
+    subgraph Std[6. Standard Library & Built-ins]
+        S1[JsValue/JsObject/descriptors]
+        S2[Array/String/Promise/Proxy/Intl]
+        S3[Typed collections + regexp]
+    end
 
-## 3) Execution Runtime
-### Goal
-Execute proven-safe plans on a VM-like path, while preserving exact JavaScript semantics where fallback is required.
+    subgraph Gov[7. Governance]
+        G1[Test262 + focused packs]
+        G2[make quality + deterministic test surfaces]
+        G3[ProfileRunner + benchmark matrix]
+        G4[ADR + roadmap sync discipline]
+    end
 
-### Components
-- ExecutionPlan runner VM
-- Expression bytecode interpreter
-- Environment/slot machinery
-- Completion and abrupt-flow machinery
-- Dynamic/eval fallback path
+    Frontend --> Compiler --> Exec
+    Exec --> Async
+    Exec --> Host
+    Exec --> Std
+    Frontend --> Gov
+    Compiler --> Gov
+    Exec --> Gov
+    Async --> Gov
+    Host --> Gov
+    Std --> Gov
+```
 
-### Subcomponents
-- instruction dispatch and hot-path handlers
-- bytecode stack, flags, and assignment-reference side state
-- lexical/variable/object environment composition
-- return/throw/break/continue/finally restart handling
-- safety-gated AST eval seams for dynamic `with`/direct `eval`/unsupported surfaces
+## Module details (system to subcomponents)
+### 1) Language Frontend
+Goal: deterministic source-to-semantics transformation.
+- Components: lexer/tokenizer, parser, typed immutable AST, strict/module rule validation.
+- Subcomponents: regex/template scanning, hoisting/binding analysis, dynamic-scope risk flags.
 
-## 4) Async and Concurrency Runtime
-### Goal
-Provide reliable promise, microtask, timer, and generator behavior with deterministic scheduling contracts.
+### 2) Compiler Pipeline
+Goal: lower typed AST into execution artifacts with predictable behavior and cost.
+- Components: statement IR lowering, expression bytecode lowering, eligibility/fallback classification, slot/layout assignment.
+- Subcomponents: `ExecutionPlanBuilder` family emitters, `ExpressionProgram`/`ExpressionOp` packing, completion-shape lowering, diagnostics for unsupported families.
 
-### Components
-- Promise jobs and microtask queue
-- async function and async generator execution machinery
-- await scheduling and resume routing
-- timer/event-queue host bridge
+### 3) Execution Runtime
+Goal: run safe plans on fast paths while preserving semantics through explicit fallback seams.
+- Components: ExecutionPlan VM runner, expression interpreter, environment/slot machinery, completion flow machinery, dynamic/eval seams.
+- Subcomponents: instruction dispatch, stack metadata (including short-circuit/assignment-reference side state), lexical/object environment composition, return/throw/break/continue/finally restart flow.
 
-### Subcomponents
-- `AwaitScheduler` and task/promise bridging
-- generator/async state carriers and resume modes
-- async-step orchestration for IR and fallback paths
-- callback surfaces for host-driven wakeups
+### 4) Async and Concurrency Runtime
+Goal: deterministic async behavior with clear scheduling and resume ownership.
+- Components: microtask queue, async function/async generator machinery, await resume routing, host wakeup bridge.
+- Subcomponents: scheduler contracts, resume-mode state carriers, callback ownership boundaries.
 
-## 5) Module and Host Interop Runtime
-### Goal
-Expose practical Node.js-style interoperability while keeping standards boundaries clear.
+### 5) Module and Host Interop Runtime
+Goal: practical module/runtime integration without blurring standards boundaries.
+- Components: ESM load/evaluate lifecycle, dynamic import and module registry, host function bridge, compatibility shims.
+- Subcomponents: `import.meta` ownership, JSON module handling, top-level await behavior boundaries, host error translation.
 
-### Components
-- ES module loading and evaluation
-- dynamic import and module registry
-- host function bridge and global registration APIs
-- compatibility shims for host packages
+### 6) Standard Library and Built-ins
+Goal: high-fidelity built-ins with runtime-owned semantics and safe fast paths.
+- Components: core value/object model, built-in constructors/prototypes, specialized runtime storage.
+- Subcomponents: descriptor semantics, strictness behavior, cross-realm/brand validation, JsValue-native helper surfaces in hot paths.
 
-### Subcomponents
-- module instantiate/evaluate lifecycle
-- import namespace and `import.meta` ownership
-- JSON module support and top-level await behavior
-- host callable adapters and error translation seams
+### 7) Observability, Testing, and Performance Governance
+Goal: make correctness and performance claims provable and repeatable.
+- Components: Test262 + focused packs, internal quality gate (`make quality`), profile/benchmark surfaces, ADR/roadmap governance.
+- Subcomponents: narrow proof packs, recurring profile loops, baseline/final signal reporting discipline.
 
-## 6) Standard Library and Built-ins
-### Goal
-Deliver high-fidelity built-in behavior with explicit semantics ownership and performance-safe fast paths.
+## Roadmap-aligned constraints (explicit current reality)
+This dream is aspirational and intentionally does not claim current full parity. Current roadmap constraints remain explicit:
+- Expression bytecode + IR direction is strong and active.
+- Statement instruction compact storage exists, but compact statement bytecode is not yet the runtime-active execution contract.
+- Dynamic/eval-sensitive seams still exist and must remain correctness-first.
+- Async-generator behavior remains a known weaker seam and needs dedicated follow-through.
+- Performance claims must stay evidence-first (profile/benchmark + focused proof packs), not inferred.
 
-### Components
-- core object model (`JsValue`, `JsObject`, descriptors/prototypes)
-- built-in constructors/prototypes (Array, String, Promise, Proxy, Intl, Temporal, etc.)
-- specialized storage/runtime types (arrays, typed arrays, regexp, maps/sets)
-
-### Subcomponents
-- JsValue-native helper surfaces on hot paths
-- descriptor/property semantics and strictness enforcement
-- built-in algorithm implementations with ADR-guarded behavior boundaries
-- cross-realm correctness and brand validation surfaces
-
-## 7) Observability, Testing, and Performance Governance
-### Goal
-Make optimization and compatibility work provable, repeatable, and regression-resistant.
-
-### Components
-- Test262 and focused regression packs
-- internal quality gate and deterministic build/test surfaces
-- profiling and benchmark infrastructure
-- ADR and roadmap evidence governance
-
-### Subcomponents
-- subsystem-focused proof packs and targeted reruns
-- canonical quality gate (`make quality`) for internal confidence
-- profile runner and benchmark matrix for CPU/allocation trends
-- architecture/roadmap/ADR sync discipline
-
-## Greenfield target vs current reality
-The target architecture is intentionally ambitious. Current repository evidence indicates important progress and explicit seams:
-- Strong current direction exists: typed AST + statement IR + expression bytecode fast path.
-- Unified bytecode production routing exists but is still bounded by eligibility/parity guardrails.
-- Dynamic/eval and unsupported statement families are still active constraints.
-- Async generator resume and related runtime seams remain known weak spots.
-- Performance progress is real but profile-owned; claims must remain evidence-backed and workload-specific.
-
-This means the dream is not "already done". It is a deliberate destination with explicit gap ownership.
-
-## Non-goals for this document
-- It does not claim current full production parity with Node.js.
-- It does not replace detailed ADR decisions, profile reports, or roadmap issue tracking.
-- It does not redefine current implementation constraints; it frames where those constraints should lead.
+## Non-goals
+- This is not a claim of full Node.js parity today.
+- This is not a replacement for ADRs, performance reports, or roadmap issue tracking.
+- This does not widen eligibility or remove fallback seams by itself; it defines the target shape those changes should converge toward.
 
 ## Operating principle
-Prefer architecture that keeps semantics explicit, optimization local, and evidence mandatory: every fast-path expansion should have a clear ownership boundary, focused proof coverage, and profile/test signals that justify its existence.
+Prefer architecture that keeps semantics explicit, optimization local, and evidence mandatory: every fast-path expansion should have clear ownership boundaries, focused proof coverage, and measured baseline/final signals.

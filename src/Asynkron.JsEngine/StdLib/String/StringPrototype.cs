@@ -1489,15 +1489,15 @@ public sealed partial class StringPrototype
 
         // Set proper function metadata per spec
         nextFunc.DefineProperty("length",
-            new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = JsValue.FromDouble(0d), Writable = false, Enumerable = false, Configurable = true });
         nextFunc.DefineProperty("name",
-            new PropertyDescriptor { Value = "next", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = JsValue.FromString("next"), Writable = false, Enumerable = false, Configurable = true });
 
         proto.SetProperty("next", (JsValue)nextFunc);
 
         // Set @@toStringTag
         proto.DefineProperty(SymbolKeys.ToStringTag,
-            new PropertyDescriptor { Value = "String Iterator", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = JsValue.FromString("String Iterator"), Writable = false, Enumerable = false, Configurable = true });
 
         // Chain to %IteratorPrototype% if available
         if (Realm?.IteratorPrototype is not null)

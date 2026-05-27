@@ -7,6 +7,26 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class PendingAsyncWorkTrackingTests
 {
     [Fact(Timeout = 10000)]
+    public async Task Evaluate_SynchronousProgram_CompletesWithoutStartingEventLoop()
+    {
+        await using var engine = new JsEngine();
+
+        var engineType = typeof(JsEngine);
+        var eventQueueField = engineType.GetField("_eventQueue", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(eventQueueField);
+
+        var parsed = engine.ParseProgram("let x = 1 + 2; x;");
+        var task = engine.Evaluate(parsed);
+
+        Assert.True(task.IsCompletedSuccessfully);
+        Assert.Null(eventQueueField.GetValue(engine));
+
+        var result = await task;
+        var number = Assert.IsType<double>(result);
+        Assert.Equal(3d, number);
+    }
+
+    [Fact(Timeout = 10000)]
     public async Task TrackPendingAsyncWork_CompletedTask_DoesNotStartEventLoopOrIncrementPendingCount()
     {
         await using var engine = new JsEngine();

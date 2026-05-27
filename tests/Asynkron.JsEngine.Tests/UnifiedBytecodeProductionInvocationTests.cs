@@ -638,6 +638,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=sloppyWrite argc=2",
                 StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=strictWrite argc=2",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -665,14 +669,18 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 return 9;
             }
 
-            function write(box, key) {
-                return box[key] = rhs();
+            function write(box, key, value) {
+                return box[key] = value;
             }
 
-            String(write(box, key)) + ":" + events.join(",");
+            String(write(box, key, rhs())) + ":" + events.join(",");
             """);
 
         Assert.Equal("9:rhs,key,set:value:9", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

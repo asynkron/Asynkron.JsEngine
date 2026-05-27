@@ -386,6 +386,29 @@ internal static class UnifiedBytecodeCompiler
                         reason = string.Empty;
                         return true;
 
+                    case EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } discard:
+                        if (!IsDirectiveLiteralDiscard(discardedProgram))
+                        {
+                            reason =
+                                "Unsupported discarded expression in unified bytecode plan; only directive string literal discards are allowed.";
+                            return false;
+                        }
+
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                discard.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = discard.Next;
+                        continue;
+
                     default:
                         reason = $"Unsupported instruction in unified bytecode plan: {instructions[instructionIndex].GetType().Name}.";
                         return false;
@@ -660,6 +683,18 @@ internal static class UnifiedBytecodeCompiler
 
         reason = string.Empty;
         return true;
+    }
+
+    private static bool IsDirectiveLiteralDiscard(ExpressionProgram expressionProgram)
+    {
+        if (expressionProgram.OperationCount != 1)
+        {
+            return false;
+        }
+
+        var operation = expressionProgram.GetOperation(0);
+        return operation.Kind == ExpressionOpKind.LoadLiteral &&
+               operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan()).Kind == JsValueKind.String;
     }
 
     private static void PatchOperand(

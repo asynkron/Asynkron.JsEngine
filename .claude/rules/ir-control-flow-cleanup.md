@@ -67,6 +67,14 @@ scope cleanup chains.
     exit restores the shadowed outer binding. Do not flatten the head binding
     into the outer scope or treat test/increment expressions as outside the
     loop-head environment to fix a close/cleanup symptom.
+13. When eliding or reusing classic `for (let ...)` loop-scope environments,
+    keep the optimization plan-proven and closure-conservative. The eligible
+    fast path must come from lowering/plan metadata, not benchmark names,
+    source text, or runtime inference, and it must stay off for direct eval,
+    `with`, suspension, destructuring, multi-binding initializers, condition
+    prologues, or any closure-bearing syntax. Treat `ClassDeclaration` as
+    closure-bearing because class methods can capture the loop binding, just
+    like class expressions.
 
 ## Why
 
@@ -139,3 +147,13 @@ the classic `for` loop-head lexical binding as the captured environment for
 closures created in condition, increment, and body, and separately prove that
 the outer binding is restored after exit. Related ADR:
 `docs/adrs/0130-keep-for-statement-lexical-head-closures-bound-to-loop-head.md`.
+
+Issue #2402 / PR #2412 retained a narrow `activation-arguments-lite`
+performance win by eliding the extra parent loop-scope environment only for a
+plan-proven non-capturing `for (let ...)` shape. Review then found that
+`InnerFunctionBlockDetector` skipped `ClassDeclaration`, so a class method that
+captured the loop binding observed `3` instead of the expected final
+per-iteration value `2`. The repair made class declarations closure-bearing and
+added `SyncForLoop_ClassDeclarationMethodCapture_KeepsParentLoopScope`.
+Related ADR:
+`docs/adrs/0239-keep-noncapturing-for-let-loop-scope-elision-plan-proven.md`.

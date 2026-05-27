@@ -214,7 +214,7 @@ public sealed class JsRegExp
         if (existingObject is null)
         {
             JsObject.DefineProperty("lastIndex",
-                new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+                new PropertyDescriptor { JsValue = JsValue.FromDouble(0d), Writable = true, Enumerable = false, Configurable = false });
         }
 
         if (_anchoredPropertyEscapeMatcher is not null)

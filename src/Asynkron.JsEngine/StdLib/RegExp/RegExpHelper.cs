@@ -31,7 +31,7 @@ public static class RegExpHelper
             if (lastIndexDescriptor is null)
             {
                 target.DefineProperty("lastIndex",
-                    new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+                    new PropertyDescriptor { JsValue = JsValue.FromDouble(0d), Writable = true, Enumerable = false, Configurable = false });
             }
 
             return target;
@@ -65,7 +65,7 @@ public static class RegExpHelper
             if (lastIndexDescriptor is null)
             {
                 target.DefineProperty("lastIndex",
-                    new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+                    new PropertyDescriptor { JsValue = JsValue.FromDouble(0d), Writable = true, Enumerable = false, Configurable = false });
             }
 
             return target;

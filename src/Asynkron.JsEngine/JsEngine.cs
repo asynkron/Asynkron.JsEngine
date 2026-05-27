@@ -1907,7 +1907,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         entry.Evaluating = true;
         try
         {
-            entry.LastValue = JsValue.FromObjectUnsafe(ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path));
+            entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
             entry.Evaluated = true;
         }
         finally
@@ -1921,7 +1921,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     {
         if (entry.Evaluated)
         {
-            return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue.ToObject()));
+            if (entry.EvaluationTask is not null)
+            {
+                return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+            }
+
+            return entry.LastValue.ToObject();
         }
 
         EnsureModuleInstantiated(entry);
@@ -1932,15 +1937,25 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             if (entry.Evaluating)
             {
-                return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue.ToObject()));
+                if (entry.EvaluationTask is not null)
+                {
+                    return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+                }
+
+                return entry.LastValue.ToObject();
             }
 
             entry.Evaluating = true;
             try
             {
-                entry.LastValue = JsValue.FromObjectUnsafe(ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path));
+                entry.LastValue = ExecuteModuleBody(entry.Program, entry.Environment, entry.Exports, entry.Path);
                 entry.Evaluated = true;
-                return await (entry.EvaluationTask ?? Task.FromResult(entry.LastValue.ToObject()));
+                if (entry.EvaluationTask is not null)
+                {
+                    return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
+                }
+
+                return entry.LastValue.ToObject();
             }
             finally
             {
@@ -1958,20 +1973,21 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         if (!waitForAsync)
         {
-            return await entry.EvaluationTask;
+            return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
         }
 
         if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Never attempt to pump the event queue from within the event loop thread.
             // Callers running on the event loop must observe completion asynchronously.
-            return await entry.EvaluationTask;
+            return (await entry.EvaluationTask.ConfigureAwait(false)).ToObject();
         }
 
-        return await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken);
+        return (await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken).ConfigureAwait(false))
+            .ToObject();
     }
 
-    private async Task<object?> AwaitModuleEvaluationAsync(Task<object?> evaluationTask,
+    private async Task<JsValue> AwaitModuleEvaluationAsync(Task<JsValue> evaluationTask,
         CancellationToken cancellationToken,
         int callerEpoch = int.MaxValue)
     {
@@ -4164,7 +4180,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private object? ExecuteModuleBody(
+    private JsValue ExecuteModuleBody(
         ProgramNode typedProgram,
         JsEnvironment moduleEnv,
         JsObject exports,
@@ -4173,7 +4189,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     {
         var previousModulePath = _currentModulePath;
         _currentModulePath = modulePath;
-        object? lastValue = null;
+        var lastValue = JsValue.Undefined;
 
         // Increment module body execution depth to suppress microtask draining during body execution.
         // This ensures Promise.resolve().then() callbacks only run after the module body completes.
@@ -4211,7 +4227,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                         // so their evaluation is a no-op per ES spec
                         break;
                     default:
-                        lastValue = ExecuteTypedStatement(
+                        lastValue = ExecuteTypedStatementJsValue(
                             statement,
                             moduleEnv,
                             typedProgram.IsStrict,
@@ -4300,7 +4316,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return dependencies;
     }
 
-    private async Task DrainAsyncDependencies(List<Task<object?>> pendingAsyncDependencies, int maxEpoch = -1)
+    private async Task DrainAsyncDependencies(List<Task<JsValue>> pendingAsyncDependencies, int maxEpoch = -1)
     {
         while (pendingAsyncDependencies.Count > 0)
         {
@@ -4331,7 +4347,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         pendingAsyncDependencies.Clear();
     }
 
-    private async Task<object?> EvaluateModuleBodyWithAsyncDependencies(ModuleEntry entry)
+    private async Task<JsValue> EvaluateModuleBodyWithAsyncDependencies(ModuleEntry entry)
     {
         entry.Evaluating = true;
         try
@@ -4348,18 +4364,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             _currentModulePath = entry.Path;
             try
             {
-                var result = ExecuteModuleBody(
+                entry.LastValue = ExecuteModuleBody(
                     entry.Program,
                     entry.Environment,
                     entry.Exports,
                     entry.Path);
-                entry.LastValue = JsValue.FromObjectUnsafe(result);
                 entry.Evaluated = true;
 
                 // Now drain microtasks that were queued during the body execution
                 DrainMicrotasks(bodyEpoch);
 
-                return result;
+                return entry.LastValue;
             }
             finally
             {
@@ -4374,7 +4389,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task<object?> EvaluateModuleBodyWithTopLevelAwait(ModuleEntry entry)
+    private async Task<JsValue> EvaluateModuleBodyWithTopLevelAwait(ModuleEntry entry)
     {
         try
         {
@@ -4399,17 +4414,21 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         var moduleEpoch = MicrotaskEpoch;
         var maxDrainEpoch = moduleEpoch - 1;
 
-        var pendingAsyncDependencies = new List<Task<object?>>();
+        var pendingAsyncDependencies = new List<Task<JsValue>>();
         var dependencies = GetModuleDependencies(entry);
         for (var i = 0; i < dependencies.Count; i++)
         {
             var dependency = dependencies[i];
             EnsureModuleInstantiated(dependency);
             var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
-            var evaluation = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
+            _ = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
             if (isAsyncDependency)
             {
-                pendingAsyncDependencies.Add(evaluation);
+                if (dependency.EvaluationTask is not null)
+                {
+                    pendingAsyncDependencies.Add(dependency.EvaluationTask);
+                }
+
                 var nextIsAsync = i + 1 < dependencies.Count &&
                                   (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);
                 if (nextIsAsync)
@@ -4420,7 +4439,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 continue;
             }
 
-            await evaluation.ConfigureAwait(false);
+            if (dependency.EvaluationTask is not null)
+            {
+                await dependency.EvaluationTask.ConfigureAwait(false);
+            }
         }
 
         if (pendingAsyncDependencies.Count > 0)
@@ -4801,7 +4823,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         internal bool Instantiated { get; set; }
         internal bool Evaluated { get; set; }
         internal bool Evaluating { get; set; }
-        internal Task<object?>? EvaluationTask { get; set; }
+        internal Task<JsValue>? EvaluationTask { get; set; }
         internal AsyncModuleBodyRunner? AsyncBodyRunner { get; set; }
         internal ModuleNamespace? Namespace { get; set; }
         internal ModuleNamespace? DeferredNamespace { get; set; }
@@ -4878,7 +4900,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
 
         private readonly Stack<Action<ThrowSignal>> _asyncTryHandlers = new();
-        private readonly TaskCompletionSource<object?> _completion =
+        private readonly TaskCompletionSource<JsValue> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         private readonly JsEngine _engine;
@@ -4898,7 +4920,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             _entry = entry ?? throw new ArgumentNullException(nameof(entry));
         }
 
-        internal Task<object?> RunAsync()
+        internal Task<JsValue> RunAsync()
         {
             if (!_started)
             {
@@ -5111,7 +5133,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 _entry.Evaluating = false;
                 // Drain microtasks that were queued during this run
                 _engine.DrainMicrotasks(_runEpoch);
-                _completion.TrySetResult(_lastValue.ToObject());
+                _completion.TrySetResult(_lastValue);
             }
             catch (ThrowSignal signal)
             {

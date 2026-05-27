@@ -252,7 +252,15 @@ public sealed partial class ArrayPrototype
             var actualStart = ClampRelativeIndex(startIndex, length);
 
             var insertCount = argumentCount > 2 ? argumentCount - 2 : 0;
-            var actualDeleteCount = ComputeSpliceDeleteCount(args, argumentCount, length, actualStart, evalContext);
+            var hasDeleteCountArgument = argumentCount > 1;
+            var deleteCountValue = hasDeleteCountArgument ? args[1] : JsValue.Undefined;
+            var actualDeleteCount = ComputeSpliceDeleteCount(
+                hasStartArgument: argumentCount > 0,
+                hasDeleteCountArgument,
+                deleteCountValue,
+                length,
+                actualStart,
+                evalContext);
 
             var newLength = length - actualDeleteCount + insertCount;
             // ES spec step 8: If len + insertCount - actualDeleteCount > 2^53-1, throw a TypeError

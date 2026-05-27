@@ -205,6 +205,49 @@ public sealed class AdditionalArrayMethodsTests(ITestOutputHelper output) : Inte
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Array_ToSpliced_WithMissingDeleteCount_RemovesToEnd()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const arr = [1, 2, 3, 4];
+                                                       const spliced = arr.toSpliced(1);
+                                                       spliced.length === 1 &&
+                                                       spliced[0] === 1 &&
+                                                       arr.length === 4 &&
+                                                       arr[0] === 1 &&
+                                                       arr[1] === 2 &&
+                                                       arr[2] === 3 &&
+                                                       arr[3] === 4;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Array_ToSpliced_WithNoArguments_ReturnsCopyWithoutChanges()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const arr = [1, 2, 3, 4];
+                                                       const spliced = arr.toSpliced();
+                                                       spliced.length === 4 &&
+                                                       spliced[0] === 1 &&
+                                                       spliced[1] === 2 &&
+                                                       spliced[2] === 3 &&
+                                                       spliced[3] === 4 &&
+                                                       arr.length === 4 &&
+                                                       arr[0] === 1 &&
+                                                       arr[1] === 2 &&
+                                                       arr[2] === 3 &&
+                                                       arr[3] === 4;
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Array_ReflectConstruct_UsesNewTargetRealmPrototype()
     {
         await using var engine = CreateEngine();

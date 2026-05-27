@@ -193,12 +193,18 @@ public static partial class StandardLibrary
     }
 
     internal static long ComputeSpliceDeleteCount(
+        bool hasStartArgument,
         bool hasDeleteCountArgument,
         JsValue deleteCountValue,
         long length,
         long actualStart,
         EvaluationContext? context = null)
     {
+        if (!hasStartArgument)
+        {
+            return 0;
+        }
+
         if (!hasDeleteCountArgument)
         {
             return length - actualStart;

@@ -520,6 +520,25 @@ public sealed class ArrayBuiltinsSpecTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Array_splice_WithNoArguments_RemovesNothing()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            const arr = [1, 2, 3, 4];
+            const removed = arr.splice();
+            removed.length === 0 &&
+            arr.length === 4 &&
+            arr[0] === 1 &&
+            arr[1] === 2 &&
+            arr[2] === 3 &&
+            arr[3] === 4;
+        """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Array_slice_ThrowsTypeError_WhenResultIsNonExtensible()
     {
         // Test262: target-array-non-extensible.js

@@ -712,6 +712,7 @@ public sealed partial class ArrayPrototype
         var hasDeleteCountArgument = argumentCount > 1;
         var deleteCountValue = hasDeleteCountArgument ? args[1] : JsValue.Undefined;
         var actualDeleteCount = ComputeSpliceDeleteCount(
+            hasStartArgument: argumentCount > 0,
             hasDeleteCountArgument,
             deleteCountValue,
             length,

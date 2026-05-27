@@ -402,6 +402,10 @@ optimization.
      missed the required 10% win. Fix the profiler scope (`--wrap-iife` or an
      equivalent fresh lexical scope) or document an evidence-only failed attempt
      before retrying expression-bytecode or public evaluation API changes.
+     Issue #2278 / PR #2285 applied that fix for `tools/profile
+     simplearithmetic` and the `tools/profile all` Python fan-out by forwarding
+     `--wrap-iife`; keep that parity intact when changing profiler wrapper
+     argument construction.
      Related ADR:
      `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.
 
@@ -877,5 +881,7 @@ the benchmark table because it did not use the same IIFE wrapping for a
 top-level `let` workload. The durable lesson is that profiler-tool scope has to
 be made comparable before re-opening the `simplearithmetic` runtime boundary;
 otherwise agents can optimize exception/reporting noise instead of arithmetic
-execution. Related ADR:
+execution. Issue #2278 / PR #2285 made the wrapper comparable for
+`simplearithmetic` and `tools/profile all` by forwarding `--wrap-iife`; future
+wrapper changes must preserve that workload-shape parity. Related ADR:
 `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.

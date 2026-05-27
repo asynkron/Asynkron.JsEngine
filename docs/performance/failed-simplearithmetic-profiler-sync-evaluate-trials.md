@@ -98,3 +98,15 @@ optimizer work should first make the profiling evidence comparable to
 `benchmark.sh` by ensuring the profile runner uses the same IIFE wrapping for
 top-level `let` workloads, then re-run CPU profiles before touching expression
 bytecode or public evaluation APIs.
+
+## Follow-up: profile-wrapper parity fix
+
+Build slice `gh2278` aligns `tools/profile` with `benchmark.sh` for the
+selected `simplearithmetic` shape by forwarding `--wrap-iife` to ProfileRunner
+for this profile (including `tools/profile all`).
+
+Baseline timestamp: 2026-05-27T05:50:53Z
+Baseline signal: `rtk ./benchmark.sh simplearithmetic` Asynkron row = 268 ms (Jint 77 ms); `rtk ./tools/profile ...` runner invocation had no `--wrap-iife`
+Final timestamp: 2026-05-27T05:51:18Z
+Final signal: `rtk ./benchmark.sh simplearithmetic` Asynkron row = 286 ms (Jint 90 ms); `rtk ./tools/profile ...` runner invocation includes `--wrap-iife simplearithmetic`
+Signal delta: +18 ms Asynkron and +13 ms Jint in one focused sample (timing-noisy); profiler invocation parity changed from unwrapped to wrapped.

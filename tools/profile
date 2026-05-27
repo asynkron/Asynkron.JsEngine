@@ -89,10 +89,14 @@ run_profiler() {
 run_profile() {
   local profile_key=$1
   shift
+  local runner_args=()
+  if [[ "$profile_key" == "simplearithmetic" ]]; then
+    runner_args+=("--wrap-iife")
+  fi
   if [[ ${#engine_args[@]} -gt 0 ]]; then
-    run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "$profile_key"
+    run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "${runner_args[@]}" "$profile_key"
   else
-    run_profiler "$@" -- "${runner_cmd[@]}" "$profile_key"
+    run_profiler "$@" -- "${runner_cmd[@]}" "${runner_args[@]}" "$profile_key"
   fi
 }
 
@@ -363,6 +367,10 @@ def default_cpu_root_for_profile(profile_key: str) -> str:
     return ""
 
 for key in profiles:
+    runner_engine_args = [*engine_args]
+    if key == "simplearithmetic":
+        runner_engine_args.append("--wrap-iife")
+
     if default_split:
         cpu_args = [*profiler_args, "--cpu"]
         memory_args = [*profiler_args, "--memory"]
@@ -374,7 +382,7 @@ for key in profiles:
         if not has_filter:
             cpu_args.extend(["--filter", jsengine_scope])
         for mode_args in (cpu_args, memory_args):
-            cmd = [*profiler_cmd, *mode_args, "--", *runner_cmd, *engine_args, key]
+            cmd = [*profiler_cmd, *mode_args, "--", *runner_cmd, *runner_engine_args, key]
             subprocess.run(cmd, check=True, cwd=str(tools_dir))
     else:
         scoped_args = [*profiler_args]
@@ -387,7 +395,7 @@ for key in profiles:
                 scoped_args.extend(["--root", jsengine_scope])
         if has_cpu and not has_filter:
             scoped_args.extend(["--filter", jsengine_scope])
-        cmd = [*profiler_cmd, *scoped_args, "--", *runner_cmd, *engine_args, key]
+        cmd = [*profiler_cmd, *scoped_args, "--", *runner_cmd, *runner_engine_args, key]
         subprocess.run(cmd, check=True, cwd=str(tools_dir))
 PY
   exit 0

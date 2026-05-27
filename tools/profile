@@ -94,9 +94,9 @@ run_profile() {
     runner_args+=("--wrap-iife")
   fi
   if [[ ${#engine_args[@]} -gt 0 ]]; then
-    run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "${runner_args[@]}" "$profile_key"
+    run_profiler "$@" -- "${runner_cmd[@]}" "${engine_args[@]}" "${runner_args[@]+"${runner_args[@]}"}" "$profile_key"
   else
-    run_profiler "$@" -- "${runner_cmd[@]}" "${runner_args[@]}" "$profile_key"
+    run_profiler "$@" -- "${runner_cmd[@]}" "${runner_args[@]+"${runner_args[@]}"}" "$profile_key"
   fi
 }
 

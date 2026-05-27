@@ -197,6 +197,14 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   edit, pair it with a code-size signal such as `rtk cloc --vcs=git
   --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
   out of scope unless the exact deletion no longer compiles.
+- When a code-reduction slice targets a narrower branch after a broader value
+  predicate, first prove the broader predicate's exact semantics at the owning
+  runtime type, then delete only the now-unreachable branch. Issue
+  `autrun-dit71y9shmaw-7f32a188cb` / PR #2277 removed a
+  `prototypeValue.IsNull` branch after `prototypeValue.IsNullish` in static
+  super-binding resolution; the safe part was preserving the earlier guard,
+  caller contracts, and class static/super proof while removing only the
+  unreachable narrow branch.
 - If the code-reduction slice targets an empty conditional block, first prove
   the condition expression is metadata-only or otherwise side-effect-free, then
   delete only the empty block. Use a targeted before/after occurrence or

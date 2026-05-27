@@ -150,20 +150,29 @@ optimization.
      `JsObject.TryGetProperty` route may skip generic object-carrier dispatch
      only when it keeps the original `JsValue` receiver. `JsObject` may return a
      stored own property directly only when no accessor descriptor owns that
-     name; accessors, virtual providers, prototype traversal, non-`JsObject`
-     property accessors, primitive prototype reads, private-field boundaries,
-     and JavaScript throw propagation stay on semantic fallbacks. Compound `+=`
+     name. Receiver-aware stored-value helpers must be own-only unless they
+     explicitly carry and enforce the existing prototype-chain depth state; on a
+     miss, fall back to the semantic lookup path instead of recursing through a
+     public receiver overload that restarts `MaxPrototypeChainDepth`. Accessors,
+     virtual providers, prototype traversal, non-`JsObject` property accessors,
+     primitive prototype reads, private-field boundaries, and JavaScript throw
+     propagation stay on semantic fallbacks. Compound `+=`
      slot shortcuts that evaluate a property RHS must evaluate that RHS exactly
      once, handle pending awaits/throws through the existing runner paths, and
      use generic addition when the profiled direct add helper does not apply.
      Prove retained changes with repeated selected-profile timing and focused
-     tests for own data shadowing, prototype getter receiver binding, and getter
-     read count. WHY: issue `autrun-disqa6r1nle8-d1809e0cbe` / PR #2157 added
-     the `propertyaccess` named-read fast path after the hot subtree was
+     tests for own data shadowing, prototype getter receiver binding,
+     prototype-depth cutoff, and getter read count. WHY: issue
+     `autrun-disqa6r1nle8-d1809e0cbe` / PR #2157 added the `propertyaccess`
+     named-read fast path after the hot subtree was
      `HandleCompoundAssignmentSlot -> EvaluateExpressionProgram ->
      GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue ->
      JsObject.TryGetProperty*`; the win depended on ordinary-object and
-     own-data proofs, not a generic property cache.
+     own-data proofs, not a generic property cache. Issue
+     `autrun-ditg7nt935mg-6d4d6539dd` / PR #2367 caused the depth-cutoff rule
+     after review found a receiver helper that recursed through the public
+     overload and reset the prototype-depth guard on every ordinary `JsObject`
+     prototype miss.
 10b. For evidence-only `propertyaccess` or unified-bytecode property-read
      profile reports, use the canonical `tools/profile-manifest.json`
      `propertyaccess` entry and `tools/profile-scripts/propertyaccess.js`.
@@ -616,6 +625,16 @@ expression program. The durable lesson is that named-property read performance
 work must stay profile-owned, storage-owned, and receiver-preserving, with
 focused tests proving accessor/prototype/read-count semantics. Related ADR:
 `docs/adrs/0188-keep-named-property-read-fast-paths-storage-owned-and-receiver-preserving.md`.
+
+Issue `autrun-ditg7nt935mg-6d4d6539dd` / PR #2367 selected the same
+`propertyaccess` owner surface and retained a receiver-aware simple
+data-property read helper. Review repair found that letting the helper recurse
+through the public receiver overload on prototype misses reset
+`MaxPrototypeChainDepth` for each ordinary prototype. The durable lesson is
+that receiver fast paths may own direct stored own-property hits, but prototype
+traversal must stay on the depth-carrying semantic lookup unless a future helper
+proves an equivalent depth counter. Related ADR:
+`docs/adrs/0229-keep-receiver-data-property-fast-paths-own-only-and-depth-guarded.md`.
 
 Issue `autrun-diqzs4qq1p5s-4e9bf90752` / PR #1696 selected `json` from the
 benchmark table and proved the hot owner with a `json` CPU call tree:

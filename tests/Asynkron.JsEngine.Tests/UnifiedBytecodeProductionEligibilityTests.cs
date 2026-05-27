@@ -246,6 +246,68 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains("operator '+'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_StringConcatenationBinary_DeclinesAsPrototypeOnly()
+    {
+        var plan = GetFunctionPlan("""
+            function concatWithSuffix(value) {
+                return value + "!";
+            }
+            """,
+            "concatWithSuffix");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains("operator '+'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_CoercingComparisonBinary_DeclinesAsPrototypeOnly()
+    {
+        var plan = GetFunctionPlan("""
+            function compareUnknown(a, b) {
+                return a < b;
+            }
+            """,
+            "compareUnknown");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains("operator '<'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [MemberData(nameof(CompiledBinaryOperators))]
+    public void Evaluate_CompiledBinaryOperator_DeclinesAsPrototypeOnlyWithOperatorSpecificReason(
+        string functionName,
+        string expression,
+        string expectedOperatorToken)
+    {
+        var plan = GetFunctionPlan($$"""
+            function {{functionName}}(a, b) {
+                return a {{expression}} b;
+            }
+            """,
+            functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains($"operator '{expectedOperatorToken}'", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -291,6 +353,66 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyJumpOpcode, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_BranchWithBinaryCondition_DeclinesOnBinaryGateBeforeJumpGate()
+    {
+        var plan = GetFunctionPlan("""
+            function pickLess(a, b) {
+                if (a < b) {
+                    return a;
+                }
+
+                return b;
+            }
+            """,
+            "pickLess");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains("operator '<'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_WhileWithBinaryCondition_DeclinesOnBinaryGateBeforeJumpGate()
+    {
+        var plan = GetFunctionPlan("""
+            function lowerToLimit(n, limit) {
+                while (n >= limit) {
+                    n = n - 1;
+                }
+
+                return n;
+            }
+            """,
+            "lowerToLimit");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
+        Assert.Contains("operator '>='", result.Reason, StringComparison.Ordinal);
+    }
+
+    public static TheoryData<string, string, string> CompiledBinaryOperators =>
+        new()
+        {
+            { "add", "+", "+" },
+            { "subtract", "-", "-" },
+            { "multiply", "*", "*" },
+            { "divide", "/", "/" },
+            { "modulo", "%", "%" },
+            { "lessThan", "<", "<" },
+            { "lessThanOrEqual", "<=", "<=" },
+            { "greaterThan", ">", ">" },
+            { "greaterThanOrEqual", ">=", ">=" }
+        };
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

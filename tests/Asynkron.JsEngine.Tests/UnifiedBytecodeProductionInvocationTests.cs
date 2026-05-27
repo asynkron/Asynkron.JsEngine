@@ -91,6 +91,24 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BinaryComparisonFunction_DoesNotUseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function isLess(a, b) {
+                return a < b;
+            }
+
+            isLess(20, 22);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(true, result);
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallExpressionFunction_DeclinesUnifiedBytecodeAndFallsBack()
     {
         await using var engine = CreateEngine();

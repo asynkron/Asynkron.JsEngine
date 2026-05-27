@@ -150,6 +150,25 @@ all-or-nothing until a separate routing issue proves production readiness.
     build-back fix added selector and compiler guards plus focused
     `receiver.#field`, `receiver.#field = value`, and `receiver.#field++`
     declines.
+17. When proving strict-mode property writes or updates on the production
+    unified bytecode path, carry lexical strictness into the VM explicitly and
+    prove that the strict body actually logs
+    `unified-bytecode-production-fast-path`. The production bridge does not
+    create the normal function `JsEnvironment`, so property handle resolution
+    must not rely only on `context.CurrentScope.IsStrict`. Directive prologue
+    support in the compiler must stay no-op and narrow: only string-literal
+    `EvaluateAndDiscard` instructions may be skipped to reach the owned return
+    payload, while non-directive discarded expressions still decline before VM
+    execution. For computed write proofs, keep the admitted write function
+    call-free and place unrelated RHS side effects at the call site if needed,
+    then assert evaluation order and route logging on the admitted function.
+    WHY: issue
+    `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-2-d45261c97e`
+    / PR #2396 initially added property-write proof coverage, but review found
+    one computed-write proof did not exercise the admitted fast path and the
+    strict arm was not proven to route. The build-back fix added directive
+    string-literal discard support plus explicit VM strictness threading so
+    strict failed writes throw through the owned unified path.
 
 ## Why
 
@@ -331,6 +350,20 @@ brand checks, or private accessor behavior. Future property write/update
 widening must decline private names before VM execution unless a separate slice
 adds owned private-field semantics.
 
+Faktorial issue
+`planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-2-d45261c97e`
+and PR #2396 completed the first ordinary property-write production proof by
+closing two review gaps. The computed-write proof had to use a call-free,
+route-eligible `write(box, key, value)` body and move RHS side effects to the
+call site, because call payloads are outside the admitted boundary. The strict
+failed-write proof also had to show the strict function itself used
+`unified-bytecode-production-fast-path`. WHY: the unified VM executed accepted
+property writes without a function environment, so `context.CurrentScope`
+strictness alone was insufficient. The accepted repair passes lexical
+strictness from `SyncFunctionInvoker` into `UnifiedBytecodeVirtualMachine` and
+lets the compiler skip only directive string-literal discard instructions for
+strict directive prologues.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -346,3 +379,4 @@ Related ADRs:
 - `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`
 - `docs/adrs/0224-keep-unified-bytecode-shape-probes-side-effect-free-before-emission.md`
 - `docs/adrs/0231-keep-unified-bytecode-property-write-private-names-guarded.md`
+- `docs/adrs/0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md`

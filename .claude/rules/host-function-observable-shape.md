@@ -28,6 +28,11 @@ shape corrections separate from ordinary JavaScript property operations.
    descriptor attributes, and call-site ordering; prove the touched built-ins
    with focused observable-shape tests instead of relying on line-count
    reduction alone.
+7. When deduplicating attribute-decorated host method bodies, keep each
+   `[JsHostMethod]`, `[JsConstructorMethod]`, or `[JsSymbolMethod]` member as
+   the generator-visible entrypoint. Extract only the shared implementation
+   behind thin adapters, and prove name, length, routing, prefixes, context, and
+   return behavior with focused tests.
 
 ## Prototype Constructor Setup
 
@@ -93,6 +98,23 @@ call-site names/lengths, stayed scoped to Promise files, and used focused
 Promise tests plus static-analysis evidence. Future built-in metadata
 deduplication should keep that observable boundary instead of hiding
 constructor/prototype-specific shape choices behind a broader helper.
+
+## Attributed Method Forwarders
+
+When repeated host prototype methods differ only in generator metadata or small
+routing details, keep the attribute-decorated methods in place and make them
+thin adapters to a private helper. Do not replace them with dictionary dispatch,
+rename the methods, or move metadata to the helper; host registration and source
+generation depend on the individual method attributes.
+
+WHY: issue `autrun-diteieopg220-189a1ded07` / PR #2341 deduplicated
+`ConsolePrototype` `log`, `error`, `warn`, `info`, and `debug` forwarding by
+introducing `WriteConsoleLine`. The safe extraction kept each
+`[JsHostMethod(..., Length = 0d)]` on its original public method, preserved
+stdout/stderr routing, `Warning: ` and `Debug: ` prefixes, and `undefined`
+return. Future host-method code reduction should keep generator-visible methods
+as adapters and prove focused behavior instead of hiding per-method metadata
+behind a generic dispatcher.
 
 ## Why
 

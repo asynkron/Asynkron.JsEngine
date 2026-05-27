@@ -708,38 +708,7 @@ public sealed partial class ArrayPrototype
 
         var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
         var actualStart = ClampRelativeIndex(startIndex, length);
-
-        // Per spec step 8: If start is not present, then actualDeleteCount = 0.
-        // Per spec step 9: Else if deleteCount is not present, use len - actualStart.
-        // NOTE: "not present" means the argument wasn't passed at all, NOT that it's undefined.
-        // If deleteCount is passed as undefined, we use ToIntegerOrInfinity(undefined) = 0.
-        var startIsNotPresent = args.Count == 0;
-        var deleteCountIsNotPresent = args.Count == 1;  // Only when deleteCount arg is truly missing
-        long actualDeleteCount;
-        if (startIsNotPresent)
-        {
-            // Per spec step 8: If start is not present, actualDeleteCount = 0
-            actualDeleteCount = 0;
-        }
-        else if (deleteCountIsNotPresent)
-        {
-            // Per spec step 9: Else if deleteCount is not present, actualDeleteCount = len - actualStart
-            actualDeleteCount = length - actualStart;
-        }
-        else
-        {
-            var deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
-            if (double.IsPositiveInfinity(deleteCountArg))
-            {
-                actualDeleteCount = length - actualStart;
-            }
-            else
-            {
-                var bounded = Math.Max(deleteCountArg, 0);
-                bounded = Math.Min(bounded, length - actualStart);
-                actualDeleteCount = (long)bounded;
-            }
-        }
+        var actualDeleteCount = ComputeSpliceDeleteCount(args, length, actualStart, evalContext);
 
         var insertCount = Math.Max(args.Count - 2, 0);
         var newLength = length - actualDeleteCount + insertCount;

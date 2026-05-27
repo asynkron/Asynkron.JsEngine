@@ -251,38 +251,7 @@ public sealed partial class ArrayPrototype
             var actualStart = ClampRelativeIndex(startIndex, length);
 
             var insertCount = args.Count > 2 ? args.Count - 2 : 0;
-
-            double deleteCountArg;
-            if (args.Count == 0)
-            {
-                // Per spec: If no arguments, actualDeleteCount is 0
-                deleteCountArg = 0;
-            }
-            else if (args.Count == 1)
-            {
-                // Per spec: If only start is provided, delete from start to end
-                deleteCountArg = length - actualStart;
-            }
-            else
-            {
-                deleteCountArg = ToIntegerOrInfinity(args[1], evalContext);
-            }
-
-            long actualDeleteCount;
-            if (double.IsPositiveInfinity(deleteCountArg))
-            {
-                actualDeleteCount = length - actualStart;
-            }
-            else if (double.IsNegativeInfinity(deleteCountArg))
-            {
-                actualDeleteCount = 0;
-            }
-            else
-            {
-                var bounded = Math.Max(deleteCountArg, 0);
-                bounded = Math.Min(bounded, length - actualStart);
-                actualDeleteCount = (long)bounded;
-            }
+            var actualDeleteCount = ComputeSpliceDeleteCount(args, length, actualStart, evalContext);
 
             var newLength = length - actualDeleteCount + insertCount;
             // ES spec step 8: If len + insertCount - actualDeleteCount > 2^53-1, throw a TypeError

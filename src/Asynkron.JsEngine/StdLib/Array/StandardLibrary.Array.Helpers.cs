@@ -192,6 +192,38 @@ public static partial class StandardLibrary
         return Math.Min((long)index, length);
     }
 
+    internal static long ComputeSpliceDeleteCount(
+        IReadOnlyList<JsValue> args,
+        long length,
+        long actualStart,
+        EvaluationContext? context = null)
+    {
+        if (args.Count == 0)
+        {
+            return 0;
+        }
+
+        if (args.Count == 1)
+        {
+            return length - actualStart;
+        }
+
+        var deleteCountArg = ToIntegerOrInfinity(args[1], context);
+        if (double.IsPositiveInfinity(deleteCountArg))
+        {
+            return length - actualStart;
+        }
+
+        if (double.IsNegativeInfinity(deleteCountArg))
+        {
+            return 0;
+        }
+
+        var bounded = Math.Max(deleteCountArg, 0);
+        bounded = Math.Min(bounded, length - actualStart);
+        return (long)bounded;
+    }
+
     internal static JsValue ReduceLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
         string methodName, bool fromRight)
     {

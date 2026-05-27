@@ -12,6 +12,8 @@ internal enum UnifiedBytecodeOpCode : byte
     ResolvePropertyKey,
     GetNamedProperty,
     GetComputedProperty,
+    GetNamedPropertyForCompoundSet,
+    GetComputedPropertyForCompoundSet,
     SetNamedProperty,
     SetComputedProperty,
     UpdateNamedProperty,

@@ -236,6 +236,51 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, value) {
+                return box.value += value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal("value", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
+    public void Evaluate_ComputedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, key, value) {
+                return box[key] += value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -420,14 +465,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
-        function compoundWrite(box, value) {
-            return box.value += value;
-        }
-        """,
-        "compoundWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
         function logicalWrite(box, value) {
             return box.value ||= value;
         }
@@ -450,6 +487,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "computedExpressionWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function complexCompoundWrite(box, value) {
+            return box.child.value += value;
+        }
+        """,
+        "complexCompoundWrite",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """

@@ -293,6 +293,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -320,6 +325,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -343,7 +353,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
-                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -519,6 +531,80 @@ internal static class UnifiedBytecodeProductionEligibility
         var getComputedProperty = program.GetOperation(4);
         return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedProperty.ShortCircuitOnNullishTarget;
+    }
+
+    private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 6)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var duplicateTarget = program.GetOperation(1);
+        var propertyRead = program.GetOperation(2);
+        var rhs = program.GetOperation(3);
+        var binary = program.GetOperation(4);
+        var propertyWrite = program.GetOperation(5);
+        if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
+            propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            propertyWrite.Kind != ExpressionOpKind.SetNamedProperty ||
+            binary.Kind != ExpressionOpKind.Binary ||
+            !IsProductionBinaryOperator(binary.Operator) ||
+            propertyRead.IsOptional ||
+            propertyRead.ShortCircuitOnNullishTarget ||
+            propertyWrite.AllowNameInference)
+        {
+            return false;
+        }
+
+        var propertyName = propertyRead.GetString(program.StringConstants.AsSpan());
+        return !propertyName.IsPrivateName() &&
+               propertyName == propertyWrite.GetString(program.StringConstants.AsSpan()) &&
+               IsSimpleOperand(rhs, identifierConstants, activationSlots);
+    }
+
+    private static bool TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 9)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) ||
+            !IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var requireObjectCoercible = program.GetOperation(2);
+        var resolvePropertyKey = program.GetOperation(3);
+        var duplicateTargetAndKey = program.GetOperation(4);
+        var propertyRead = program.GetOperation(5);
+        var rhs = program.GetOperation(6);
+        var binary = program.GetOperation(7);
+        var propertyWrite = program.GetOperation(8);
+        return requireObjectCoercible.Kind == ExpressionOpKind.RequireObjectCoercible &&
+               requireObjectCoercible.Depth == 1 &&
+               resolvePropertyKey.Kind == ExpressionOpKind.ResolvePropertyKey &&
+               duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
+               propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
+               !propertyRead.ShortCircuitOnNullishTarget &&
+               IsSimpleOperand(rhs, identifierConstants, activationSlots) &&
+               binary.Kind == ExpressionOpKind.Binary &&
+               IsProductionBinaryOperator(binary.Operator) &&
+               propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
+               !propertyWrite.AllowNameInference;
     }
 
     private static bool TryIsFirstBoundaryPropertyWriteCandidate(
@@ -704,6 +790,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ResolvePropertyKey:
                 case UnifiedBytecodeOpCode.GetNamedProperty:
                 case UnifiedBytecodeOpCode.GetComputedProperty:
+                case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
+                case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
                 case UnifiedBytecodeOpCode.SetNamedProperty:
                 case UnifiedBytecodeOpCode.SetComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:

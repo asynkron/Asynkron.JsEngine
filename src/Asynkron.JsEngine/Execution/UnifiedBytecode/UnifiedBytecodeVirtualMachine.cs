@@ -98,6 +98,38 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
+                    var namedCompoundTarget = stack[stackPointer - 1];
+                    stack[stackPointer++] = GetNamedPropertyValue(
+                        namedCompoundTarget,
+                        program.StringConstants[instruction.Operand],
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
+                    var computedCompoundKey = stack[stackPointer - 1];
+                    var computedCompoundTarget = stack[stackPointer - 2];
+                    stack[stackPointer++] = JsOps.TryGetPropertyValueJsValue(
+                            computedCompoundTarget,
+                            computedCompoundKey,
+                            out var computedCompoundValue,
+                            context)
+                        ? computedCompoundValue
+                        : JsValue.Undefined;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.SetNamedProperty:
                     var namedPropertyValue = stack[--stackPointer];
                     var namedSetTarget = stack[stackPointer - 1];

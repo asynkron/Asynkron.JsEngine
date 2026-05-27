@@ -684,6 +684,118 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndGetterSetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return 37;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+
+            function write(box, value) {
+                return box.value += value;
+            }
+
+            String(write(box, 5)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("42:get,set:42", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return 4;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+
+            function write(box, key, value) {
+                return box[key] += value;
+            }
+
+            String(write(box, key, 5)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("9:key,get,set:9", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {};
+            Object.defineProperty(box, "value", {
+                value: 1,
+                writable: false
+            });
+
+            function sloppyWrite(box, value) {
+                return box.value += value;
+            }
+
+            function strictWrite(box, value) {
+                "use strict";
+                return box.value += value;
+            }
+
+            var sloppyResult = sloppyWrite(box, 41);
+            var sloppyStored = box.value;
+            var strictThrew = false;
+            try {
+                strictWrite(box, 42);
+            } catch (error) {
+                strictThrew = error instanceof TypeError;
+            }
+
+            (sloppyResult === 42) && (sloppyStored === 1) && strictThrew && (box.value === 1);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(true, result);
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sloppyWrite argc=2",
+                StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=strictWrite argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyUpdate_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -700,6 +812,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=update argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPostfixPropertyUpdate_UsesUnifiedBytecodeProductionFastPathAndReturnsOldValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box) {
+                return box.value++;
+            }
+
+            var box = { value: 41 };
+            update(box) + box.value;
+            """);
+
+        Assert.Equal(83d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixPropertyUpdate_UsesUnifiedBytecodeProductionFastPathAndReturnsNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box, key) {
+                return ++box[key];
+            }
+
+            var box = { value: 41 };
+            update(box, "value") + box.value;
+            """);
+
+        Assert.Equal(84d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=2",
                 StringComparison.Ordinal));
     }
 

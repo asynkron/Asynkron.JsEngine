@@ -2804,7 +2804,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context);
+                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context, _isStrict);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             finally

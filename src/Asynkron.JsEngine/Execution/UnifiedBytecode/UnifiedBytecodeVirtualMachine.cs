@@ -8,7 +8,11 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeVirtualMachine
 {
-    public static JsValue Execute(UnifiedBytecodeProgram program, Span<JsValue> slots, EvaluationContext context)
+    public static JsValue Execute(
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        bool isStrict = false)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
@@ -101,7 +105,8 @@ internal static class UnifiedBytecodeVirtualMachine
                         namedSetTarget,
                         program.StringConstants[instruction.Operand],
                         namedPropertyValue,
-                        context);
+                        context,
+                        isStrict);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -121,7 +126,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         return JsValue.Undefined;
                     }
 
-                    SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context);
+                    SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context, isStrict);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -138,7 +143,8 @@ internal static class UnifiedBytecodeVirtualMachine
                         program.StringConstants[DecodeStringOperand(instruction.Operand)],
                         DecodeIsIncrement(instruction.Operand),
                         DecodeIsPrefix(instruction.Operand),
-                        context);
+                        context,
+                        isStrict);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -161,7 +167,8 @@ internal static class UnifiedBytecodeVirtualMachine
                         computedUpdateName,
                         DecodeIsIncrement(instruction.Operand),
                         DecodeIsPrefix(instruction.Operand),
-                        context);
+                        context,
+                        isStrict);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -239,13 +246,14 @@ internal static class UnifiedBytecodeVirtualMachine
         JsValue target,
         string propertyName,
         JsValue propertyValue,
-        EvaluationContext context)
+        EvaluationContext context,
+        bool isStrict)
     {
         var handle = PropertyHandle.Resolve(
             target,
             propertyName,
             context,
-            context.CurrentScope.IsStrict,
+            context.CurrentScope.IsStrict || isStrict,
             allowPrivate: false);
         handle.SetValue(propertyValue);
     }
@@ -255,13 +263,14 @@ internal static class UnifiedBytecodeVirtualMachine
         string propertyName,
         bool isIncrement,
         bool isPrefix,
-        EvaluationContext context)
+        EvaluationContext context,
+        bool isStrict)
     {
         var handle = PropertyHandle.Resolve(
             target,
             propertyName,
             context,
-            context.CurrentScope.IsStrict,
+            context.CurrentScope.IsStrict || isStrict,
             allowPrivate: false);
         var currentValue = handle.GetJsValue();
         if (context.ShouldStopEvaluation)

@@ -60,6 +60,19 @@ public sealed class PendingAsyncWorkTrackingTests
     }
 
     [Fact(Timeout = 10000)]
+    public async Task Evaluate_PreCanceledToken_ReturnsCanceledTask()
+    {
+        await using var engine = new JsEngine();
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var task = engine.Evaluate("while (true) { }", cts.Token);
+
+        Assert.True(task.IsCanceled);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await task);
+    }
+
+    [Fact(Timeout = 10000)]
     public async Task TrackPendingAsyncWork_CompletedTask_DoesNotStartEventLoopOrIncrementPendingCount()
     {
         await using var engine = new JsEngine();

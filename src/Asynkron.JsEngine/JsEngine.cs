@@ -947,7 +947,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
             catch (Exception ex)
             {
-                return Task.FromException<object?>(ex);
+                return CreateExceptionTask(ex);
             }
         }
 
@@ -1115,7 +1115,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         if (_eventQueue is null)
         {
             timeoutCts?.Dispose();
-            return Task.FromException<object?>(exception);
+            return CreateExceptionTask(exception);
         }
 
         return StopEventLoopAndFaultAsync(exception, timeoutCts);
@@ -1134,7 +1134,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             timeoutCts?.Dispose();
         }
 
-        return await Task.FromException<object?>(exception).ConfigureAwait(false);
+        return await CreateExceptionTask(exception).ConfigureAwait(false);
     }
 
     private Task<object?> CompleteFaultedSynchronousEvaluation(
@@ -1142,6 +1142,19 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         CancellationTokenSource? timeoutCts)
     {
         timeoutCts?.Dispose();
+        return CreateExceptionTask(exception);
+    }
+
+    private static Task<object?> CreateExceptionTask(Exception exception)
+    {
+        if (exception is OperationCanceledException cancellation)
+        {
+            var token = cancellation.CancellationToken.IsCancellationRequested
+                ? cancellation.CancellationToken
+                : new CancellationToken(canceled: true);
+            return Task.FromCanceled<object?>(token);
+        }
+
         return Task.FromException<object?>(exception);
     }
 

@@ -10,14 +10,15 @@ This is the architecture north star for Asynkron.JsEngine as a Node.js-competiti
 - Why: keep semantics, runtime ownership, and evidence discipline aligned across slices.
 
 ## Critique of the previous dream state
-The prior dream captured the right intent, but it underweighted the current #2342 roadmap reality in four places:
+The prior dream captured the right direction, but it was still too easy to read as strategy text instead of an execution map. The weak points were:
 
-1. module/runtime compatibility boundaries were described broadly, without enough concrete owner surfaces,
-2. host interop language could be misread as stronger parity than the codebase currently proves,
-3. async-generator seam closure was named but not anchored as a first-class architecture risk,
-4. unified-bytecode direction was present without a sufficiently explicit production-routing boundary.
+1. module/runtime language was broad enough to hide who owns what,
+2. host interop wording could be interpreted as Node-parity claims,
+3. async-generator seam risk was present but not treated as the primary delivery risk,
+4. bytecode unification intent did not clearly separate prototype capability from production-routing policy,
+5. evidence governance was named, but not strict enough to gate fast-path expansion decisions.
 
-This revision keeps the aspirational architecture, but binds it tightly to current known constraints so it can guide real implementation choices without overclaiming.
+This revision keeps the aspiration, but hardens the document into a routing guide: clear owner surfaces, explicit non-goals, and milestone-to-module mapping that mirrors the roadmap.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -142,6 +143,31 @@ flowchart LR
     F -. fail .-> B
 ```
 
+## #2342 milestone architecture map
+The roadmap milestones are delivery-control points, not labels. Each one maps to explicit modules and seams.
+
+```mermaid
+flowchart TB
+    A[#2342 Milestone A<br/>Module/runtime compatibility] --> A1[Module and Host Fabric]
+    A --> A2[Async and Concurrency Fabric]
+    A --> A3[Execution entry-point boundaries]
+
+    B[#2342 Milestone B<br/>Host interop boundary clarity] --> B1[Host callable bridge]
+    B --> B2[Global integration seams]
+    B --> B3[CommonJS as host-layer behavior]
+
+    C[#2342 Milestone C<br/>Async seam closure] --> C1[Async generator invoker seam]
+    C --> C2[Pending async-work tracking]
+    C --> C3[Scheduler and resume ownership]
+
+    D[Unified bytecode production boundary] --> D1[Compilation and Plan Fabric]
+    D --> D2[Execution Fabric]
+    D --> D3[Eligibility selector ownership]
+
+    E[Typed module and host/stdlib follow-through] --> E1[Module and Host Fabric]
+    E --> E2[Standard Library Fabric]
+```
+
 ## Component and subcomponent ownership
 
 ### 1) Language Frontend
@@ -187,7 +213,7 @@ Goal: keep correctness/performance claims provable and repeatable.
 - Subcomponents: narrow proof packs, recurring profile loops, baseline/final signal reporting, architecture traceability checks.
 
 ## #2342-aligned architecture constraints (explicit current reality)
-This dream is aspirational and does not claim current full parity.
+This dream is aspirational and does not claim current full parity. These constraints are binding until new evidence says otherwise.
 
 - **Milestone A (module/runtime boundary):** ESM and async module behavior are proven owner surfaces; no full Node module/CommonJS parity claim.
 - **Milestone B (host interop boundary):** host callable/global integration is explicit, but Node-style host behavior remains an integration-layer concern.

@@ -3618,12 +3618,6 @@ public static partial class TypedAstEvaluator
                         thisInitializationValue = lexicalInitValue;
                     }
                 }
-                if (thisInitializationEnvironment is null &&
-                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv, out var foundValue))
-                {
-                    thisInitializationEnvironment = foundEnv;
-                    thisInitializationValue = foundValue;
-                }
                 else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
                 {
                     thisInitializationEnvironment = thisEnv.HasBindingLocal(Symbol.ThisInitialized)
@@ -3633,6 +3627,12 @@ public static partial class TypedAstEvaluator
                     {
                         thisInitializationValue = initValue;
                     }
+                }
+                if (thisInitializationEnvironment is null &&
+                    environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv, out var foundValue))
+                {
+                    thisInitializationEnvironment = foundEnv;
+                    thisInitializationValue = foundValue;
                 }
 
                 if (++context.CallDepth > context.MaxCallDepth)

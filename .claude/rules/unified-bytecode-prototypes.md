@@ -100,6 +100,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     instructions, including evaluate-and-discard and throw payloads, before
     generic compiler fallback so property-read hazards cannot hide outside
     return expressions.
+13. When making property-read candidates executable in production unified
+    bytecode, keep the read semantics VM-owned and fallback-free. Named keys
+    belong in `UnifiedBytecodeProgram.StringConstants` and must execute through
+    an owned `GetNamedProperty` opcode. Computed reads must emit the exact
+    ordinary-read sequence `RequireObjectCoercible(Depth: 1)`,
+    `ResolvePropertyKey`, then `GetComputedProperty`, and the VM must use the
+    existing `JsOps` property-key and property-lookup helpers with the active
+    `EvaluationContext`. Do not satisfy property-read execution by calling back
+    into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation. Future
+    optional-chain, member-call, write/update, `super`, dynamic lookup, or
+    richer computed-key support needs its own selector/compiler/VM/proof slice
+    instead of widening this first executable boundary.
 
 ## Why
 
@@ -228,6 +240,17 @@ future property-read widening from admitting source-shaped or opcode-shaped
 candidates into a fallback-free production VM before the executable semantics
 and route proof exist.
 
+Faktorial issue
+`planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-2-uni-990bcd3283`
+and PR #2311 made that boundary executable by adding owned property-read
+opcodes, `StringConstants` operand storage, `JsOps`-backed lookup/key
+semantics, production eligibility acceptance, and public invocation proof.
+WHY: the incident closed the deliberate ADR 0218 gap where property-read
+candidates were recognized but declined until the VM could execute them
+directly. Future widening must preserve the same all-at-once contract so
+observable property semantics do not slip through a mixed
+`ExpressionProgram`/runner/AST fallback.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -239,3 +262,4 @@ Related ADRs:
 - `docs/adrs/0208-keep-unified-bytecode-branch-production-routing-shape-discriminated.md`
 - `docs/adrs/0210-keep-unified-bytecode-control-flow-production-routing-operator-and-shape-owned.md`
 - `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`
+- `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`

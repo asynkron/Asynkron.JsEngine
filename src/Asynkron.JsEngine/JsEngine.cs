@@ -995,7 +995,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
         catch (Exception ex)
         {
-            return CompleteFaultedEvaluationAsync(ex, timeoutCts);
+            return CompleteFaultedSynchronousEvaluation(ex, timeoutCts);
         }
     }
 
@@ -1135,6 +1135,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
 
         return await Task.FromException<object?>(exception).ConfigureAwait(false);
+    }
+
+    private Task<object?> CompleteFaultedSynchronousEvaluation(
+        Exception exception,
+        CancellationTokenSource? timeoutCts)
+    {
+        timeoutCts?.Dispose();
+        return Task.FromException<object?>(exception);
     }
 
     private object? EvaluateInline(

@@ -133,11 +133,13 @@ When working inside the core engine, keep JavaScript values represented as
     values inside the core runtime or standard library, assign the `JsValue`
     property directly. Treat the `Value` compatibility setter as an
     object-carrier bridge because it routes through `JsValue.FromObjectUnsafe`.
-    Builtin metadata descriptors in standard-library setup, including `name`,
-    `length`, symbols, constructor/prototype method properties, and stateful
-    builtin data slots such as RegExp `lastIndex`, are still JavaScript data
-    descriptors; use `new JsValue(...)`, `JsValue.True`, or an explicit object
-    wrapping helper instead of hiding that conversion behind `Value =`.
+    Builtin metadata descriptors in standard-library setup and global bootstrap
+    descriptors in `JsEngine`, including `name`, `length`, symbols,
+    constructor/prototype method properties, `Array`, `BigInt`, `Infinity`,
+    `NaN`, `undefined`, and stateful builtin data slots such as RegExp
+    `lastIndex`, are still JavaScript data descriptors; use
+    `new JsValue(...)`, `JsValue.True`, or an explicit object wrapping helper
+    instead of hiding that conversion behind `Value =`.
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
@@ -502,6 +504,16 @@ Future async function/generator intrinsic descriptor cleanup should preserve
 writable/enumerable/configurable attributes exactly and prove the selected file
 with a scoped legacy-setter search plus focused async-generator tests. Related
 ADR: `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-ditb0akizpyw-733760a3b3` / PR #2331 applied the descriptor setter
+policy to `JsEngine` global bootstrap descriptors for `Array`, `BigInt`,
+`Infinity`, `NaN`, and `undefined`. The `SetGlobal(...)` calls did not make the
+paired `DefineProperty(...)` descriptors public or host-interop boundaries; the
+five data descriptors still belong on the `JsValue` setter with attributes
+preserved exactly. Future global bootstrap cleanup should prove the scoped
+legacy-setter search before and after the edit rather than treating duplicated
+global registration as an exception. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
 
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`
 context-aware property-read flow from the legacy object-carrier overload to a

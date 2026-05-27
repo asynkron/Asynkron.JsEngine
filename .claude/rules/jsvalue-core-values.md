@@ -457,6 +457,18 @@ callers, migrate them to shared `JsOps` operations, and keep the proof as a
 targeted before/after search plus the focused semantic tests for the touched
 callers.
 
+Issue `autrun-dithe2u1zgyg-28b1ea4e79` / PR #2371 completed that
+`JsValueExtensions` closeout by deleting the obsolete helper file after focused
+reference searches showed no live `JsValueExtensions`, `.ToNumber(...)`,
+`.ToJsString(...)`, or `.ToJsStringForArray(...)` callsites outside the file.
+Future recurring code-reduction slices should treat error-level obsolete
+object-carrier wrappers as temporary tripwires only: after internal callers are
+migrated and the scoped signature search is clean, delete the whole obsolete
+helper family and prove the closeout with before/after search evidence plus the
+canonical quality gate. WHY: leaving a dead wrapper file makes future agents
+rediscover or revive stale object-coercion logic instead of using the shared
+`JsValue`/`JsOps` conversion operations.
+
 Issue `autrun-dis5yv12l95s-27dcaf0dbf` / PR #1959 migrated the StdLib/Error
 `PropertyDescriptor` initializers from the legacy `Value` compatibility setter
 to `JsValue`. The implementation was intentionally mechanical, but review

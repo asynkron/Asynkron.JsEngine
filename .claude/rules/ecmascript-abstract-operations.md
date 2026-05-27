@@ -332,6 +332,16 @@ host-runtime shortcuts.
     branch itself observes that distinction. Do not pre-stringify explicit
     `undefined` or route it through a legacy compatibility shortcut before an
     operation such as `RegExpCreate` gets the original value.
+39a. For Array splice-family delete counts, treat `args.Count == 0`,
+    `args.Count == 1`, and `args.Count >= 2` as semantic branches. A shared
+    helper may own `actualDeleteCount` only when it receives the original
+    argument list/count and active `EvaluationContext?`, so explicit
+    `undefined` still flows through `ToIntegerOrInfinity(undefined) = 0` while
+    a missing `deleteCount` keeps the `length - actualStart` branch. WHY: issue
+    `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated `splice` and
+    `toSpliced` delete-count logic without collapsing argument presence into
+    value conversion. Related ADR:
+    `docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.
 40. For `Temporal.PlainYearMonth.prototype.with` on non-ISO calendars, merge
     partial overrides against the receiver's observable calendar `year`,
     `month`, and `monthCode`, not the stored ISO reference projection. Read
@@ -883,3 +893,16 @@ the abstract operation receive the original `JsValue` unless the spec text has
 an explicit argument-count branch, and should prove the focused
 `Name=String_prototype_search` Test262 method group plus local search
 regressions before claiming the fix.
+
+Issue `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated the
+`Array.prototype.splice` and `Array.prototype.toSpliced` delete-count
+calculation after a code-reduction pass found repeated `actualDeleteCount`
+normalization. The durable lesson is that splice-family sharing belongs at the
+argument-presence helper boundary: no arguments means delete zero, a missing
+`deleteCount` means delete to the end, and an explicitly supplied `undefined`
+must still be converted as a value. Future splice-family cleanup should keep
+mutating/copying array construction, hole handling, insertion, length guards,
+and writes at the owning call sites unless separately proven.
+
+Related ADR:
+`docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.

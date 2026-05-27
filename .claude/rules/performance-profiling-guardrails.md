@@ -190,6 +190,15 @@ optimization.
      / PR #2337 repeated that evidence-only pattern for a batch-5 boundary
      proof pack: the correct durable artifact was a proof transcript with
      allocation-stability wording, not an engine change.
+     Issue #2340 / PR #2350 refreshed the same `propertyaccess` evidence after
+     the two-hop selector boundary was current: the comparable checked-in row
+     moved from `1012 ms` to `2565 ms`, while Jint moved from `505 ms` to
+     `2470 ms`, so the result was a current evidence/roadmap refresh and not a
+     win, regression, or eligibility-widening claim. WHY: wall-clock rows for
+     this selected profile can shift together across runs, so future agents
+     must preserve the prior checked-in row, record the exact current command
+     output, and keep ADR 0218/0222 boundary language separate from performance
+     interpretation.
 10c. For `propertyaccess` production-routing widening attempts, do not retain
      activation-resolved named-read chains, direct property-read binary
      expressions, or adjacent unified-bytecode eligibility changes unless the

@@ -2034,19 +2034,7 @@ public sealed partial class IntlDateTimeFormatPrototype
             return string.Join(numericSep, parts.Select(p => p.value));
         }
 
-        // Named month: use locale-aware separators
-        var sb = new StringBuilder();
-        for (var i = 0; i < parts.Count; i++)
-        {
-            if (i > 0)
-            {
-                sb.Append(GetNamedMonthSeparator(order, parts, i));
-            }
-
-            sb.Append(parts[i].value);
-        }
-
-        return sb.ToString();
+        return JoinNamedCalendarParts(order, parts);
     }
 
     private static string FormatLocaleDateString(
@@ -2093,18 +2081,7 @@ public sealed partial class IntlDateTimeFormatPrototype
             return string.Join(numericSep, parts.Select(p => p.value));
         }
 
-        var sb = new StringBuilder();
-        for (var i = 0; i < parts.Count; i++)
-        {
-            if (i > 0)
-            {
-                sb.Append(GetNamedMonthSeparator(order, parts, i));
-            }
-
-            sb.Append(parts[i].value);
-        }
-
-        return sb.ToString();
+        return JoinNamedCalendarParts(order, parts);
     }
 
     private static string FormatPlainYearMonthDateString(

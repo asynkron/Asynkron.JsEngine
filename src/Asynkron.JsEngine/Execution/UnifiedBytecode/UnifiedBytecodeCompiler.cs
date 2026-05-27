@@ -714,6 +714,37 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        if (TryAppendFirstBoundaryNamedCompoundPropertySet(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryComputedCompoundPropertySet(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryNamedPropertySet(
                 expressionProgram,
                 activationSlots,
@@ -843,6 +874,178 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNamedCompoundPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 6)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var duplicateTarget = expressionProgram.GetOperation(1);
+        var propertyRead = expressionProgram.GetOperation(2);
+        var rhs = expressionProgram.GetOperation(3);
+        var binary = expressionProgram.GetOperation(4);
+        var propertySet = expressionProgram.GetOperation(5);
+        if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
+            propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            binary.Kind != ExpressionOpKind.Binary ||
+            propertySet.Kind != ExpressionOpKind.SetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        {
+            reason = "Private named compound property writes are not supported.";
+            return false;
+        }
+
+        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+        {
+            reason = "Optional named compound property writes are not supported.";
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Named compound property writes with name inference are not supported.";
+            return false;
+        }
+
+        if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()) !=
+            propertySet.GetString(expressionProgram.StringConstants.AsSpan()))
+        {
+            reason = "Mismatched named compound property read/write operands are not supported.";
+            return false;
+        }
+
+        if (!IsSupportedBinaryOperator(binary.Operator))
+        {
+            reason = $"Unsupported compound property binary operator '{binary.Operator}'.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
+            propertyNameIndex));
+
+        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryComputedCompoundPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 9)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var requireObjectCoercible = expressionProgram.GetOperation(2);
+        var resolvePropertyKey = expressionProgram.GetOperation(3);
+        var duplicateTargetAndKey = expressionProgram.GetOperation(4);
+        var propertyRead = expressionProgram.GetOperation(5);
+        var rhs = expressionProgram.GetOperation(6);
+        var binary = expressionProgram.GetOperation(7);
+        var propertySet = expressionProgram.GetOperation(8);
+        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+            requireObjectCoercible.Depth != 1 ||
+            resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+            duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
+            propertyRead.Kind != ExpressionOpKind.GetComputedProperty ||
+            binary.Kind != ExpressionOpKind.Binary ||
+            propertySet.Kind != ExpressionOpKind.SetComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertyRead.ShortCircuitOnNullishTarget)
+        {
+            reason = "Optional computed compound property writes are not supported.";
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Computed compound property writes with name inference are not supported.";
+            return false;
+        }
+
+        if (!IsSupportedBinaryOperator(binary.Operator))
+        {
+            reason = $"Unsupported compound computed property binary operator '{binary.Operator}'.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(1),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RequireObjectCoercible, 1));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet));
+
+        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
         reason = string.Empty;
         return true;
     }

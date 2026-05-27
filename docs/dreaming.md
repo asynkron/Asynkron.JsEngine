@@ -237,5 +237,13 @@ The #2342 milestones map to specific architecture modules so recurring work can 
 - Not a replacement for ADRs, perf reports, or roadmap issue tracking.
 - Not a license to widen eligibility or remove fallback seams without proof.
 
+## Claim discipline checklist
+Before any roadmap or PR text claims a capability expansion, require all of the following:
+
+- Owner surface is named (module + concrete file/class boundary).
+- Semantics proof is green on the owning focused pack first, then widened.
+- Profile/benchmark evidence is attached when the claim is performance-related.
+- Boundary wording remains explicit about what is still host-layer or prototype-only.
+
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

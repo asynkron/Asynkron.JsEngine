@@ -886,6 +886,22 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Array_Reduce_TwoArgumentArrow_FallsBackForStringCoercion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("[1, 2, 3].reduce((acc, x) => acc + x, '')");
+        Assert.Equal("123", result);
+    }
+
+    [Fact]
+    public async Task Array_ReduceRight_TwoArgumentArrow_UsesNumericFastPathSafely()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("[2, 3, 4].reduceRight((acc, x) => acc - x)");
+        Assert.Equal(-1d, result);
+    }
+
+    [Fact]
     public async Task Array_Reduce_PassesAllCallbackArguments()
     {
         await using var engine = CreateEngine();

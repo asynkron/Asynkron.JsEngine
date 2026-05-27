@@ -39,6 +39,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   child-run classification signal: normalize the evidence shape for this run,
   but do not convert that wording into persistent setup, scheduler, or
   repository-infrastructure work.
+- When refined acceptance criteria or review feedback names a specific
+  recurrence marker literal, update both the top-level classification boundary
+  and the durable `## Why` traceability with that literal, then prove it with a
+  targeted `rtk rg` check. Issue #2221 / PR #2230 showed that missing a named
+  marker can send an otherwise-correct bounded rule update back to build.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
 - If canonical quality verification reports a recurring-child docs or rule
@@ -770,7 +775,11 @@ infrastructure inside this repository. Future agents should keep that
 distinction in the existing recurring-child rule instead of creating another
 ADR or one-off rule for the same classification boundary.
 
-Issue #2221 continued that boundary for recurrence-normalization phrasing in
-persistent ADR/rule compaction handoffs: normalize the recurring-child evidence
-contract in the existing owned rule, but do not treat that phrase as a request
-for new persistent setup or scheduler infrastructure.
+Issue #2221 / PR #2230 continued that boundary for recurrence-normalization
+phrasing in persistent ADR/rule compaction handoffs: normalize the
+recurring-child evidence contract in the existing owned rule, but do not treat
+that phrase as a request for new persistent setup or scheduler infrastructure.
+The first build pass missed the literal `trigger=persistent recurrence` marker,
+so review sent the change back; future agents should carry named recurrence
+markers through both the boundary rule and this durable lesson before claiming
+the slice complete.

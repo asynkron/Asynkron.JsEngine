@@ -1821,6 +1821,12 @@ internal static class JsOps
             return false;
         }
 
+        if (target.TryGetObject<JsArgumentsObject>(out var argumentsObject) &&
+            TryResolveArrayIndexJsValue(propertyKey, out var argumentsIndex, context))
+        {
+            return argumentsObject.TryGetIndex(argumentsIndex, target, out value);
+        }
+
         if (target.TryGetObject<TypedArrayBase>(out var typedArray))
         {
             // For typed arrays, use CanonicalNumericIndexString to determine if the key is a numeric index.

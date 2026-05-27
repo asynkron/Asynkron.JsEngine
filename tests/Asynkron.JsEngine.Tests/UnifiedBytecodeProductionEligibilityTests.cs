@@ -321,6 +321,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
     }
 
+    [Theory]
+    [MemberData(nameof(AcceptedPropertyWriteAndUpdatePrograms))]
+    public void Evaluate_AcceptedPropertyWriteAndUpdatePrograms_StayWithinOwnedOpcodeSubset(
+        string source,
+        string functionName,
+        int[] requiredOpcodes,
+        int[] allowedOpcodes)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        AssertAllInstructionsUseOwnedOpcodes(result.Program, allowedOpcodes);
+        foreach (var requiredOpcode in requiredOpcodes)
+        {
+            Assert.Contains(result.Program.Instructions, instruction => (int)instruction.OpCode == requiredOpcode);
+        }
+    }
+
     [Fact]
     public void Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode()
     {
@@ -952,6 +975,229 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             { "greaterThan", ">", (int)BinaryOperator.GreaterThan },
             { "greaterThanOrEqual", ">=", (int)BinaryOperator.GreaterThanOrEqual }
         };
+
+    public static TheoryData<string, string, int[], int[]>
+        AcceptedPropertyWriteAndUpdatePrograms =>
+        new()
+        {
+            {
+                """
+                function write(box, value) {
+                    return box.value = value;
+                }
+                """,
+                "write",
+                [(int)UnifiedBytecodeOpCode.SetNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.SetNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function write(box, key, value) {
+                    return box[key] = value;
+                }
+                """,
+                "write",
+                [(int)UnifiedBytecodeOpCode.SetComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.SetComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function write(box, value) {
+                    return box.value += value;
+                }
+                """,
+                "write",
+                [(int)UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet, (int)UnifiedBytecodeOpCode.SetNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
+                    (int)UnifiedBytecodeOpCode.Binary,
+                    (int)UnifiedBytecodeOpCode.SetNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function write(box, key, value) {
+                    return box[key] += value;
+                }
+                """,
+                "write",
+                [(int)UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet, (int)UnifiedBytecodeOpCode.SetComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet,
+                    (int)UnifiedBytecodeOpCode.Binary,
+                    (int)UnifiedBytecodeOpCode.SetComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box) {
+                    return ++box.value;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.UpdateNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box) {
+                    return box.value++;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.UpdateNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box) {
+                    return --box.value;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.UpdateNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box) {
+                    return box.value--;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.UpdateNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box, key) {
+                    return ++box[key];
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.UpdateComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box, key) {
+                    return box[key]++;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.UpdateComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box, key) {
+                    return --box[key];
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.UpdateComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function update(box, key) {
+                    return box[key]--;
+                }
+                """,
+                "update",
+                [(int)UnifiedBytecodeOpCode.UpdateComputedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.RequireObjectCoercible,
+                    (int)UnifiedBytecodeOpCode.ResolvePropertyKey,
+                    (int)UnifiedBytecodeOpCode.UpdateComputedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            }
+        };
+
+    private static void AssertAllInstructionsUseOwnedOpcodes(
+        UnifiedBytecodeProgram program,
+        IReadOnlyCollection<int> allowedOpcodes)
+    {
+        Assert.All(
+            program.Instructions,
+            instruction => Assert.Contains((int)instruction.OpCode, allowedOpcodes));
+    }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

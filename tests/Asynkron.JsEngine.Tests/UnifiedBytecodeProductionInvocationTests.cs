@@ -883,6 +883,94 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task NamedPrefixPropertyDecrement_UsesUnifiedBytecodeProductionFastPathAndReturnsNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box) {
+                return --box.value;
+            }
+
+            var box = { value: 41 };
+            update(box) + box.value;
+            """);
+
+        Assert.Equal(80d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPostfixPropertyDecrement_UsesUnifiedBytecodeProductionFastPathAndReturnsOldValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box) {
+                return box.value--;
+            }
+
+            var box = { value: 41 };
+            update(box) + box.value;
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixPropertyDecrement_UsesUnifiedBytecodeProductionFastPathAndReturnsNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box, key) {
+                return --box[key];
+            }
+
+            var box = { value: 41 };
+            update(box, "value") + box.value;
+            """);
+
+        Assert.Equal(80d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyDecrement_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function update(box, key) {
+                return box[key]--;
+            }
+
+            var box = { value: 41 };
+            update(box, key) + box.value + hits;
+            """);
+
+        Assert.Equal(82d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """
@@ -1067,6 +1155,49 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         computedExpressionWrite({}, "val", "ue", 42);
         """,
         "computedExpressionWrite",
+        42d)]
+    [InlineData(
+        """
+        function writeDiscarded(box, value) {
+            box.value = value;
+            return box.value;
+        }
+
+        writeDiscarded({ value: 1 }, 42);
+        """,
+        "writeDiscarded",
+        42d)]
+    [InlineData(
+        """
+        function updateDiscarded(box) {
+            box.value++;
+            return box.value;
+        }
+
+        updateDiscarded({ value: 1 });
+        """,
+        "updateDiscarded",
+        2d)]
+    [InlineData(
+        """
+        function complexCompoundWrite(box, value) {
+            return box.child.value += value;
+        }
+
+        complexCompoundWrite({ child: { value: 40 } }, 2);
+        """,
+        "complexCompoundWrite",
+        42d)]
+    [InlineData(
+        """
+        function destructureWrite(box, source) {
+            ({ value: box.value } = source);
+            return box.value;
+        }
+
+        destructureWrite({ value: 0 }, { value: 42 });
+        """,
+        "destructureWrite",
         42d)]
     public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,

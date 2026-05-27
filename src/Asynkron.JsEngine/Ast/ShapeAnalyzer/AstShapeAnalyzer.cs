@@ -158,9 +158,9 @@ internal static class AstShapeAnalyzer
             return false;
         }
 
-        var locator = new SingleYieldLocator();
-        locator.VisitExpression(expression);
-        yieldExpression = locator.FoundYield;
+        var rewriter = new SingleYieldRewriter(Symbol.Intern("singleYieldProbe"));
+        _ = rewriter.Rewrite(expression);
+        yieldExpression = rewriter.FoundYield;
         return yieldExpression is not null;
     }
 

@@ -1,4 +1,4 @@
-# ADR 0222: Keep base class constructor IR activation binder-guarded
+# ADR 0225: Keep base class constructor IR activation binder-guarded
 
 ## Status
 

@@ -87,8 +87,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.
     Direct named candidates are only activation-resolved base reads followed by
-    non-optional `GetNamedProperty`. Direct computed candidates must preserve
-    the exact ordinary-read lowering sequence:
+    one non-optional `GetNamedProperty`, or the exact two-hop named chain
+    proven by ADR 0222. Direct computed candidates must preserve the exact
+    ordinary-read lowering sequence:
     `RequireObjectCoercible(Depth: 1)`, then `ResolvePropertyKey`, then
     non-optional `GetComputedProperty`, with only production-safe base/key
     loads before it. Recognized candidates that lack VM support must decline as
@@ -117,6 +118,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     optional-chain, member-call, write/update, `super`, dynamic lookup, or
     richer computed-key support needs its own selector/compiler/VM/proof slice
     instead of widening this first executable boundary.
+14. When adding compiler helpers that probe an `ExpressionProgram` shape and
+    append unified instructions, keep the helper side-effect-free until the
+    full shape is accepted. Either prevalidate the whole operation sequence
+    before mutating shared instruction/string/literal builders, or emit into
+    scratch builders and commit atomically. A helper that returns `false`,
+    with or without a decline reason, must not leave partial stack instructions
+    or constants behind for the next fallback path. Pair accepted examples with
+    adjacent unsupported examples so partial-emission stack drift is caught by
+    the focused proof pack.
 
 ## Why
 
@@ -256,6 +266,15 @@ directly. Future widening must preserve the same all-at-once contract so
 observable property semantics do not slip through a mixed
 `ExpressionProgram`/runner/AST fallback.
 
+Issue #2314 / PR #2320 widened the executable property-read boundary to the
+exact two-hop direct named chain `LoadIdentifier -> GetNamedProperty ->
+GetNamedProperty`. The durable lesson is two-part: the boundary itself stays
+small and owned by existing `GetNamedProperty` opcodes, and shape-probing
+compiler helpers must not partially mutate shared builders before a full shape
+match is known. WHY: focused verification first exposed stack corruption from
+partial emission in the new named-chain helper; the accepted fix prevalidated
+the full chain before emitting `LoadSlot` and property-read opcodes.
+
 Faktorial issue
 `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-3-com-ca10aa7559`
 and PR #2321 completed the property-read boundary proof by adding explicit
@@ -279,3 +298,4 @@ Related ADRs:
 - `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`
 - `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`
 - `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`
+- `docs/adrs/0224-keep-unified-bytecode-shape-probes-side-effect-free-before-emission.md`

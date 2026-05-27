@@ -202,6 +202,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before treating creation as the slice. If latest main already has the roadmap,
   turn the slice into a bounded refresh of the existing document or an
   evidence-only closeout instead of recreating a stale "missing file" premise.
+- When a recurring dreaming-doc child asks to update `docs/dreaming.md`, first
+  compare the current document against the actual acceptance criteria before
+  editing. If the current branch already has the requested critique, top-down
+  runtime architecture, Mermaid diagrams, and roadmap-aligned caveats, close the
+  child as evidence-only with baseline/final doc-structure signals instead of
+  forcing wording churn into the dream.
 - When a roadmap refresh only links already-accepted ADR/rule boundaries,
   failed-trial evidence, or follow-up issue links into `docs/roadmap.md`, the
   learn pass should inventory the existing semantic rule homes before creating
@@ -712,6 +718,15 @@ branch already contained a maintained roadmap from prior recurring slices. The
 durable lesson is to re-check the current branch before acting on a "missing
 roadmap" claim, so recurring children refresh or close out against live repo
 state instead of preserving obsolete context.
+
+Issue `autrun-diteiepqykvs-23ac6b4870` repeated that live-doc premise for the
+dreaming architecture document. The run contract asked agents to improve
+`docs/dreaming.md`, but current main already contained the explicit critique,
+top-down runtime/product architecture, two Mermaid diagrams, and roadmap caveats
+the handoff required. The correct delivery was an evidence-only closeout with
+matching baseline/final doc-structure checks and no changed paths. Without this
+rule, future Dreamer recurrence children can manufacture subjective wording churn
+after the branch already satisfies the concrete acceptance criteria.
 
 Issue `autrun-dirzat33gjzc-e6a91380e8` / PR #1910 refreshed the roadmap with
 ADR 0137, ADR 0138, and ADR 0139 boundaries after those decisions and their

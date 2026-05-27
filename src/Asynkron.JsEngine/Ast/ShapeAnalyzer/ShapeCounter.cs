@@ -4,6 +4,7 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
 {
     public int AwaitCount;
     public int DelegatedYieldCount;
+    public YieldExpression? FirstYieldExpression;
     public int YieldCount;
     public bool YieldOperandContainsYield;
 
@@ -230,6 +231,11 @@ public sealed class ShapeCounter(bool includeNestedFunctions)
                 case SuperExpression:
                     return;
                 case YieldExpression yieldExpression:
+                    if (YieldCount == 0)
+                    {
+                        FirstYieldExpression = yieldExpression;
+                    }
+
                     YieldCount++;
                     if (yieldExpression.IsDelegated)
                     {

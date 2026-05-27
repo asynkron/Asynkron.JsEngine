@@ -527,6 +527,21 @@ optimization.
      argument construction.
      Related ADR:
      `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.
+28. For simple numeric self-recursion fast paths, keep the accepted shortcut
+    shape- and binding-guarded. A recurrence shortcut may be retained only when a
+    current CPU profile names recursive one-argument invocation as the owner, the
+    source shape is one simple parameter plus a guarded numeric base case and
+    explicit self-call terms, and runtime invocation still checks finite numeric
+    integer input, the current recursive binding, and the existing
+    class/async/generator/private/super/home-object fallbacks. Do not widen this
+    from benchmark names, function names, source text alone, or the mere
+    presence of self-calls. Pair retained changes with repeated focused timing
+    rows plus tests for dynamic name reassignment and non-integer fallback. WHY:
+    issue `autrun-ditlr1g0oyd4-64c0980227` / PR #2439 retained a large
+    `recursion-lite` win by extending the existing Fibonacci-only fast path to
+    constant-base factorial and sum-to shapes, while preserving fallback
+    semantics for reassigned recursive names and fractional inputs. Related ADR:
+    `docs/adrs/0241-keep-simple-numeric-self-recursion-fast-paths-shape-and-binding-guarded.md`.
 
 ## Why
 

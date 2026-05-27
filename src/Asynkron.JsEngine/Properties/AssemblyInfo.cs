@@ -9,4 +9,3 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Asynkron.JsEngine.Tests.Helpers")]
 [assembly: InternalsVisibleTo("Asynkron.JsEngine.Benchmarks")]
 [assembly: InternalsVisibleTo("ProfileRunner")]
-[assembly: InternalsVisibleTo("Playground")]

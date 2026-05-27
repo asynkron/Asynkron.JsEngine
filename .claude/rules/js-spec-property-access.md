@@ -224,6 +224,29 @@ Do not "simplify" copy helpers into descriptor creation on the target unless the
 ECMAScript algorithm explicitly calls for that operation. Pair this class of
 change with focused regressions for accessor targets and failed writes.
 
+## Array Mutator Move/Delete Helpers
+
+When Array prototype mutators shift or compact indexed elements, preserve the
+spec-observable move-or-delete operation:
+
+- check the source element through the existing observable element-read helper;
+- when the source exists, write the target through the same `Set` path the
+  mutator already used;
+- when the source is absent, check whether the target property exists, then run
+  the same delete-or-throw helper with the active method name and realm;
+- do not turn sparse holes into `undefined` writes, skip target deletion, use
+  direct dense-storage writes, or hide delete failures; and
+- share only the exact invariant move/delete operation. Keep loop direction,
+  bounds, length updates, result construction, insertion, and trailing cleanup at
+  the owning mutator call site unless a focused proof shows those steps are also
+  identical.
+
+For recurring code-reduction slices on this surface, prefer a named local helper
+with explicit `accessor`, `objectLike`, `fromKey`, `toKey`, and `methodName`
+parameters over delegate-based loop extraction in hot paths. Prove the affected
+Array methods with a focused internal test filter plus the usual code-size and
+diff checks.
+
 ## Data Property Helper Value Carriers
 
 When a built-in creates data properties and the value is already carried as a
@@ -388,3 +411,11 @@ allowed leaving the broader object helper for unmigrated callsites, but the
 array cluster no longer had any such callers. Future data-property helper work
 should treat a clean focused search as permission to remove the dead overload
 and keep only the typed `JsValue` path.
+
+Issue `autrun-dit384rttcps-5aec2213ed` / PR #2247 deduplicated the repeated
+move-or-delete blocks in `Array.prototype.shift`, `unshift`, and `splice`.
+The safe extraction was deliberately narrower than the surrounding loops:
+the helper owns only the identical source-check, target-set, target-exists, and
+delete-or-throw sequence. The durable lesson is that code reduction in sparse
+Array mutators must preserve hole/deletion observability and leave each
+mutator's range, direction, length, and insertion semantics explicit.

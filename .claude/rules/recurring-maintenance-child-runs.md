@@ -186,10 +186,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before treating creation as the slice. If latest main already has the roadmap,
   turn the slice into a bounded refresh of the existing document or an
   evidence-only closeout instead of recreating a stale "missing file" premise.
-- When a roadmap refresh only links already-accepted ADR/rule boundaries into
-  `docs/roadmap.md`, the learn pass should inventory the existing semantic
-  rule homes before creating another knowledge artifact. If the proxy,
-  control-flow, tail-call, or other domain rule already captures the lesson,
+- When a roadmap refresh only links already-accepted ADR/rule boundaries,
+  failed-trial evidence, or follow-up issue links into `docs/roadmap.md`, the
+  learn pass should inventory the existing semantic rule homes before creating
+  another knowledge artifact. If the proxy, control-flow, tail-call,
+  performance guardrail, or other domain rule already captures the lesson,
   record that overlap and avoid duplicate ADR/rule churn.
 - For recurring code-reduction children, prefer deleting one proven-dead
   internal helper or overload over reshaping a surrounding feature. Prove the
@@ -665,6 +666,15 @@ destructuring profile lessons, plus `.claude/rules/jsvalue-core-values.md` for
 HTMLDDA string-coercion precedence. Future learn passes for roadmap refreshes
 should record that overlap and avoid creating duplicate ADR/rule artifacts when
 the delivery only surfaced already-accepted evidence in `docs/roadmap.md`.
+
+Issue `autrun-dit71yapajf4-92057cb61e` / PR #2284 repeated the same compaction
+boundary for failed performance trials: the roadmap refresh linked the
+`simplearithmetic` and `classdef` failed-trial evidence plus follow-up issues
+#2281 and #2282, while ADR 0214, ADR 0216, and
+`.claude/rules/performance-profiling-guardrails.md` already owned the durable
+negative-trial lessons. Future learn passes should record that overlap instead
+of creating another ADR or one-off rule just because the roadmap gained
+follow-up links.
 
 Issue `autrun-disf6pj6b97s-d66702792b` / PR #2042 exposed a roadmap
 traceability gap in the same recurring-docs family: the delivery selected and

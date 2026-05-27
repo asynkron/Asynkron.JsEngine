@@ -172,7 +172,11 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
         constructor.DefineProperty("from",
-            new PropertyDescriptor { Value = arrayFrom, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                JsValue = JsValue.FromObjectUnsafe(arrayFrom), Writable = true, Enumerable = false,
+                Configurable = true
+            });
     }
 
     private void AttachFromAsync(HostFunction constructor)
@@ -187,7 +191,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
         constructor.DefineProperty("fromAsync",
             new PropertyDescriptor
             {
-                Value = arrayFromAsync,
+                JsValue = JsValue.FromObjectUnsafe(arrayFromAsync),
                 Writable = true,
                 Enumerable = false,
                 Configurable = true

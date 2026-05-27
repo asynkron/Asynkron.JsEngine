@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +19,10 @@ public sealed partial class ArrayPrototype
         Realm.Logger?.LogInformation("ArrayPrototype configured: {Prototype}", Prototype);
 
         Prototype.DefineProperty("length",
-            new PropertyDescriptor { Value = 0d, Writable = true, Enumerable = false, Configurable = false });
+            new PropertyDescriptor
+            {
+                JsValue = new JsValue(0d), Writable = true, Enumerable = false, Configurable = false
+            });
 
         // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
         DefineUnscopables();
@@ -48,13 +52,20 @@ public sealed partial class ArrayPrototype
 
         var key = SymbolKeys.Unscopables;
         Prototype.DefineProperty(key,
-            new PropertyDescriptor { Value = unscopables, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor
+            {
+                JsValue = JsValue.FromObjectUnsafe(unscopables), Writable = false, Enumerable = false,
+                Configurable = true
+            });
         return;
 
         void Flag(string name)
         {
             unscopables.DefineProperty(name,
-                new PropertyDescriptor { Value = true, Writable = true, Enumerable = true, Configurable = true });
+                new PropertyDescriptor
+                {
+                    JsValue = JsValue.True, Writable = true, Enumerable = true, Configurable = true
+                });
         }
     }
 }

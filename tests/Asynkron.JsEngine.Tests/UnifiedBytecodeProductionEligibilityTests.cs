@@ -501,6 +501,40 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("read")]
+    [InlineData("write")]
+    [InlineData("update")]
+    public void Evaluate_PrivateNamedPropertyAccess_DeclinesWithExplicitCode(string methodName)
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                read(receiver) {
+                    return receiver.#field;
+                }
+
+                write(receiver, value) {
+                    return receiver.#field = value;
+                }
+
+                update(receiver) {
+                    return receiver.#field++;
+                }
+            }
+            """,
+            "Holder",
+            methodName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
+        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency()
     {

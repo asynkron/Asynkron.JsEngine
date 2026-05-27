@@ -833,6 +833,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (propertySet.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        {
+            reason = "Private named property writes are not supported.";
+            return false;
+        }
+
         if (propertySet.AllowNameInference)
         {
             reason = "Property writes with name inference are not supported.";
@@ -950,6 +956,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (propertyUpdate.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        {
+            reason = "Private named property updates are not supported.";
+            return false;
+        }
+
         if (!TryAppendActivationIdentifierLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -1037,6 +1049,12 @@ internal static class UnifiedBytecodeCompiler
             if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
             {
                 reason = string.Empty;
+                return false;
+            }
+
+            if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
                 return false;
             }
 

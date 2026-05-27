@@ -228,9 +228,17 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
+        var stringConstants = program.StringConstants.AsSpan();
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
+            if (IsPrivateNamedPropertyOperation(operation, stringConstants))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
+                declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadThis:
@@ -456,6 +464,7 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var operation = program.GetOperation(index);
             if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.GetString(program.StringConstants.AsSpan()).IsPrivateName() ||
                 operation.IsOptional ||
                 operation.ShortCircuitOnNullishTarget)
             {
@@ -521,6 +530,7 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var propertyWrite = program.GetOperation(2);
             return propertyWrite.Kind == ExpressionOpKind.SetNamedProperty &&
+                   !propertyWrite.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
                    !propertyWrite.AllowNameInference &&
                    TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
                    IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
@@ -546,7 +556,9 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         if (program.OperationCount == 2)
         {
-            return program.GetOperation(1).Kind == ExpressionOpKind.UpdateNamedProperty &&
+            var propertyUpdate = program.GetOperation(1);
+            return propertyUpdate.Kind == ExpressionOpKind.UpdateNamedProperty &&
+                   !propertyUpdate.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
                    TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots);
         }
 
@@ -574,6 +586,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots),
             _ => false
         };
+    }
+
+    private static bool IsPrivateNamedPropertyOperation(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants)
+    {
+        return (operation.Kind is ExpressionOpKind.GetNamedProperty
+                               or ExpressionOpKind.SetNamedProperty
+                               or ExpressionOpKind.UpdateNamedProperty) &&
+               operation.GetString(stringConstants).IsPrivateName();
     }
 
     private static bool ContainsPropertyWriteOperation(ExpressionProgram program)

@@ -181,6 +181,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     admitted. Without those neighboring declines, future property-set widening
     can accidentally route logical assignment, dynamic lookup, or computed-key
     expression payloads through a VM path that does not yet own those semantics.
+19. When admitting direct compound property writes into production unified
+    bytecode, preserve the reference operands with dedicated get-for-set opcodes
+    instead of adding generic stack duplicate/swap opcodes or VM fallback. Named
+    compound writes must keep the receiver live for `SetNamedProperty`, and
+    computed compound writes must keep both the receiver and the already-resolved
+    key live for `SetComputedProperty`. Keep the selector and compiler matched
+    to exact operation sequences, and leave logical assignment, nested member
+    chains, richer computed keys, optional chains, `super`, private fields,
+    `delete`, calls, destructuring, and dynamic lookup as pre-VM declines until
+    a later slice owns their full proof. WHY: issue
+    `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
+    / PR #2426 widened direct named/computed compound writes by adding
+    `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
+    Those opcodes intentionally avoid treating compound writes as permission for
+    a generic expression-stack VM or broad property-write routing.
 
 ## Why
 
@@ -388,6 +403,16 @@ property-write family, so nearby write shapes need explicit decline examples to
 stop future agents from treating "property write" as a broad source-syntax
 permission.
 
+Faktorial issue
+`planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
+and PR #2426 admitted direct named and computed compound property assignments
+by adding compound get-for-set opcodes rather than generic unified stack
+operators. WHY: compound assignment lowering needs to read the old property
+value while preserving the receiver, and computed compound assignment also must
+preserve the once-resolved key for the eventual set. A generic duplicate/swap
+surface or VM callback would have widened production unified bytecode beyond
+the proven selector, compiler, VM, and route-proof boundary.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -404,3 +429,4 @@ Related ADRs:
 - `docs/adrs/0224-keep-unified-bytecode-shape-probes-side-effect-free-before-emission.md`
 - `docs/adrs/0231-keep-unified-bytecode-property-write-private-names-guarded.md`
 - `docs/adrs/0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md`
+- `docs/adrs/0238-keep-unified-bytecode-compound-property-writes-get-for-set-owned.md`

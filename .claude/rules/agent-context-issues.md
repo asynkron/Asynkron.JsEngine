@@ -74,13 +74,13 @@ What remains to be done
 ## Rules
 
 1. **Keep AgentContext issues closed** - they're hidden from users but still readable/writable
-2. Create closed: `gh issue create --title "AgentContext: ..." --body "..." && gh issue close <id>`
+2. Create closed: `rtk gh issue create --title "AgentContext: ..." --body "..." && rtk gh issue close <id>`
 3. Update the issue body whenever significant findings emerge
 4. Keep it concise but complete - this is your memory across sessions
-5. Use `gh issue edit` to update the body, not comments
+5. Use `rtk gh issue edit` to update the body, not comments
 6. Search for existing AgentContext issues before creating new ones:
    ```bash
-   gh issue list --search "AgentContext: in:title" --state closed
+   rtk gh issue list --search "AgentContext: in:title" --state closed
    ```
 
 ## Why

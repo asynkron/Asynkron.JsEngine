@@ -284,6 +284,15 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   handles every case. Prefer delegating to that owner over creating a new helper
   or reshaping the surrounding feature, and prove the owner surface with a
   focused test filter plus the usual code-size and diff checks.
+- When the code-reduction slice targets duplicated AST or shape-analysis
+  traversal, compare the traversal boundaries before merging walkers that look
+  structurally similar. If one existing owner is reused as a probe, pin any
+  intentionally skipped node families with focused tests, and rescan for dead
+  state left behind by earlier review iterations. Issue
+  `autrun-ditjxyijy9e0-99946d8d6a` / PR #2405 removed
+  `SingleYieldLocator` only after `TryFindSingleYield` reused the
+  `SingleYieldRewriter` boundary, added class-expression boundary tests, and
+  deleted the obsolete `ShapeCounter.FirstYieldExpression` state.
 - When the duplicate code is locale-sensitive formatting, keep the semantic
   split between named and numeric formatting paths explicit. Reuse the existing
   named-format owner when it already handles locale separators, but do not fold
@@ -809,6 +818,17 @@ separate eval boundaries intact, recorded `GeneratorTests.cs` reductions from
 family with the focused `FullyQualifiedName~Generator_YieldStar` filter. Future
 regression-harness reductions should share identical setup, not delete coverage
 or collapse scenario-specific scripts only to reduce lines.
+
+Issue `autrun-ditjxyijy9e0-99946d8d6a` / PR #2405 applied code reduction to
+duplicated single-yield AST traversal in `Ast/ShapeAnalyzer`. Review caught
+that the first reduction merged discovery into `ShapeCounter`, whose
+class-expression traversal boundary differed from the old locator and the
+rewriter. The accepted slice reused `SingleYieldRewriter` as the single-yield
+probe, added focused class-expression boundary tests, removed the separate
+locator, and then deleted leftover `FirstYieldExpression` state. Future
+AST-walker reductions should treat traversal boundaries as behavior, not as
+mechanical duplication, and should scan for dead state after review-driven
+design changes.
 
 Issue `autrun-dis5yv0b12so-8430e3939a` / PR #1958 removed three fully
 commented-out dormant test source files:

@@ -79,6 +79,19 @@ compiler-emitted shape.
   the more specialized direct simple-return binary fast paths without a
   separate decision and regression proof.
 
+## Evidence (Batch 5 proof run)
+
+- `UnifiedBytecodeProductionEligibilityTests` passed in Release: 31 tests.
+- `UnifiedBytecodeProductionInvocationTests` passed in Release: 17 tests.
+- AST-eval seam scan command:
+  `rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*`
+  returned `NO_MATCHES`.
+- Memory profile command `rtk ./tools/profile forloop --memory` reported
+  `Total allocated 6.70 MB` then `Total allocated 6.80 MB` in repeated samples.
+
+Interpretation: this is allocation-stability evidence for the routed production
+boundary, not a performance-improvement claim.
+
 ## Related
 
 - Issue

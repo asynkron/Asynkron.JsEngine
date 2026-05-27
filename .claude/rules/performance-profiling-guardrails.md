@@ -173,22 +173,30 @@ optimization.
      after review found a receiver helper that recursed through the public
      overload and reset the prototype-depth guard on every ordinary `JsObject`
      prototype miss.
-10b. For evidence-only `propertyaccess` or unified-bytecode property-read
+10b. For evidence-only `propertyaccess` or unified-bytecode property-access
      profile reports, use the canonical `tools/profile-manifest.json`
      `propertyaccess` entry and `tools/profile-scripts/propertyaccess.js`.
      Label historical baseline source/date separately from current rows, and
      include timing, allocation, and CPU call-tree commands when the claim
      covers production routing. State the exact accepted first-boundary
-     named/computed read shapes and the main pre-VM decline families. Do not
-     imply that every property read in the selected workload, broad Node.js
-     parity, or broad runtime parity executed through the unified VM. When a
-     later boundary proof-pack child is evidence-only because failures are
-     already zero, append the exact proof commands and outcomes to the existing
-     evidence surface instead of changing runtime code: focused property-read
-     eligibility tests, property-read/indexed invocation tests, the full
-     unified production eligibility/invocation pack, the runner AST-seam scan,
-     and `rtk ./tools/profile forloop --memory`. Treat a 0 -> 0 failure delta
-     as boundary stability evidence, not as proof of a new optimization. WHY:
+     property-access shapes, the current accepted opcode set, and the main
+     pre-VM decline families. After PR #2442, the accepted boundary includes
+     direct named/computed reads, exact two-hop named reads, direct
+     named/computed writes, direct named/computed compound writes, and
+     direct named/computed prefix/postfix updates. The evidence must also list
+     the get-for-set, set, and update opcodes when those shapes are in scope,
+     explicitly account for unavailable dependency status lookups such as the
+     #2367 Faktorial API gap, and keep claim scope to captured rows plus owned
+     VM opcodes. Do not imply that every property access in the selected
+     workload, broad Node.js parity, or broad runtime parity executed through
+     the unified VM. When a later boundary proof-pack child is evidence-only
+     because failures are already zero, append the exact proof commands and
+     outcomes to the existing evidence surface instead of changing runtime
+     code: focused property-access eligibility tests, property-access/indexed
+     invocation tests, the full unified production eligibility/invocation pack,
+     the runner AST-seam scan, `rtk ./tools/profile forloop --memory`, and
+     `rtk git diff --check`. Treat a 0 -> 0 failure delta as boundary stability
+     evidence, not as proof of a new optimization. WHY:
      issue #2313 / PR #2319 was an evidence-only profile pass after
      property-read production routing became executable; the accepted note
      distinguished the historical 2026-05-26 `1735 ms` baseline from current
@@ -207,7 +215,15 @@ optimization.
      this selected profile can shift together across runs, so future agents
      must preserve the prior checked-in row, record the exact current command
      output, and keep ADR 0218/0222 boundary language separate from performance
-     interpretation.
+     interpretation. Faktorial issue
+     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-6-4a4c42607f`
+     / PR #2442 refreshed the same evidence after ADR 0234/0238 made writes,
+     compound writes, and updates part of the accepted direct property-access
+     boundary. The useful lesson is that evidence-only closeouts must update the
+     maintained boundary and opcode vocabulary instead of preserving
+     property-read-only wording, and must record unavailable status-source gaps
+     such as the local `/api/issues/2367` HTTP 400 rather than depending on
+     external issue state.
 10c. For `propertyaccess` production-routing widening attempts, do not retain
      activation-resolved named-read chains, direct property-read binary
      expressions, or adjacent unified-bytecode eligibility changes unless the

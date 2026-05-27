@@ -1726,8 +1726,8 @@ internal static class JsOps
             // Handle objects first - most common case
             case JsValueKind.Object or JsValueKind.String or JsValueKind.Symbol or JsValueKind.BigInt:
                 {
-                    var targetObj = target.ObjectValue;
-                    if (targetObj != null && TryGetPropertyValueObject(targetObj, propertyName, out var objValue, context))
+                    if (target.ObjectValue != null &&
+                        TryGetPropertyValueJsTarget(target, propertyName, out var objValue, context))
                     {
                         value = objValue;
                         return true;
@@ -1844,20 +1844,18 @@ internal static class JsOps
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static bool TryGetPropertyValueObject(object? target, string propertyName, out JsValue value,
+    private static bool TryGetPropertyValueJsTarget(JsValue target, string propertyName, out JsValue value,
         EvaluationContext? context)
     {
-        switch (target)
+        switch (target.ObjectValue)
         {
-            case JsValue jsVal:
-                return TryGetPropertyValue(jsVal, propertyName, out value, context);
             case IJsPropertyAccessor propertyAccessor:
                 try
                 {
                     switch (propertyAccessor)
                     {
                         case JsObject jsObject:
-                            return jsObject.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value);
+                            return jsObject.TryGetProperty(propertyName, target, context, out value);
                         // For Symbol primitives, first try own properties, then fall back to Symbol.prototype
                         case JsSymbol symbol when symbol.TryGetProperty(propertyName, out var symbolJsValue):
                             value = symbolJsValue;
@@ -1867,7 +1865,7 @@ internal static class JsOps
                             {
                                 var symbolProto = context?.RealmState?.SymbolPrototype;
                                 if (symbolProto is not null &&
-                                    symbolProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
+                                    symbolProto.TryGetProperty(propertyName, target, context, out value))
                                 {
                                     return true;
                                 }
@@ -1877,7 +1875,7 @@ internal static class JsOps
                             }
                     }
 
-                    if (propertyAccessor.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), out var jsVal2))
+                    if (propertyAccessor.TryGetProperty(propertyName, target, out var jsVal2))
                     {
                         value = jsVal2 is JsValue jv ? jv : jsVal2;
                         return true;
@@ -1894,7 +1892,7 @@ internal static class JsOps
                 }
             case bool:
                 if (context?.RealmState?.BooleanPrototype is { } booleanProto &&
-                    booleanProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
+                    booleanProto.TryGetProperty(propertyName, target, context, out value))
                 {
                     return true;
                 }
@@ -1902,7 +1900,7 @@ internal static class JsOps
                 return false;
             case double:
                 if (context?.RealmState?.NumberPrototype is { } numberProto &&
-                    numberProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
+                    numberProto.TryGetProperty(propertyName, target, context, out value))
                 {
                     return true;
                 }
@@ -1910,7 +1908,7 @@ internal static class JsOps
                 return false;
             case JsBigInt:
                 if (context?.RealmState?.BigIntPrototype is { } bigIntProto &&
-                    bigIntProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
+                    bigIntProto.TryGetProperty(propertyName, target, context, out value))
                 {
                     return true;
                 }
@@ -1931,7 +1929,7 @@ internal static class JsOps
                 }
 
                 if (context?.RealmState?.StringPrototype is { } stringProto &&
-                    stringProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(target), context, out value))
+                    stringProto.TryGetProperty(propertyName, target, context, out value))
                 {
                     return true;
                 }
@@ -1954,7 +1952,7 @@ internal static class JsOps
                     }
 
                     if (context?.RealmState?.StringPrototype is { } ropeStringProto &&
-                        ropeStringProto.TryGetProperty(propertyName, JsValue.FromObjectUnsafe(ropeStr), context, out value))
+                        ropeStringProto.TryGetProperty(propertyName, target, context, out value))
                     {
                         return true;
                     }

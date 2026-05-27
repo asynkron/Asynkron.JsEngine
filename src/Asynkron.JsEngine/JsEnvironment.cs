@@ -4760,13 +4760,13 @@ public sealed class JsEnvironment : IRentable
         }
 
         errorObj.DefineProperty("_errorData",
-            new PropertyDescriptor { Value = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor { JsValue = JsValue.True, Writable = false, Enumerable = false, Configurable = false });
         errorObj.DefineProperty("error",
-            new PropertyDescriptor { Value = newError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = newError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
         errorObj.DefineProperty("suppressed",
-            new PropertyDescriptor { Value = suppressedError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = suppressedError.ThrownValue, Writable = true, Enumerable = false, Configurable = true });
         errorObj.DefineProperty("message",
-            new PropertyDescriptor { Value = (JsValue)"", Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = (JsValue)"", Writable = true, Enumerable = false, Configurable = true });
 
         return new ThrowSignal(JsValue.FromObjectUnsafe(errorObj));
     }

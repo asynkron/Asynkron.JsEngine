@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
@@ -75,7 +76,7 @@ public static partial class IterationHelper
         throw new InvalidOperationException($"Value is not iterable: {iterable.Kind}");
     }
 
-    private static bool TryInvokeSymbolIterator(JsObject target, JsSymbol symbol, out JsObject? iterator)
+    private static bool TryInvokeSymbolIterator(JsObject target, JsSymbol symbol, [NotNullWhen(true)] out JsObject? iterator)
     {
         var propertyName = JsSymbol.PropertyKey(symbol);
         if (target.TryGetProperty(propertyName, out var method) &&
@@ -172,10 +173,9 @@ public static partial class IterationHelper
         return iteratorObj;
     }
 
-    private static bool HasCallableNext(object? candidate)
+    private static bool HasCallableNext(JsObject candidate)
     {
-        return candidate is JsObject obj &&
-               obj.TryGetProperty("next", out var nextProp) &&
+        return candidate.TryGetProperty("next", out var nextProp) &&
                nextProp.TryGetObject<IJsCallable>(out _);
     }
 

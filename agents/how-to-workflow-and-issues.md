@@ -33,7 +33,7 @@ This step is **critical** - agent investigation findings are lost if not documen
 - Do not run the host `faktorial` binary for issue, log, or state reads from an agent runtime.
 - Compact summary example:
   - `curl -fsS "${FAKTORIAL_URL:-http://127.0.0.1:8787}/api/logs/<task-id>/summary"`
-- Use the `gh` CLI patterns below for ordinary local/manual GitHub workflows, or only in Faktorial when explicitly instructed and the runtime context does not provide the needed operation.
+- Use the local/manual `gh` CLI examples below only outside Faktorial agent runtime, or only in Faktorial when explicitly instructed and the runtime context does not provide the needed operation.
 - In Faktorial runs, keep evidence collection output-bounded:
   - Prefer compact helpers or API summaries before opening raw logs or broad state snapshots.
   - Split unrelated reads into small commands instead of large chained `sed`/`rg`/log commands.
@@ -41,13 +41,10 @@ This step is **critical** - agent investigation findings are lost if not documen
   - When raw logs are required, use narrow snippets (targeted patterns and line caps) rather than full dumps.
   - For recurring maintenance child runs, ensure `## Build Update` explicitly includes a `Sibling check:` line (or states the lookup was unavailable) so evidence gates can verify overlap avoidance.
 - For each session, update an existing issue or create one if none fit.
-- Find/confirm an issue:
-  - `gh issue list -S "keyword"`
-  - `gh issue view <number>`
-- Create if needed:
-  - `gh issue create -t "Title" -b "Context, plan, next steps"`
-- Update progress:
-  - `gh issue comment <number> -b "Update text"`
+- Local/manual `gh` examples (non-Faktorial runtime):
+  - Find/confirm an issue: `gh issue list -S "keyword"` and `gh issue view <number>`
+  - Create if needed: `gh issue create -t "Title" -b "Context, plan, next steps"`
+  - Update progress: `gh issue comment <number> -b "Update text"`
   - Patch an existing comment: `gh api --method PATCH repos/asynkron/Asynkron.JsEngine/issues/comments/<comment_id> -f body="$(cat /tmp/body.txt)"`
 - Link related work with markdown references (e.g., `Related to #344`, `Blocked by #123`).
 - Always summarize changes, remaining work, and test results so the next agent can resume quickly.

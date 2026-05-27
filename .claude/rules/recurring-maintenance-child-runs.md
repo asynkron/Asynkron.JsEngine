@@ -35,6 +35,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `trigger=automation recurrence` as classification for one runnable bounded
   child delivery, not as a request to design persistent setup or scheduler
   behavior in this repository.
+- Treat recurrence-normalization wording in issue handoffs as the same bounded
+  child-run classification signal: normalize the evidence shape for this run,
+  but do not convert that wording into persistent setup, scheduler, or
+  repository-infrastructure work.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
 - If canonical quality verification reports a recurring-child docs or rule
@@ -752,3 +756,8 @@ bounded child delivery; they are not a request to design persistent setup,
 scheduler behavior, or recurrence infrastructure inside this repository. Future
 agents should keep that distinction in the existing recurring-child rule instead
 of creating another ADR or one-off rule for the same classification boundary.
+
+Issue #2221 continued that boundary for recurrence-normalization phrasing in
+persistent ADR/rule compaction handoffs: normalize the recurring-child evidence
+contract in the existing owned rule, but do not treat that phrase as a request
+for new persistent setup or scheduler infrastructure.

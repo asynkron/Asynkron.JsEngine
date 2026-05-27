@@ -418,6 +418,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task TwoHopNamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndGetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            Object.defineProperty(box, "child", {
+                get() {
+                    hits = hits + 1;
+                    return {
+                        get value() {
+                            hits = hits + 1;
+                            return 40;
+                        }
+                    };
+                }
+            });
+
+            function read(box) {
+                return box.child.value;
+            }
+
+            read(box) + hits;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyInNamedChain_DeclinesUnifiedBytecodeAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read(box, key) {
+                return box.child[key];
+            }
+
+            read({ child: { value: 42 } }, "value");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [MemberData(nameof(UnsupportedControlFlowFunctions))]
     public async Task UnsupportedControlFlowShapes_DeclineUnifiedBytecodeAndFallBack(

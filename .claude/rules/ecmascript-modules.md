@@ -63,7 +63,9 @@ values, and async module evaluation order separate.
     synchronous dependencies can complete or fault through the returned task
     without installing a stored async evaluation task. Use stored
     `EvaluationTask` only for pending async dependency continuation/drain
-    tracking.
+    tracking. If an async dependency unexpectedly has no stored
+    `EvaluationTask`, await the returned task as the fallback completion/fault
+    surface before advancing the dependency walk.
 
 ## Why
 
@@ -125,5 +127,13 @@ bug was not the value carrier itself; it was dropping the task returned by
 `dependency.EvaluationTask`, which can be null for sync modules. Future module
 task or TLA dependency changes must prove synchronous dependency failures still
 reach the importer, alongside the existing sibling async and tick-order packs.
+
+Issue `gh2401` / PR #2406 hardened the same boundary after ADR 0212 follow-up:
+the stored `EvaluationTask` remains the normal async dependency drain owner, but
+the dependency walker must still await the returned
+`EnsureModuleEvaluatedAsync(...)` task if the stored async task is absent. The
+durable lesson is to prove both sync dependency body faults and async dependency
+continuation faults with focused `TopLevelAwait_AsyncDependencyWalkSurfaces*`
+coverage before claiming module task/fault propagation is preserved.
 
 Related ADR: `docs/adrs/0091-keep-module-namespace-construction-resolution-lazy.md`.

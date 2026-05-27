@@ -133,6 +133,30 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Modul
 
 with 56 passing tests.
 
+Follow-up issue `gh2401` / PR #2406 hardened the dependency-walk completion
+contract without changing the ADR 0212 value boundary. The normal async
+dependency drain still uses stored `ModuleEntry.EvaluationTask`, but
+`EvaluateModuleDependenciesAsync(...)` now falls back to awaiting the task
+returned by `EnsureModuleEvaluatedAsync(...)` when an async dependency has not
+published a stored task. That keeps faults observable instead of allowing a
+dependency walk to continue with no observed completion surface.
+
+Focused evidence from that follow-up:
+
+```text
+src/Asynkron.JsEngine/JsEngine.cs            |  5 +++
+tests/Asynkron.JsEngine.Tests/ModuleTests.cs | 53 ++++++++++++++++++++++++++++
+2 files changed, 58 insertions(+)
+```
+
+The build stage ran:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "Name~TopLevelAwait_AsyncDependencyWalkSurfaces"
+```
+
+with both dependency-walk fault propagation tests passing.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -160,8 +184,9 @@ For future typed module execution migrations:
 7. when a dependency walker calls `EnsureModuleEvaluatedAsync(...)`, preserve
    and await that returned task for synchronous dependencies instead of
    substituting `dependency.EvaluationTask`; stored evaluation tasks are for
-   async module continuation tracking, not the only completion/fault surface;
-   and
+   async module continuation tracking, not the only completion/fault surface,
+   and an async dependency with no stored task must still await the returned
+   task as the fault-propagation fallback; and
 8. prove each slice with a before/after search for the selected legacy
    signatures plus focused module or async-module coverage when behavior, not
    just helper plumbing, changes.
@@ -182,8 +207,8 @@ For future typed module execution migrations:
   until an edge adapter returns public or compatibility `object?`.
 - Module dependency evaluation must observe both completion surfaces: the
   immediate task returned by `EnsureModuleEvaluatedAsync(...)` for synchronous
-  dependency faults, and stored `EvaluationTask` for async dependency
-  continuation/drain tracking.
+  dependency faults or unexpected async-task publication gaps, and stored
+  `EvaluationTask` for normal async dependency continuation/drain tracking.
 - Future Unboxer slices should focus on other object-shaped module result
   surfaces without reopening the public `Evaluate*` facade shape.
 - Obsolete error-level wrappers are useful as temporary compiler pressure, but
@@ -191,6 +216,7 @@ For future typed module execution migrations:
 
 ## Related
 
+- `.claude/rules/ecmascript-modules.md`
 - `.claude/rules/jsvalue-core-values.md`
 - `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`
 - `docs/adrs/0182-keep-module-namespace-own-keys-jsvalue-native.md`

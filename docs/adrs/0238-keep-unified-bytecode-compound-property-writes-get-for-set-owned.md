@@ -102,3 +102,4 @@ get-for-set opcodes and exact selector/compiler shapes.
 - `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeVirtualMachine.cs`
 - `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs`
 - `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionInvocationTests.cs`
+- `docs/performance/propertyaccess-unified-bytecode-production-profile-evidence.md`

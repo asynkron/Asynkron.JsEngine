@@ -342,6 +342,13 @@ Promise roadmap item evidence-first until a dedicated Promise evidence surface
 exists. Future roadmap refreshes must check citation relevance, not just path
 existence or recent acceptance.
 
+Issue `autrun-ditjxyk0fpg8-e5a9846dca` / PR #2404 was a recurring Roadmapper
+child that only linked accepted ADR boundaries, failed activation-trial
+evidence, and two follow-up issues into `docs/roadmap.md`. The useful learn
+boundary was to inventory existing semantic homes and avoid another ADR/rule
+when the current recurring-maintenance, performance, and roadmap-architecture
+rules already captured the durable policy.
+
 Issue #1239 / PR #1251 was a docs-only maintenance slice triggered by the
 pre-existing duplicate ADR prefix `0071`. The useful delivery was adding
 prevention guidance to `agents/how-to-build-and-test.md` while leaving the

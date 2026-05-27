@@ -1408,6 +1408,59 @@ export default function() { return 23; };
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_AsyncDependencyWalkSurfacesSyncDependencyFault()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => modulePath switch
+        {
+            "async-ok.js" => """
+                             await 0;
+                             export const ready = true;
+                             """,
+            "sync-throws.js" => """
+                                throw new Error("sync-fault");
+                                """,
+            _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+        });
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.EvaluateModule("""
+            import "async-ok.js";
+            import "sync-throws.js";
+            export default await Promise.resolve(1);
+            """));
+
+        Assert.Contains("sync-fault", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelAwait_AsyncDependencyWalkSurfacesAsyncDependencyFault()
+    {
+        await using var engine = CreateEngine();
+
+        engine.SetModuleLoader(modulePath => modulePath switch
+        {
+            "async-bad.js" => """
+                              await Promise.resolve(0);
+                              throw new Error("async-fault");
+                              """,
+            "async-ok.js" => """
+                             await 0;
+                             export const ready = true;
+                             """,
+            _ => throw new FileNotFoundException($"Module not found: {modulePath}")
+        });
+
+        var exception = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.EvaluateModule("""
+            import "async-ok.js";
+            import "async-bad.js";
+            export default await Promise.resolve(1);
+            """));
+
+        Assert.Contains("async-fault", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ModuleNamespace_ReflectOwnKeysIncludesExportsAndToStringTagSymbol()
     {
         await using var engine = CreateEngine();

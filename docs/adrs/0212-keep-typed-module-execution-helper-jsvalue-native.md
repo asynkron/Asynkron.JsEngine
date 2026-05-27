@@ -112,6 +112,27 @@ the returned task could be dropped. Commit `c365acc4` fixed the seam by
 capturing the returned task and awaiting it for non-async dependencies, while
 using stored `EvaluationTask` only for the pending async-dependency list.
 
+Follow-up issue `autrun-ditjxyki91ew-7082b9173d` / PR #2403 removed the
+remaining private `ExecuteTypedStatement(...)` `object?` adapter in
+`JsEngine.cs`. The selected module and async-module statement callsites now call
+`ExecuteTypedStatementJsValue(...)` directly. Public facade and edge-returning
+module APIs still convert through `ConvertJsValueToLegacyObject(...)`.
+
+Focused evidence from that follow-up:
+
+```text
+baseline rg "ExecuteTypedStatement\(" src/Asynkron.JsEngine/JsEngine.cs = 11 matches
+final    rg "ExecuteTypedStatement\(" src/Asynkron.JsEngine/JsEngine.cs = 0 matches
+```
+
+The build stage ran:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ModuleTests|FullyQualifiedName~AsyncModuleTryAwaitTests"
+```
+
+with 56 passing tests.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -124,8 +145,10 @@ For future typed module execution migrations:
    compatibility boundaries;
 3. do not call a private `object?` typed execution helper and immediately rewrap
    the result with `JsValue.FromObjectUnsafe(...)`;
-4. do not reintroduce a private `ExecuteTypedExpression(...)` `object?` adapter;
-   `ExecuteTypedExpressionJsValue(...)` is the core typed-expression entrypoint;
+4. do not reintroduce private `ExecuteTypedStatement(...)` or
+   `ExecuteTypedExpression(...)` `object?` adapters;
+   `ExecuteTypedStatementJsValue(...)` and `ExecuteTypedExpressionJsValue(...)`
+   are the core typed statement/expression entrypoints;
 5. use `[Obsolete(..., true)]` on legacy private wrappers after the selected
    direct usage is removed, so hidden core callsites become compiler errors
    instead of new accidental object-carrier seams;
@@ -147,9 +170,10 @@ For future typed module execution migrations:
 
 - Typed module execution now follows the same value-primitive direction as the
   private script/eval `ExecuteProgram` path from ADR 0168.
-- The selected `ExecuteTypedExpression(...)` private object adapter is gone; a
-  future reintroduction should be treated as a regression unless it is tied to
-  a new explicit public, host interop, debugger, or diagnostic boundary.
+- The selected `ExecuteTypedStatement(...)` and `ExecuteTypedExpression(...)`
+  private object adapters are gone; a future reintroduction should be treated
+  as a regression unless it is tied to a new explicit public, host interop,
+  debugger, or diagnostic boundary.
 - Module result storage is no longer a deferred `object?` owner surface:
   `ModuleEntry.LastValue`, synchronous module-body completion, and async module
   runner last-value storage now stay typed as `JsValue`.

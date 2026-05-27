@@ -335,16 +335,21 @@ host-runtime shortcuts.
 39a. For Array splice-family delete counts, treat `args.Count == 0`,
     `args.Count == 1`, and `args.Count >= 2` as semantic branches. A shared
     helper may own `actualDeleteCount` only when each call site first captures
-    the original argument count and passes that explicit `argumentCount` plus
-    the original argument list and active `EvaluationContext?`. Do not make the
-    helper rediscover count ownership by rereading `args.Count` internally:
-    explicit `undefined` must still flow through
-    `ToIntegerOrInfinity(undefined) = 0` while a missing `deleteCount` keeps the
-    `length - actualStart` branch. WHY: issue
+    the original argument count and passes explicit `hasStartArgument` and
+    `hasDeleteCountArgument` booleans, the selected `deleteCountValue`, and the
+    active `EvaluationContext?`. Do not make the helper rediscover count
+    ownership by rereading `args.Count` internally, and do not collapse
+    no-argument calls into the same missing-delete-count branch as
+    one-argument calls: explicit `undefined` must still flow through
+    `ToIntegerOrInfinity(undefined) = 0`, no start argument deletes zero, and a
+    present start with a missing `deleteCount` keeps the `length - actualStart`
+    branch. WHY: issue
     `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated `splice` and
     `toSpliced` delete-count logic without collapsing argument presence into
     value conversion, then issue #2373 / PR #2382 made the call-site count
-    capture explicit so nearby cleanup cannot drift back into mixed ownership.
+    capture explicit so nearby cleanup cannot drift back into mixed ownership,
+    and issue #2375 / PR #2385 split start presence from delete-count presence
+    after the helper still treated `splice()` like `splice(start)`.
     Related ADR:
     `docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.
 40. For `Temporal.PlainYearMonth.prototype.with` on non-ISO calendars, merge
@@ -904,14 +909,16 @@ Issue `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated the
 calculation after a code-reduction pass found repeated `actualDeleteCount`
 normalization. The durable lesson is that splice-family sharing belongs at the
 argument-presence helper boundary: call sites capture the original
-`argumentCount`, the helper receives that explicit count with the original
-argument list, no arguments means delete zero, a missing `deleteCount` means
+`argumentCount`, derive separate `hasStartArgument` and
+`hasDeleteCountArgument` booleans, pass the selected `deleteCountValue`, no
+arguments means delete zero, a present start with a missing `deleteCount` means
 delete to the end, and an explicitly supplied `undefined` must still be
-converted as a value. Issue #2373 / PR #2382 reinforced this boundary after
-the first shared-helper slice still left count ownership implicit in nearby
-call-site branches. Future splice-family cleanup should keep mutating/copying
-array construction, hole handling, insertion, length guards, and writes at the
-owning call sites unless separately proven.
+converted as a value. Issue #2373 / PR #2382 reinforced this boundary after the
+first shared-helper slice still left count ownership implicit in nearby
+call-site branches, and issue #2375 / PR #2385 added the missing split between
+no start argument and missing deleteCount. Future splice-family cleanup should
+keep mutating/copying array construction, hole handling, insertion, length
+guards, and writes at the owning call sites unless separately proven.
 
 Related ADR:
 `docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.

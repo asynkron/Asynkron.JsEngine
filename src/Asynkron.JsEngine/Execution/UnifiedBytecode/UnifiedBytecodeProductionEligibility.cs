@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
@@ -283,8 +284,7 @@ internal static class UnifiedBytecodeProductionEligibility
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.Binary:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
-                    declineReason = "Binary opcode is prototype-only for production unified bytecode routing.";
+                    TryGetPrototypeOnlyBinaryDecline(instruction, out declineCode, out declineReason);
                     return true;
 
                 case UnifiedBytecodeOpCode.Jump:
@@ -327,4 +327,44 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason = string.Empty;
         return false;
     }
+
+    private static void TryGetPrototypeOnlyBinaryDecline(
+        UnifiedBytecodeInstruction instruction,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
+        if (instruction.Operand is < byte.MinValue or > byte.MaxValue)
+        {
+            declineReason =
+                $"Binary opcode is prototype-only for production unified bytecode routing (unknown operator operand {instruction.Operand}).";
+            return;
+        }
+
+        var binaryOperator = (BinaryOperator)(byte)instruction.Operand;
+        if (!Enum.IsDefined(binaryOperator))
+        {
+            declineReason =
+                $"Binary opcode is prototype-only for production unified bytecode routing (unknown operator operand {instruction.Operand}).";
+            return;
+        }
+
+        declineReason =
+            $"Binary operator '{FormatBinaryOperator(binaryOperator)}' is prototype-only for production unified bytecode routing.";
+    }
+
+    private static string FormatBinaryOperator(BinaryOperator binaryOperator) =>
+        binaryOperator switch
+        {
+            BinaryOperator.Add => "+",
+            BinaryOperator.Subtract => "-",
+            BinaryOperator.Multiply => "*",
+            BinaryOperator.Divide => "/",
+            BinaryOperator.Modulo => "%",
+            BinaryOperator.LessThan => "<",
+            BinaryOperator.LessThanOrEqual => "<=",
+            BinaryOperator.GreaterThan => ">",
+            BinaryOperator.GreaterThanOrEqual => ">=",
+            _ => binaryOperator.ToString()
+        };
 }

@@ -273,6 +273,22 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readDynamic",
         (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(
+        """
+        function readComputedObjectLiteralKey(box) {
+            return box[{ value: 1 }];
+        }
+        """,
+        "readComputedObjectLiteralKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+        """,
+        "readComputedSpreadKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
     public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
         string source,
         string functionName,

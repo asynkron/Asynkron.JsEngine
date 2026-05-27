@@ -499,11 +499,11 @@ recurring children should continue from supplied context and bounded local
 runtime evidence, while treating missing `gh` auth or missing optional helpers
 as an environment limitation rather than a source blocker.
 
-Issue #1484 / PR #1487 tightened that fallback after another recurring child
-needed full issue context, not only compact log evidence, while `faktorial-api`
-was unavailable. That incident established the need for both body/comment
-context and compact runtime history before treating helper availability or
-missing source-host credentials as blockers.
+Issue #1484 / PR #1487 and Issue #1641 / PR #1644 together clarified the same
+ordering rule: recurring-child agents need full issue body/comment context from
+the Faktorial issue/dashboard API before relying on compact summaries, because
+compact logs are stage history and can omit acceptance criteria, comments, or
+human direction that should steer the bounded slice.
 
 Issue #1432 extended that fallback to older completed siblings where the
 then-used compact summary helper no longer had history (for example #1403 or
@@ -533,11 +533,10 @@ with `/api/logs/<issue>/summary` plus bounded `.faktorial/logs/ghNNNN.log`
 searches for structural markers, rather than blocking on external source-host
 fallbacks.
 
-Issue #1641 / PR #1644 clarified the normal ordering before that compact-log
-fallback: recurring-child agents need full issue body/comment context from the
-Faktorial issue/dashboard API before relying on compact summaries, because
-compact logs are stage history and can omit acceptance criteria, comments, or
-human direction that should steer the bounded slice.
+The same pair of incidents also established the fallback boundary: after full
+issue context and compact runtime history, treat unavailable helper paths as
+environment limitations before considering source-host credential gaps as
+blockers.
 
 Issue #1756 / PR #1760 moved the unavailable sibling/context fallback from
 semantic policy into the runnable operational checklist in

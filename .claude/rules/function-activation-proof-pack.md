@@ -186,6 +186,27 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `autrun-dit813mc4a00-66ec91b3ab` / PR #2302 initially admitted rest
     parameters into the base-constructor fast path until review-back added the
     missing `_hasOnlySimpleIdentifierParameters` guard.
+22. When adding or widening derived-class-constructor simple IR activation fast
+    paths, keep `super()` as the owner of construction and `this`
+    initialization. A derived constructor fast path may create only the
+    transient function/body activation environment pair, bind simple identifier
+    parameters into planned slots, mark `this` uninitialized, define
+    `new.target`, active function, and `SuperBinding`, and then run the lowered
+    plan so the existing `SuperConstruct` expression instruction performs
+    construction and `this` initialization. Default derived constructors,
+    rest/default/destructured parameters, parameter expressions, observable
+    `arguments`, dynamic lookup, lexical-this capture, home-object semantics,
+    private scopes, captured private scopes, instance fields, async/generator
+    shapes, and missing super bindings must stay on the full invocation path
+    unless the owning binder/environment and `super()` semantics are separately
+    widened and proved. Pair retained changes with class/super semantics,
+    non-simple-parameter negative coverage, selected-profile timing, the
+    AST-eval seam scan, and `forloop --memory`. WHY: issue
+    `autrun-dithx7y92pu8-176deb2370` / PR #2384 retained a 52% focused
+    `classdef` improvement by creating only the derived activation environment
+    while leaving `super()` construction semantics on the existing runner
+    instruction; earlier broader classdef construction shortcuts had failed or
+    remained unproven.
 
 ## Why
 

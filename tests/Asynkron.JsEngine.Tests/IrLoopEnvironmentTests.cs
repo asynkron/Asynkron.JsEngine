@@ -83,6 +83,98 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SyncForLoop_NonCapturingSimpleLet_ElidesParentLoopScope()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function score() {
+                let value = 0;
+                for (let i = 0; i < arguments.length; i++) {
+                    value += arguments[i];
+                }
+
+                return value;
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("score(1, 2, 3, 4);");
+        Assert.Equal(10d, result);
+
+        var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var pushScopes = cache.Plan.Instructions
+            .OfType<PushEnvironmentInstruction>()
+            .ToArray();
+
+        Assert.NotEmpty(pushScopes);
+        Assert.DoesNotContain(pushScopes, IsLoopScopeForI);
+        Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SyncForLoop_NonCapturingSimpleLet_DoesNotLeakLoopBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function score() {
+                for (let i = 0; i < 1; i++) {
+                }
+
+                try {
+                    i;
+                    return "leaked";
+                } catch (error) {
+                    return error instanceof ReferenceError;
+                }
+            })();
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SyncForLoop_CapturingLet_KeepsParentLoopScope()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function capture() {
+                const funcs = [];
+                for (let i = 0; i < 3; i++) {
+                    funcs.push(() => i);
+                }
+
+                return funcs.map(f => f()).join(",");
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("capture();");
+        Assert.Equal("0,1,2", result);
+
+        var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var pushScopes = cache.Plan.Instructions
+            .OfType<PushEnvironmentInstruction>()
+            .ToArray();
+
+        Assert.Contains(pushScopes, push => push.PerIterationBindings.IsDefaultOrEmpty);
+        Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
+    }
+
+    private static bool IsLoopScopeForI(PushEnvironmentInstruction push)
+    {
+        return push.PerIterationBindings.IsDefaultOrEmpty &&
+               push.SlotNames.Any(slot => string.Equals(slot.Name.Name, "i", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AsyncFunction_ForLoop_ClosuresCaptureCorrectValues()
     {
         // This tests the IR path - async functions use ExecutionPlanRunner

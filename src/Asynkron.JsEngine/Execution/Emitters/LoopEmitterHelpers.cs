@@ -72,6 +72,10 @@ internal readonly struct LoopSkeletonConfig
     // -1 if no loop scope needed
     public int LoopScopeId { get; init; }
 
+    // True when emission has proved that the parent loop-scope environment is
+    // unobservable and the first iteration environment can own the initializer.
+    public bool ElideLoopScopeEnvironment { get; init; }
+
     // Do-while: first iteration skips condition, goes directly to body
     public bool ConditionAfterBody { get; init; }
 
@@ -83,7 +87,7 @@ internal readonly struct LoopSkeletonConfig
     public bool NeedsTryFinally { get; init; }
 
     public bool HasPerIterationBindings => !PerIterationBindings.IsDefaultOrEmpty;
-    public bool HasLoopScope => LoopScopeId >= 0;
+    public bool HasLoopScope => LoopScopeId >= 0 && !ElideLoopScopeEnvironment;
     public bool HasPostIteration => !PostIteration.IsDefaultOrEmpty;
     public bool HasLeadingStatements => !LeadingStatements.IsDefaultOrEmpty;
 }
@@ -195,24 +199,36 @@ internal static class LoopEmitterHelpers
         {
             if (config.PerIterationEnvAfterBody)
             {
-                // For-loops: PushEnv(new iteration) AFTER body, BEFORE PostIteration
-                // Per ES spec (ForBodyEvaluation step 3.e):
-                //   1. Evaluate condition
-                //   2. Evaluate body (closures capture current environment)
-                //   3. CreatePerIterationEnvironment (create new env, copy values)
-                //   4. Evaluate increment (modifies new env, not the captured one)
-                var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
-                    postIterEntry,
-                    config.PerIterationBindings,
-                    config.IterationScopeId,
-                    config.IterationSlotCount,
-                    slotMap!,
-                    config.CanReuseIterationEnvironment,
-                    config.LexicalBindings,
-                    SlotNames: slotNames,
-                    LexicalSlotIndices: lexicalSlotIndices));
-                continueTarget = createEnvIndex;
-                bodyEndTarget = createEnvIndex;
+                if (config.ElideLoopScopeEnvironment)
+                {
+                    // A non-capturing loop can reuse the first iteration
+                    // environment for the increment and next condition test.
+                    // The usual per-iteration PushEnvironment is only needed
+                    // when environment identity is observable.
+                    continueTarget = postIterEntry;
+                    bodyEndTarget = postIterEntry;
+                }
+                else
+                {
+                    // For-loops: PushEnv(new iteration) AFTER body, BEFORE PostIteration
+                    // Per ES spec (ForBodyEvaluation step 3.e):
+                    //   1. Evaluate condition
+                    //   2. Evaluate body (closures capture current environment)
+                    //   3. CreatePerIterationEnvironment (create new env, copy values)
+                    //   4. Evaluate increment (modifies new env, not the captured one)
+                    var createEnvIndex = ctx.Append(new PushEnvironmentInstruction(
+                        postIterEntry,
+                        config.PerIterationBindings,
+                        config.IterationScopeId,
+                        config.IterationSlotCount,
+                        slotMap!,
+                        config.CanReuseIterationEnvironment,
+                        config.LexicalBindings,
+                        SlotNames: slotNames,
+                        LexicalSlotIndices: lexicalSlotIndices));
+                    continueTarget = createEnvIndex;
+                    bodyEndTarget = createEnvIndex;
+                }
             }
             else
             {
@@ -291,23 +307,55 @@ internal static class LoopEmitterHelpers
         var loopEntryTarget = config.ConditionAfterBody ? iterBodyEntry : moveNextEntry;
 
         // For-loop specific entry path: initial per-iteration env + leading stmts + loop scope
+        var leadingStatementsBuiltAfterInitialIterationEnv = false;
         if (config.HasPerIterationBindings && config.PerIterationEnvAfterBody)
         {
-            // Per ES spec 13.7.4.9 ForBodyEvaluation step 3:
-            // CreatePerIterationEnvironment is called BEFORE the first condition test.
-            loopEntryTarget = ctx.Append(new PushEnvironmentInstruction(
-                loopEntryTarget,
-                config.PerIterationBindings,
-                config.IterationScopeId,
-                config.IterationSlotCount,
-                slotMap!,
-                config.CanReuseIterationEnvironment,
-                config.LexicalBindings,
-                SlotNames: slotNames,
-                LexicalSlotIndices: lexicalSlotIndices));
+            if (config.ElideLoopScopeEnvironment && config.HasLeadingStatements)
+            {
+                // The ordinary non-capturing for-let fast path has no observable
+                // parent loop-scope environment. Create the first iteration
+                // environment before the initializer so the let binding stays
+                // loop-local without allocating the extra loop-scope parent.
+                var savedSuppressCompletionValue = ctx.SuppressCompletionValue;
+                ctx.SuppressCompletionValue = true;
+                var built = ctx.TryBuildStatementList(config.LeadingStatements, loopEntryTarget, out var leadingEntry);
+                ctx.SuppressCompletionValue = savedSuppressCompletionValue;
+                if (!built)
+                {
+                    ctx.Rollback(instructionStart);
+                    return false;
+                }
+
+                loopEntryTarget = ctx.Append(new PushEnvironmentInstruction(
+                    leadingEntry,
+                    config.PerIterationBindings,
+                    config.IterationScopeId,
+                    config.IterationSlotCount,
+                    slotMap!,
+                    config.CanReuseIterationEnvironment,
+                    config.LexicalBindings,
+                    SlotNames: slotNames,
+                    LexicalSlotIndices: lexicalSlotIndices));
+                leadingStatementsBuiltAfterInitialIterationEnv = true;
+            }
+            else
+            {
+                // Per ES spec 13.7.4.9 ForBodyEvaluation step 3:
+                // CreatePerIterationEnvironment is called BEFORE the first condition test.
+                loopEntryTarget = ctx.Append(new PushEnvironmentInstruction(
+                    loopEntryTarget,
+                    config.PerIterationBindings,
+                    config.IterationScopeId,
+                    config.IterationSlotCount,
+                    slotMap!,
+                    config.CanReuseIterationEnvironment,
+                    config.LexicalBindings,
+                    SlotNames: slotNames,
+                    LexicalSlotIndices: lexicalSlotIndices));
+            }
         }
 
-        if (config.HasLeadingStatements)
+        if (config.HasLeadingStatements && !leadingStatementsBuiltAfterInitialIterationEnv)
         {
             // Per ES spec 13.7.4.7: initializer doesn't contribute to completion value
             var savedSuppressCompletionValue = ctx.SuppressCompletionValue;

@@ -40,7 +40,7 @@ maintenance pass, keep the slice repo-local and reviewable:
 - Operational ownership: this section owns the runnable checklist and `## Build
   Update` template used in build-stage issue updates.
 - ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
-  reservation (`faktorial-api adr-next`) and duplicate-prefix guardrails.
+  reservation (`rtk faktorial-api adr-next`) and duplicate-prefix guardrails.
 - Persistent ADR/rule compaction details stay in
   `.claude/rules/recurring-maintenance-child-runs.md`; keep this section
   focused on the operational checklist and Build Update template.
@@ -65,15 +65,16 @@ maintenance pass, keep the slice repo-local and reviewable:
    logs; keep raw-log searches narrow and do not run the host `faktorial`
    daemon binary for issue, log, or state reads.
 4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
-   `faktorial-api adr-next` first and use the returned `adr_id`; do not guess
-   ADR IDs from filesystem scans. If the slice does not create an ADR, skip the
-   allocator call. If an ADR is required but the local `faktorial-api` helper is
-   unavailable, record that environment limitation in the issue evidence and
-   follow current Faktorial/runtime allocator guidance instead of widening scope
-   into `gh` auth workarounds or host-daemon reads. If the lesson fits an
-   existing durable document, update that file instead of creating a
-   duplicate-number ADR. After writing or renaming ADRs, run a duplicate-prefix
-   check over `docs/adrs` and record a clean result in the issue update.
+   `rtk faktorial-api adr-next` first and use the returned `adr_id`; do not
+   guess ADR IDs from filesystem scans. If the slice does not create an ADR,
+   skip the allocator call. If an ADR is required but the local
+   `faktorial-api` helper is unavailable, record that environment limitation in
+   the issue evidence and follow current Faktorial/runtime allocator guidance
+   instead of widening scope into `gh` auth workarounds or host-daemon reads.
+   If the lesson fits an existing durable document, update that file instead of
+   creating a duplicate-number ADR. After writing or renaming ADRs, run a
+   duplicate-prefix check over `docs/adrs` and record a clean result in the
+   issue update.
 5. Make only the small change required for that slice.
 6. Capture the matching final signal after editing and record both signals in
    the issue update.

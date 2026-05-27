@@ -2966,6 +2966,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsGenerator ||
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
+                !_hasOnlySimpleIdentifierParameters ||
                 _argumentsObjectNeeded ||
                 _usesArguments ||
                 _needsArgumentsBinding ||

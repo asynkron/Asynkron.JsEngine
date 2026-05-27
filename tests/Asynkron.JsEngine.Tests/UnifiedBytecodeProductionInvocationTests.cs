@@ -285,6 +285,139 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndGetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    hits = hits + 1;
+                    return 41;
+                }
+            });
+
+            function read(box) {
+                return box.value;
+            }
+
+            read(box) + hits;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndPrimitiveBoxing()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read(value) {
+                return value.length;
+            }
+
+            read("abcd");
+            """);
+
+        Assert.Equal(4d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndProxyGetSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var proxy = new Proxy({ value: 40 }, {
+                get(target, prop) {
+                    hits = hits + 1;
+                    return target[prop] + 1;
+                }
+            });
+
+            function read(box) {
+                return box.value;
+            }
+
+            read(proxy) + hits;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndToPropertyKeySemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = { value: 40 };
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function read(box, key) {
+                return box[key];
+            }
+
+            read(box, key) + hits;
+            """);
+
+        Assert.Equal(41d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyRead_PropagatesGetterAbruptCompletionThroughUnifiedBytecode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    throw new Error("boom");
+                }
+            });
+
+            function read(box) {
+                return box.value;
+            }
+
+            try {
+                read(box);
+                "missing";
+            } catch (e) {
+                e.message;
+            }
+            """);
+
+        Assert.Equal("boom", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [MemberData(nameof(UnsupportedControlFlowFunctions))]
     public async Task UnsupportedControlFlowShapes_DeclineUnifiedBytecodeAndFallBack(
@@ -329,6 +462,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData(
+        """
+        function readOptional(box) {
+            return box?.value;
+        }
+
+        readOptional({ value: 1 });
+        """,
+        "readOptional",
+        1d)]
+    [InlineData(
+        """
+        var externalKey = "value";
+        function readDynamic(box) {
+            return box[externalKey];
+        }
+
+        readDynamic({ value: 2 });
+        """,
+        "readDynamic",
+        2d)]
+    public async Task UnsupportedPropertyReadVariants_DeclineUnifiedBytecodeAndFallBack(
+        string source,
+        string functionName,
+        double expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
                 StringComparison.Ordinal));
     }
 

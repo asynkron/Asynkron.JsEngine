@@ -127,7 +127,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_NamedPropertyReadCandidate_DeclinesWithVmSupportBoundaryCode()
+    public void Evaluate_NamedPropertyReadCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
             function read(box) {
@@ -140,13 +140,15 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport, result.Code);
-        Assert.Contains("Named property-read candidates", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Equal("value", Assert.Single(result.Program.StringConstants));
     }
 
     [Fact]
-    public void Evaluate_ComputedPropertyReadCandidate_DeclinesWithVmSupportBoundaryCode()
+    public void Evaluate_ComputedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""
             function read(box, key) {
@@ -159,9 +161,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport, result.Code);
-        Assert.Contains("ResolvePropertyKey", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.RequireObjectCoercible && instruction.Operand == 1);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
     }
 
     [Fact]

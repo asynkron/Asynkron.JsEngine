@@ -8,6 +8,10 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadLiteral,
     StoreSlot,
     Binary,
+    RequireObjectCoercible,
+    ResolvePropertyKey,
+    GetNamedProperty,
+    GetComputedProperty,
     Jump,
     JumpIfFalse,
     Return
@@ -20,4 +24,5 @@ internal readonly record struct UnifiedBytecodeInstruction(
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
     int MaxStackDepth,
-    ImmutableArray<JsTypes.JsValue> LiteralConstants);
+    ImmutableArray<JsTypes.JsValue> LiteralConstants,
+    ImmutableArray<string> StringConstants);

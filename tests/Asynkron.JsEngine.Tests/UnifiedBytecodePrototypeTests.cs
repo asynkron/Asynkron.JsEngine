@@ -31,6 +31,113 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_DirectNamedPropertyRead_ProducesOwnedPropertyOp()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box) {
+                return box.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(3, program.Instructions.Length);
+        Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[0].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.GetNamedProperty, program.Instructions[1].OpCode);
+        Assert.Equal(0, program.Instructions[1].Operand);
+        Assert.Equal("value", Assert.Single(program.StringConstants));
+        Assert.Equal(UnifiedBytecodeOpCode.Return, program.Instructions[2].OpCode);
+    }
+
+    [Fact]
+    public void Execute_DirectNamedPropertyRead_ReturnsObjectPropertyValue()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box) {
+                return box.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+
+        var box = new JsObject();
+        box.SetProperty("value", JsValue.FromDouble(42));
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 1)];
+        SetSlot(plan, slots, "box", JsValue.FromJsObject(box));
+
+        Assert.Equal(42d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_DirectComputedPropertyRead_ProducesOrderedPropertyOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box, key) {
+                return box[key];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(
+            new[]
+            {
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.RequireObjectCoercible,
+                UnifiedBytecodeOpCode.ResolvePropertyKey,
+                UnifiedBytecodeOpCode.GetComputedProperty,
+                UnifiedBytecodeOpCode.Return
+            },
+            program.Instructions.Select(instruction => instruction.OpCode).ToArray());
+        Assert.Equal(1, program.Instructions[2].Operand);
+    }
+
+    [Fact]
+    public void Execute_DirectComputedPropertyRead_ResolvesLiteralKeyAndReadsValue()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box) {
+                return box["value"];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Single(program.LiteralConstants);
+
+        var box = new JsObject();
+        box.SetProperty("value", JsValue.FromDouble(7));
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 1)];
+        SetSlot(plan, slots, "box", JsValue.FromJsObject(box));
+
+        Assert.Equal(7d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_ComputedPropertyReadOutsideBoundary_Declines()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box, left, right) {
+                return box[left + right];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+
+        Assert.False(result);
+        Assert.Contains("RequireObjectCoercible", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Execute_AddProgram_ReturnsFiveForTwoAndThree()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

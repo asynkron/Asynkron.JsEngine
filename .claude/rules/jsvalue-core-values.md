@@ -92,7 +92,12 @@ When working inside the core engine, keep JavaScript values represented as
     selected slice proves that boundary too. Once a promise-producing helper
     proves that every setup branch returns the same JavaScript promise object to
     a `JsValue` host-function callsite, wrap the promise at the helper return
-    boundary and return the helper result directly from the callsite.
+    boundary and return the helper result directly from the callsite. When a
+    fallback helper calls an intrinsic that already returns `JsValue`, such as
+    `%Object.prototype.toString%`, keep both the helper input and result typed as
+    `JsValue`; wrap the object/accessor receiver once at the caller boundary and
+    do not route the fallback through `object?` just because the receiver is
+    object-like.
 11. When replacing untyped `JsValue.TryGetObject(out object?)` extraction, audit
     the old payload surface before narrowing to a concrete runtime type. If the
     old object-carrier branch accepted interface-backed host or object-like
@@ -125,6 +130,11 @@ When working inside the core engine, keep JavaScript values represented as
     values inside the core runtime or standard library, assign the `JsValue`
     property directly. Treat the `Value` compatibility setter as an
     object-carrier bridge because it routes through `JsValue.FromObjectUnsafe`.
+    Builtin metadata descriptors in standard-library setup, including `name`,
+    `length`, symbols, and constructor/prototype method properties, are still
+    JavaScript data descriptors; use `new JsValue(...)`, `JsValue.True`, or an
+    explicit object wrapping helper instead of hiding that conversion behind
+    `Value =`.
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
@@ -586,3 +596,15 @@ seam. Future protocol-predicate cleanup should let the caller boundary prove
 object shape, add precise nullable annotations when flow analysis needs them,
 and keep evidence to a scoped before/after signature search plus focused
 protocol tests instead of widening into unrelated `object?` cleanup.
+
+Issue `autrun-dit3bym4d9y0-f902ea4d39` / PR #2248 migrated the StdLib/Array
+descriptor metadata and `Array.prototype.toString` intrinsic fallback path. The
+array `name`, `length`, `@@unscopables`, and static method descriptors were
+ordinary JavaScript data properties, so `PropertyDescriptor.Value = ...` kept an
+avoidable compatibility-setter bridge in standard-library setup. The
+`InvokeDefaultObjectToString(object?)` helper also widened a fallback value even
+though `%Object.prototype.toString%` already returned `JsValue` to a host method
+that required `JsValue`. Future Array/std-library unboxer slices should include
+both scoped descriptor-setter searches and helper-signature/rewrap searches
+when a fallback helper and descriptor metadata live in the same owner surface.
+Related ADR: `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.

@@ -134,7 +134,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         GlobalObject.DefineProperty("Array",
             new PropertyDescriptor
             {
-                Value = arrayConstructor,
+                JsValue = arrayConstructor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -142,7 +142,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         GlobalObject.DefineProperty("BigInt",
             new PropertyDescriptor
             {
-                Value = bigIntFunction,
+                JsValue = bigIntFunction,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -153,7 +153,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         GlobalObject.DefineProperty("Infinity",
             new PropertyDescriptor
             {
-                Value = double.PositiveInfinity,
+                JsValue = double.PositiveInfinity,
                 Writable = false,
                 Enumerable = false,
                 Configurable = false
@@ -161,13 +161,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         SetGlobal("NaN", double.NaN, true);
         GlobalObject.DefineProperty("NaN",
-            new PropertyDescriptor { Value = double.NaN, Writable = false, Enumerable = false, Configurable = false });
+            new PropertyDescriptor { JsValue = double.NaN, Writable = false, Enumerable = false, Configurable = false });
 
         SetGlobal("undefined", Symbol.Undefined, true);
         GlobalObject.DefineProperty("undefined",
             new PropertyDescriptor
             {
-                Value = Symbol.Undefined,
+                JsValue = Symbol.Undefined,
                 Writable = false,
                 Enumerable = false,
                 Configurable = false

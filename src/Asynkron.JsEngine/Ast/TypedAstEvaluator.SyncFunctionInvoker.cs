@@ -454,6 +454,52 @@ public static partial class TypedAstEvaluator
 
         internal bool CanUseArrayReduceTwoArgumentFastPath => _canUseArrayReduceTwoArgumentFastPath;
 
+        [MethodImpl(JsEngineConstants.Inlining)]
+        internal bool TryInvokeArrayReduceTwoArgumentNumericFastPath(
+            JsValue accumulator,
+            JsValue value,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (!_canUseArrayReduceTwoArgumentFastPath ||
+                !_hasSimpleReturnParameterBinaryFastPath ||
+                !accumulator.IsNumber ||
+                !value.IsNumber ||
+                IsClassConstructor ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                _superConstructor is not null ||
+                _superPrototype is not null ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                !TryGetSimpleNumberArgument(
+                    accumulator,
+                    value,
+                    _simpleReturnParameterBinaryFastPath.LeftParameterIndex,
+                    out var left) ||
+                !TryGetSimpleNumberArgument(
+                    accumulator,
+                    value,
+                    _simpleReturnParameterBinaryFastPath.RightParameterIndex,
+                    out var right))
+            {
+                return false;
+            }
+
+            result = _simpleReturnParameterBinaryFastPath.Operator switch
+            {
+                BinaryOperator.Add => JsValue.FromDouble(left + right),
+                BinaryOperator.Subtract => JsValue.FromDouble(left - right),
+                BinaryOperator.Multiply => JsValue.FromDouble(left * right),
+                _ => JsValue.FromDouble(left / right)
+            };
+            return true;
+        }
+
         internal bool HasHomeObject => _homeObject is not null;
 
         public RealmState RealmState { get; }

@@ -422,7 +422,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
             var alreadyCalled = false;
             var currentIndex = index;
 
-            var resolveElement = CreateBuiltInCallback(resolveArgs =>
+            JsValue SettleElement(IReadOnlyList<JsValue> callbackArgs, bool isRejected)
             {
                 if (alreadyCalled)
                 {
@@ -430,7 +430,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 }
 
                 alreadyCalled = true;
-                results[currentIndex] = CreateAllSettledResult(resolveArgs.GetArgument(0), false);
+                results[currentIndex] = CreateAllSettledResult(callbackArgs.GetArgument(0), isRejected);
                 remainingElements--;
                 if (remainingElements == 0)
                 {
@@ -438,24 +438,10 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
                 }
 
                 return JsValue.Undefined;
-            });
-            var rejectElement = CreateBuiltInCallback(rejectArgs =>
-            {
-                if (alreadyCalled)
-                {
-                    return JsValue.Undefined;
-                }
+            }
 
-                alreadyCalled = true;
-                results[currentIndex] = CreateAllSettledResult(rejectArgs.GetArgument(0), true);
-                remainingElements--;
-                if (remainingElements == 0)
-                {
-                    return ResolveCapabilityWithArrayOrReject(capability, results);
-                }
-
-                return JsValue.Undefined;
-            });
+            var resolveElement = CreateBuiltInCallback(resolveArgs => SettleElement(resolveArgs, false));
+            var rejectElement = CreateBuiltInCallback(rejectArgs => SettleElement(rejectArgs, true));
 
             if (!TryInvokePromiseCombinatorThen(promiseResolve, nextValue.Value, thisValue, resolveElement, rejectElement, capability, iterator, operation, out earlyResult))
             {

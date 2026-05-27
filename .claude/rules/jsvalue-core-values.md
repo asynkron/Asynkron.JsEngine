@@ -26,6 +26,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`
   - `docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`
   - `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`
+  - `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`
 
 ## Rules
 
@@ -181,16 +182,19 @@ When working inside the core engine, keep JavaScript values represented as
     unavoidable `JsValue.FromObjectUnsafe(...)` wrapping inside the resolver
     boundary for known runtime objects and prove the caller-side rewraps are
     gone.
-20. When private program/script/eval execution wrappers feed callsites that
-    already consume JavaScript values, keep the wrapper and immediate callsites
-    typed as `JsValue`. Public `Evaluate*` facades may unwrap at the API edge,
-    and module-body result storage can remain a separate `object?` migration
-    surface until it is the selected slice. Do not call `EvaluateProgram(...)`
-    or return `object?` from private execution plumbing only to immediately
-    rewrap with `JsValue.FromObjectUnsafe(...)`; prefer
-    `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram`, and
-    focused eval/Function/ShadowRealm proof. Related ADR:
-    `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
+20. When private program/script/eval or typed module execution wrappers feed
+    callsites that already consume JavaScript values, keep the wrapper and
+    immediate callsites typed as `JsValue`. Public `Evaluate*` facades may
+    unwrap at the API edge, and module-body result storage can remain a separate
+    `object?` migration surface until it is the selected slice. Do not call
+    `EvaluateProgram(...)`, private typed statement/expression `object?`
+    wrappers, or return `object?` from private execution plumbing only to
+    immediately rewrap with `JsValue.FromObjectUnsafe(...)`; prefer
+    `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram` or
+    typed execution helper, and focused eval/Function/ShadowRealm/module proof.
+    Related ADRs:
+    `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
+    `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
 21. When a private module namespace or property-key enumeration helper feeds
     JavaScript reflection/object APIs, keep the key sequence typed as
     `JsValue`. Preserve both string keys and symbol keys at the owner boundary;
@@ -561,6 +565,19 @@ callers on `EvaluateProgramJsValue(...)` or a `JsValue`-returning wrapper, while
 preserving public `Evaluate*` unwrapping and leaving module `LastValue` storage
 for a separate focused slice. Related ADR:
 `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
+
+Issue `autrun-dit4lwg5pkm0-72a23c5a9c` / PR #2260 migrated the selected typed
+module execution helper path by adding `ExecuteTypedStatementJsValue(...)` and
+`ExecuteTypedExpressionJsValue(...)` backed by `EvaluateProgramJsValue(...)`.
+The old private helper path called `TypedAstEvaluator.EvaluateProgram(object?)`
+and several async-module callsites immediately rewrapped
+`ExecuteTypedExpression(...)` results with `JsValue.FromObjectUnsafe(...)`.
+That was not a public or interop boundary; it was private module execution
+plumbing. Future module execution cleanup should keep typed helper flows on
+`JsValue`, use obsolete error-level wrappers only to expose remaining internal
+callers, and keep module `LastValue` storage as a separate owner surface until
+that exact slice is selected. Related ADR:
+`docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
 
 Issue `autrun-disnitlzqrkw-d2a93ff0bf` / PR #2135 migrated
 `ModuleNamespace.OwnKeys()` from `IEnumerable<object?>` to

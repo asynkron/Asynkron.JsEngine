@@ -360,6 +360,18 @@ optimization.
     repeated selected-profile timing, the follow-up CPU owner shape, the
     activation proof pack, and generator-focused coverage.
 
+27. For synchronous `Evaluate(ProgramNode)` completion performance work, prove
+    the selected profile is paying task/state-machine overhead before removing
+    an `async` boundary. Keep the public awaitable contract task-shaped:
+    immediate no-pending-work completion may use `Task.FromResult`, ordinary
+    exceptions must stay faulted, `OperationCanceledException` must produce a
+    canceled task, and pending timers/deferred event work scheduled before a
+    synchronous JavaScript throw must survive for the next drain. Do not turn a
+    synchronous-profile win into a broader event-loop shortcut. Prove retained
+    changes with selected-profile before/after rows plus focused tests for
+    immediate success without event-loop startup, synchronous throw with pending
+    timer work, and pre-canceled tokens.
+
 ## Why
 
 Issue
@@ -805,3 +817,13 @@ state to actual generator runners. The durable lesson is that follow-up
 activation setup wins should remove the currently profiled setup owner without
 widening observable arguments or generator activation policy. Related ADR:
 `docs/adrs/0199-keep-activation-tdz-slot-indices-plan-owned-and-generator-state-gated.md`.
+
+Issue `autrun-dit1y6ykons0-facccf278d` / PR #2232 selected
+`simplearithmetic` and showed the filtered CPU owner was the async
+`JsEngine.Evaluate(ProgramNode)` state machine around an otherwise tiny
+synchronous script. The accepted change returned completed tasks directly for
+no-pending-work programs, but review found that task shaping and fault cleanup
+were part of the contract: cancellation must remain a canceled task, ordinary
+exceptions remain faulted, and timer work scheduled before a synchronous throw
+must not be cleared before a later drain can observe it. Related ADR:
+`docs/adrs/0207-keep-evaluate-synchronous-completion-task-shaped.md`.

@@ -284,6 +284,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   handles every case. Prefer delegating to that owner over creating a new helper
   or reshaping the surrounding feature, and prove the owner surface with a
   focused test filter plus the usual code-size and diff checks.
+- When the duplicate code is locale-sensitive formatting, keep the semantic
+  split between named and numeric formatting paths explicit. Reuse the existing
+  named-format owner when it already handles locale separators, but do not fold
+  numeric joins or adjacent overload-specific value extraction into a larger
+  formatter rewrite just to reduce lines. Prove the affected formatter families
+  with focused tests plus code-size and duplicate-pattern signals.
 
 ## Why
 
@@ -892,3 +898,15 @@ shared while preserving all loop ranges and debug-logger coverage as explicit
 `InlineData`. Future code-reduction children should treat a QuickDup no-match
 as non-exhaustive for tiny fixture duplication, keep the variant data visible,
 and prove every affected fixture variant with the focused test filter.
+
+Issue `autrun-ditio0o02i68-fde9ef00e5` / PR #2389 applied recurring code
+reduction to `IntlDateTimeFormatPrototype` named-month date joining. The safe
+slice replaced only the two duplicate named-month `StringBuilder` loops in the
+DateTimeOffset and ProlepticDateTime `FormatLocaleDateString(...)` overloads
+with `JoinNamedCalendarParts(order, parts)`, while leaving numeric-date joins
+as `string.Join(numericSep, parts.Select(p => p.value))`. The proof paired a
+C# line-count drop, a lower Intl QuickDup pattern count, and focused Temporal
+plus proleptic Gregorian DateTimeFormat tests. Future Intl formatting
+reductions should preserve that named-versus-numeric boundary and avoid
+reshaping calendar value extraction when an existing separator-aware owner is
+available.

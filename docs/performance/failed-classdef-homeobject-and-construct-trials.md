@@ -96,6 +96,21 @@ for this class-method shape is not cheaper than the full invocation path under
 today's runner, even though the semantic guard remains worth preserving for
 future activation work.
 
+### Super constructor this-init lookup reorder (reverted)
+
+I tried a bounded reorder in `ExecuteProgramSuperConstruct` that moved the
+generic `ThisInitialized` environment walk ahead of the constructor-`this`
+resolution path. The goal was to reduce super-constructor dispatch overhead in
+derived constructor hot paths by avoiding extra environment-resolution work.
+
+The runtime change did not survive because it regressed correctness for
+direct-eval arrow constructor cases: the reordered lookup could pick a stale
+`ThisInitialized` binding before the constructor-owned environment chain was
+resolved. That broke `super()` initialization semantics in this edge shape.
+
+The attempt was reverted in follow-up (`68496be5`) and recorded as failed
+evidence rather than retained as a dormant optimization.
+
 ## Final Signal
 
 No runtime change was retained. After reverting the runtime trials, the focused

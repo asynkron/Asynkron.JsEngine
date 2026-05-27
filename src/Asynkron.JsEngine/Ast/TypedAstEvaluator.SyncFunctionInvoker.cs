@@ -1602,6 +1602,19 @@ public static partial class TypedAstEvaluator
                     plan?.GetHashCode() ?? -1);
                 if (plan is not null)
                 {
+                    if (TryInvokeSimpleDerivedClassConstructorFastPath(
+                            arguments,
+                            thisValue,
+                            callingContext,
+                            newTarget,
+                            plan,
+                            context,
+                            constructErrorRealm,
+                            out var derivedConstructorFastResult))
+                    {
+                        return derivedConstructorFastResult;
+                    }
+
                     if (TryInvokeSimpleBaseClassConstructorFastPath(
                             arguments,
                             thisValue,
@@ -2606,6 +2619,77 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
+        private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(
+            TArgs arguments,
+            JsValue thisValue,
+            EvaluationContext? callingContext,
+            JsValue newTarget,
+            ExecutionPlan plan,
+            EvaluationContext context,
+            RealmState constructErrorRealm,
+            out JsValue result)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            result = JsValue.Undefined;
+            if (!CanUseSimpleDerivedClassConstructorFastPath(plan, newTarget))
+            {
+                return false;
+            }
+
+            JsEnvironment? executionEnvironment = null;
+            try
+            {
+                context.MarkThisUninitialized();
+                executionEnvironment = CreateSimpleDerivedClassConstructorEnvironment(
+                    arguments,
+                    newTarget,
+                    plan);
+
+                var runner = new ExecutionPlanRunner(
+                    _function,
+                    _closure,
+                    Array.Empty<JsValue>(),
+                    thisValue,
+                    this,
+                    RealmState,
+                    _isStrict,
+                    _hasFunctionNameEnvironment,
+                    _homeObject,
+                    PrivateNameScope,
+                    _capturedPrivateNameScopes,
+                    newTarget,
+                    _lexicalThisEnvironment,
+                    _superConstructor,
+                    _superPrototype,
+                    context,
+                    derivedClassErrorRealm: constructErrorRealm,
+                    planOverride: plan,
+                    planFailureOverride: _planSeed.Failure,
+                    executionEnvironmentOverride: executionEnvironment);
+
+                result = runner.RunSync();
+                return true;
+            }
+            catch (ThrowSignal signal) when (callingContext is not null)
+            {
+                var normalized = NormalizeDerivedClassRealmError(signal, callingContext);
+                if (!normalized.IsUndefined)
+                {
+                    callingContext.SetThrow(normalized);
+                    result = normalized;
+                    return true;
+                }
+
+                callingContext.SetThrow(signal.ThrownValue);
+                result = signal.ThrownValue;
+                return true;
+            }
+            finally
+            {
+                ReturnSimpleIrActivationEnvironment(executionEnvironment);
+            }
+        }
+
         private bool TryInvokeSimpleBaseClassConstructorFastPath<TArgs>(
             TArgs arguments,
             JsValue thisValue,
@@ -2956,6 +3040,34 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return CanUseSimpleIrActivationPlanShape(plan);
         }
 
+        private bool CanUseSimpleDerivedClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)
+        {
+            if (!IsClassConstructor ||
+                !_isDerivedClassConstructor ||
+                newTarget.IsUndefined ||
+                IsArrowFunction ||
+                IsAsyncLike ||
+                _function.IsGenerator ||
+                _function.IsDefaultDerivedConstructor ||
+                _hasParameterExpressions ||
+                !_hasOnlySimpleIdentifierParameters ||
+                _argumentsObjectNeeded ||
+                _usesArguments ||
+                _needsArgumentsBinding ||
+                !_allowIdentifierCache ||
+                _lexicalThisEnvironment is not null ||
+                _homeObject is not null ||
+                PrivateNameScope is not null ||
+                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
+                !_instanceFields.IsDefaultOrEmpty ||
+                (_superConstructor is null && _superPrototype is null))
+            {
+                return false;
+            }
+
+            return CanUseSimpleIrActivationPlanShape(plan);
+        }
+
         private bool CanUseSimpleBaseClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             if (!IsClassConstructor ||
@@ -3111,6 +3223,58 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
             functionEnvironment._thisValue = boundThis;
             functionEnvironment._hasThisValue = true;
+
+            if (!_hasFunctionNameEnvironment && _function.Name is { } functionName)
+            {
+                functionEnvironment.DefineJsValue(functionName, _cachedJsValue, true,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
+            BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            return executionEnvironment;
+        }
+
+        private JsEnvironment CreateSimpleDerivedClassConstructorEnvironment<TArgs>(
+            TArgs arguments,
+            JsValue newTarget,
+            ExecutionPlan plan)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
+                _functionDescription, logger: RealmState.Logger);
+            var executionEnvironment = JsEnvironmentPool.Rent(functionEnvironment, false, _isStrict,
+                _function.Source, _functionDescription, isBodyEnvironment: true, logger: RealmState.Logger);
+
+            var activationSlots = plan.ActivationSlots!;
+            var rootLexicals = plan.SafeRootLexicalBindings;
+            if (rootLexicals.Count == 0 &&
+                plan.SafeScopeLexicalBindings.TryGetValue(activationSlots.ScopeId, out var scopeLexicals))
+            {
+                rootLexicals = scopeLexicals;
+            }
+
+            executionEnvironment.ResetSlotLayoutForPlan(
+                activationSlots.SlotCount,
+                activationSlots.SlotMap,
+                rootLexicals,
+                plan.SlotSymbols,
+                activationSlots.LayoutId,
+                activationSlots.ScopeId,
+                activationSlots.SlotNames,
+                activationSlots.LexicalSlotIndices);
+
+            functionEnvironment.SetThisInitializationStatus(false);
+            functionEnvironment.DefineJsValue(Symbol.This, JsValue.Uninitialized);
+            functionEnvironment.DefineJsValue(Symbol.NewTarget, newTarget, true, isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+            functionEnvironment.DefineJsValue(Symbol.ActiveFunction, _cachedJsValue, true,
+                isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            functionEnvironment.DefineJsValue(Symbol.Super,
+                JsValue.FromObjectUnsafe(new SuperBinding(
+                    _superConstructor,
+                    _superPrototype,
+                    JsValue.Undefined,
+                    false)));
 
             if (!_hasFunctionNameEnvironment && _function.Name is { } functionName)
             {

@@ -3608,8 +3608,9 @@ public static partial class TypedAstEvaluator
 
                 JsEnvironment? thisInitializationEnvironment = null;
                 var thisInitializationValue = JsValue.Undefined;
-                if (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _, out var lexicalEnvValue) &&
-                    lexicalEnvValue.TryGetObject<JsEnvironment>(out var lexicalThisEnv))
+                if (environment.TryGetObject<JsEnvironment>(Symbol.LexicalThisEnvironment, out var lexicalThisEnv) ||
+                    (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _, out var lexicalEnvValue) &&
+                     lexicalEnvValue.TryGetObject<JsEnvironment>(out lexicalThisEnv)))
                 {
                     thisInitializationEnvironment = lexicalThisEnv;
                     if (lexicalThisEnv.TryGetJsValue(Symbol.ThisInitialized, out var lexicalInitValue))
@@ -3625,7 +3626,9 @@ public static partial class TypedAstEvaluator
                 }
                 else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
                 {
-                    thisInitializationEnvironment = thisEnv.ResolveConstructorThisEnvironment();
+                    thisInitializationEnvironment = thisEnv.HasBindingLocal(Symbol.ThisInitialized)
+                        ? thisEnv
+                        : thisEnv.ResolveConstructorThisEnvironment();
                     if (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
                     {
                         thisInitializationValue = initValue;

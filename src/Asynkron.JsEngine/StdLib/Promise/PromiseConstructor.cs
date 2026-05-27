@@ -123,30 +123,6 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
         return fn;
     }
 
-    /// <summary>
-    /// Sets the standard built-in function properties (length and name) with spec-compliant attributes.
-    /// Per ES spec 17 ECMAScript Standard Built-in Objects:
-    /// - length: { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }
-    /// - name: { [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }
-    /// </summary>
-    private static void SetBuiltInFunctionProperties(HostFunction fn, string name, int length)
-    {
-        fn.DefineProperty("length", new PropertyDescriptor
-        {
-            JsValue = new JsValue(length),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        fn.DefineProperty("name", new PropertyDescriptor
-        {
-            JsValue = new JsValue(name),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-    }
-
     private void AttachStatics(HostFunction constructor)
     {
         SetBuiltInStatic("resolve", 1, (thisValue, args) => PromiseResolve(thisValue, args));

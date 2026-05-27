@@ -99,7 +99,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     plus concrete source-example tests. Also scan all expression-program-bearing
     instructions, including evaluate-and-discard and throw payloads, before
     generic compiler fallback so property-read hazards cannot hide outside
-    return expressions.
+    return expressions. Computed-read negative coverage must include unsupported
+    key payloads, not only unsupported bases or final `GetComputedProperty`
+    shapes. Keep concrete examples such as `box[{ value: 1 }]` and
+    `box[{ ...source }]` declining as `ObjectLiteralOrSpreadDependency` so
+    key-payload hazards stay visible before generic property-read boundary
+    declines.
 13. When making property-read candidates executable in production unified
     bytecode, keep the read semantics VM-owned and fallback-free. Named keys
     belong in `UnifiedBytecodeProgram.StringConstants` and must execute through
@@ -251,6 +256,16 @@ directly. Future widening must preserve the same all-at-once contract so
 observable property semantics do not slip through a mixed
 `ExpressionProgram`/runner/AST fallback.
 
+Faktorial issue
+`planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-3-com-ca10aa7559`
+and PR #2321 completed the property-read boundary proof by adding explicit
+declines for unsupported computed property-key payloads: `box[{ value: 1 }]`
+and `box[{ ...source }]`. WHY: object literal/spread operations can appear in
+the key-evaluation payload before the final computed property read. Without
+source examples for those payloads, future widening can misclassify them as a
+generic property-read boundary miss or lose the guardrail while merging adjacent
+property-read batches.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -263,3 +278,4 @@ Related ADRs:
 - `docs/adrs/0210-keep-unified-bytecode-control-flow-production-routing-operator-and-shape-owned.md`
 - `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`
 - `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`
+- `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`

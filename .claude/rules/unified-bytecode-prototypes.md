@@ -52,12 +52,15 @@ all-or-nothing until a separate routing issue proves production readiness.
    condition-first loop back-edge only through the existing compiler-owned
    shapes; do not add source-syntax exceptions or a selector-side second CFG
    recognizer. `Binary` is production-eligible only for the explicitly proven
-   operator subset (`+`, `-`, `*`, `/`, `%`, `<`, `<=`, `>`, `>=`) and must
-   execute through the existing `JsValue` operator helpers with an
-   `EvaluationContext`, not direct numeric extraction. Unsupported Binary
-   operators must still decline as `PrototypeOnlyBinaryOpcode` with
-   operator-specific diagnostics, and labels, break/continue, calls, dynamic
-   lookup, noncanonical loops, and unsupported payloads must decline before VM
+   operator subset (`+`, `-`, `*`, `/`, `%`, `==`, `<`, `<=`, `>`, `>=`) and
+   must execute through the existing `JsValue` operator helpers with an
+   `EvaluationContext`, not direct numeric extraction. Any new production
+   Binary operator must update the selector, unified compiler allowlist, and VM
+   semantics in the same slice, with positive selector/route proof and a nearby
+   unsupported operator decline/no-route proof. Unsupported Binary operators
+   must still decline as `PrototypeOnlyBinaryOpcode` with operator-specific
+   diagnostics, and labels, break/continue, calls, dynamic lookup,
+   noncanonical loops, and unsupported payloads must decline before VM
    execution.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
@@ -183,6 +186,17 @@ branch-join/canonical-loop production boundary. WHY: the issue existed because
 future agents needed the exact eligible set, unsupported declines,
 no-mixed-execution rule, and allocation-stability-only proof language in the
 same maintained surfaces before widening production eligibility again.
+
+Issue #2256 / PR #2261 widened the ADR 0210 production Binary subset by adding
+only loose equality (`BinaryOperator.Equal`, `==`). The lesson is that even a
+single operator widening needs paired selector, unified compiler allowlist, VM
+semantics, public route-log proof, and no-route proof for a nearby unsupported
+operator. The VM used `JsOps.LooseEquals(left, right, context)` instead of a
+direct host comparison, while strict equality (`===`) stayed declined and
+route-negative. WHY: the issue was a roadmap follow-up specifically to prevent
+selector-only widening or mixed execution after ADR 0210; accepting `==`
+without compiler/VM parity and branch-shaped route evidence would have made the
+production boundary look wider than the runtime semantics actually proved.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

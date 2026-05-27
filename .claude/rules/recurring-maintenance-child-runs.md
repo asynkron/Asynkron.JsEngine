@@ -71,6 +71,13 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   actual directory listing as the baseline signal. Treat doc/filesystem drift
   as the bounded slice; do not widen the run to also edit unrelated examples
   in the same file.
+- When a docs slice touches first-time setup or build entrypoint guidance,
+  verify the required SDK/runtime version from the owning project target
+  frameworks before finalizing. If repo projects target a newer TFM such as
+  `net10.0`, the top-level README must name the matching SDK prerequisite
+  before showing `make quality` or other build commands. Use a targeted
+  baseline/final `rg` signal for the docs-only prerequisite check instead of
+  widening into broad builds.
 - For Test262 regression-pack inventory docs, compare both the backing
   `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/` files and
   `rtk ./tools/run-test262-regressions.sh --list` before editing. New named
@@ -402,6 +409,14 @@ target, so agents had to scan files or guess supported commands. Future
 Makefile maintenance should keep `make help` as the discoverable target list
 and only update the build/test playbook as a pointer unless command behavior is
 the selected slice.
+
+Issue #2292 / PR #2300 closed the adjacent first-time setup prerequisite drift:
+`README.md` showed the canonical local quality gate but did not tell operators
+to install a .NET 10 SDK even though the engine, internal tests, and profiling
+tooling target `net10.0`. Future README setup/build docs slices should verify
+the current target framework first, then keep the entrypoint concise: name the
+required SDK, point at `rtk make help`, and keep `rtk make quality` as the local
+gate without changing Makefile behavior or source/test runtime code.
 
 Issue #1549 / PR #1558 tightened that same runner-inventory documentation: the
 Test262 `--list` output is a static inventory of runnable regression-pack files,

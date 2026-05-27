@@ -132,10 +132,10 @@ When working inside the core engine, keep JavaScript values represented as
     property directly. Treat the `Value` compatibility setter as an
     object-carrier bridge because it routes through `JsValue.FromObjectUnsafe`.
     Builtin metadata descriptors in standard-library setup, including `name`,
-    `length`, symbols, and constructor/prototype method properties, are still
-    JavaScript data descriptors; use `new JsValue(...)`, `JsValue.True`, or an
-    explicit object wrapping helper instead of hiding that conversion behind
-    `Value =`.
+    `length`, symbols, constructor/prototype method properties, and stateful
+    builtin data slots such as RegExp `lastIndex`, are still JavaScript data
+    descriptors; use `new JsValue(...)`, `JsValue.True`, or an explicit object
+    wrapping helper instead of hiding that conversion behind `Value =`.
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
@@ -642,3 +642,14 @@ that required `JsValue`. Future Array/std-library unboxer slices should include
 both scoped descriptor-setter searches and helper-signature/rewrap searches
 when a fallback helper and descriptor metadata live in the same owner surface.
 Related ADR: `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-dit5vua7unjk-bffd6c8efb` / PR #2273 applied the same descriptor
+setter policy to selected RegExp owner files. The migrated `lastIndex`
+descriptors and `RegExp.escape` `name`/`length` descriptors were ordinary
+JavaScript data descriptors; preserving `PropertyDescriptor.Value = ...` would
+have kept an avoidable compatibility-setter bridge even though the descriptor
+values were primitive JavaScript values with unchanged descriptor attributes.
+Future RegExp and builtin-metadata unboxer slices should include stateful data
+slots such as `lastIndex` in the scoped `\bValue\s*=` owner-file search, not
+only constructor metadata such as `name` and `length`. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.

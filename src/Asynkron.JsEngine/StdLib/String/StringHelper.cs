@@ -38,7 +38,7 @@ public static class StringHelper
         wrapper.DefineProperty("length",
             new PropertyDescriptor
             {
-                Value = (double)str.Length,
+                JsValue = JsValue.FromDouble(str.Length),
                 Writable = false,
                 Enumerable = false,
                 Configurable = false

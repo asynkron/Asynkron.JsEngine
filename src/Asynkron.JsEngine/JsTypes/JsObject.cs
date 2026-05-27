@@ -431,12 +431,22 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
+        if (TryGetSimplePropertyWithReceiver(name, receiver, null, out value))
+        {
+            return true;
+        }
+
         // Use JsValue version to avoid boxing
         return TryGetPropertyJsValue(name, receiver, 0, null, out value);
     }
 
     internal bool TryGetProperty(string name, JsValue receiver, EvaluationContext? context, out JsValue value)
     {
+        if (TryGetSimplePropertyWithReceiver(name, receiver, context, out value))
+        {
+            return true;
+        }
+
         return TryGetPropertyJsValue(name, receiver, 0, context, out value);
     }
 
@@ -1067,6 +1077,30 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         // Slow path: need depth-limited prototype chain traversal
         return TryGetPropertyJsValue(name, JsValue.FromJsObject(this), 0, null, out value);
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private bool TryGetSimplePropertyWithReceiver(
+        string name,
+        JsValue receiver,
+        EvaluationContext? context,
+        out JsValue value)
+    {
+        if (_virtualPropertyProvider is not null ||
+            (_state?.Descriptors.ContainsKey(name) ?? false) ||
+            name.IsPrivateSlotName())
+        {
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        if (TryGetJsValue(name, out value))
+        {
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
     }
 
     /// <summary>

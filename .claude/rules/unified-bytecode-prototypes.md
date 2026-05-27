@@ -127,6 +127,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     or constants behind for the next fallback path. Pair accepted examples with
     adjacent unsupported examples so partial-emission stack drift is caught by
     the focused proof pack.
+15. When proving no-route behavior for unsupported property-read-adjacent
+    shapes through public invocation logs, assert absence of
+    `unified-bytecode-production-fast-path` for the exact function or method
+    body that contains the unsupported expression. If the source uses a wrapper
+    function to call a class method or nested helper, give the owning method a
+    unique name and target that name in the negative assertion. A wrapper-level
+    no-route assertion only proves the wrapper was not routed; it does not prove
+    the unsupported callee body stayed out of production unified bytecode.
 
 ## Why
 
@@ -284,6 +292,17 @@ the key-evaluation payload before the final computed property read. Without
 source examples for those payloads, future widening can misclassify them as a
 generic property-read boundary miss or lose the guardrail while merging adjacent
 property-read batches.
+
+Faktorial issue
+`planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-4-pub-8e90a024bf`
+and PR #2329 expanded public invocation route proof for production property
+reads. Review caught that the first `super.value` no-route case asserted against
+the wrapper function `readSuper`, while the unsupported `super.value`
+expression lived inside the derived method. The repair renamed that method to
+`readViaSuperBoundary` and asserted no route for the owning method instead.
+WHY: a wrapper can stay off the fast path while its callee incorrectly routes,
+so negative public-log proof must target the body that actually owns the
+unsupported expression.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

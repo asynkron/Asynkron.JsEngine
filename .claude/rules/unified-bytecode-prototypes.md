@@ -135,6 +135,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     unique name and target that name in the negative assertion. A wrapper-level
     no-route assertion only proves the wrapper was not routed; it does not prove
     the unsupported callee body stayed out of production unified bytecode.
+16. When adding property write/update production routing, guard private-name
+    strings before treating named property opcodes as ordinary property access.
+    Expression bytecode can represent private member reads, writes, and updates
+    as named property operations carrying a private-name string; selector scans
+    must decline those with `PrivateFieldDependency`, and compiler shape probes
+    must reject them before appending `GetNamedProperty`, `SetNamedProperty`,
+    or `UpdateNamedProperty` opcodes or string constants. Pair every accepted
+    ordinary named write/update widening with negative private read/write/update
+    tests. WHY: issue
+    `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-define-5cc93efb5a`
+    / PR #2379 initially widened ordinary property writes/updates, and review
+    found that private-field named-property op shapes were not guarded; the
+    build-back fix added selector and compiler guards plus focused
+    `receiver.#field`, `receiver.#field = value`, and `receiver.#field++`
+    declines.
 
 ## Why
 
@@ -304,6 +319,18 @@ WHY: a wrapper can stay off the fast path while its callee incorrectly routes,
 so negative public-log proof must target the body that actually owns the
 unsupported expression.
 
+Faktorial issue
+`planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-define-5cc93efb5a`
+and PR #2379 widened production routing to the first ordinary property
+write/update boundary. Review found that private-field named-property op shapes
+needed explicit guards before the selector or compiler treated them as ordinary
+named properties. WHY: non-computed private member access can lower into named
+property read/write/update operations with private-name strings, but the unified
+VM's ordinary named property opcodes do not own private-name lexical resolution,
+brand checks, or private accessor behavior. Future property write/update
+widening must decline private names before VM execution unless a separate slice
+adds owned private-field semantics.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -318,3 +345,4 @@ Related ADRs:
 - `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`
 - `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`
 - `docs/adrs/0224-keep-unified-bytecode-shape-probes-side-effect-free-before-emission.md`
+- `docs/adrs/0231-keep-unified-bytecode-property-write-private-names-guarded.md`

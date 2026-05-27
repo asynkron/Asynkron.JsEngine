@@ -54,6 +54,11 @@ observable-semantics-preserving.
 - Direct named and computed property reads can now use the
   `unified-bytecode-production-fast-path` when the activation and expression
   shapes match ADR 0218.
+- Executable opcode/operand boundary for this ADR's accepted shapes is explicit:
+  - `LoadSlot(slotIndex)` for activation-resolved base/key loads
+  - `LoadLiteral(literalIndex)` for allowed computed-key literals
+  - `GetNamedProperty(stringConstantIndex)` using `UnifiedBytecodeProgram.StringConstants`
+  - `RequireObjectCoercible(Depth: 1)` then `ResolvePropertyKey` then `GetComputedProperty`
 - The unified VM owns the stack shape and operand decoding for property reads,
   including the base/key stack transition for computed reads.
 - Future property-read widening must move selector acceptance, compiler
@@ -62,6 +67,10 @@ observable-semantics-preserving.
 - Future support for optional chaining, member calls, writes/updates, `super`,
   dynamic lookup, or richer computed keys must add their own owned opcodes or
   decline rules. It must not reuse this ADR as permission for mixed execution.
+- Batch-5 focused proof evidence is consolidated in
+  `docs/performance/propertyaccess-unified-bytecode-production-profile-evidence.md`
+  (18 + 18 focused tests, 89 combined tests, clean seam scan, and
+  `forloop --memory` `Total allocated 6.80 MB`).
 - This ADR is caused by issue
   `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-2-uni-990bcd3283`
   / PR #2311.

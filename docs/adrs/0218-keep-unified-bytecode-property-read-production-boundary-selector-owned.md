@@ -61,6 +61,9 @@ decline-first.
 - The production selector can now name property-read candidates without making
   them executable. This gives later VM work a precise positive boundary and
   concrete negative families to preserve.
+- ADR 0218 remains the selector/baseline contract. The current executable
+  production boundary is documented by ADR 0221 and ADR 0222; do not read this
+  ADR alone as the full current runtime boundary.
 - Future property-read production widening must move selector acceptance,
   compiler emission, VM semantics, route-priority proof, and negative no-route
   tests together.

@@ -45,7 +45,9 @@ must stay on their existing paths.
 Do not replace this with a source-text heuristic, benchmark-name shortcut, or
 generic "strict eval is isolated" rule. The reusable environment is the fresh
 strict direct-eval lexical environment created for this eval call, not the
-caller environment.
+caller environment. ADR 0213 later defines the narrower already-strict caller
+no-environment carve-out; this ADR remains the one-environment strict eval path
+when that carve-out is not active.
 
 The selected eval execution environment, whether reused or newly created, must
 still be marked as the eval declaration environment before declaration
@@ -73,4 +75,5 @@ instantiation runs.
 - `docs/performance/activation-evalscope-eval-program-last-entry-cache.md`
 - `docs/adrs/0015-keep-direct-eval-caller-lexical-context.md`
 - `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`
+- `docs/adrs/0213-keep-strict-direct-eval-no-environment-fast-path-caller-strict.md`
 - `.claude/rules/ecmascript-direct-eval-declaration-instantiation.md`

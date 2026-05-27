@@ -29,6 +29,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`
   - `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`
   - `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`
+  - `docs/adrs/0232-keep-sync-function-this-binding-jsvalue-native.md`
 
 ## Rules
 

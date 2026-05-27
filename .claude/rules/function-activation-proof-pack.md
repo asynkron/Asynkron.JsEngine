@@ -207,6 +207,22 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     while leaving `super()` construction semantics on the existing runner
     instruction; earlier broader classdef construction shortcuts had failed or
     remained unproven.
+23. When migrating ordinary sync-function `this` binding setup, keep the
+    non-arrow slow invocation path `JsValue`-native end to end. Treat the
+    caller-supplied `thisValue`, any local bound/coerced receiver, and the
+    function environment's stored `this` value as `JsValue`. Use a typed
+    non-strict coercion helper for nullish-to-global and primitive boxing
+    semantics; do not reintroduce `object? initialThisValue`,
+    `object? boundThis`, or boxed primitive cache helpers such as
+    `JsValueCache.GetBoolean` / `JsValueCache.GetNumber` in private activation
+    `this` setup. Pair retained changes with activation proof-pack coverage for
+    strict/sloppy primitive `this` behavior and derived-constructor `super()`
+    initialization, plus a scoped legacy-carrier search in
+    `SyncFunctionInvoker`. WHY: issue `autrun-ditio0qdfdmo-14faf7d798` /
+    PR #2393 removed three leftover object/boxed-cache matches from
+    `SyncFunctionInvoker`; the semantic risk was preserving primitive
+    strict/sloppy receiver coercion while not regressing derived constructor
+    initialization.
 
 ## Why
 

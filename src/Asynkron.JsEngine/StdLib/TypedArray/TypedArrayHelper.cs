@@ -72,7 +72,7 @@ public static class TypedArrayHelper
                 newTarget = (JsValue)constructor;
             }
 
-            return JsValue.FromObjectUnsafe(ConstructTypedArray(args, newTarget));
+            return ConstructTypedArray(args, newTarget);
         });
 
         // BYTES_PER_ELEMENT: { writable: false, enumerable: false, configurable: false }
@@ -182,7 +182,7 @@ public static class TypedArrayHelper
             return target;
         }
 
-        object? ConstructTypedArray(IReadOnlyList<JsValue> args, JsValue newTarget)
+        T ConstructTypedArray(IReadOnlyList<JsValue> args, JsValue newTarget)
         {
             if (args.Count == 0)
             {

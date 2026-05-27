@@ -127,6 +127,189 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedPropertyReadCandidate_DeclinesWithVmSupportBoundaryCode()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box) {
+                return box.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport, result.Code);
+        Assert.Contains("Named property-read candidates", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyReadCandidate_DeclinesWithVmSupportBoundaryCode()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box, key) {
+                return box[key];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport, result.Code);
+        Assert.Contains("ResolvePropertyKey", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box, left, right) {
+                return box[left + right];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope, result.Code);
+        Assert.Contains("RequireObjectCoercible", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function invokeMember(box) {
+            return box.value();
+        }
+        """,
+        "invokeMember",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function construct(ctor, value) {
+            return new ctor(value);
+        }
+        """,
+        "construct",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function write(box, value) {
+            box.value = value;
+            return value;
+        }
+        """,
+        "write",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function increment(box) {
+            box.value++;
+            return 0;
+        }
+        """,
+        "increment",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency)]
+    [InlineData(
+        """
+        function remove(box) {
+            return delete box.value;
+        }
+        """,
+        "remove",
+        (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
+    [InlineData(
+        """
+        function readThis() {
+            return this.value;
+        }
+        """,
+        "readThis",
+        (int)UnifiedBytecodeProductionDeclineCode.ThisDependency)]
+    [InlineData(
+        """
+        function readOptional(box) {
+            return box?.value;
+        }
+        """,
+        "readOptional",
+        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+    [InlineData(
+        """
+        function readOptionalComputed(box, key) {
+            return box?.[key];
+        }
+        """,
+        "readOptionalComputed",
+        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+    [InlineData(
+        """
+        function readLiteral(box) {
+            return { ...box }.value;
+        }
+        """,
+        "readLiteral",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
+        function readDynamic(box) {
+            return box[externalKey];
+        }
+        """,
+        "readDynamic",
+        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
+        string source,
+        string functionName,
+        int expectedCode)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return 1;
+                }
+            }
+
+            class Derived extends Base {
+                read() {
+                    return super.value;
+                }
+            }
+            """,
+            "Derived",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
+        Assert.Contains("super", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency()
     {
         var plan = GetFunctionPlan("""
@@ -480,6 +663,19 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetClassMethodPlan(string source, string className, string methodName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<ClassDeclaration>(
+            pipeline.Analyzed.Body.Single(node =>
+                node is ClassDeclaration classDeclaration &&
+                classDeclaration.Name.Name == className));
+        var method = Assert.Single(declaration.Definition.Members.Where(member => member.Name == methodName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

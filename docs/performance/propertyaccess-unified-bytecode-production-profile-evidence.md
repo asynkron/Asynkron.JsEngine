@@ -1,4 +1,4 @@
-# Propertyaccess unified-bytecode property-read production evidence refresh (#2340)
+# Propertyaccess unified-bytecode production boundary evidence refresh (#2340, #2367)
 
 Date: 2026-05-27
 Issue: #2340
@@ -7,13 +7,13 @@ Issue: #2340
 
 - Manifest entry: `tools/profile-manifest.json` -> `propertyaccess`
 - Script: `tools/profile-scripts/propertyaccess.js`
-- Workload shape: repeated direct and nested property reads in `sum += ...` loops.
+- Workload shape: repeated direct and nested property access in arithmetic loops.
 
 ## Baseline signal
 
-Baseline source: prior checked-in rows from this evidence surface (issue #2313, Date: 2026-05-27).
+Baseline source: prior checked-in rows from this evidence surface.
 
-Benchmark commands used for the prior checked-in rows:
+Benchmark commands for baseline rows:
 
 ```bash
 rtk ./benchmark.sh propertyaccess
@@ -24,12 +24,12 @@ Historical baseline rows:
 
 ```text
 profile                 asynkron_ms  jint_ms  delta
-propertyaccess                 1012      505  Jint 2.00x faster
+propertyaccess                 2565     2470  Tie
 ```
 
 ```text
 profile                 asynkron_ms    asynkron_kb  jint_ms     jint_kb  time_delta             alloc_delta
-propertyaccess                 1035          290.6      477     87298.2  Jint 2.17x faster      Asynkron 300.43x lower alloc
+propertyaccess                 2566          302.6     2195     87285.7  Jint 1.17x faster      Asynkron 288.47x lower alloc
 ```
 
 ## Final signal (current run)
@@ -45,18 +45,18 @@ Rows captured:
 
 ```text
 profile                 asynkron_ms  jint_ms  delta
-propertyaccess                 2565     2470  Tie
+propertyaccess                  927      492  Jint 1.88x faster
 ```
 
 ```text
 profile                 asynkron_ms    asynkron_kb  jint_ms     jint_kb  time_delta             alloc_delta
-propertyaccess                 2566          302.6     2195     87285.7  Jint 1.17x faster      Asynkron 288.47x lower alloc
+propertyaccess                  881          283.2      520     87298.0  Jint 1.69x faster      Asynkron 308.27x lower alloc
 ```
 
-Before/after comparison against prior checked-in rows:
+Comparison vs baseline rows:
 
-- Time row: Asynkron `1012 -> 2565 ms` (+1553 ms), Jint `505 -> 2470 ms` (+1965 ms), delta `Jint 2.00x faster -> Tie`.
-- Allocation row: Asynkron `290.6 -> 302.6 KB` (+12.0 KB), Jint `87298.2 -> 87285.7 KB` (-12.5 KB), allocation delta `Asynkron 300.43x lower -> Asynkron 288.47x lower`.
+- Time row: Asynkron `2565 -> 927 ms` (-1638 ms), Jint `2470 -> 492 ms` (-1978 ms), delta `Tie -> Jint 1.88x faster`.
+- Allocation row: Asynkron `302.6 -> 283.2 KB` (-19.4 KB), Jint `87285.7 -> 87298.0 KB` (+12.3 KB), allocation delta `Asynkron 288.47x lower -> Asynkron 308.27x lower`.
 
 CPU profile command and key excerpt:
 
@@ -70,105 +70,76 @@ Call Tree (Total Time) - root: ExecuteInstructionLoop
 ... -> EvaluateExpressionProgram -> GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue -> JsObject.TryGetProperty*
 ```
 
-## Production-boundary interpretation
+## Accepted production boundary
 
-Accepted first-boundary property-read shapes (eligible for production unified-bytecode routing):
+Accepted first-boundary source shapes (selector-owned):
 
-- Direct named property read from an activation-resolved base (`return box.value;`).
-- Exact two-hop named property-read chains from an activation-resolved base where both hops are named and non-optional (`return box.child.value;`).
-- Exact first-boundary computed property read shape using `RequireObjectCoercible(Depth: 1)` and `ResolvePropertyKey` immediately before `GetComputedProperty` (`return box[key];`).
+- Direct named read: `return box.value;`
+- Exact two-hop named read: `return box.child.value;`
+- Direct computed read: `return box[key];`
+- Direct named write: `return box.value = value;`
+- Direct computed write: `return box[key] = value;`
+- Direct named compound write: `return box.value += value;`
+- Direct computed compound write: `return box[key] += value;`
+- Direct named prefix/postfix update: `return ++box.value;` / `return box.value++;`
+- Direct computed prefix/postfix update: `return ++box[key];` / `return box[key]++;`
 
-Current production program boundary for accepted property-read routing:
+Current accepted opcode set from `UnifiedBytecodeProgram.cs`:
 
-- Accepted opcodes in these programs: `LoadSlot`, `LoadLiteral`, `StoreSlot`, supported `Binary` subset, `RequireObjectCoercible`, `ResolvePropertyKey`, `GetNamedProperty`, `GetComputedProperty`, `Jump`, `JumpIfFalse`, and `Return`.
-- Property-read operand ownership:
-  - `LoadSlot(slotIndex)` loads activation-resolved base/key slots.
-  - `LoadLiteral(literalIndex)` loads allowed literal keys for computed reads.
-  - `GetNamedProperty(stringConstantIndex)` resolves property names through `UnifiedBytecodeProgram.StringConstants`.
-  - `RequireObjectCoercible(Depth: 1)` checks the base operand before computed-key coercion.
-  - `ResolvePropertyKey` and `GetComputedProperty` use stack operands only (no instruction operand).
+- `LoadSlot`
+- `LoadLiteral`
+- `StoreSlot`
+- `Binary`
+- `RequireObjectCoercible`
+- `ResolvePropertyKey`
+- `GetNamedProperty`
+- `GetComputedProperty`
+- `GetNamedPropertyForCompoundSet`
+- `GetComputedPropertyForCompoundSet`
+- `SetNamedProperty`
+- `SetComputedProperty`
+- `UpdateNamedProperty`
+- `UpdateComputedProperty`
+- `Jump`
+- `JumpIfFalse`
+- `Return`
 
-Accepted source-shape summary:
+No-mixed-execution constraint:
 
-- `box.value`
-- `box.child.value`
-- `box[key]` where `box` is activation-resolved and `key` is activation-resolved identifier or supported literal.
+- Accepted programs execute through owned unified VM opcodes only.
+- Accepted programs do not bridge to `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation callbacks.
 
-Primary pre-VM decline families (decline before production VM execution):
+Primary pre-VM declines that remain out of scope:
 
-- Property reads outside the first boundary (for example non-exact computed/read chains such as `left + right` keys or deeper mixed chains).
-- Optional chaining (`box?.value`, `box?.[key]`).
-- Computed-in-chain shapes (`box[key].value`, `box.child[key]`) and richer computed-key expressions.
-- Property writes and updates (`box.value = ...`, `box.value++`).
-- `delete` and `super` property access.
-- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, captured/dynamic activation, and object literal/spread adjacency.
+- Logical assignment (`&&=`, `||=`, `??=`), nested/complex member chains, richer computed-key expressions.
+- Optional chaining, `super`, `delete`, private fields.
+- Call/construct shapes, dynamic/captured activation, `arguments`, `this`, `new.target`, destructuring, object literal/spread adjacency.
 
-No-mixed-execution constraint for accepted programs:
+## #2367 accounting
 
-- Accepted production property-read programs execute through owned unified VM opcodes only.
-- They do not bridge to `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation callbacks.
-
-## Property-write/update boundary note (#2367 interaction)
-
-Issue #2367 remains an open propertyaccess baseline reference for this planning
-lineage. The numeric Faktorial issue lookup was unavailable during the
-investigation handoff, so this evidence surface records only the local boundary
-interaction: property-write/update routing must be compared against the existing
-`propertyaccess` rows above before any performance claim is made.
-
-Accepted first-boundary property-write/update shapes are intentionally narrower
-than the read boundary:
-
-- `return box.value = value;`
-- `return box[key] = value;`
-- `return ++box.value;` / `return box.value++;`
-- `return ++box[key];` / `return box[key]++;`
-
-The base must be activation-resolved. Computed keys and assigned values in this
-first slice are limited to activation-resolved identifiers or literals. Accepted
-programs use owned unified VM opcodes for set/update behavior and do not route
-through `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation.
-
-Explicitly declined adjacent shapes include statement/discarded writes, compound
-and logical property assignments, `super`, optional chaining, `delete`,
-call/construct expressions, object literal/spread adjacency, dynamic/captured
-activation, `this`, `new.target`, `arguments`, destructuring, and private-field
-expressions.
-
-Reference surfaces:
-
-- `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs`
-- `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs`
-
-## Claim scope
-
-This note records measured benchmark/profile rows and routing constraints only.
-It does not claim Node.js parity or broad runtime wins beyond these captured rows.
-
-## Batch-5 property-read boundary proof pack (issue child run)
-
-Run timestamp (UTC): 2026-05-27T08:30:58Z
-Issue: `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-5-evi-25c34c1968`
-
-Commands and outcome:
+A Faktorial-supported numeric issue lookup for `#2367` is currently unavailable in this runtime:
 
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~PropertyRead"
+rtk curl -fsS "${FAKTORIAL_URL:-http://127.0.0.1:8787}/api/issues/2367"
 ```
 
-Result: `18 tests passed`.
+Result: HTTP `400`.
+
+Because direct status lookup is unavailable, this evidence surface records the local, reproducible benchmark/profile and proof-command signals only, and treats `#2367` as an external status dependency for planner/review tracking.
+
+## Focused proof commands
 
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&(FullyQualifiedName~PropertyRead|FullyQualifiedName~IndexedReads)"
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&(FullyQualifiedName~PropertyRead|FullyQualifiedName~PropertyWrite|FullyQualifiedName~PropertyUpdate|FullyQualifiedName~Compound)"
 ```
 
-Result: `18 tests passed`.
+Result: `42 tests passed`.
 
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&(FullyQualifiedName~PropertyRead|FullyQualifiedName~PropertyWrite|FullyQualifiedName~PropertyUpdate|FullyQualifiedName~Compound|FullyQualifiedName~IndexedReads)"
 ```
 
-Result: `89 tests passed`.
+Result: `35 tests passed`.
 
 ```bash
 rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*
@@ -184,7 +155,16 @@ Result excerpt:
 
 ```text
 Metric          Value
-Total allocated 6.80 MB
+Total allocated 6.75 MB
 ```
 
-Allocation interpretation for this evidence run: allocation-stable for the route under this proof pack, with no new allocator regression signal in the captured output.
+```bash
+rtk git diff --check
+```
+
+Result: clean after this doc refresh.
+
+## Claim scope
+
+This note records measured rows and route constraints only.
+It does not claim broad Node.js parity or generalized property-access wins beyond the accepted boundary and captured rows.

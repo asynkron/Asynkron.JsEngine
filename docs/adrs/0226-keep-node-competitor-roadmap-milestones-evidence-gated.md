@@ -35,6 +35,10 @@ Keep Node.js-competitor roadmap and architecture milestones evidence-gated.
   gates have already been satisfied.
 - Future milestone updates should preserve the #2342 shape: owner surfaces,
   currently proven behavior, aspirational targets, and evidence gates.
+- Architecture north-star documents may use greenfield product language only
+  when they also keep current-reality caveats and non-goals visible enough that
+  diagrams, component names, or Node-competitive wording cannot be read as
+  current parity proof.
 
 ## Consequences
 
@@ -58,11 +62,18 @@ Keep Node.js-competitor roadmap and architecture milestones evidence-gated.
   roadmap slice.
 - The delivery comment recorded one changed artifact, `docs/roadmap.md`, with
   49 insertions and 2 deletions, and no runtime behavior changes.
+- Faktorial issue `autrun-ditfsckhviao-c5fdd52294` / PR #2363 / commit
+  `fdce15db` applied the same governance boundary to `docs/dreaming.md` by
+  recasting it as a greenfield architecture target while adding explicit #2342
+  current-reality constraints for module/runtime parity, host interop,
+  async-generator seam risk, and bounded bytecode routing.
 
 ## Related
 
 - Issue #2342
 - PR #2351
+- Faktorial issue `autrun-ditfsckhviao-c5fdd52294`
+- PR #2363
 - `docs/dreaming.md`
 - `docs/roadmap.md`
 - `.claude/rules/roadmap-architecture-claims.md`

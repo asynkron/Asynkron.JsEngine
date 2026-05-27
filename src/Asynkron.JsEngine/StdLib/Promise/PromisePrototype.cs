@@ -202,21 +202,4 @@ public sealed partial class PromisePrototype
         return found ? value : JsValue.Undefined;
     }
 
-    private static void SetBuiltInFunctionProperties(HostFunction fn, string name, int length)
-    {
-        fn.DefineProperty("length", new PropertyDescriptor
-        {
-            JsValue = new JsValue(length),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-        fn.DefineProperty("name", new PropertyDescriptor
-        {
-            JsValue = new JsValue(name),
-            Writable = false,
-            Enumerable = false,
-            Configurable = true
-        });
-    }
 }

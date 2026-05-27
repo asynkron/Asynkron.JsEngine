@@ -676,7 +676,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (TryAppendFirstBoundaryNamedPropertyRead(
+        if (TryAppendFirstBoundaryNamedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
                 unified,
@@ -748,31 +748,34 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool TryAppendFirstBoundaryNamedPropertyRead(
+    private static bool TryAppendFirstBoundaryNamedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 2)
+        if (expressionProgram.OperationCount is not (2 or 3))
         {
             reason = string.Empty;
             return false;
         }
 
         var baseLoad = expressionProgram.GetOperation(0);
-        var propertyRead = expressionProgram.GetOperation(1);
-        if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
-            reason = string.Empty;
-            return false;
-        }
+            var propertyRead = expressionProgram.GetOperation(operationIndex);
+            if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                reason = string.Empty;
+                return false;
+            }
 
-        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
-        {
-            reason = "Optional named property reads are not supported.";
-            return false;
+            if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+            {
+                reason = "Optional named property reads are not supported.";
+                return false;
+            }
         }
 
         if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
@@ -780,9 +783,14 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var propertyNameIndex = stringConstants.Count;
-        stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var propertyRead = expressionProgram.GetOperation(operationIndex);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
         reason = string.Empty;
         return true;
     }

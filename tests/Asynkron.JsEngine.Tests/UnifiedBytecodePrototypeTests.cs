@@ -52,6 +52,27 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_TwoHopNamedPropertyRead_ProducesOwnedPropertyOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(box) {
+                return box.child.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(4, program.Instructions.Length);
+        Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[0].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.GetNamedProperty, program.Instructions[1].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.GetNamedProperty, program.Instructions[2].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.Return, program.Instructions[3].OpCode);
+        Assert.Equal(new[] { "child", "value" }, program.StringConstants);
+    }
+
+    [Fact]
     public void Execute_DirectNamedPropertyRead_ReturnsObjectPropertyValue()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

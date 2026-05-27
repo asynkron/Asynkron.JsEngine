@@ -8,6 +8,24 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class PromiseHelper
 {
+    internal static void SetBuiltInFunctionProperties(HostFunction fn, string name, int length)
+    {
+        fn.DefineProperty("length", new PropertyDescriptor
+        {
+            JsValue = new JsValue(length),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+        fn.DefineProperty("name", new PropertyDescriptor
+        {
+            JsValue = new JsValue(name),
+            Writable = false,
+            Enumerable = false,
+            Configurable = true
+        });
+    }
+
     internal static JsPromise CreatePromise(RealmState realm, IJsObjectLike? prototypeOverride = null)
     {
         var engine = realm.Engine ?? throw new InvalidOperationException("Promise creation requires an engine.");

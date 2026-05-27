@@ -1,7 +1,9 @@
 #region
 
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Converters;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -94,16 +96,25 @@ public sealed partial class MathPrototype
     [JsHostMethod("sqrt", Length = 1d)]
     public static JsValue Sqrt(IReadOnlyList<JsValue> args)
     {
-        var x = JsOps.ToNumber(args.GetArgument(0));
-        return Math.Sqrt(x);
+        return SqrtFast(args.GetArgument(0));
     }
 
     [JsHostMethod("pow", Length = 2d)]
     public static JsValue Pow(IReadOnlyList<JsValue> args)
     {
-        var baseValue = JsOps.ToNumber(args.GetArgument(0));
-        var exponent = JsOps.ToNumber(args.GetArgument(1));
-        return JsOps.MathPow(baseValue, exponent);
+        return PowFast(args.GetArgument(0), args.GetArgument(1));
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal static JsValue SqrtFast(JsValue value)
+    {
+        return Math.Sqrt(JsOps.ToNumber(value));
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal static JsValue PowFast(JsValue baseValue, JsValue exponent)
+    {
+        return JsOps.MathPow(JsOps.ToNumber(baseValue), JsOps.ToNumber(exponent));
     }
 
     [JsHostMethod("max", Length = 2d)]
@@ -791,5 +802,23 @@ public sealed partial class MathPrototype
         DefineConstantProperty(Prototype, "LOG10E", Math.Log10(Math.E));
         DefineConstantProperty(Prototype, "SQRT1_2", Math.Sqrt(0.5));
         DefineConstantProperty(Prototype, "SQRT2", Math.Sqrt(2));
+        ConfigureFastMathFunction("sqrt", SqrtFast);
+        ConfigureFastMathFunction("pow", PowFast);
+    }
+
+    private void ConfigureFastMathFunction(string name, Func<JsValue, JsValue> handler)
+    {
+        if (Prototype.GetOwnPropertyDescriptor(name)?.JsValue.TryGetObject<HostFunction>(out var hostFunction) == true)
+        {
+            hostFunction.SetFastSingleArgumentHandler(handler);
+        }
+    }
+
+    private void ConfigureFastMathFunction(string name, Func<JsValue, JsValue, JsValue> handler)
+    {
+        if (Prototype.GetOwnPropertyDescriptor(name)?.JsValue.TryGetObject<HostFunction>(out var hostFunction) == true)
+        {
+            hostFunction.SetFastTwoArgumentHandler(handler);
+        }
     }
 }

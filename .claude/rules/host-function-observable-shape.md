@@ -33,6 +33,11 @@ shape corrections separate from ordinary JavaScript property operations.
    the generator-visible entrypoint. Extract only the shared implementation
    behind thin adapters, and prove name, length, routing, prefixes, context, and
    return behavior with focused tests.
+8. When adding direct host-call fast dispatch, use explicit engine-owned
+   metadata or instance markers and keep the shortcut arity-specific. Do not
+   infer eligibility from JavaScript-visible `name`, property paths, or generic
+   callable identity; user replacements, wrappers, spread calls, and unmarked
+   host functions must stay on the ordinary invocation path.
 
 ## Prototype Constructor Setup
 
@@ -82,6 +87,30 @@ moved to a different owner with focused proof.
 
 Related ADR:
 `docs/adrs/0187-keep-async-iteration-helper-entrypoints-core-shared.md`.
+
+## Marked Fast Dispatch Handlers
+
+When a profile proves that generated native host invocation itself is the hot
+owner, a direct `HostFunction` handler may bypass generic argument-carrier
+materialization only when the owning built-in stamps an internal marker on the
+engine-created function instance. The fast handler must match the proven arity
+and reuse the same semantic helpers as the ordinary host body. Do not key the
+shortcut from mutable JavaScript-visible metadata such as `name`, from the
+property path used to find the function, or from a broad "is host function"
+check.
+
+WHY: issue `autrun-diteq2bzwzxc-ba3c5ff36a` / PR #2355 optimized the
+`simplearithmetic` profile after CPU evidence showed `Math.sqrt` and `Math.pow`
+calls paying generic `IReadOnlyList<JsValue>` host dispatch and boxing under
+`InvokeCallableSingleArg` / `InvokeCallableTwoArgs`. The safe slice marked only
+the generated `Math.sqrt` and `Math.pow` host-function instances with direct
+one/two-argument handlers while preserving ordinary property lookup,
+replacement, spread, and unmarked-call fallbacks. Future host-dispatch
+optimizations should keep the marker explicit and the observable function shape
+unchanged.
+
+Related ADR:
+`docs/adrs/0227-keep-math-host-function-fast-dispatch-marked-and-arity-specific.md`.
 
 ## Built-In Metadata Helpers
 

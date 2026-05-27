@@ -318,8 +318,11 @@ internal sealed class InnerFunctionBlockDetector : AstVisitor
         ShouldStop = true;
     }
 
-    // Don't descend into class declarations - they're handled at their level
-    protected override void VisitClassDeclaration(ClassDeclaration node) { }
+    protected override void VisitClassDeclaration(ClassDeclaration node)
+    {
+        Found = true;
+        ShouldStop = true;
+    }
 
     // Check object literal methods
     protected override void VisitObjectExpression(ObjectExpression node)

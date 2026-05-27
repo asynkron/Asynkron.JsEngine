@@ -169,9 +169,43 @@ public sealed class IrLoopEnvironmentTests(ITestOutputHelper output) : InternalT
         Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task SyncForLoop_ClassDeclarationMethodCapture_KeepsParentLoopScope()
+    {
+        await using var engine = CreateEngine();
+        var program = engine.ParseProgram("""
+            function captureClass() {
+                let Captured;
+                for (let i = 0; i < 3; i++) {
+                    class Current { value() { return i; } }
+                    Captured = Current;
+                }
+
+                return new Captured().value();
+            }
+            """);
+
+        await engine.Evaluate(program);
+        var result = await engine.Evaluate("captureClass();");
+        Assert.Equal(2d, result);
+
+        var funcDecl = Assert.IsType<FunctionDeclaration>(program.Body[0]);
+        var cache = ((IAstCacheable<ExecutionPlanCache>)funcDecl.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, $"Plan should build successfully. Failure: {cache.FailureReason}");
+        Assert.NotNull(cache.Plan);
+
+        var pushScopes = cache.Plan.Instructions
+            .OfType<PushEnvironmentInstruction>()
+            .ToArray();
+
+        Assert.Contains(pushScopes, push => push.PerIterationBindings.IsDefaultOrEmpty);
+        Assert.Contains(pushScopes, push => !push.PerIterationBindings.IsDefaultOrEmpty);
+    }
+
     private static bool IsLoopScopeForI(PushEnvironmentInstruction push)
     {
         return push.PerIterationBindings.IsDefaultOrEmpty &&
+               !push.SlotNames.IsDefaultOrEmpty &&
                push.SlotNames.Any(slot => string.Equals(slot.Name.Name, "i", StringComparison.Ordinal));
     }
 

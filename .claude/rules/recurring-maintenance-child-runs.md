@@ -209,6 +209,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   such as `rtk which roslynator` and the documented
   `dnx Roslynator.DotNet.Cli` fallback, then record the exact command and
   failure if analyzer evidence still cannot run.
+- Treat QuickDup output as candidate evidence, not as an exhaustive
+  no-duplication proof. If a code-reduction handoff names a narrow file, test
+  class, or fixture family, inspect that surface manually for parameterizable
+  near-duplicates even when QuickDup finds no exact structural clone; record
+  both the tool result and the manual slice rationale.
 - If the code-reduction slice targets dormant test source files, only delete
   files that are entirely non-compiled/commented-out or otherwise proven absent
   from the test project. Confirm no live references or explicit project includes
@@ -783,3 +788,12 @@ The first build pass missed the literal `trigger=persistent recurrence` marker,
 so review sent the change back; future agents should carry named recurrence
 markers through both the boundary rule and this durable lesson before claiming
 the slice complete.
+
+Issue `autrun-dit4i2lxx7hk-821f1277ce` / PR #2259 consolidated four
+`PerfDebugging` for-loop smoke tests into one parameterized theory. The narrow
+QuickDup check did not report exact structural clones, but manual inspection of
+the named file found repeated script, timing, and engine setup that could be
+shared while preserving all loop ranges and debug-logger coverage as explicit
+`InlineData`. Future code-reduction children should treat a QuickDup no-match
+as non-exhaustive for tiny fixture duplication, keep the variant data visible,
+and prove every affected fixture variant with the focused test filter.

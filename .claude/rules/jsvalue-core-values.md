@@ -27,6 +27,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0198-keep-array-fromasync-result-helper-jsvalue-native.md`
   - `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`
   - `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`
+  - `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`
 
 ## Rules
 
@@ -231,6 +232,17 @@ When working inside the core engine, keep JavaScript values represented as
     legacy path accepted multiple object-like shapes, split explicit typed
     branches per rule 11. Prove the slice with the scoped legacy-signature
     search and focused protocol tests.
+24. When a private assignment property-write helper receives both the original
+    JavaScript target and an extracted runtime object, keep the receiver
+    parameter typed as `JsValue` and pass the original target `JsValue` when it
+    is the receiver. Do not pass the extracted `JsObject` through an `object?`
+    receiver bridge and rewrap it inside the resolver. If the receiver is
+    optional, default it to the target in the helper so global/default writes
+    preserve existing behavior. WHY: issue `autrun-dit8gewlbljs-23ab36dc9e` /
+    PR #2305 removed `AssignObjectProperty(..., object? receiver = null)`;
+    setter/proxy receiver identity belongs to the JavaScript value, not to the
+    extracted descriptor target. Related ADR:
+    `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`.
 
 ## Why
 
@@ -665,3 +677,15 @@ owner files for `\bValue\s*=` before and after the edit, record both AC evidence
 signals explicitly, and keep the migration limited to proven JavaScript data
 values. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-dit8gewlbljs-23ab36dc9e` / PR #2305 migrated the
+`AssignObjectProperty` receiver parameter from `object?` to `JsValue?`. The
+old helper accepted an extracted object receiver even when the callsite already
+held the original target `JsValue`, then normalized it through
+`JsValue.FromObjectUnsafe(...)`. The fix made the receiver typed, defaulted it
+to the target when omitted, and passed the original target value from the core
+assignment callsite. Future assignment-property receiver cleanup should keep
+receiver identity on the `JsValue` path and prove the selected slice with a
+focused `object? receiver` before/after search plus assignment-reference tests.
+Related ADR:
+`docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`.

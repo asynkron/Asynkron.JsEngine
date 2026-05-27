@@ -114,14 +114,61 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 30. Continue async-generator follow-through by removing sync-IR resume shim coupling and tightening callback ownership toward full async-generator IR support with focused semantics/profile proof (tracked in [#2124](https://github.com/asynkron/Asynkron.JsEngine/issues/2124)).
 31. Continue direct-eval follow-through after the eval program-cache and last-entry-cache slices by reducing remaining `activation-evalscope-lite` activation/environment overhead with focused profile plus activation/eval proof-pack evidence while preserving eval observability boundaries (tracked in [#2257](https://github.com/asynkron/Asynkron.JsEngine/issues/2257); prior related slices in [#2228](https://github.com/asynkron/Asynkron.JsEngine/issues/2228) and baseline context in [#2149](https://github.com/asynkron/Asynkron.JsEngine/issues/2149)).
 32. Continue ADR 0184 stringops split/join consumer follow-through by reducing remaining consumer materialization overhead with comparable selected-profile before/after rows and semantics-first fallback proof (tracked in [#2150](https://github.com/asynkron/Asynkron.JsEngine/issues/2150)).
-33. Preserve the unified bytecode production-routing boundary from ADR 0210 while widening sync-production eligibility only through narrow parity/profile-proven selector expansions beyond the current accepted opcode/control-flow subset. Current proven coverage remains the named/two-hop path plus first-boundary computed reads under ADR 0218 ownership; short-term follow-up stays split into one evidence task and one boundary task: [#2340](https://github.com/asynkron/Asynkron.JsEngine/issues/2340) for refreshed `propertyaccess` profiling evidence and [#2314](https://github.com/asynkron/Asynkron.JsEngine/issues/2314) for the next explicit property-read boundary selection after current named/computed support. Long-term Node.js-competitor alignment for module/runtime/host seams is tracked in [#2342](https://github.com/asynkron/Asynkron.JsEngine/issues/2342) (also tracked in [#2256](https://github.com/asynkron/Asynkron.JsEngine/issues/2256); prior related slices in [#2227](https://github.com/asynkron/Asynkron.JsEngine/issues/2227), with control-flow prototype boundary context in [#2182](https://github.com/asynkron/Asynkron.JsEngine/issues/2182), current production evidence in `docs/performance/unified-bytecode-branch-production-routing.md`, `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`, and `==` widening evidence captured in ADR 0210).
+33. Preserve the unified bytecode production-routing boundary from ADR 0210 while widening sync-production eligibility only through narrow parity/profile-proven selector expansions beyond the current accepted opcode/control-flow subset. Current proven coverage remains the named/two-hop path plus first-boundary computed reads under ADR 0218 ownership; short-term follow-up stays split into one evidence task and one boundary task: [#2340](https://github.com/asynkron/Asynkron.JsEngine/issues/2340) for refreshed `propertyaccess` profiling evidence and [#2314](https://github.com/asynkron/Asynkron.JsEngine/issues/2314) for the next explicit property-read boundary selection after current named/computed support. Long-term Node.js-competitor alignment for module/runtime/host seams is tracked in [#2342](https://github.com/asynkron/Asynkron.JsEngine/issues/2342) (also tracked in [#2256](https://github.com/asynkron/Asynkron.JsEngine/issues/2256); prior related slices in [#2227](https://github.com/asynkron/Asynkron.JsEngine/issues/2227), with control-flow prototype boundary context in [#2182](https://github.com/asynkron/Asynkron.JsEngine/issues/2182), current production evidence in `docs/performance/unified-bytecode-branch-production-routing.md`, `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`, and `==` widening evidence captured in ADR 0210). Keep this widening effort aligned with the #2342 architecture-alignment milestones below.
 34. Reduce remaining `classdef` constructor and `super(...)` dispatch cost in one narrow evidence-backed slice while preserving ADR 0193 super-guarded activation boundaries (tracked in [#2183](https://github.com/asynkron/Asynkron.JsEngine/issues/2183); failed-trial follow-through task in [#2282](https://github.com/asynkron/Asynkron.JsEngine/issues/2282)).
 35. Continue Intl/stdlib brand-helper cleanup after ADR 0196 by removing remaining private object-carrier overload use in one bounded helper cluster with focused Intl regression proof (tracked in [#2202](https://github.com/asynkron/Asynkron.JsEngine/issues/2202)).
 36. Align ProfileRunner `simplearithmetic` workload shape with `benchmark.sh` and isolate remaining IIFE overhead before claiming further simplearithmetic reductions (tracked in [#2281](https://github.com/asynkron/Asynkron.JsEngine/issues/2281)).
 
+## Node.js-Competitor Architecture Alignment Milestones (#2342)
+
+### Milestone A: Module/runtime compatibility boundary hardening
+- Owner surfaces:
+  - `src/Asynkron.JsEngine/JsEngine.cs` (`EvaluateSync`, `EvaluateModule`, module registry, top-level await wiring, host scheduler hooks).
+  - `tests/Asynkron.JsEngine.Tests/ModuleTests.cs`.
+  - `tests/Asynkron.JsEngine.Tests/AsyncModuleTryAwaitTests.cs`.
+- Currently proven:
+  - ESM load/evaluate and async module behavior are available with explicit runtime entry points and focused tests.
+  - Dynamic import and module orchestration exist as runtime-owned seams, not host-demo-only behavior.
+- Aspirational (not yet parity claim):
+  - Broader Node.js-competitor module ergonomics and compatibility should be widened only through subsystem-scoped proof slices.
+  - No claim of full Node module parity or broad CommonJS/interop equivalence yet.
+- Evidence gates:
+  - Focused module test packs (`ModuleTests`, `AsyncModuleTryAwaitTests`) stay green for each slice.
+  - Roadmap/ADR updates must preserve explicit module boundary wording in `docs/dreaming.md` and architecture docs.
+
+### Milestone B: Host interop boundary clarity (engine vs host layer)
+- Owner surfaces:
+  - `src/Asynkron.JsEngine/JsTypes/HostFunction.cs` (host callable bridge contract).
+  - `src/Asynkron.JsEngine/JsEngine.cs` (host global and callback integration seams).
+  - `tests/Asynkron.JsEngine.Tests/CommonjsModuleTests.cs` (host/CommonJS compatibility behavior checks).
+- Currently proven:
+  - Host callables and globals flow through explicit bridge/runtime seams with test-owned behavior.
+  - Node-style host execution remains an integration layer, not evidence of core evaluator parity.
+- Aspirational (not yet parity claim):
+  - Improve Node.js-competitive host ergonomics while preserving explicit compatibility boundaries.
+  - Keep CommonJS interoperability progression evidence-first and host-layer scoped.
+- Evidence gates:
+  - Focused host/CommonJS test surfaces remain green (`CommonjsModuleTests` and adjacent host bridge checks).
+  - Any Node-style capability expansion must document engine-vs-host ownership in roadmap/architecture notes before parity claims.
+
+### Milestone C: Async runtime seam closure for predictable delivery
+- Owner surfaces:
+  - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.AsyncGeneratorInvoker.cs` (known async-generator seam).
+  - `src/Asynkron.JsEngine/JsEngine.cs` async scheduling/event-loop integration points.
+  - `tests/Asynkron.JsEngine.Tests/PendingAsyncWorkTrackingTests.cs`.
+- Currently proven:
+  - Pending async-work tracking and async scheduling surfaces are test-owned and exposed in runtime APIs.
+  - Async generators still include a bounded sync-wrapper/callback seam that is explicitly tracked as incomplete.
+- Aspirational (not yet parity claim):
+  - Remove the sync-generator shim coupling and tighten async-generator runtime ownership without changing JS semantics.
+  - Reach more predictable Node.js-competitor async behavior only through narrow, proof-backed seam removal slices.
+- Evidence gates:
+  - Focused async runtime tests stay green (`PendingAsyncWorkTrackingTests` plus owning async-generator packs).
+  - Each seam-change slice must include profile evidence (`rtk ./tools/profile forloop --memory` where relevant) and explicit seam-scan updates before widening claims.
+
 ## Long-Term Goals
 1. Raise and sustain Test262 compatibility toward full compliance through spec-owned, subsystem-driven slices.
-2. Reach Node.js-competitive runtime behavior and developer ergonomics on .NET, including module/runtime compatibility and predictable host integration seams.
+2. Reach Node.js-competitive runtime behavior and developer ergonomics on .NET, including module/runtime compatibility and predictable host integration seams, with near-term delivery anchored by the #2342 architecture-alignment milestones in this roadmap.
 3. Keep benchmark breadth and profiling discipline (CPU/allocation trends across representative scenarios) so speed/memory work remains evidence-driven over time.
 4. Land compact statement-bytecode execution paths only when unsupported-family and parity evidence show safe readiness.
 

@@ -200,11 +200,12 @@ When working inside the core engine, keep JavaScript values represented as
     wrappers, use private module last-value storage as `object?`, or return
     `object?` from private execution plumbing only to immediately rewrap with
     `JsValue.FromObjectUnsafe(...)`; prefer `EvaluateProgramJsValue(...)`, a
-    `JsValue`-returning `ExecuteProgram`, `ExecuteModuleBody(...)`, or typed
-    execution helper. Convert with the local legacy object adapter only at
-    public `object?` facade or edge-returning `Task<object?>` adapter
-    boundaries; do not store module evaluation completion as `Task<object?>`
-    when the payload is a private JavaScript value.
+    `JsValue`-returning `ExecuteProgram`, `ExecuteModuleBody(...)`,
+    `ExecuteTypedStatementJsValue(...)`, `ExecuteTypedExpressionJsValue(...)`,
+    or another typed execution helper. Convert with the local legacy object
+    adapter only at public `object?` facade or edge-returning `Task<object?>`
+    adapter boundaries; do not store module evaluation completion as
+    `Task<object?>` when the payload is a private JavaScript value.
     Benchmark, test, profiling, or diagnostic harnesses that bypass public
     facades and invoke internal evaluator entrypoints by reflection are still
     repo-internal execution callers; keep them on `JsValue` too, and unwrap only
@@ -218,6 +219,12 @@ When working inside the core engine, keep JavaScript values represented as
     `ExecuteTypedExpressionJsValue(...)`. Reintroducing that bridge would hide a
     core-runtime JavaScript value behind a legacy object carrier and undo the
     focused Unboxer cleanup.
+    WHY: issue `autrun-ditjxyki91ew-7082b9173d` / PR #2403 removed the last
+    private `ExecuteTypedStatement(...)` `object?` adapter in `JsEngine.cs`
+    after the remaining module and async-module statement callers moved to
+    `ExecuteTypedStatementJsValue(...)`. Reintroducing that bridge would reopen
+    a private typed module execution seam that now has no internal compatibility
+    caller.
     WHY: issue `gh2372` / PR #2380 completed the ADR 0212 follow-through by
     moving `ModuleEntry.LastValue`, `ExecuteModuleBody(...)`, and
     `AsyncModuleBodyRunner._lastValue` to `JsValue` while keeping public

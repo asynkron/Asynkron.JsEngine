@@ -1986,20 +1986,10 @@ public static partial class TypedAstEvaluator
             }
             else
             {
-                // Non-arrow function - use object? for boundThis due to pattern matching needs
-                // Inlined ToObject() conversion to avoid obsolete warning
-                var boundThis = thisValue.Kind switch
-                {
-                    JsValueKind.Undefined => Symbol.Undefined,
-                    JsValueKind.Null => null,
-                    JsValueKind.Boolean => JsValueCache.GetBoolean(thisValue.NumberValue != 0.0),
-                    JsValueKind.Number => JsValueCache.GetNumber(thisValue.NumberValue),
-                    JsValueKind.Uninitialized => JsEnvironment.Uninitialized,
-                    _ => thisValue.ObjectValue
-                };
+                var boundThis = thisValue;
 
                 if (IsClassConstructor &&
-                    ReferenceEquals(boundThis, Symbol.Undefined) &&
+                    boundThis.IsUndefined &&
                     !newTarget.IsUndefined)
                 {
                     var constructedThis = CreateConstructedThis(newTarget, RealmState);
@@ -2011,7 +2001,7 @@ public static partial class TypedAstEvaluator
                         DescribePrototype(constructedThis.PrototypeAccessor ?? constructedThis.Prototype),
                         newTarget.Kind);
 
-                    boundThis = constructedThis;
+                    boundThis = JsValue.FromObjectUnsafe(constructedThis);
                 }
 
                 if (!_isStrict)
@@ -2019,54 +2009,51 @@ public static partial class TypedAstEvaluator
                     if (thisValue.IsNullish)
                     {
                         boundThis = RealmState.Engine is { GlobalObject: { } globalObj }
-                            ? globalObj
-                            : Symbol.Undefined;
+                            ? JsValue.FromObjectUnsafe(globalObj)
+                            : JsValue.Undefined;
                     }
 
-                    if (boundThis is not IJsPropertyAccessor &&
-                        boundThis is not null && !ReferenceEquals(boundThis, Symbol.Undefined) &&
-                        boundThis is not IIsHtmlDda)
+                    if (!boundThis.IsUndefined &&
+                        !boundThis.IsNull &&
+                        boundThis.ObjectValue is not IJsPropertyAccessor &&
+                        boundThis.ObjectValue is not IIsHtmlDda)
                     {
-                        boundThis = ToObjectForDestructuringJsValue(JsValue.FromObjectUnsafe(boundThis), context);
+                        boundThis = JsValue.FromObjectUnsafe(ToObjectForDestructuringJsValue(boundThis, context));
                     }
                 }
 
-                object? initialThisValue;
+                JsValue initialThisValue;
                 bool initialThisInitialized;
                 if (_isDerivedClassConstructor)
                 {
                     context.MarkThisUninitialized();
                     initialThisInitialized = false;
-                    initialThisValue = JsEnvironment.Uninitialized;
+                    initialThisValue = JsValue.Uninitialized;
                 }
                 else
                 {
                     context.MarkThisInitialized();
                     initialThisInitialized = true;
                     initialThisValue = boundThis;
-                    if (!_isStrict && initialThisValue is null)
+                    if (!_isStrict && initialThisValue.IsNull)
                     {
-                        initialThisValue = new JsObject { RealmState = RealmState };
+                        initialThisValue = JsValue.FromObjectUnsafe(new JsObject { RealmState = RealmState });
                     }
 
                     boundThis = initialThisValue;
                 }
 
                 functionEnvironment.SetThisInitializationStatus(initialThisInitialized);
-                // In strict mode, `this` can be undefined - handle Symbol.Undefined marker correctly
-                var thisJsValue = ReferenceEquals(initialThisValue, Symbol.Undefined)
-                    ? JsValue.Undefined
-                    : JsValue.FromObjectUnsafe(initialThisValue);
-                functionEnvironment._thisValue = thisJsValue;
+                functionEnvironment._thisValue = initialThisValue;
                 functionEnvironment._hasThisValue = true;
-                functionEnvironment.DefineJsValue(Symbol.This, thisJsValue);
+                functionEnvironment.DefineJsValue(Symbol.This, initialThisValue);
                 if (_isDerivedClassConstructor)
                 {
                     functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
                         JsValue.FromObjectUnsafe(functionEnvironment));
                 }
 
-                if (IsClassConstructor && initialThisValue is JsObject ctorThis)
+                if (IsClassConstructor && initialThisValue.TryGetObject<JsObject>(out var ctorThis))
                 {
                     RealmState.Logger?.LogInformation(
                         "ctor: bound this func={Function} this={This} proto={Proto} initialized={Initialized}",
@@ -2112,9 +2099,9 @@ public static partial class TypedAstEvaluator
                     }
 
                     var thisForSuper = initialThisInitialized &&
-                                       boundThis is not null &&
-                                       !ReferenceEquals(boundThis, JsEnvironment.Uninitialized)
-                        ? JsValue.FromObjectUnsafe(boundThis)
+                                       !boundThis.IsUndefined &&
+                                       !boundThis.IsUninitialized
+                        ? boundThis
                         : JsValue.Undefined;
                     var binding = new SuperBinding(runtimeSuperConstructor, prototypeForSuper,
                         thisForSuper, initialThisInitialized);
@@ -2136,7 +2123,7 @@ public static partial class TypedAstEvaluator
                         context.PushClassFieldInitializer(pendingFieldInitialization);
                         hasPendingFieldInitialization = true;
                     }
-                    else if (boundThis is JsObject thisInstance)
+                    else if (boundThis.TryGetObject<JsObject>(out var thisInstance))
                     {
                         InitializeInstance(thisInstance, functionEnvironment, context);
                         if (context.ShouldStopEvaluation)

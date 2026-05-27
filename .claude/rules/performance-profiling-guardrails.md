@@ -190,6 +190,24 @@ optimization.
      / PR #2337 repeated that evidence-only pattern for a batch-5 boundary
      proof pack: the correct durable artifact was a proof transcript with
      allocation-stability wording, not an engine change.
+10c. For `propertyaccess` production-routing widening attempts, do not retain
+     activation-resolved named-read chains, direct property-read binary
+     expressions, or adjacent unified-bytecode eligibility changes unless the
+     run captured the full benchmark table, before/after
+     `propertyaccess` CPU profiles, and repeated focused timing rows that clear
+     the issue's required improvement threshold beyond noise. If the experiment
+     misses the gate, revert runtime/test changes and record the failed attempt
+     in `docs/performance/failed-*.md`; keep accepted ADRs scoped to changes
+     that actually remain. WHY: Faktorial issue
+     `autrun-dita1u7282fk-c0402b3866` / PR #2325 tried to widen production
+     routing for nested activation-resolved named reads and direct
+     property-read binary expressions, but the only comparable baseline was a
+     focused `propertyaccess` row, CPU profile evidence was missing, and final
+     repeated rows were noisy (best about 7.2% faster, one row regressed)
+     against a 10%+ gate. The runtime/test edits were reverted, and ADR 0222
+     needed a follow-up correction so it did not describe the failed widening
+     as retained. Related failed-attempt note:
+     `docs/performance/failed-propertyaccess-named-read-production-routing.md`.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

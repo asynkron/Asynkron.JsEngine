@@ -23,6 +23,11 @@ shape corrections separate from ordinary JavaScript property operations.
 5. When changing built-in function object shape, add focused tests for the
    exact observable property and any aliases that share the same function
    object.
+6. When deduplicating built-in `length`/`name` metadata setup, extract only the
+   identical descriptor creation. Preserve the existing name/arity decisions,
+   descriptor attributes, and call-site ordering; prove the touched built-ins
+   with focused observable-shape tests instead of relying on line-count
+   reduction alone.
 
 ## Prototype Constructor Setup
 
@@ -72,6 +77,22 @@ moved to a different owner with focused proof.
 
 Related ADR:
 `docs/adrs/0187-keep-async-iteration-helper-entrypoints-core-shared.md`.
+
+## Built-In Metadata Helpers
+
+When moving repeated built-in function property setup into a shared helper,
+keep the helper at the descriptor level: `length` and `name` should remain
+non-writable, non-enumerable, configurable data properties, with each call site
+still choosing the correct name and arity.
+
+WHY: issue `autrun-dit9miwwhejc-c786be511d` / PR #2312 deduplicated Promise
+built-in metadata setup by moving identical `SetBuiltInFunctionProperties`
+definitions from `PromiseConstructor` and `PromisePrototype` into
+`PromiseHelper`. The safe slice preserved descriptor attributes and all
+call-site names/lengths, stayed scoped to Promise files, and used focused
+Promise tests plus static-analysis evidence. Future built-in metadata
+deduplication should keep that observable boundary instead of hiding
+constructor/prototype-specific shape choices behind a broader helper.
 
 ## Why
 

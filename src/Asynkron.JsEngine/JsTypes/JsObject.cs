@@ -1099,16 +1099,6 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             return true;
         }
 
-        if (Prototype is { } protoObj)
-        {
-            return protoObj.TryGetProperty(name, receiver, context, out value);
-        }
-
-        if (PrototypeAccessor is { } protoAccessor)
-        {
-            return protoAccessor.TryGetProperty(name, receiver, out value);
-        }
-
         value = JsValue.Undefined;
         return false;
     }

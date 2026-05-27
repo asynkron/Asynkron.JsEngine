@@ -15,7 +15,8 @@ inside `sum += ...` loops:
 The retained runtime change is limited to `JsObject.TryGetProperty` overloads
 that receive an explicit receiver. It mirrors the existing no-receiver simple
 data-property path when virtual providers, own descriptors, and private slots
-are not involved. Prototype traversal preserves the original receiver.
+are not involved. Prototype traversal stays on the existing depth-limited
+lookup path so receiver semantics and prototype-chain guards are preserved.
 
 ## Baseline signal
 
@@ -62,11 +63,21 @@ receiver overloads before the full depth-limited lookup. The helper:
   requested name;
 - exits to the existing full path for private-slot names;
 - returns direct storage hits immediately for simple data properties;
-- recurses through `Prototype` or `PrototypeAccessor` with the original receiver
-  on misses.
+- falls back to the existing depth-limited lookup on misses.
 
 This deliberately avoids descriptor, accessor, proxy, virtual provider,
 private-slot, and receiver-sensitive getter changes.
+
+## Review repair
+
+Timestamp: 2026-05-27T12:42:18Z
+
+Review found that the original helper recursed through the public receiver
+overload on prototype misses, which reset `MaxPrototypeChainDepth` on each
+ordinary `JsObject` prototype. The repair keeps only the own simple data-property
+hit in the helper and lets misses use `TryGetPropertyJsValue`, preserving the
+existing depth guard. A focused regression test now verifies that receiver-based
+reads stop at `JsEngineConstants.MaxPrototypeChainDepth`.
 
 ## Final signal
 

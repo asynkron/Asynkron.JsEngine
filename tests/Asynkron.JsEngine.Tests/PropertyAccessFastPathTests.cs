@@ -42,6 +42,27 @@ public sealed class PropertyAccessFastPathTests(ITestOutputHelper output) : Inte
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Receiver_Data_Property_Read_Still_Stops_At_Max_Prototype_Depth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            var reachable = { value: 42 };
+            for (var i = 0; i < {{JsEngineConstants.MaxPrototypeChainDepth - 1}}; i++) {
+                reachable = Object.create(reachable);
+            }
+
+            var tooDeep = { value: 13 };
+            for (var j = 0; j < {{JsEngineConstants.MaxPrototypeChainDepth}}; j++) {
+                tooDeep = Object.create(tooDeep);
+            }
+
+            reachable.value + ":" + (tooDeep.value === undefined);
+        """);
+
+        Assert.Equal("42:true", result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Compound_Add_With_Property_Rhs_Evaluates_Getter_Once()
     {
         await using var engine = CreateEngine();

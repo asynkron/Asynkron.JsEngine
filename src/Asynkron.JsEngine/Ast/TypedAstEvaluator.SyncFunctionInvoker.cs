@@ -33,10 +33,23 @@ public static partial class TypedAstEvaluator
         private readonly record struct SimpleNumericSelfRecursionFastPath(
             Symbol FunctionName,
             int BaseThreshold,
+            SimpleNumericSelfRecursionBase Base,
+            SimpleNumericSelfRecursionOperation Operation,
             int LeftDelta,
             int RightDelta)
         {
             public const int MaxFastInput = 64;
+        }
+
+        private readonly record struct SimpleNumericSelfRecursionBase(
+            bool ReturnsParameter,
+            double Constant);
+
+        private enum SimpleNumericSelfRecursionOperation : byte
+        {
+            AddSelfCalls,
+            AddParameterAndSelfCall,
+            MultiplyParameterAndSelfCall
         }
 
         /// <summary>
@@ -980,7 +993,9 @@ public static partial class TypedAstEvaluator
 
             if (value <= fastPath.BaseThreshold)
             {
-                result = arg0;
+                result = fastPath.Base.ReturnsParameter
+                    ? arg0
+                    : JsValue.FromDouble(fastPath.Base.Constant);
                 return true;
             }
 
@@ -1208,21 +1223,48 @@ public static partial class TypedAstEvaluator
             for (var i = 0; i <= input; i++)
             {
                 values[i] = i <= fastPath.BaseThreshold
-                    ? i
-                    : GetSimpleNumericSelfRecursionValue(values, i - fastPath.LeftDelta, fastPath.BaseThreshold) +
-                      GetSimpleNumericSelfRecursionValue(values, i - fastPath.RightDelta, fastPath.BaseThreshold);
+                    ? GetSimpleNumericSelfRecursionBaseValue(i, fastPath.Base)
+                    : EvaluateSimpleNumericSelfRecursionStep(i, values, fastPath);
             }
 
             return values[input];
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
+        private static double EvaluateSimpleNumericSelfRecursionStep(
+            int input,
+            Span<double> values,
+            SimpleNumericSelfRecursionFastPath fastPath)
+        {
+            var left = GetSimpleNumericSelfRecursionValue(values, input - fastPath.LeftDelta, fastPath.BaseThreshold,
+                fastPath.Base);
+            return fastPath.Operation switch
+            {
+                SimpleNumericSelfRecursionOperation.AddSelfCalls =>
+                    left + GetSimpleNumericSelfRecursionValue(values, input - fastPath.RightDelta,
+                        fastPath.BaseThreshold, fastPath.Base),
+                SimpleNumericSelfRecursionOperation.AddParameterAndSelfCall => input + left,
+                SimpleNumericSelfRecursionOperation.MultiplyParameterAndSelfCall => input * left,
+                _ => input
+            };
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static double GetSimpleNumericSelfRecursionBaseValue(
+            int input,
+            SimpleNumericSelfRecursionBase @base)
+        {
+            return @base.ReturnsParameter ? input : @base.Constant;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
         private static double GetSimpleNumericSelfRecursionValue(
             Span<double> values,
             int index,
-            int baseThreshold)
+            int baseThreshold,
+            SimpleNumericSelfRecursionBase @base)
         {
-            return index <= baseThreshold ? index : values[index];
+            return index <= baseThreshold ? GetSimpleNumericSelfRecursionBaseValue(index, @base) : values[index];
         }
 
         private static bool TryCreateSimpleNumericSelfRecursionFastPath(
@@ -1246,36 +1288,132 @@ public static partial class TypedAstEvaluator
                         Left: IdentifierExpression conditionIdentifier,
                         Right: LiteralExpression { Value.IsNumber: true } conditionLimit
                     },
-                    Then: ReturnStatement { Expression: IdentifierExpression baseReturn },
+                    Then: ReturnStatement { Expression: { } baseReturn },
                     Else: null
                 } ||
                 !ReferenceEquals(conditionIdentifier.Name, parameterName) ||
-                !ReferenceEquals(baseReturn.Name, parameterName) ||
+                !TryGetSimpleNumericSelfRecursionBase(baseReturn, parameterName, out var recursionBase) ||
                 !TryGetSmallInteger(conditionLimit.Value, out var baseThreshold) ||
                 baseThreshold < 0 ||
                 function.Body.Statements[1] is not ReturnStatement
                 {
-                    Expression: BinaryExpression
-                    {
-                        Operator: BinaryOperator.Add,
-                        Left: var leftSelfCall,
-                        Right: var rightSelfCall
-                    }
+                    Expression: BinaryExpression returnExpression
                 } ||
-                !TryGetSelfCallSubtractDelta(leftSelfCall, parameterName, out var functionName, out var leftDelta) ||
-                ReferenceEquals(parameterName, functionName) ||
-                !TryGetSelfCallSubtractDelta(rightSelfCall, parameterName, out var rightFunctionName, out var rightDelta) ||
-                !ReferenceEquals(functionName, rightFunctionName))
+                !TryCreateSimpleNumericSelfRecursionFastPath(
+                    returnExpression,
+                    parameterName,
+                    baseThreshold,
+                    recursionBase,
+                    out fastPath))
             {
                 return false;
             }
 
-            fastPath = new SimpleNumericSelfRecursionFastPath(
-                functionName,
-                baseThreshold,
-                leftDelta,
-                rightDelta);
             return true;
+        }
+
+        private static bool TryCreateSimpleNumericSelfRecursionFastPath(
+            BinaryExpression returnExpression,
+            Symbol parameterName,
+            int baseThreshold,
+            SimpleNumericSelfRecursionBase recursionBase,
+            out SimpleNumericSelfRecursionFastPath fastPath)
+        {
+            fastPath = default;
+            if (returnExpression.Operator == BinaryOperator.Add &&
+                TryGetSelfCallSubtractDelta(
+                    returnExpression.Left,
+                    parameterName,
+                    out var leftFunctionName,
+                    out var leftDelta) &&
+                !ReferenceEquals(parameterName, leftFunctionName) &&
+                TryGetSelfCallSubtractDelta(
+                    returnExpression.Right,
+                    parameterName,
+                    out var rightFunctionName,
+                    out var rightDelta) &&
+                ReferenceEquals(leftFunctionName, rightFunctionName))
+            {
+                fastPath = new SimpleNumericSelfRecursionFastPath(
+                    leftFunctionName,
+                    baseThreshold,
+                    recursionBase,
+                    SimpleNumericSelfRecursionOperation.AddSelfCalls,
+                    leftDelta,
+                    rightDelta);
+                return true;
+            }
+
+            if ((returnExpression.Operator == BinaryOperator.Add || returnExpression.Operator == BinaryOperator.Multiply) &&
+                TryGetLinearSelfRecursionTerms(
+                    returnExpression,
+                    parameterName,
+                    out var functionName,
+                    out var delta))
+            {
+                fastPath = new SimpleNumericSelfRecursionFastPath(
+                    functionName,
+                    baseThreshold,
+                    recursionBase,
+                    returnExpression.Operator == BinaryOperator.Add
+                        ? SimpleNumericSelfRecursionOperation.AddParameterAndSelfCall
+                        : SimpleNumericSelfRecursionOperation.MultiplyParameterAndSelfCall,
+                    delta,
+                    0);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetSimpleNumericSelfRecursionBase(
+            ExpressionNode expression,
+            Symbol parameterName,
+            out SimpleNumericSelfRecursionBase recursionBase)
+        {
+            recursionBase = default;
+            if (expression is IdentifierExpression baseReturn &&
+                ReferenceEquals(baseReturn.Name, parameterName))
+            {
+                recursionBase = new SimpleNumericSelfRecursionBase(ReturnsParameter: true, Constant: 0);
+                return true;
+            }
+
+            if (expression is LiteralExpression { Value.IsNumber: true } literal &&
+                TryGetSmallInteger(literal.Value, out var constant))
+            {
+                recursionBase = new SimpleNumericSelfRecursionBase(ReturnsParameter: false, constant);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryGetLinearSelfRecursionTerms(
+            BinaryExpression expression,
+            Symbol parameterName,
+            out Symbol functionName,
+            out int delta)
+        {
+            if (expression.Left is IdentifierExpression leftParameter &&
+                ReferenceEquals(leftParameter.Name, parameterName) &&
+                TryGetSelfCallSubtractDelta(expression.Right, parameterName, out functionName, out delta) &&
+                !ReferenceEquals(functionName, parameterName))
+            {
+                return true;
+            }
+
+            if (expression.Right is IdentifierExpression rightParameter &&
+                ReferenceEquals(rightParameter.Name, parameterName) &&
+                TryGetSelfCallSubtractDelta(expression.Left, parameterName, out functionName, out delta) &&
+                !ReferenceEquals(functionName, parameterName))
+            {
+                return true;
+            }
+
+            functionName = Symbol.Undefined;
+            delta = 0;
+            return false;
         }
 
         private static bool TryGetSelfCallSubtractDelta(

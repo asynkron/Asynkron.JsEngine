@@ -724,6 +724,83 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Function_StrictFactorial_LinearSelfRecursion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function factorial(n) {
+                if (n <= 1) return 1;
+                return n * factorial(n - 1);
+            }
+            factorial(6);
+        ");
+        Assert.Equal(720d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictSumTo_LinearSelfRecursion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function sumTo(n) {
+                if (n <= 0) return 0;
+                return n + sumTo(n - 1);
+            }
+            sumTo(10);
+        ");
+        Assert.Equal(55d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictFactorial_NonIntegerKeepsRecursiveSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function factorial(n) {
+                if (n <= 1) return 1;
+                return n * factorial(n - 1);
+            }
+            factorial(2.5);
+        ");
+        Assert.Equal(3.75d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictFactorial_BaseCaseNegativeKeepsConstantReturn()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function factorial(n) {
+                if (n <= 1) return 1;
+                return n * factorial(n - 1);
+            }
+            factorial(-1);
+        ");
+        Assert.Equal(1d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictFactorial_ReassignedNameUsesCurrentBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function factorial(n) {
+                if (n <= 1) return 1;
+                return n * factorial(n - 1);
+            }
+            const original = factorial;
+            factorial = function() { return 100; };
+            original(3);
+        ");
+        Assert.Equal(300d, result);
+    }
+
+    [Fact]
     public async Task Function_StrictSelfNameShadowedByParameter_DoesNotForceRecursiveTarget()
     {
         await using var engine = CreateEngine();

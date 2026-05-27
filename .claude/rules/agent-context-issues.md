@@ -121,6 +121,12 @@ as failed stage outcomes before the actual learn decision. The durable lesson is
 to keep interim Faktorial updates human-readable and reserve schema-shaped JSON
 for the final stage result only.
 
+Issue #2421 / PR #2428 found that this output-boundary rule was already durable
+here and in recurring-child guidance, but the workflow issue-logging playbook
+still lacked the same boundary. The durable lesson is to mirror cross-cutting
+Faktorial output rules into `agents/how-to-workflow-and-issues.md` when that
+playbook is an agent entrypoint, while keeping this file as the semantic home.
+
 Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
 recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the
 build-stage reran that exact command and the timeout-shaped variant on the

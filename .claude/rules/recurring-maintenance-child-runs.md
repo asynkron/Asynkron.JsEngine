@@ -188,6 +188,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   edit, pair it with a code-size signal such as `rtk cloc --vcs=git
   --include-lang=C#`, and keep behavior, tests, and recurrence infrastructure
   out of scope unless the exact deletion no longer compiles.
+- If the code-reduction slice targets an empty conditional block, first prove
+  the condition expression is metadata-only or otherwise side-effect-free, then
+  delete only the empty block. Use a targeted before/after occurrence or
+  line-count signal plus `git diff --check`; do not reshape nearby semantic
+  code just because the empty guard sits in an active runtime path.
 - When a recurring code-reduction child uses named cleanup tools such as
   QuickDup, Roslynator, or cloc, follow each tool's documented discovery path
   before marking it unavailable. A local `dotnet tool list --local` result is
@@ -255,6 +260,13 @@ and in `rtk ./tools/run-test262-regressions.sh --list`, but was missing from
 `agents/how-to-build-and-test.md`. Future Test262 named-pack docs slices should
 prove both the pack-file inventory and runner `--list` output so feature-added
 packs do not silently disappear from the agent-facing static inventory.
+
+Faktorial issue `autrun-dit1y6xmdd3k-15c84954bd` / PR #2225 removed an empty
+`if (function.IsDefaultDerivedConstructor) { }` block from
+`FunctionExpressionExtensions.cs`. The useful lesson is to treat empty
+conditionals as valid code-reduction slices only after proving the condition has
+no observable work, then keep the edit to that dead block and record the
+before/after reduction signal.
 
 Issue #1431 / PR #1434 was the same docs/filesystem drift pattern on the
 top-level README demo list. `README.md` still omitted `EventQueueDemo`, pointed

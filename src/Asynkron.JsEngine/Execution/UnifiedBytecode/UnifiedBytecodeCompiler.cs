@@ -676,7 +676,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (TryAppendFirstBoundaryNamedPropertyRead(
+        if (TryAppendNamedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
                 unified,
@@ -734,6 +734,18 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    {
+                        reason = "Optional named property reads are not supported.";
+                        return false;
+                    }
+
+                    var propertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+                    break;
+
                 case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
@@ -748,41 +760,60 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool TryAppendFirstBoundaryNamedPropertyRead(
+    private static bool TryAppendNamedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 2)
+        if (expressionProgram.OperationCount < 2)
         {
             reason = string.Empty;
             return false;
         }
 
-        var baseLoad = expressionProgram.GetOperation(0);
-        var propertyRead = expressionProgram.GetOperation(1);
-        if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+        if (!CanAppendActivationIdentifierLoad(expressionProgram.GetOperation(0), expressionProgram, activationSlots))
         {
             reason = string.Empty;
             return false;
         }
 
-        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
-            reason = "Optional named property reads are not supported.";
+            var propertyRead = expressionProgram.GetOperation(operationIndex);
+            if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+            {
+                reason = "Optional named property reads are not supported.";
+                return false;
+            }
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
-            return false;
+            var propertyRead = expressionProgram.GetOperation(operationIndex);
+
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
         }
 
-        var propertyNameIndex = stringConstants.Count;
-        stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
         reason = string.Empty;
         return true;
     }
@@ -907,6 +938,20 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
         reason = string.Empty;
         return true;
+    }
+
+    private static bool CanAppendActivationIdentifierLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        return TryResolveActivationSlot(identifier, activationSlots, out _);
     }
 
     private static bool IsSupportedBinaryOperator(BinaryOperator binaryOperator) =>

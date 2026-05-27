@@ -246,16 +246,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (operationCount == 2 &&
-                        operationIndex == operationCount - 1 &&
-                        TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+                    if (TryIsNamedPropertyReadChainCandidate(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots))
                     {
                         break;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
                     declineReason =
-                        "Named property reads are outside the first production property-read boundary unless they are direct activation-resolved base reads.";
+                        "Named property reads are outside the first production property-read boundary unless they are activation-resolved base read chains.";
                     return true;
 
                 case ExpressionOpKind.GetComputedProperty:
@@ -357,6 +359,46 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var identifier = operation.GetIdentifier(identifierConstants);
         return TryResolveActivationSlot(identifier, activationSlots);
+    }
+
+    private static bool TryIsNamedPropertyReadChainCandidate(
+        ExpressionProgram program,
+        int propertyReadIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        var chainStartIndex = propertyReadIndex - 1;
+        while (chainStartIndex > 0)
+        {
+            var previous = program.GetOperation(chainStartIndex);
+            if (previous.Kind != ExpressionOpKind.GetNamedProperty ||
+                previous.IsOptional ||
+                previous.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            chainStartIndex--;
+        }
+
+        if (chainStartIndex < 0 ||
+            !TryGetActivationResolvedIdentifier(program.GetOperation(chainStartIndex), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        for (var operationIndex = chainStartIndex + 1; operationIndex <= propertyReadIndex; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryIsFirstBoundaryComputedPropertyReadCandidate(

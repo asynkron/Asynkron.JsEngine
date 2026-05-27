@@ -46,6 +46,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   marker can send an otherwise-correct bounded rule update back to build.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
+- When a docs-only recurring child adds Mermaid diagrams, validate only the
+  extracted Mermaid fence bodies with a focused parser/renderer check when that
+  tool is available. Use temporary `.mmd` inputs rather than fragile shell
+  extraction forms, and do not treat generic markdownlint output as a source
+  blocker unless this repo has configured markdownlint as a required gate.
 - If canonical quality verification reports a recurring-child docs or rule
   slice as failed but the available log is truncated or lacks a concrete
   file/line diagnostic, treat it as a verification-context gap first. Re-run
@@ -427,6 +432,15 @@ target, so agents had to scan files or guess supported commands. Future
 Makefile maintenance should keep `make help` as the discoverable target list
 and only update the build/test playbook as a pointer unless command behavior is
 the selected slice.
+
+Issue `autrun-ditb2qor9jzc-2ff03f0be6` / PR #2332 refreshed
+`docs/dreaming.md` with Mermaid diagrams. Review proved the diagrams only after
+writing the fenced bodies to explicit `/tmp/*.mmd` files; an earlier process
+substitution check reached Mermaid CLI as empty input, and default
+markdownlint-cli output produced style noise even though the repo does not name
+markdownlint as a gate. Future docs-only Mermaid slices should validate the
+diagram syntax directly and keep optional generic markdown style output from
+becoming source churn.
 
 Issue #2292 / PR #2300 closed the adjacent first-time setup prerequisite drift:
 `README.md` showed the canonical local quality gate but did not tell operators

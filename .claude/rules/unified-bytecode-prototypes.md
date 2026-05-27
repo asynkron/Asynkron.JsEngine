@@ -169,6 +169,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     strict arm was not proven to route. The build-back fix added directive
     string-literal discard support plus explicit VM strictness threading so
     strict failed writes throw through the owned unified path.
+18. When hardening property-write production boundaries, keep logical member
+    assignments, dynamic value dependencies, and computed-key expressions with
+    unowned payloads as pre-VM declines until the same slice owns selector,
+    compiler, VM, and route-proof semantics for those shapes. Pair each
+    eligibility decline with public invocation fallback/no-route proof for the
+    exact function body. WHY: issue
+    `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-3-d4c5a8e668`
+    / PR #2415 added focused logical write, dynamic RHS write, and computed key
+    expression write coverage after the ordinary property-write boundary was
+    admitted. Without those neighboring declines, future property-set widening
+    can accidentally route logical assignment, dynamic lookup, or computed-key
+    expression payloads through a VM path that does not yet own those semantics.
 
 ## Why
 
@@ -363,6 +375,18 @@ strictness alone was insufficient. The accepted repair passes lexical
 strictness from `SyncFunctionInvoker` into `UnifiedBytecodeVirtualMachine` and
 lets the compiler skip only directive string-literal discard instructions for
 strict directive prologues.
+
+Faktorial issue
+`planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-3-d4c5a8e668`
+and PR #2415 added boundary-decline coverage around the admitted ordinary
+property-write slice. Logical member assignment, a dynamic/global RHS
+dependency, and computed-key expression payloads all execute correctly through
+fallback paths and must not log `unified-bytecode-production-fast-path` until a
+future slice owns their selector, compiler, VM, and route-proof semantics. WHY:
+the admitted simple property-set route is intentionally narrower than the full
+property-write family, so nearby write shapes need explicit decline examples to
+stop future agents from treating "property write" as a broad source-syntax
+permission.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

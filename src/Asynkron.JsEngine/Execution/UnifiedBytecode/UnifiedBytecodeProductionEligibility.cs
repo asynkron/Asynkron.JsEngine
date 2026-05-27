@@ -15,6 +15,14 @@ internal enum UnifiedBytecodeProductionDeclineCode
     NewTargetDependency,
     CallDependency,
     DynamicLookupDependency,
+    PropertyReadCandidateRequiresVmSupport,
+    PropertyReadBoundaryOutOfScope,
+    PropertyWriteDependency,
+    PropertyUpdateDependency,
+    DeleteDependency,
+    SuperPropertyDependency,
+    OptionalChainDependency,
+    ObjectLiteralOrSpreadDependency,
     LabelControlFlow,
     BreakOrContinueControlFlow,
     PrototypeOnlyBinaryOpcode,
@@ -180,9 +188,11 @@ internal static class UnifiedBytecodeProductionEligibility
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
+        var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
-        foreach (var operation in program.EnumerateOperations())
+        for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
+            var operation = program.GetOperation(operationIndex);
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadThis:
@@ -223,6 +233,102 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     break;
 
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain property reads are outside the first production property-read boundary.";
+                        return true;
+                    }
+
+                    if (operationCount == 2 &&
+                        operationIndex == operationCount - 1 &&
+                        TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport;
+                        declineReason =
+                            "Named property-read candidates are recognized, but compiler/VM property-read execution support is not in this build slice.";
+                        return true;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
+                    declineReason =
+                        "Named property reads are outside the first production property-read boundary unless they are direct activation-resolved base reads.";
+                    return true;
+
+                case ExpressionOpKind.GetComputedProperty:
+                    if (operation.ShortCircuitOnNullishTarget)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain computed property reads are outside the first production property-read boundary.";
+                        return true;
+                    }
+
+                    if (TryIsFirstBoundaryComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport;
+                        declineReason =
+                            "Computed property-read candidates (RequireObjectCoercible + ResolvePropertyKey + GetComputedProperty) are recognized, but compiler/VM property-read execution support is not in this build slice.";
+                        return true;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
+                    declineReason =
+                        "Computed property reads are outside the first production property-read boundary unless they use RequireObjectCoercible(Depth: 1) then ResolvePropertyKey immediately before GetComputedProperty.";
+                    return true;
+
+                case ExpressionOpKind.SetNamedProperty:
+                case ExpressionOpKind.SetComputedProperty:
+                case ExpressionOpKind.SetNamedSuperProperty:
+                case ExpressionOpKind.SetComputedSuperProperty:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
+                    declineReason = "Property writes are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.UpdateIdentifier:
+                case ExpressionOpKind.UpdateNamedProperty:
+                case ExpressionOpKind.UpdateComputedProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
+                    declineReason = "Update expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.DeleteIdentifier:
+                case ExpressionOpKind.DeleteNamedProperty:
+                case ExpressionOpKind.DeleteComputedProperty:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
+                    declineReason = "delete expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.GetNamedSuperProperty:
+                case ExpressionOpKind.GetComputedSuperProperty:
+                case ExpressionOpKind.EnsureSuperReference:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
+                    declineReason = "super property access is not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.JumpIfNullish:
+                case ExpressionOpKind.JumpIfShortCircuited:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                    declineReason =
+                        "Optional-chain short-circuiting is outside the first production property-read boundary.";
+                    return true;
+
+                case ExpressionOpKind.CreateObject:
+                case ExpressionOpKind.DefineObjectProperty:
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                case ExpressionOpKind.DefineObjectMethod:
+                case ExpressionOpKind.DefineComputedObjectMethod:
+                case ExpressionOpKind.DefineObjectAccessor:
+                case ExpressionOpKind.DefineComputedObjectAccessor:
+                case ExpressionOpKind.ObjectSpread:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                    declineReason = "Object literal/spread expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
                 case ExpressionOpKind.Binary:
                     if (!IsProductionBinaryOperator(operation.Operator))
                     {
@@ -241,6 +347,66 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool TryGetActivationResolvedIdentifier(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(identifierConstants);
+        return TryResolveActivationSlot(identifier, activationSlots);
+    }
+
+    private static bool TryIsFirstBoundaryComputedPropertyReadCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 5)
+        {
+            return false;
+        }
+
+        var baseLoad = program.GetOperation(0);
+        if (!TryGetActivationResolvedIdentifier(baseLoad, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var keyLoad = program.GetOperation(1);
+        if (keyLoad.Kind == ExpressionOpKind.LoadIdentifier &&
+            !TryGetActivationResolvedIdentifier(keyLoad, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        if (keyLoad.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadLiteral))
+        {
+            return false;
+        }
+
+        var requireObjectCoercible = program.GetOperation(2);
+        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+            requireObjectCoercible.Depth != 1)
+        {
+            return false;
+        }
+
+        var resolvePropertyKey = program.GetOperation(3);
+        if (resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey)
+        {
+            return false;
+        }
+
+        var getComputedProperty = program.GetOperation(4);
+        return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
+               !getComputedProperty.ShortCircuitOnNullishTarget;
+    }
+
     private static bool TryGetExpressionProgram(
         ExecutionInstruction instruction,
         out ExpressionProgram program)
@@ -257,6 +423,14 @@ internal static class UnifiedBytecodeProductionEligibility
 
             case CompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } rhsProgram }:
                 program = rhsProgram;
+                return true;
+
+            case EvaluateAndDiscardInstruction { ExpressionProgram: { } expressionProgram }:
+                program = expressionProgram;
+                return true;
+
+            case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } throwProgram }:
+                program = throwProgram;
                 return true;
 
             case BranchInstruction branch:

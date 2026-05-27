@@ -83,6 +83,23 @@ all-or-nothing until a separate routing issue proves production readiness.
     unsupported shapes as pre-VM declines, and describe Batch 5 memory/profile
     evidence as allocation stability only unless a separate before/after proof
     justifies a performance-improvement claim.
+12. When defining property-read production eligibility, keep candidate
+    recognition separate from VM acceptance until the same slice adds compiler
+    opcodes, VM semantics, route-priority proof, and negative no-route tests.
+    Direct named candidates are only activation-resolved base reads followed by
+    non-optional `GetNamedProperty`. Direct computed candidates must preserve
+    the exact ordinary-read lowering sequence:
+    `RequireObjectCoercible(Depth: 1)`, then `ResolvePropertyKey`, then
+    non-optional `GetComputedProperty`, with only production-safe base/key
+    loads before it. Recognized candidates that lack VM support must decline as
+    `PropertyReadCandidateRequiresVmSupport`, not compile or run. Adjacent
+    families such as calls/constructs, member call targets, writes, updates,
+    delete, `super`, `this`, optional chains, object literal/spread, dynamic
+    lookup, and out-of-boundary computed reads need stable pre-VM decline codes
+    plus concrete source-example tests. Also scan all expression-program-bearing
+    instructions, including evaluate-and-discard and throw payloads, before
+    generic compiler fallback so property-read hazards cannot hide outside
+    return expressions.
 
 ## Why
 
@@ -198,6 +215,19 @@ selector-only widening or mixed execution after ADR 0210; accepting `==`
 without compiler/VM parity and branch-shaped route evidence would have made the
 production boundary look wider than the runtime semantics actually proved.
 
+Faktorial issue
+`planitem-planmanual1779860498694736000-batch-1-property-read-boundary-define-and-8d40cdb281`
+and PR #2288 defined the first production property-read boundary as a
+selector-only contract. The lesson is that property reads are observable even
+when the lowered operation names look simple: ordinary computed reads must keep
+`RequireObjectCoercible(Depth: 1) -> ResolvePropertyKey -> GetComputedProperty`
+in order, optional chains and adjacent write/call/delete/super/object-literal
+families must stay declined, and recognized candidates still decline until the
+unified compiler and VM execute them directly. WHY: the issue existed to keep
+future property-read widening from admitting source-shaped or opcode-shaped
+candidates into a fallback-free production VM before the executable semantics
+and route proof exist.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -208,3 +238,4 @@ Related ADRs:
 - `docs/adrs/0205-keep-unified-bytecode-binary-production-eligibility-operator-explicit.md`
 - `docs/adrs/0208-keep-unified-bytecode-branch-production-routing-shape-discriminated.md`
 - `docs/adrs/0210-keep-unified-bytecode-control-flow-production-routing-operator-and-shape-owned.md`
+- `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`

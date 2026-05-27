@@ -653,3 +653,15 @@ Future RegExp and builtin-metadata unboxer slices should include stateful data
 slots such as `lastIndex` in the scoped `\bValue\s*=` owner-file search, not
 only constructor metadata such as `name` and `length`. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-dit75s3mysnk-3b0697bdb7` / PR #2280 applied the same descriptor
+setter policy to selected String standard-library owner files. The string
+wrapper `length`, string iterator `next` `name`/`length`, and iterator
+`@@toStringTag` descriptors are ordinary JavaScript data descriptors, so
+leaving them on `PropertyDescriptor.Value = ...` would keep an avoidable
+compatibility-setter bridge in String setup while descriptor attributes remain
+unchanged. Future String/std-library unboxer slices should search the selected
+owner files for `\bValue\s*=` before and after the edit, record both AC evidence
+signals explicitly, and keep the migration limited to proven JavaScript data
+values. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.

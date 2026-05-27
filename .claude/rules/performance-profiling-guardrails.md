@@ -82,6 +82,22 @@ optimization.
     `ReflectHelper.Construct`, parameter-binding storage, or `SetHomeObject` /
     simple-activation gates again. ADR:
     `docs/adrs/0214-keep-classdef-homeobject-and-construct-retries-profile-proven.md`.
+6e. For retained `classdef` constructor/super dispatch optimizations, prefer
+    owner-local derived-constructor bookkeeping before broad construction or
+    activation shortcuts. A derived constructor's function environment owns the
+    uninitialized `this` state before `super(...)`; if the profile names
+    `ExecuteProgramSuperConstruct`, first consider a local
+    `LexicalThisEnvironment` / `ThisInitialized` path with existing lexical and
+    constructor-this fallbacks preserved. Do not convert that win into
+    `ReflectHelper.Construct` bypasses, `SetHomeObject` invalidation changes, or
+    ADR 0193 simple-activation widening without separate evidence. Prove the
+    retained change with repeated selected-profile timings plus focused
+    class/super semantics and runner AST-seam scans. WHY: issue #2279 / PR
+    #2289 retained the local-first derived-constructor this-init lookup after
+    prior broader classdef retries had failed; the win came from resolving the
+    existing semantic owner faster, not from weakening construction or activation
+    boundaries. ADR:
+    `docs/adrs/0217-keep-derived-constructor-this-init-lookup-local-first.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

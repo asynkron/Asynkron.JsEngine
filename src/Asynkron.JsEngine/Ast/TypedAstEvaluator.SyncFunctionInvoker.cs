@@ -2047,6 +2047,11 @@ public static partial class TypedAstEvaluator
                 functionEnvironment._thisValue = thisJsValue;
                 functionEnvironment._hasThisValue = true;
                 functionEnvironment.DefineJsValue(Symbol.This, thisJsValue);
+                if (_isDerivedClassConstructor)
+                {
+                    functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
+                        JsValue.FromObjectUnsafe(functionEnvironment));
+                }
 
                 if (IsClassConstructor && initialThisValue is JsObject ctorThis)
                 {

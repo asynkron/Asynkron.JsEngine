@@ -137,10 +137,11 @@ When working inside the core engine, keep JavaScript values represented as
     descriptors in `JsEngine`, including `name`, `length`, symbols,
     constructor/prototype method properties, `Array`, `BigInt`, `Infinity`,
     `NaN`, `undefined`, Intl namespace constructor tables, `supportedLocalesOf`
-    metadata, local Temporal shims, and stateful builtin data slots such as
-    RegExp `lastIndex`, are still JavaScript data descriptors; use
-    `new JsValue(...)`, `JsValue.True`, or an explicit object wrapping helper
-    instead of hiding that conversion behind `Value =`.
+    metadata, local Temporal shims, local error-object data properties such as
+    `SuppressedError` `_errorData` / `error` / `suppressed` / `message`, and
+    stateful builtin data slots such as RegExp `lastIndex`, are still JavaScript
+    data descriptors; use `new JsValue(...)`, `JsValue.True`, or an explicit
+    object wrapping helper instead of hiding that conversion behind `Value =`.
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
@@ -758,3 +759,13 @@ and prove the slice with the focused `object? ConstructTypedArray` /
 `FromObjectUnsafe(ConstructTypedArray` search plus typed-array constructor
 tests. Related ADR:
 `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`.
+
+Issue `autrun-dithe2vzvzv4-52125cec24` / PR #2370 applied the same descriptor
+setter policy to `JsEnvironment.CreateSuppressedError`. The `_errorData`,
+`error`, `suppressed`, and `message` descriptors already received `JsValue`
+payloads, so `PropertyDescriptor.Value = ...` only kept the compatibility
+setter and `JsValue.FromObjectUnsafe(...)` bridge in the path. Future
+SuppressedError or local error-object descriptor cleanup should migrate the
+owner-file descriptor setters to `JsValue = ...`, keep descriptor attributes
+unchanged, and record the exact before/after legacy-setter signal. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.

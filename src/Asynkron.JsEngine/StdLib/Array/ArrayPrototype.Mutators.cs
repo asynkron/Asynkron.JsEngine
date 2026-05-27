@@ -246,12 +246,13 @@ public sealed partial class ArrayPrototype
             var evalContext = Realm?.CreateContext();
             var lengthValue = accessor.TryGetProperty("length", out var lenVal) ? lenVal : JsValue.FromDouble(0d);
             var length = (long)ToLengthOrZero(lengthValue, evalContext);
+            var argumentCount = args.Count;
 
-            var startIndex = args.Count > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
+            var startIndex = argumentCount > 0 ? ToIntegerOrInfinity(args[0], evalContext) : 0;
             var actualStart = ClampRelativeIndex(startIndex, length);
 
-            var insertCount = args.Count > 2 ? args.Count - 2 : 0;
-            var actualDeleteCount = ComputeSpliceDeleteCount(args, length, actualStart, evalContext);
+            var insertCount = argumentCount > 2 ? argumentCount - 2 : 0;
+            var actualDeleteCount = ComputeSpliceDeleteCount(args, argumentCount, length, actualStart, evalContext);
 
             var newLength = length - actualDeleteCount + insertCount;
             // ES spec step 8: If len + insertCount - actualDeleteCount > 2^53-1, throw a TypeError

@@ -650,16 +650,16 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         }
 
         class Derived extends Base {
-            read() { return super.value; }
+            readViaSuperBoundary() { return super.value; }
         }
 
         function readSuper() {
-            return new Derived().read();
+            return new Derived().readViaSuperBoundary();
         }
 
         readSuper();
         """,
-        "readSuper",
+        "readViaSuperBoundary",
         2d)]
     [InlineData(
         """

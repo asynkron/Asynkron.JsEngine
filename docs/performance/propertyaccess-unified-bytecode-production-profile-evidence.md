@@ -108,6 +108,33 @@ No-mixed-execution constraint for accepted programs:
 - Accepted production property-read programs execute through owned unified VM opcodes only.
 - They do not bridge to `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation callbacks.
 
+## Property-write/update boundary note (#2367 interaction)
+
+Issue #2367 remains an open propertyaccess baseline reference for this planning
+lineage. The numeric Faktorial issue lookup was unavailable during the
+investigation handoff, so this evidence surface records only the local boundary
+interaction: property-write/update routing must be compared against the existing
+`propertyaccess` rows above before any performance claim is made.
+
+Accepted first-boundary property-write/update shapes are intentionally narrower
+than the read boundary:
+
+- `return box.value = value;`
+- `return box[key] = value;`
+- `return ++box.value;` / `return box.value++;`
+- `return ++box[key];` / `return box[key]++;`
+
+The base must be activation-resolved. Computed keys and assigned values in this
+first slice are limited to activation-resolved identifiers or literals. Accepted
+programs use owned unified VM opcodes for set/update behavior and do not route
+through `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation.
+
+Explicitly declined adjacent shapes include statement/discarded writes, compound
+and logical property assignments, `super`, optional chaining, `delete`,
+call/construct expressions, object literal/spread adjacency, dynamic/captured
+activation, `this`, `new.target`, `arguments`, destructuring, and private-field
+expressions.
+
 Reference surfaces:
 
 - `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs`

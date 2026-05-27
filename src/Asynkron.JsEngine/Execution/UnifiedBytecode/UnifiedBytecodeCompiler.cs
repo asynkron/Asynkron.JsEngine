@@ -7,6 +7,9 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeCompiler
 {
+    private const int UpdateIncrementFlag = 1;
+    private const int UpdatePrefixFlag = 2;
+
     public static bool TryCompile(
         ExecutionPlan plan,
         bool isAsync,
@@ -676,6 +679,67 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        if (TryAppendFirstBoundaryNamedPropertySet(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryComputedPropertySet(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryNamedPropertyUpdate(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryComputedPropertyUpdate(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryNamedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
@@ -744,6 +808,211 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNamedPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 3)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertySet = expressionProgram.GetOperation(2);
+        if (propertySet.Kind != ExpressionOpKind.SetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Property writes with name inference are not supported.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(1),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertySet.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryComputedPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertySet = expressionProgram.GetOperation(3);
+        if (propertySet.Kind != ExpressionOpKind.SetComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Computed property writes with name inference are not supported.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(1),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(2),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNamedPropertyUpdate(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertyUpdate = expressionProgram.GetOperation(1);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertyUpdate.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.UpdateNamedProperty,
+            EncodeUpdateOperand(propertyNameIndex, propertyUpdate)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryComputedPropertyUpdate(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 3)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertyUpdate = expressionProgram.GetOperation(2);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(1),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.UpdateComputedProperty,
+            EncodeUpdateFlags(propertyUpdate)));
         reason = string.Empty;
         return true;
     }
@@ -890,6 +1159,42 @@ internal static class UnifiedBytecodeCompiler
                 reason = $"Unsupported computed property key op '{operation.Kind}'.";
                 return false;
         }
+    }
+
+    private static bool TryAppendSimpleOperandLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        switch (operation.Kind)
+        {
+            case ExpressionOpKind.LoadIdentifier:
+                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+
+            case ExpressionOpKind.LoadLiteral:
+                var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
+                var literalIndex = literalConstants.Count;
+                literalConstants.Add(literal);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
+                reason = string.Empty;
+                return true;
+
+            default:
+                reason = $"Unsupported simple operand op '{operation.Kind}'.";
+                return false;
+        }
+    }
+
+    private static int EncodeUpdateOperand(int stringConstantIndex, PackedExpressionOp update) =>
+        (stringConstantIndex << 2) | EncodeUpdateFlags(update);
+
+    private static int EncodeUpdateFlags(PackedExpressionOp update)
+    {
+        var flags = update.IsIncrement ? UpdateIncrementFlag : 0;
+        return update.IsPrefix ? flags | UpdatePrefixFlag : flags;
     }
 
     private static bool TryAppendActivationIdentifierLoad(

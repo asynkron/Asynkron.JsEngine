@@ -516,6 +516,109 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndSetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            Object.defineProperty(box, "value", {
+                set(value) {
+                    hits = hits + value;
+                }
+            });
+
+            function write(box, value) {
+                return box.value = value;
+            }
+
+            write(box, 42) + hits;
+            """);
+
+        Assert.Equal(84d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndKeySemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function write(box, key, value) {
+                return box[key] = value;
+            }
+
+            write(box, key, 41) + box.value + hits;
+            """);
+
+        Assert.Equal(83d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyUpdate_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function update(box) {
+                return ++box.value;
+            }
+
+            var box = { value: 41 };
+            update(box) + box.value;
+            """);
+
+        Assert.Equal(84d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyUpdate_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function update(box, key) {
+                return box[key]++;
+            }
+
+            var box = { value: 40 };
+            update(box, key) + box.value + hits;
+            """);
+
+        Assert.Equal(82d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """
@@ -610,28 +713,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "callMember",
         3d)]
-    [InlineData(
-        """
-        function assignMember(box) {
-            box.value = 9;
-            return box.value;
-        }
-
-        assignMember({ value: 1 });
-        """,
-        "assignMember",
-        9d)]
-    [InlineData(
-        """
-        function updateMember(box) {
-            box.value++;
-            return box.value;
-        }
-
-        updateMember({ value: 1 });
-        """,
-        "updateMember",
-        2d)]
     [InlineData(
         """
         function deleteMember(box) {

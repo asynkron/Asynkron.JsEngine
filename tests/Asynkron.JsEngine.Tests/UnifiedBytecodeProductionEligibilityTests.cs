@@ -195,6 +195,88 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, value) {
+                return box.value = value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal("value", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, key, value) {
+                return box[key] = value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NamedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function update(box) {
+                return ++box.value;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+        Assert.Equal("value", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function update(box, key) {
+                return box[key]++;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode()
     {
         var plan = GetFunctionPlan("""
@@ -336,6 +418,23 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readComputedAfterNamed",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+    [InlineData(
+        """
+        function compoundWrite(box, value) {
+            return box.value += value;
+        }
+        """,
+        "compoundWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function destructureWrite(box, source) {
+            ({ value: box.value } = source);
+            return 0;
+        }
+        """,
+        "destructureWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
     public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
         string source,
         string functionName,
@@ -377,6 +476,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
         Assert.Contains("super", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateFieldIn_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #value = 1;
+                has(receiver) {
+                    return #value in receiver;
+                }
+            }
+            """,
+            "Holder",
+            "has");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
+        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

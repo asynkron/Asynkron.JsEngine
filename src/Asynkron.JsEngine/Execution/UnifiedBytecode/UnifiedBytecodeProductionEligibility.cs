@@ -23,6 +23,8 @@ internal enum UnifiedBytecodeProductionDeclineCode
     SuperPropertyDependency,
     OptionalChainDependency,
     ObjectLiteralOrSpreadDependency,
+    PrivateFieldDependency,
+    DestructuringDependency,
     LabelControlFlow,
     BreakOrContinueControlFlow,
     PrototypeOnlyBinaryOpcode,
@@ -174,11 +176,43 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (instruction is EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } &&
+                TryFindDiscardedExpressionDecline(discardedProgram, out declineCode, out declineReason))
+            {
+                return true;
+            }
+
             if (TryGetExpressionProgram(instruction, out var program) &&
                 TryFindExpressionDecline(program, activationSlots, out declineCode, out declineReason))
             {
                 return true;
             }
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool TryFindDiscardedExpressionDecline(
+        ExpressionProgram program,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (ContainsPropertyWriteOperation(program))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
+            declineReason =
+                "Discarded property writes are outside the first production property-write boundary.";
+            return true;
+        }
+
+        if (ContainsPropertyUpdateOperation(program))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
+            declineReason =
+                "Discarded property updates are outside the first production property-update boundary.";
+            return true;
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
@@ -251,6 +285,14 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (ContainsPropertyWriteOperation(program))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
+                        declineReason =
+                            "Compound/logical property writes are outside the first production property-write boundary.";
+                        return true;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
                     declineReason =
                         "Named property reads are outside the first production property-read boundary unless they are direct activation-resolved base reads or exact two-hop named chains.";
@@ -270,26 +312,54 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (ContainsPropertyWriteOperation(program))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
+                        declineReason =
+                            "Compound/logical computed property writes are outside the first production property-write boundary.";
+                        return true;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
                     declineReason =
                         "Computed property reads are outside the first production property-read boundary unless they use RequireObjectCoercible(Depth: 1) then ResolvePropertyKey immediately before GetComputedProperty.";
                     return true;
 
-                case ExpressionOpKind.SetNamedProperty:
-                case ExpressionOpKind.SetComputedProperty:
                 case ExpressionOpKind.SetNamedSuperProperty:
                 case ExpressionOpKind.SetComputedSuperProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
+                    declineReason = "super property writes/updates are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.SetNamedProperty:
+                case ExpressionOpKind.SetComputedProperty:
+                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
-                    declineReason = "Property writes are not eligible for production unified bytecode routing.";
+                    declineReason =
+                        "Property writes are outside the first production boundary unless they use an activation-resolved base with simple key/value operands.";
                     return true;
 
                 case ExpressionOpKind.UpdateIdentifier:
-                case ExpressionOpKind.UpdateNamedProperty:
-                case ExpressionOpKind.UpdateComputedProperty:
-                case ExpressionOpKind.UpdateNamedSuperProperty:
-                case ExpressionOpKind.UpdateComputedSuperProperty:
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
                     declineReason = "Update expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.UpdateNamedProperty:
+                case ExpressionOpKind.UpdateComputedProperty:
+                    if (TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
+                    declineReason =
+                        "Property updates are outside the first production boundary unless they use an activation-resolved base with a simple optional-free key.";
                     return true;
 
                 case ExpressionOpKind.DeleteIdentifier:
@@ -323,6 +393,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason = "Object literal/spread expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.PrivateFieldIn:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
+                    declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.ApplyBindingTarget:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                    declineReason = "Destructuring expressions are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.Binary:
@@ -432,6 +512,96 @@ internal static class UnifiedBytecodeProductionEligibility
                !getComputedProperty.ShortCircuitOnNullishTarget;
     }
 
+    private static bool TryIsFirstBoundaryPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount == 3)
+        {
+            var propertyWrite = program.GetOperation(2);
+            return propertyWrite.Kind == ExpressionOpKind.SetNamedProperty &&
+                   !propertyWrite.AllowNameInference &&
+                   TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+                   IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
+        }
+
+        if (program.OperationCount != 4)
+        {
+            return false;
+        }
+
+        var computedWrite = program.GetOperation(3);
+        return computedWrite.Kind == ExpressionOpKind.SetComputedProperty &&
+               !computedWrite.AllowNameInference &&
+               TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+               IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
+               IsSimpleOperand(program.GetOperation(2), identifierConstants, activationSlots);
+    }
+
+    private static bool TryIsFirstBoundaryPropertyUpdateCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount == 2)
+        {
+            return program.GetOperation(1).Kind == ExpressionOpKind.UpdateNamedProperty &&
+                   TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots);
+        }
+
+        if (program.OperationCount != 3)
+        {
+            return false;
+        }
+
+        return program.GetOperation(2).Kind == ExpressionOpKind.UpdateComputedProperty &&
+               TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+               IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
+    }
+
+    private static bool IsSimpleOperand(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        return operation.Kind switch
+        {
+            ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedIdentifier(
+                operation,
+                identifierConstants,
+                activationSlots),
+            _ => false
+        };
+    }
+
+    private static bool ContainsPropertyWriteOperation(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind is ExpressionOpKind.SetNamedProperty or ExpressionOpKind.SetComputedProperty)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsPropertyUpdateOperation(ExpressionProgram program)
+    {
+        foreach (var operation in program.EnumerateOperations())
+        {
+            if (operation.Kind is ExpressionOpKind.UpdateNamedProperty or ExpressionOpKind.UpdateComputedProperty)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool TryGetExpressionProgram(
         ExecutionInstruction instruction,
         out ExpressionProgram program)
@@ -512,6 +682,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ResolvePropertyKey:
                 case UnifiedBytecodeOpCode.GetNamedProperty:
                 case UnifiedBytecodeOpCode.GetComputedProperty:
+                case UnifiedBytecodeOpCode.SetNamedProperty:
+                case UnifiedBytecodeOpCode.SetComputedProperty:
+                case UnifiedBytecodeOpCode.UpdateNamedProperty:
+                case UnifiedBytecodeOpCode.UpdateComputedProperty:
                 case UnifiedBytecodeOpCode.Return:
                     break;
 

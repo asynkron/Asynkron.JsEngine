@@ -3628,7 +3628,6 @@ public static partial class TypedAstEvaluator
                         thisInitializationValue = initValue;
                     }
                 }
-
                 if (thisInitializationEnvironment is null &&
                     environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv, out var foundValue))
                 {

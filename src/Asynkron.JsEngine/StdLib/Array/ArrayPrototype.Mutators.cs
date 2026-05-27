@@ -155,16 +155,7 @@ public sealed partial class ArrayPrototype
             {
                 var fromKey = ToIndexString(k);
                 var toKey = ToIndexString(k - 1);
-                var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
-                if (fromExists)
-                {
-                    accessor.SetProperty(toKey, fromValue);
-                }
-                else
-                {
-                    var toExists = HasProperty(accessor, toKey);
-                    DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
-                }
+                MoveExistingElementOrDeleteTarget(accessor, objectLike, fromKey, toKey, MethodName);
             }
 
             var lastKey = ToIndexString(length - 1);
@@ -215,16 +206,7 @@ public sealed partial class ArrayPrototype
                 {
                     var fromKey = ToIndexString(k);
                     var toKey = ToIndexString(k + argCount);
-                    var fromExists = TryGetExistingElement(accessor, fromKey, out var fromValue);
-                    if (fromExists)
-                    {
-                        accessor.SetProperty(toKey, fromValue);
-                    }
-                    else
-                    {
-                        var toExists = HasProperty(accessor, toKey);
-                        DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
-                    }
+                    MoveExistingElementOrDeleteTarget(accessor, objectLike, fromKey, toKey, MethodName);
                 }
 
                 // ES spec 4.d: Insert new elements at the beginning
@@ -325,16 +307,7 @@ public sealed partial class ArrayPrototype
                     var to = k + insertCount;
                     var fromKey = ToIndexString(from);
                     var toKey = ToIndexString(to);
-
-                    if (TryGetExistingElement(accessor, fromKey, out var fromValue))
-                    {
-                        accessor.SetProperty(toKey, fromValue);
-                    }
-                    else
-                    {
-                        var toExists = HasProperty(accessor, toKey);
-                        DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
-                    }
+                    MoveExistingElementOrDeleteTarget(accessor, objectLike, fromKey, toKey, MethodName);
                 }
 
                 for (var k = length; k > length - (actualDeleteCount - insertCount); k--)
@@ -352,16 +325,7 @@ public sealed partial class ArrayPrototype
                     var to = k + insertCount - 1;
                     var fromKey = ToIndexString(from);
                     var toKey = ToIndexString(to);
-
-                    if (TryGetExistingElement(accessor, fromKey, out var fromValue))
-                    {
-                        accessor.SetProperty(toKey, fromValue);
-                    }
-                    else
-                    {
-                        var toExists = HasProperty(accessor, toKey);
-                        DeletePropertyOrThrow(objectLike, toKey, toExists, MethodName, Realm);
-                    }
+                    MoveExistingElementOrDeleteTarget(accessor, objectLike, fromKey, toKey, MethodName);
                 }
             }
 
@@ -377,6 +341,23 @@ public sealed partial class ArrayPrototype
         {
             _spliceInProgress.Remove(accessor);
         }
+    }
+
+    private void MoveExistingElementOrDeleteTarget(
+        IJsPropertyAccessor accessor,
+        IJsObjectLike? objectLike,
+        string fromKey,
+        string toKey,
+        string methodName)
+    {
+        if (TryGetExistingElement(accessor, fromKey, out var fromValue))
+        {
+            accessor.SetProperty(toKey, fromValue);
+            return;
+        }
+
+        var toExists = HasProperty(accessor, toKey);
+        DeletePropertyOrThrow(objectLike, toKey, toExists, methodName, Realm);
     }
 
     [JsHostMethod("reverse", Length = 0d)]

@@ -47,30 +47,31 @@ all-or-nothing until a separate routing issue proves production readiness.
    and narrower than the prototype compiler until runtime proof widens it. Use
    `ExecutionPlan` plus explicit activation metadata, return stable decline
    codes/reasons before VM execution, and accept only the exact production
-   opcode subset that has been proven. Prototype opcodes stay production-closed
-   until a separate routing slice proves their observable semantics: `Binary`
-   and `Jump` remain prototype-only, while `JumpIfFalse` is production-eligible
-   only for the direct forward branch-return topology proven by issue #2227 /
-   ADR 0208. Nested branches, branch joins, loops, and every other
-   `JumpIfFalse` topology stay prototype-only for production routing. When a
-   prototype opcode is declined because of unproven semantic behavior, surface
-   that semantic decline before broader structural declines: for example,
-   `Binary` inside a branch or loop condition must decline as
-   `PrototypeOnlyBinaryOpcode` before `Jump` or `JumpIfFalse`, and the reason
-   should name the operator token when the operand is known.
+   opcode subset that has been proven. The current production subset includes
+   branch joins, direct branches, joined-local updates, and the canonical
+   condition-first loop back-edge only through the existing compiler-owned
+   shapes; do not add source-syntax exceptions or a selector-side second CFG
+   recognizer. `Binary` is production-eligible only for the explicitly proven
+   operator subset (`+`, `-`, `*`, `/`, `%`, `<`, `<=`, `>`, `>=`) and must
+   execute through the existing `JsValue` operator helpers with an
+   `EvaluationContext`, not direct numeric extraction. Unsupported Binary
+   operators must still decline as `PrototypeOnlyBinaryOpcode` with
+   operator-specific diagnostics, and labels, break/continue, calls, dynamic
+   lookup, noncanonical loops, and unsupported payloads must decline before VM
+   execution.
 10. When invoking production unified bytecode from sync calls, keep the bridge
-    slot-layout owned and fast-path ordered. Route after direct simple-return
-    binary/chain shortcuts and `SyncIrCallTrampoline`, before the generic simple
-    IR activation runner. Populate an invocation-local slot span from
-    `ActivationSlotShape` by filling `undefined` and writing parameters through
-    `ParameterSlotIndices`; do not create a `JsEnvironment`, call
-    `ExecutionPlanRunner`, or add VM fallback for accepted programs. Prove both
-    selected routing and nearby declined/faster routes through public invocation
-    tests plus the activation proof pack. If an accepted selector shape overlaps
-    an earlier sync fast path, choose a route-discriminating proof shape instead
-    of reordering the invoker just to satisfy a production-log assertion. If the
-    intended change really is priority inversion, make that explicit and prove
-    the older fast path remains covered.
+    slot-layout owned and fast-path ordered. Direct specialized simple-return
+    binary/chain shortcuts stay ahead of unified bytecode. The production
+    unified route intentionally runs ahead of the broader `SyncIrCallTrampoline`
+    so accepted branch, join, and canonical-loop shapes are not swallowed by
+    the trampoline, then the generic simple IR activation runner remains behind
+    both. Populate an invocation-local slot span from `ActivationSlotShape` by
+    filling `undefined` and writing parameters through `ParameterSlotIndices`;
+    do not create a `JsEnvironment`, call `ExecutionPlanRunner`, or add VM
+    fallback for accepted programs. Prove selected routing, faster-route
+    preservation, and nearby declines through public invocation tests plus the
+    activation proof pack. If a future slice changes priority again, make that
+    explicit and prove the older route remains covered.
 
 ## Why
 
@@ -152,6 +153,19 @@ selector acceptance and invocation routing are separate contracts; a source
 shape can be eligible for unified bytecode but still correctly execute through
 a higher-priority fast path.
 
+Faktorial issue
+`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-ba-4fb4d210a6`
+and PR #2243 widened production routing to branch joins, joined-local updates,
+comparison conditions, string/coercing Binary use, and the canonical
+condition-first loop shape. The lesson is that this was safe only after the VM
+stopped using direct numeric Binary operations and reused the existing
+`JsValue` operator helpers with the active `EvaluationContext`. The delivery
+also intentionally moved unified production routing ahead of the broad
+`SyncIrCallTrampoline` while keeping direct specialized binary shortcuts ahead
+of unified bytecode. WHY: the incident showed that admitting control-flow
+opcodes is not the decision by itself; operator semantics, compiler-owned CFG
+shape, route priority, and public route-log evidence must move together.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -161,3 +175,4 @@ Related ADRs:
 - `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`
 - `docs/adrs/0205-keep-unified-bytecode-binary-production-eligibility-operator-explicit.md`
 - `docs/adrs/0208-keep-unified-bytecode-branch-production-routing-shape-discriminated.md`
+- `docs/adrs/0210-keep-unified-bytecode-control-flow-production-routing-operator-and-shape-owned.md`

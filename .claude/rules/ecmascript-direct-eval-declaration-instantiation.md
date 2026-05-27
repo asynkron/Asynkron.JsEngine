@@ -31,6 +31,17 @@ and keep `arguments` handling path-specific.
    sloppy direct-eval `var arguments` only when the parameter environment
    actually has an own `arguments` binding, and prove both the inherited-arrow
    case that must stay allowed and the explicit-parameter case that must throw.
+7. For strict direct eval, reuse the already-created strict direct-eval lexical
+   environment only when declaration collection proves the eval program has no
+   top-level var-declared names, no top-level lexical declarations, and no
+   var-scoped function declarations. Declaration-bearing strict direct eval
+   must keep the child `eval` environment path, and sloppy direct eval plus
+   indirect eval must stay on their existing paths. The reused environment is
+   the fresh strict direct-eval lexical environment for this eval call, not the
+   caller environment. Mark whichever environment executes the eval program as
+   the eval declaration environment before instantiation. Prove this with a
+   declaration-leak negative test and the focused activation/class-element eval
+   proof when environment depth changes.
 
 ## Why
 
@@ -60,5 +71,17 @@ must not simplify this back to either "all arrow parameter environments are
 exempt" or "all arrow parameter environments reject"; the observable split is
 own parameter binding versus inherited outer arguments object.
 
-Related ADR:
-`docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`.
+Issue #2228 / PR #2241 optimized `activation-evalscope-lite` by removing one
+empty environment allocation from declaration-free strict direct eval. The win
+was safe only because strict direct eval had already created a fresh lexical
+environment for the eval call and the parsed program had no declarations to
+instantiate. Future performance work must not generalize that slice to
+declaration-bearing eval programs: those still need the child eval environment
+to isolate strict eval declarations from the caller while preserving direct
+eval observability for `arguments`, `new.target`, `super`, private-name scopes,
+and class-element contexts.
+
+Related ADRs:
+
+- `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`
+- `docs/adrs/0206-keep-strict-direct-eval-declaration-free-environment-reuse.md`

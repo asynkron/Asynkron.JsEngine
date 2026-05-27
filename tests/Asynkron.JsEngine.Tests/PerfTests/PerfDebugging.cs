@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
@@ -8,90 +9,38 @@ namespace Asynkron.JsEngine.Tests.PerfTests;
 [Category(TestCategories.Debugging)]
 public sealed class PerfDebugging(ITestOutputHelper output) : InternalTestBase(output)
 {
-    [Fact]
-    public async Task RunForLoop1()
+    [Theory]
+    [InlineData(0, 5, true)]
+    [InlineData(0, 9999, false)]
+    [InlineData(0, 10000, false)]
+    [InlineData(100, 10000, false)]
+    public async Task RunForLoop(int start, int end, bool useDebugLogger)
     {
-        var script = """
-                     'use strict'
-
-                     function run() {
-                         let s = 0;
-                         for (let i = 0; i < 5; i++) {
-                             s += i;
-                         }
-                         return s;
-                     }
-                     run();
-                     """;
+        var script = CreateForLoopScript(start, end);
         var sw = Stopwatch.StartNew();
-        var engine = CreateEngine(() => new JsEngineOptions()
-        {
-            Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput: output)
-        });
+        var engine = CreateEngine(
+            () => useDebugLogger
+                ? new JsEngineOptions { Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput: output) }
+                : new JsEngineOptions());
         await engine.Evaluate(script);
         Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 
-    [Fact]
-    public async Task RunForLoop2()
+    private static string CreateForLoopScript(int start, int end)
     {
-        var script = """
-                     'use strict'
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $$"""
+              'use strict'
 
-                     function run() {
-                         let s = 0;
-                         for (let i = 0; i < 9999; i++) {
-                             s += i;
-                         }
-                         return s;
-                     }
-                     run();
-                     """;
-        var sw = Stopwatch.StartNew();
-        var engine = CreateEngine(() => new JsEngineOptions());
-        await engine.Evaluate(script);
-        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
-    }
-
-    [Fact]
-    public async Task RunForLoop3()
-    {
-        var script = """
-                     'use strict'
-
-                     function run() {
-                         let s = 0;
-                         for (let i = 0; i < 10000; i++) {
-                             s += i;
-                         }
-                         return s;
-                     }
-                     run();
-                     """;
-        var sw = Stopwatch.StartNew();
-        var engine = CreateEngine(() => new JsEngineOptions());
-        await engine.Evaluate(script);
-        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
-    }
-
-    [Fact]
-    public async Task RunForLoop4()
-    {
-        var script = """
-                     'use strict'
-
-                     function run() {
-                         let s = 0;
-                         for (let i = 100; i < 10000; i++) {
-                             s += i;
-                         }
-                         return s;
-                     }
-                     run();
-                     """;
-        var sw = Stopwatch.StartNew();
-        var engine = CreateEngine(() => new JsEngineOptions());
-        await engine.Evaluate(script);
-        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
+              function run() {
+                  let s = 0;
+                  for (let i = {{start}}; i < {{end}}; i++) {
+                      s += i;
+                  }
+                  return s;
+              }
+              run();
+              """);
     }
 }

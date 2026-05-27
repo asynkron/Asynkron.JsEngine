@@ -75,6 +75,7 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.Multiply => TypedAstEvaluator.MultiplyValue(left, right, context),
             BinaryOperator.Divide => TypedAstEvaluator.DivideValue(left, right, context),
             BinaryOperator.Modulo => TypedAstEvaluator.ModuloValue(left, right, context),
+            BinaryOperator.Equal => JsOps.LooseEquals(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.LessThan => JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False,

@@ -698,6 +698,7 @@ internal static class UnifiedBytecodeCompiler
             BinaryOperator.Multiply or
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
+            BinaryOperator.Equal or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or

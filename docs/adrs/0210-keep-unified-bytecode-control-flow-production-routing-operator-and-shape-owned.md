@@ -48,7 +48,7 @@ compiler-emitted shape.
   the existing compiler-owned accepted shapes. Nearby unsupported control flow
   remains declined by the compiler or plan inspection before the VM starts.
 - Promote only the current Binary production subset: `+`, `-`, `*`, `/`, `%`,
-  `<`, `<=`, `>`, and `>=`. Unsupported Binary operators still decline as
+  `==`, `<`, `<=`, `>`, and `>=`. Unsupported Binary operators still decline as
   `PrototypeOnlyBinaryOpcode` with operator-specific diagnostics.
 - Execute production Binary through the existing `JsValue` runtime operator
   helpers and an `EvaluationContext`, not through direct numeric extraction or
@@ -91,6 +91,13 @@ compiler-emitted shape.
 
 Interpretation: this is allocation-stability evidence for the routed production
 boundary, not a performance-improvement claim.
+
+## Evidence (Issue #2256 widening slice)
+
+- `UnifiedBytecodeProductionEligibilityTests` passed in Release after widening
+  `BinaryOperator.Equal`: 32 tests.
+- `UnifiedBytecodeProductionInvocationTests` passed in Release with explicit
+  `==` route-log proof and `===` no-route proof: 19 tests.
 
 ## Related
 

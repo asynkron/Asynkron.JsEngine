@@ -151,16 +151,17 @@ internal static class AstShapeAnalyzer
     public static bool TryFindSingleYield(ExpressionNode expression,
         [NotNullWhen(true)] out YieldExpression? yieldExpression)
     {
-        var counter = new ShapeCounter(includeNestedFunctions: false);
-        counter.VisitExpression(expression);
-        if (counter.YieldCount != 1 || counter.FirstYieldExpression is null)
+        var summary = AnalyzeExpression(expression);
+        if (summary.YieldCount != 1)
         {
             yieldExpression = null!;
             return false;
         }
 
-        yieldExpression = counter.FirstYieldExpression;
-        return true;
+        var locator = new SingleYieldLocator();
+        locator.VisitExpression(expression);
+        yieldExpression = locator.FoundYield;
+        return yieldExpression is not null;
     }
 
     public static bool TryRewriteSingleYield(

@@ -304,6 +304,31 @@ public sealed class ClassSuperSemanticsTests(ITestOutputHelper output) : Interna
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BaseClassConstructor_RestParameter_BindsRestArray()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+              constructor(...xs) {
+                this.isArray = Array.isArray(xs);
+                this.count = xs.length;
+                this.first = xs[0];
+                this.second = xs[1];
+              }
+            }
+
+            var instance = new Base(10, 20);
+            [instance.isArray, instance.count, instance.first, instance.second];
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(array.Items[0].AsBoolean());
+        Assert.Equal(2d, array.Items[1].NumberValue);
+        Assert.Equal(10d, array.Items[2].NumberValue);
+        Assert.Equal(20d, array.Items[3].NumberValue);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task DerivedConstructor_ReturningPrimitiveAfterSuper_ThrowsTypeErrorOutsideBody()
     {
         await using var engine = CreateEngine();

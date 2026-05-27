@@ -118,12 +118,13 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~SomeTestName"
 ```
 
-Recurring documentation-maintenance child runs should execute one bounded
-repo-local docs slice, check active sibling child summaries to avoid overlap,
-capture a cheap baseline signal before editing and the matching final signal
-after editing, and avoid adding recurrence infrastructure. Build updates should
-use the stable evidence shape (`Baseline signal`, `Final signal`,
-`Sibling check`, `Slice check`, `Scope note`) from
+Recurring maintenance child runs should execute one bounded repo-local
+maintenance slice (for example docs, tooling, test-fixture, or workflow
+cleanup), check active sibling child summaries to avoid overlap, capture a
+cheap baseline signal before editing and the matching final signal after
+editing, and avoid adding recurrence infrastructure. Build updates should use
+the stable evidence shape (`Baseline signal`, `Final signal`, `Sibling check`,
+`Slice check`, `Scope note`) from
 [`agents/how-to-build-and-test.md`](agents/how-to-build-and-test.md). Policy
 ownership for recurring-child scope and durable compaction rules lives in
 [`.claude/rules/recurring-maintenance-child-runs.md`](.claude/rules/recurring-maintenance-child-runs.md).

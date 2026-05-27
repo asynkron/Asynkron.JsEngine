@@ -124,6 +124,24 @@ graph TD
     M6 --> M7
 ```
 
+## Delivery lifecycle and evidence gates
+This is the operating lifecycle for every architecture slice. It keeps greenfield intent and current-runtime reality connected.
+
+```mermaid
+flowchart LR
+    A[Architecture intent<br/>dream + roadmap constraint] --> B[Bounded design slice]
+    B --> C[Owner-surface implementation]
+    C --> D[Focused semantics proof]
+    D --> E[Profile or benchmark proof]
+    E --> F[Canonical quality gate]
+    F --> G[ADR and roadmap update]
+    G --> H[Next bounded slice]
+
+    D -. fail .-> B
+    E -. fail .-> B
+    F -. fail .-> B
+```
+
 ## Component and subcomponent ownership
 
 ### 1) Language Frontend
@@ -177,6 +195,16 @@ This dream is aspirational and does not claim current full parity.
 - Unified bytecode direction is strong, but production routing remains bounded by explicit eligibility and opcode/control-flow constraints.
 - Compact statement-bytecode storage is a direction; it is not the current universal execution contract.
 - Dynamic/eval-sensitive paths remain correctness-first and cannot be erased by architecture preference.
+
+## Milestone-to-module ownership map
+The #2342 milestones map to specific architecture modules so recurring work can land on the right surface.
+
+- Milestone A (module/runtime compatibility): Module and Host Fabric + Async and Concurrency Fabric.
+- Milestone B (host interop boundary clarity): Module and Host Fabric, with Execution Fabric as a strict engine boundary.
+- Milestone C (async seam closure): Async and Concurrency Fabric + Execution Fabric handoff points.
+- Unified-bytecode production routing: Compilation and Plan Fabric + Execution Fabric; keep selector ownership explicit.
+- Typed module follow-through: Module and Host Fabric + Standard Library Fabric boundary shaping.
+- Host/stdlib follow-through: Module and Host Fabric + Standard Library Fabric integration seams.
 
 ## Non-goals
 - Not a claim of full Node.js parity today.

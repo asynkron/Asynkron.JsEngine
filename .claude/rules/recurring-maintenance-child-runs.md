@@ -538,6 +538,12 @@ issue context and compact runtime history, treat unavailable helper paths as
 environment limitations before considering source-host credential gaps as
 blockers.
 
+Issue #2418 / PR #2424 compacted those two incidents from separate durable
+guidance blocks into the single ordering rule above. The durable lesson is to
+merge overlapping incident lessons inside the existing semantic home, while
+preserving the original issue traceability and keeping the fallback-boundary
+note separate from the context-ordering rule.
+
 Issue #1756 / PR #1760 moved the unavailable sibling/context fallback from
 semantic policy into the runnable operational checklist in
 `agents/how-to-build-and-test.md`. The incident showed that agents can treat a

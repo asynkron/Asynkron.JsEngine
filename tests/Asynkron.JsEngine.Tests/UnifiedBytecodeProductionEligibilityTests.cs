@@ -298,6 +298,22 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     [InlineData(
         """
+        function readComputedObjectLiteralKey(box) {
+            return box[{ value: 1 }];
+        }
+        """,
+        "readComputedObjectLiteralKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+        """,
+        "readComputedSpreadKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
         function readComputedOnBase(box, key) {
             return box[key].value;
         }

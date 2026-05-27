@@ -127,6 +127,46 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         Assert.Equal(expected, value.AsDouble(), 12);
     }
 
+    [Theory(Timeout = 5000)]
+    [MemberData(nameof(NumericParityOperators))]
+    public async Task Execute_CompiledBinaryOperator_MatchesCurrentRuntimeSemantics(
+        string functionName,
+        string operatorToken,
+        bool returnsBoolean)
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan($$"""
+            function {{functionName}}(a, b) {
+                return a {{operatorToken}} b;
+            }
+            """,
+            functionName);
+
+        var compileResult = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(compileResult, reason);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "a", JsValue.FromDouble(7));
+        SetSlot(plan, slots, "b", JsValue.FromDouble(3));
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+
+        await using var engine = CreateEngine();
+        var runtimeResult = await engine.Evaluate($$"""
+            function {{functionName}}(a, b) {
+                return a {{operatorToken}} b;
+            }
+
+            {{functionName}}(7, 3);
+            """);
+
+        if (returnsBoolean)
+        {
+            Assert.Equal(Assert.IsType<bool>(runtimeResult), Assert.IsType<bool>(vmResult.ToObject()));
+            return;
+        }
+
+        Assert.Equal(Assert.IsType<double>(runtimeResult), vmResult.AsDouble(), 12);
+    }
+
     [Fact]
     public void TryCompile_DirectBranchReturn_ProducesJumpProgram()
     {
@@ -465,4 +505,18 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         Assert.True(plan.ActivationSlots!.SlotMap.TryGetValue(Symbol.Intern(name), out var slotIndex), name);
         slots[slotIndex] = value;
     }
+
+    public static TheoryData<string, string, bool> NumericParityOperators =>
+        new()
+        {
+            { "add", "+", false },
+            { "subtract", "-", false },
+            { "multiply", "*", false },
+            { "divide", "/", false },
+            { "modulo", "%", false },
+            { "lessThan", "<", true },
+            { "lessThanOrEqual", "<=", true },
+            { "greaterThan", ">", true },
+            { "greaterThanOrEqual", ">=", true }
+        };
 }

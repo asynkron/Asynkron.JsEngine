@@ -200,6 +200,17 @@ When working inside the core engine, keep JavaScript values represented as
     Do not hide both JavaScript values and internal state objects behind a
     generic store helper that accepts `object?`. Related ADR:
     `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`.
+23. When a private predicate or inspector only examines a protocol object after
+    callers have already proven the concrete runtime shape, narrow the helper
+    parameter to that concrete type, for example `JsObject`, and remove the
+    defensive `candidate is JsObject` object-carrier check. Keep the
+    `TryGetObject` or symbol-iterator proof at the caller boundary and use
+    nullable-flow annotations such as `[NotNullWhen(true)]` on success-returning
+    `out` helpers when needed. Do not use this shape to silently drop
+    interface-backed object semantics that the old helper accepted; if the
+    legacy path accepted multiple object-like shapes, split explicit typed
+    branches per rule 11. Prove the slice with the scoped legacy-signature
+    search and focused protocol tests.
 
 ## Why
 
@@ -565,3 +576,13 @@ explicit at the two callsites. Future runner symbol-store cleanup should keep
 that split visible so object-carrier audits can distinguish intentional internal
 state from legacy JavaScript value flow. Related ADR:
 `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`.
+
+Issue `autrun-dit1y716mdag-788f21e7b2` / PR #2226 migrated
+`IterationHelper.HasCallableNext` from `object?` to `JsObject`. All callsites
+were local to async-iterator helper setup and already held iterator objects
+proven by `TryGetObject` or the success-returning symbol-iterator helper, so the
+old `candidate is JsObject` guard was only a redundant private object-carrier
+seam. Future protocol-predicate cleanup should let the caller boundary prove
+object shape, add precise nullable annotations when flow analysis needs them,
+and keep evidence to a scoped before/after signature search plus focused
+protocol tests instead of widening into unrelated `object?` cleanup.

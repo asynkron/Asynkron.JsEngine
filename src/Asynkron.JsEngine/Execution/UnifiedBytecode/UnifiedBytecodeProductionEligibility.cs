@@ -357,6 +357,35 @@ internal static class UnifiedBytecodeProductionEligibility
         return TryResolveActivationSlot(identifier, activationSlots);
     }
 
+    private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount is not (2 or 3))
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        for (var index = 1; index < program.OperationCount; index++)
+        {
+            var operation = program.GetOperation(index);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool TryIsFirstBoundaryComputedPropertyReadCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -451,35 +480,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name);
-    }
-
-    private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(
-        ExpressionProgram program,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        if (program.OperationCount is not (2 or 3))
-        {
-            return false;
-        }
-
-        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        for (var index = 1; index < program.OperationCount; index++)
-        {
-            var operation = program.GetOperation(index);
-            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
-                operation.IsOptional ||
-                operation.ShortCircuitOnNullishTarget)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static bool TryFindPrototypeOnlyOpcode(

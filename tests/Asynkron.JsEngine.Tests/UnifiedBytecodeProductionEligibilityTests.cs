@@ -298,6 +298,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     [InlineData(
         """
+        function readBinaryTarget(a, b) {
+            return (a + b).value;
+        }
+        """,
+        "readBinaryTarget",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+    [InlineData(
+        """
         function readComputedObjectLiteralKey(box) {
             return box[{ value: 1 }];
         }

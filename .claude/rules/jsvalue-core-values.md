@@ -203,6 +203,12 @@ When working inside the core engine, keep JavaScript values represented as
     obsolete-wrapper changes with a repo-internal callsite scan that covers
     `src`, `tests`, `benchmarks`, and `tools`, plus focused
     eval/Function/ShadowRealm/module proof when behavior changes.
+    WHY: issue `autrun-ditfw6gh2qag-7ade4a3977` / PR #2364 removed the last
+    private `ExecuteTypedExpression(...)` `object?` adapter in `JsEngine.cs`
+    after the remaining module and async-module callers moved to
+    `ExecuteTypedExpressionJsValue(...)`. Reintroducing that bridge would hide a
+    core-runtime JavaScript value behind a legacy object carrier and undo the
+    focused Unboxer cleanup.
     Related ADRs:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
     `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.

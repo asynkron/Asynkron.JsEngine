@@ -51,6 +51,29 @@ rtk dotnet build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -v minimal
 and review also confirmed that `program.EvaluateProgram(` no longer appears in
 `JsEngine.cs`.
 
+Follow-up issue `autrun-ditfw6gh2qag-7ade4a3977` / PR #2364 completed the
+same typed-expression bridge cleanup in `JsEngine.cs`. The remaining private
+`ExecuteTypedExpression(...)` `object?` adapter had no intentional public,
+host-interop, debugger, or diagnostic role; it only fed module and async-module
+callsites that already consumed `JsValue`. The follow-up migrated those
+callsites to `ExecuteTypedExpressionJsValue(...)`, assigned default-export
+expression bindings directly as `JsValue`, and deleted the private adapter.
+
+Focused evidence from that follow-up:
+
+```text
+baseline rg "ExecuteTypedExpression\(" src/Asynkron.JsEngine/JsEngine.cs = 14 matches
+final    rg "ExecuteTypedExpression\(" src/Asynkron.JsEngine/JsEngine.cs = 0 matches
+```
+
+The build stage also ran:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ModuleTests|FullyQualifiedName~AsyncModuleTryAwaitTests"
+```
+
+with 56 passing tests, and review reported the repo quality gate clean.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -63,13 +86,15 @@ For future typed module execution migrations:
    compatibility boundaries;
 3. do not call a private `object?` typed execution helper and immediately rewrap
    the result with `JsValue.FromObjectUnsafe(...)`;
-4. use `[Obsolete(..., true)]` on legacy private wrappers after the selected
+4. do not reintroduce a private `ExecuteTypedExpression(...)` `object?` adapter;
+   `ExecuteTypedExpressionJsValue(...)` is the core typed-expression entrypoint;
+5. use `[Obsolete(..., true)]` on legacy private wrappers after the selected
    direct usage is removed, so hidden core callsites become compiler errors
    instead of new accidental object-carrier seams;
-5. keep module `LastValue` storage and other remaining object-shaped module
+6. keep module `LastValue` storage and other remaining object-shaped module
    result surfaces as separate focused migration slices unless that owner
    surface is explicitly selected; and
-6. prove each slice with a before/after search for the selected legacy
+7. prove each slice with a before/after search for the selected legacy
    signatures plus focused module or async-module coverage when behavior, not
    just helper plumbing, changes.
 
@@ -77,10 +102,13 @@ For future typed module execution migrations:
 
 - Typed module execution now follows the same value-primitive direction as the
   private script/eval `ExecuteProgram` path from ADR 0168.
+- The selected `ExecuteTypedExpression(...)` private object adapter is gone; a
+  future reintroduction should be treated as a regression unless it is tied to
+  a new explicit public, host interop, debugger, or diagnostic boundary.
 - Remaining `object?` module result storage is visible as deferred work instead
   of being hidden behind private typed execution wrappers.
-- Future Unboxer slices can reduce the remaining `ExecuteTypedExpression`
-  rewraps incrementally without reopening the public `Evaluate*` facade shape.
+- Future Unboxer slices should focus on other object-shaped module result
+  surfaces without reopening the public `Evaluate*` facade shape.
 - Obsolete error-level wrappers are useful as temporary compiler pressure, but
   should not become permanent compatibility APIs once internal callers are gone.
 

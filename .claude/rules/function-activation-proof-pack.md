@@ -421,6 +421,19 @@ claiming a retained optimization.
 Related ADR:
 `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`.
 
+Issue `autrun-dit4lwfdshqo-b26070bcec` / PR #2266 later tested removing only
+the class-method home-object fast-base invalidation and relying on the existing
+super-free guard from ADR 0193. The semantic guard remained important, but the
+focused `classdef` timings regressed and the runtime edit was reverted. Future
+class-method activation work should preserve ADR 0193's receiver-versus-super
+distinction while still proving that any change to `SetHomeObject` invalidation
+or simple activation fast-base state is a current performance win. WHY: a
+correct eligibility boundary is not proof that a specific fast-base invalidation
+removal pays for itself in the current runner.
+
+Related ADR:
+`docs/adrs/0214-keep-classdef-homeobject-and-construct-retries-profile-proven.md`.
+
 Issue `autrun-disu408v4ns8-3128f4f119` / PR #2198 showed the final
 activation-arguments root-TDZ trap in the same optimizer chain: after ADR 0173
 and ADR 0183 removed observable-arguments descriptor, no-op hoist, and lexical

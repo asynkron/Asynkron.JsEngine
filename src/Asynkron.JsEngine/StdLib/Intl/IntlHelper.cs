@@ -46,17 +46,17 @@ public static partial class IntlHelper
 
         var toStringTagKey = SymbolKeys.ToStringTag;
         intl.DefineProperty(toStringTagKey,
-            new PropertyDescriptor { Value = "Intl", Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = "Intl", Writable = false, Enumerable = false, Configurable = true });
 
         var localeCtor = IntlLocaleConstructor.CreateConstructor(realm);
         intl.DefineProperty("Locale",
-            new PropertyDescriptor { Value = localeCtor, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = localeCtor, Writable = true, Enumerable = false, Configurable = true });
 
         var durationFormatCtor = IntlDurationFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("DurationFormat",
             new PropertyDescriptor
             {
-                Value = durationFormatCtor,
+                JsValue = durationFormatCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -64,13 +64,13 @@ public static partial class IntlHelper
 
         var collatorCtor = IntlCollatorConstructor.CreateConstructor(realm);
         intl.DefineProperty("Collator",
-            new PropertyDescriptor { Value = collatorCtor, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = collatorCtor, Writable = true, Enumerable = false, Configurable = true });
 
         var dateTimeFormatCtor = IntlDateTimeFormatConstructor.CreateConstructor(realm);
         intl.DefineProperty("DateTimeFormat",
             new PropertyDescriptor
             {
-                Value = dateTimeFormatCtor,
+                JsValue = dateTimeFormatCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -80,7 +80,7 @@ public static partial class IntlHelper
         intl.DefineProperty("NumberFormat",
             new PropertyDescriptor
             {
-                Value = numberFormatCtor,
+                JsValue = numberFormatCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -90,7 +90,7 @@ public static partial class IntlHelper
         intl.DefineProperty("RelativeTimeFormat",
             new PropertyDescriptor
             {
-                Value = relativeTimeFormatCtor,
+                JsValue = relativeTimeFormatCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -100,7 +100,7 @@ public static partial class IntlHelper
         intl.DefineProperty("DisplayNames",
             new PropertyDescriptor
             {
-                Value = displayNamesCtor,
+                JsValue = displayNamesCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -110,7 +110,7 @@ public static partial class IntlHelper
         intl.DefineProperty("PluralRules",
             new PropertyDescriptor
             {
-                Value = pluralRulesCtor,
+                JsValue = pluralRulesCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -120,7 +120,7 @@ public static partial class IntlHelper
         intl.DefineProperty("ListFormat",
             new PropertyDescriptor
             {
-                Value = listFormatCtor,
+                JsValue = listFormatCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -130,7 +130,7 @@ public static partial class IntlHelper
         intl.DefineProperty("Segmenter",
             new PropertyDescriptor
             {
-                Value = segmenterCtor,
+                JsValue = segmenterCtor,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -207,11 +207,11 @@ public static partial class IntlHelper
             isConstructor: false);
 
         supportedLocalesOf.DefineProperty("length",
-            new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = 1d, Writable = false, Enumerable = false, Configurable = true });
         supportedLocalesOf.DefineProperty("name",
             new PropertyDescriptor
             {
-                Value = "supportedLocalesOf",
+                JsValue = "supportedLocalesOf",
                 Writable = false,
                 Enumerable = false,
                 Configurable = true
@@ -220,7 +220,7 @@ public static partial class IntlHelper
         constructor.DefineProperty("supportedLocalesOf",
             new PropertyDescriptor
             {
-                Value = supportedLocalesOf,
+                JsValue = supportedLocalesOf,
                 Writable = true,
                 Enumerable = false,
                 Configurable = true
@@ -293,7 +293,7 @@ public static partial class IntlHelper
         }, realm, false);
 
         durationCtor.DefineProperty("from",
-            new PropertyDescriptor { Value = durationFrom, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = durationFrom, Writable = true, Enumerable = false, Configurable = true });
 
         var durationToLocaleString =
             new HostFunction(args => DurationToLocaleString(JsValue.Undefined, args), realm, false);
@@ -302,13 +302,13 @@ public static partial class IntlHelper
         durationCtor.DefineProperty("prototype",
             new PropertyDescriptor
             {
-                Value = durationPrototype,
+                JsValue = durationPrototype,
                 Writable = false,
                 Enumerable = false,
                 Configurable = false
             });
         durationPrototype.DefineProperty("constructor",
-            new PropertyDescriptor { Value = durationCtor, Writable = true, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = durationCtor, Writable = true, Enumerable = false, Configurable = true });
 
         temporal.SetProperty("Duration", durationCtor);
         return temporal;

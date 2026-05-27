@@ -360,6 +360,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DirectBranchReturnPlan_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function pick(flag) {
+                if (flag) {
+                    return 1;
+                }
+
+                return 2;
+            }
+            """,
+            "pick");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_CanonicalWhilePlan_AcceptsBackwardJump()
     {
         var plan = GetFunctionPlan("""

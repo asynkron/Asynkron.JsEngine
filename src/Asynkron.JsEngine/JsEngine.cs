@@ -932,7 +932,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     ///     Evaluates a program with lazy event loop initialization.
     ///     Runs synchronously first, then only starts the event loop if async work is pending.
     /// </summary>
-    private async Task<object?> Evaluate(
+    private Task<object?> Evaluate(
         ProgramNode program,
         CancellationToken cancellationToken = default,
         string? sourcePath = null,
@@ -941,7 +941,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         if (_eventQueue is not null && _eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Already running on the event loop thread; execute synchronously to avoid deadlocks
-            return EvaluateInline(program, cancellationToken, sourcePath, forceModule);
+            try
+            {
+                return Task.FromResult(EvaluateInline(program, cancellationToken, sourcePath, forceModule));
+            }
+            catch (Exception ex)
+            {
+                return CreateExceptionTask(ex);
+            }
         }
 
         var combinedToken = CreateEvaluationCancellationToken(cancellationToken, out var timeoutCts);
@@ -958,48 +965,99 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 EnsureModuleInstantiated(entry);
                 if (entry.IsAsync || entry.HasAsyncDependency)
                 {
-                    await EnsureModuleEvaluatedAsync(entry, cancellationToken: combinedToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    _isExecutingSynchronousEvaluation = true;
-                    try
-                    {
-                        EnsureModuleEvaluated(entry);
-                    }
-                    finally
-                    {
-                        _isExecutingSynchronousEvaluation = false;
-                    }
+                    return EvaluateAsyncModuleAndCompleteAsync(entry, combinedToken, timeoutCts);
                 }
 
-                result = entry.LastValue;
-            }
-            else
-            {
                 _isExecutingSynchronousEvaluation = true;
                 try
                 {
-                    result = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
+                    EnsureModuleEvaluated(entry);
                 }
                 finally
                 {
                     _isExecutingSynchronousEvaluation = false;
                 }
+
+                return CompleteEvaluationAfterSynchronousExecution(entry.LastValue, combinedToken, timeoutCts);
             }
 
+            _isExecutingSynchronousEvaluation = true;
+            try
+            {
+                result = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
+            }
+            finally
+            {
+                _isExecutingSynchronousEvaluation = false;
+            }
+
+            return CompleteEvaluationAfterSynchronousExecution(result, combinedToken, timeoutCts);
+        }
+        catch (Exception ex)
+        {
+            return CompleteFaultedSynchronousEvaluation(ex, timeoutCts);
+        }
+    }
+
+    private async Task<object?> EvaluateAsyncModuleAndCompleteAsync(
+        ModuleEntry entry,
+        CancellationToken combinedToken,
+        CancellationTokenSource? timeoutCts)
+    {
+        try
+        {
+            await EnsureModuleEvaluatedAsync(entry, cancellationToken: combinedToken).ConfigureAwait(false);
+            return await CompleteEvaluationAfterSynchronousExecution(entry.LastValue, combinedToken, timeoutCts)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            return await CompleteFaultedEvaluationAsync(ex, timeoutCts).ConfigureAwait(false);
+        }
+    }
+
+    private Task<object?> CompleteEvaluationAfterSynchronousExecution(
+        object? result,
+        CancellationToken combinedToken,
+        CancellationTokenSource? timeoutCts)
+    {
+        try
+        {
             FlushDeferredEventTasks();
 
             // Flush microtasks queued during synchronous execution before checking the event loop
             DrainMicrotasks(cancellationToken: combinedToken);
 
             // Step 2: Check if any async work was scheduled (timers, promises, etc.)
-            if (IsEventLoopDrained())
+            if (!IsEventLoopDrained())
             {
-                // Fast path: No async work pending, return immediately
-                return UnwrapResult(result);
+                return DrainPendingEventLoopAndCompleteAsync(result, combinedToken, timeoutCts);
             }
 
+            var unwrapped = UnwrapResult(result);
+            CancelAllTimers();
+            ClearDeferredEventTasks();
+            if (_eventQueue is null)
+            {
+                timeoutCts?.Dispose();
+                return Task.FromResult(unwrapped);
+            }
+
+            return StopEventLoopAndReturnAsync(unwrapped, timeoutCts);
+        }
+        catch (Exception ex)
+        {
+            return CompleteFaultedEvaluationAsync(ex, timeoutCts);
+        }
+    }
+
+    private async Task<object?> DrainPendingEventLoopAndCompleteAsync(
+        object? result,
+        CancellationToken combinedToken,
+        CancellationTokenSource? timeoutCts)
+    {
+        try
+        {
             var configured = ExecutionTimeout;
             var enforceTimeout = configured > TimeSpan.Zero &&
                                  configured.Value != Timeout.InfiniteTimeSpan;
@@ -1033,6 +1091,71 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             await StopEventLoopAsync().ConfigureAwait(false);
             timeoutCts?.Dispose();
         }
+    }
+
+    private async Task<object?> StopEventLoopAndReturnAsync(
+        object? result,
+        CancellationTokenSource? timeoutCts)
+    {
+        try
+        {
+            await StopEventLoopAsync().ConfigureAwait(false);
+            return result;
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
+    }
+
+    private Task<object?> CompleteFaultedEvaluationAsync(Exception exception, CancellationTokenSource? timeoutCts)
+    {
+        CancelAllTimers();
+        ClearDeferredEventTasks();
+        if (_eventQueue is null)
+        {
+            timeoutCts?.Dispose();
+            return CreateExceptionTask(exception);
+        }
+
+        return StopEventLoopAndFaultAsync(exception, timeoutCts);
+    }
+
+    private async Task<object?> StopEventLoopAndFaultAsync(
+        Exception exception,
+        CancellationTokenSource? timeoutCts)
+    {
+        try
+        {
+            await StopEventLoopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            timeoutCts?.Dispose();
+        }
+
+        return await CreateExceptionTask(exception).ConfigureAwait(false);
+    }
+
+    private Task<object?> CompleteFaultedSynchronousEvaluation(
+        Exception exception,
+        CancellationTokenSource? timeoutCts)
+    {
+        timeoutCts?.Dispose();
+        return CreateExceptionTask(exception);
+    }
+
+    private static Task<object?> CreateExceptionTask(Exception exception)
+    {
+        if (exception is OperationCanceledException cancellation)
+        {
+            var token = cancellation.CancellationToken.IsCancellationRequested
+                ? cancellation.CancellationToken
+                : new CancellationToken(canceled: true);
+            return Task.FromCanceled<object?>(token);
+        }
+
+        return Task.FromException<object?>(exception);
     }
 
     private object? EvaluateInline(

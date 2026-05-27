@@ -56,7 +56,11 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
         new(false, EmptyProgram(), code, reason);
 
     private static UnifiedBytecodeProgram EmptyProgram() =>
-        new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0, ImmutableArray<JsTypes.JsValue>.Empty);
+        new(
+            ImmutableArray<UnifiedBytecodeInstruction>.Empty,
+            0,
+            ImmutableArray<JsTypes.JsValue>.Empty,
+            ImmutableArray<string>.Empty);
 }
 
 internal static class UnifiedBytecodeProductionEligibility
@@ -246,10 +250,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         operationIndex == operationCount - 1 &&
                         TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport;
-                        declineReason =
-                            "Named property-read candidates are recognized, but compiler/VM property-read execution support is not in this build slice.";
-                        return true;
+                        break;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
@@ -268,10 +269,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (TryIsFirstBoundaryComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadCandidateRequiresVmSupport;
-                        declineReason =
-                            "Computed property-read candidates (RequireObjectCoercible + ResolvePropertyKey + GetComputedProperty) are recognized, but compiler/VM property-read execution support is not in this build slice.";
-                        return true;
+                        break;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
@@ -483,6 +481,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LoadSlot:
                 case UnifiedBytecodeOpCode.LoadLiteral:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.RequireObjectCoercible:
+                case UnifiedBytecodeOpCode.ResolvePropertyKey:
+                case UnifiedBytecodeOpCode.GetNamedProperty:
+                case UnifiedBytecodeOpCode.GetComputedProperty:
                 case UnifiedBytecodeOpCode.Return:
                     break;
 

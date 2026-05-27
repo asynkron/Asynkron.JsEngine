@@ -39,6 +39,7 @@ internal static class UnifiedBytecodeCompiler
 
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
+        var stringConstants = ImmutableArray.CreateBuilder<string>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
         var maxStackDepth = 0;
@@ -51,6 +52,7 @@ internal static class UnifiedBytecodeCompiler
                 activeInstructions,
                 unified,
                 literalConstants,
+                stringConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -58,13 +60,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        program = new UnifiedBytecodeProgram(unified.ToImmutable(), maxStackDepth, literalConstants.ToImmutable());
+        program = new UnifiedBytecodeProgram(
+            unified.ToImmutable(),
+            maxStackDepth,
+            literalConstants.ToImmutable(),
+            stringConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
 
     private static UnifiedBytecodeProgram EmptyProgram() =>
-        new(ImmutableArray<UnifiedBytecodeInstruction>.Empty, 0, ImmutableArray<JsValue>.Empty);
+        new(
+            ImmutableArray<UnifiedBytecodeInstruction>.Empty,
+            0,
+            ImmutableArray<JsValue>.Empty,
+            ImmutableArray<string>.Empty);
 
     private static bool TryCompileBlock(
         int instructionIndex,
@@ -74,6 +84,7 @@ internal static class UnifiedBytecodeCompiler
         HashSet<int> activeInstructions,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -124,6 +135,7 @@ internal static class UnifiedBytecodeCompiler
                                 activationSlots,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 out reason))
                         {
                             return false;
@@ -163,6 +175,7 @@ internal static class UnifiedBytecodeCompiler
                                 activationSlots,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 out reason))
                         {
                             return false;
@@ -204,6 +217,7 @@ internal static class UnifiedBytecodeCompiler
                                 activationSlots,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 out reason))
                         {
                             return false;
@@ -240,6 +254,7 @@ internal static class UnifiedBytecodeCompiler
                                 activeInstructions,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -308,6 +323,7 @@ internal static class UnifiedBytecodeCompiler
                                 activationSlots,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 out reason))
                         {
                             return false;
@@ -325,6 +341,7 @@ internal static class UnifiedBytecodeCompiler
                                 activeInstructions,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -339,6 +356,7 @@ internal static class UnifiedBytecodeCompiler
                                 activeInstructions,
                                 unified,
                                 literalConstants,
+                                stringConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -349,7 +367,13 @@ internal static class UnifiedBytecodeCompiler
                         return true;
 
                     case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
-                        if (!TryAppendExpressionProgramOps(returnProgram, activationSlots, unified, literalConstants, out reason))
+                        if (!TryAppendExpressionProgramOps(
+                                returnProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                out reason))
                         {
                             return false;
                         }
@@ -382,6 +406,7 @@ internal static class UnifiedBytecodeCompiler
         HashSet<int> activeInstructions,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -411,6 +436,7 @@ internal static class UnifiedBytecodeCompiler
             activeInstructions,
             unified,
             literalConstants,
+            stringConstants,
             ref maxStackDepth,
             out reason);
     }
@@ -647,8 +673,39 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        if (TryAppendFirstBoundaryNamedPropertyRead(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryComputedPropertyRead(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         foreach (var operation in expressionProgram.EnumerateOperations())
         {
             switch (operation.Kind)
@@ -687,6 +744,167 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNamedPropertyRead(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var baseLoad = expressionProgram.GetOperation(0);
+        var propertyRead = expressionProgram.GetOperation(1);
+        if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+        {
+            reason = "Optional named property reads are not supported.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryComputedPropertyRead(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 5)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var getComputedProperty = expressionProgram.GetOperation(4);
+        if (getComputedProperty.Kind != ExpressionOpKind.GetComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (getComputedProperty.ShortCircuitOnNullishTarget)
+        {
+            reason = "Optional computed property reads are not supported.";
+            return false;
+        }
+
+        var requireObjectCoercible = expressionProgram.GetOperation(2);
+        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+            requireObjectCoercible.Depth != 1)
+        {
+            reason =
+                "Computed property reads require RequireObjectCoercible(Depth: 1) in the first production boundary.";
+            return false;
+        }
+
+        var resolvePropertyKey = expressionProgram.GetOperation(3);
+        if (resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey)
+        {
+            reason = "Computed property reads require ResolvePropertyKey in the first production boundary.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(1),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RequireObjectCoercible, 1));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendComputedPropertyKeyLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out string reason)
+    {
+        switch (operation.Kind)
+        {
+            case ExpressionOpKind.LoadIdentifier:
+                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+
+            case ExpressionOpKind.LoadLiteral:
+                var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
+                var literalIndex = literalConstants.Count;
+                literalConstants.Add(literal);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
+                reason = string.Empty;
+                return true;
+
+            default:
+                reason = $"Unsupported computed property key op '{operation.Kind}'.";
+                return false;
+        }
+    }
+
+    private static bool TryAppendActivationIdentifierLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        out string reason)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            reason = $"Unsupported property-read base op '{operation.Kind}'.";
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+        {
+            reason = $"Unsupported identifier '{identifier.Name.Name}'.";
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
         reason = string.Empty;
         return true;
     }

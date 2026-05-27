@@ -99,6 +99,15 @@ Source Context or the issue/dashboard API, use compact log summaries next, and
 treat older host `faktorial issue` or `faktorial log-summary` instructions as
 stale so agents do not accidentally start or depend on the daemon binary.
 
+Issue #2293 / PR #2301 exposed a narrower command-example drift in this same
+surface: local/manual GitHub CLI examples still appeared as runnable bare
+`gh ...` commands even though Faktorial agents should use supplied context/API
+first and all shell commands in this repo should be `rtk` wrapped. The durable
+lesson is to label fallback GitHub CLI examples as local/manual and write
+agent-runnable examples as `rtk gh ...`, so future agents do not confuse those
+examples with normal Faktorial issue reads or violate the repo command
+contract.
+
 Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
 recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the
 build-stage reran that exact command and the timeout-shaped variant on the

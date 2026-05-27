@@ -4434,6 +4434,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     pendingAsyncDependencies.Add(dependency.EvaluationTask);
                 }
+                else
+                {
+                    // Harden fault propagation if an async dependency fails before publishing EvaluationTask.
+                    await dependencyEvaluation.ConfigureAwait(false);
+                }
 
                 var nextIsAsync = i + 1 < dependencies.Count &&
                                   (dependencies[i + 1].IsAsync || dependencies[i + 1].HasAsyncDependency);

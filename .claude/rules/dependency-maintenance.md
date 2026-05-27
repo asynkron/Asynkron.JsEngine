@@ -67,8 +67,12 @@ unless the issue explicitly asks for a major migration.
 - When updating `Test262Harness`, treat
   `tests/Asynkron.JsEngine.Tests.Test262/Asynkron.JsEngine.Tests.Test262.csproj`
   and `tools/ProfileRunner/ProfileRunner.csproj` as the aligned owner set.
-  Update both pins in the same slice unless a current investigation documents a
-  reason to split them, and prove compatibility with at least a Test262 project
+  Keep both references on the shared `$(Test262HarnessVersion)` property in
+  `Directory.Build.props`. Update that property and both owner projects in the
+  same slice unless a current investigation documents a reason to split them.
+  For a pure centralization that does not change the resolved package version,
+  a targeted metadata scan plus `git diff --check` is enough proof. For an
+  actual package update, prove compatibility with at least a Test262 project
   restore plus a ProfileRunner build instead of relying on a literal `rg`
   version check alone.
 
@@ -170,6 +174,17 @@ maintenance sweeps should keep those two project references aligned and record
 real restore/build proof for both affected surfaces: Test262 project restore and
 ProfileRunner Release build were the accepted narrow compatibility signals for
 this patch update.
+
+Issue #2291 / PR #2299 found that the same `Test262Harness` `1.0.6` line from
+PR #1978 was still repeated as a project-local literal in both owner projects.
+The safe dependency-maintenance slice did not change the resolved package
+version; it moved the version to `Directory.Build.props` as
+`Test262HarnessVersion` and kept both owner projects on that property. Future
+Test262Harness work should preserve that shared property unless a dedicated
+issue documents an intentional split. The accepted proof was a targeted
+metadata scan plus `git diff --check`, and the review bounce was closed with an
+evidence-only re-entry that added the required `Sibling check` and `Scope note`.
+Related ADR: `docs/adrs/0219-keep-test262harness-version-centralized.md`.
 
 Issue #2099 / PR #2107 found `Jint` `4.9.2` hard-coded in both the
 ProfileRunner comparison tool and the BenchmarkDotNet comparison project. The

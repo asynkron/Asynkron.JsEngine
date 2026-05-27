@@ -136,8 +136,9 @@ When working inside the core engine, keep JavaScript values represented as
     Builtin metadata descriptors in standard-library setup and global bootstrap
     descriptors in `JsEngine`, including `name`, `length`, symbols,
     constructor/prototype method properties, `Array`, `BigInt`, `Infinity`,
-    `NaN`, `undefined`, and stateful builtin data slots such as RegExp
-    `lastIndex`, are still JavaScript data descriptors; use
+    `NaN`, `undefined`, Intl namespace constructor tables, `supportedLocalesOf`
+    metadata, local Temporal shims, and stateful builtin data slots such as
+    RegExp `lastIndex`, are still JavaScript data descriptors; use
     `new JsValue(...)`, `JsValue.True`, or an explicit object wrapping helper
     instead of hiding that conversion behind `Value =`.
     Prove descriptor migrations with a scoped before/after search that
@@ -513,6 +514,16 @@ five data descriptors still belong on the `JsValue` setter with attributes
 preserved exactly. Future global bootstrap cleanup should prove the scoped
 legacy-setter search before and after the edit rather than treating duplicated
 global registration as an exception. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-diteietq3894-3b695787e6` / PR #2343 applied the descriptor setter
+policy to `StdLib/Intl/IntlHelper`. Intl namespace constructor descriptors,
+`supportedLocalesOf` metadata, and the local Temporal.Duration shim are
+standard-library JavaScript data descriptors, so `Value = ...` was only a hidden
+`JsValue.FromObjectUnsafe(...)` bridge. Future Intl helper cleanup should keep
+the scoped before/after legacy-setter search and preserve
+`Writable`/`Enumerable`/`Configurable` exactly while migrating only the selected
+descriptor cluster. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
 
 Issue `autrun-dis78svbpuvk-6736b1535b` / PR #1966 migrated the `JsOps`

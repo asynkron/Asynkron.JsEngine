@@ -45,9 +45,9 @@ public static partial class StandardLibrary
     internal static void AttachBuiltinMetadata(HostFunction fn, string name, double length)
     {
         fn.DefineProperty("name",
-            new PropertyDescriptor { Value = name, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = new JsValue(name), Writable = false, Enumerable = false, Configurable = true });
         fn.DefineProperty("length",
-            new PropertyDescriptor { Value = length, Writable = false, Enumerable = false, Configurable = true });
+            new PropertyDescriptor { JsValue = new JsValue(length), Writable = false, Enumerable = false, Configurable = true });
     }
 
     internal static void SetArrayLikeLength(IJsPropertyAccessor target, long length)
@@ -522,10 +522,10 @@ public static partial class StandardLibrary
         return accessor.TryGetProperty(ToIndexString(index), out var value) ? value : JsValue.Undefined;
     }
 
-    internal static object? InvokeDefaultObjectToString(object? target, RealmState? _)
+    internal static JsValue InvokeDefaultObjectToString(JsValue target, RealmState? _)
     {
         // ES spec: Use the intrinsic %Object.prototype.toString%, not the user-modifiable version
         // This ensures correct behavior even if Object.prototype.toString has been deleted/modified
-        return ObjectPrototype.IntrinsicToString(JsValue.FromObjectUnsafe(target));
+        return ObjectPrototype.IntrinsicToString(target);
     }
 }

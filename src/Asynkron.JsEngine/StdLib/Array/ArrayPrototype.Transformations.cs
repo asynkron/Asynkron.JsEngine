@@ -113,14 +113,15 @@ public sealed partial class ArrayPrototype
     public JsValue ToString(JsValue thisValue)
     {
         var target = ToObjectPropertyAccessor(thisValue, "Array.prototype.toString", Realm);
+        var targetValue = JsValue.FromObjectUnsafe(target);
 
-        if (JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(target), "join", out var joinValueJs) &&
+        if (JsOps.TryGetPropertyValue(targetValue, "join", out var joinValueJs) &&
             joinValueJs.TryGetObject<IJsCallable>(out var joinCallable))
         {
-            return joinCallable.Invoke([], JsValue.FromObjectUnsafe(target));
+            return joinCallable.Invoke([], targetValue);
         }
 
-        return JsValue.FromObjectUnsafe(InvokeDefaultObjectToString(target, Realm));
+        return InvokeDefaultObjectToString(targetValue, Realm);
     }
 
     [JsHostMethod("includes", Length = 1d)]

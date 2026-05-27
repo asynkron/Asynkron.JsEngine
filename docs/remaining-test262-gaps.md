@@ -6,7 +6,7 @@
 > For current regression-session evidence, use:
 > - `tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt` (master list)
 > - `tests/Asynkron.JsEngine.Tests.Test262/regression-packs/` (subsystem packs)
-> - `./tools/run-test262-regressions.sh --list` (current pack names and entry counts)
+> - `rtk ./tools/run-test262-regressions.sh --list` (current pack names and entry counts)
 > - `tests/Asynkron.JsEngine.Tests.Test262/README.md` (canonical runner workflow)
 
 **Baseline: 89,127 passed / 92,975 total (95.9%)**

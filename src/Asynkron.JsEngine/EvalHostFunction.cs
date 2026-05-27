@@ -378,6 +378,68 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         var isStrictEval = program.IsStrict || hasStrictCaller;
+        // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
+        // reject var declarations that collide with caller lexicals (including parameters).
+        var varDeclaredNames = new HashSet<Symbol>();
+        CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
+        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
+        var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, false);
+        if (isStrictEval && ContainsStrictReservedBinding(program.Body))
+        {
+            throw StandardLibrary.ThrowSyntaxError(
+                "Unexpected reserved identifier in strict eval.",
+                callingContext,
+                environment.RealmState);
+        }
+
+        // Strict eval must reject strict reserved words that appear as binding identifiers
+        if (isStrictEval)
+        {
+            foreach (var name in varDeclaredNames)
+            {
+                if (IsStrictReservedName(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
+                        callingContext,
+                        environment.RealmState);
+                }
+            }
+
+            foreach (var name in lexicallyDeclaredNames)
+            {
+                if (IsStrictReservedName(name))
+                {
+                    throw StandardLibrary.ThrowSyntaxError(
+                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
+                        callingContext,
+                        environment.RealmState);
+                }
+            }
+        }
+
+        var canUseDeclarationFreeStrictDirectEvalNoEnvironmentFastPath =
+            isDirectEval &&
+            isStrictEval &&
+            hasStrictCaller &&
+            varDeclaredNames.Count == 0 &&
+            lexicalDeclarations.Count == 0 &&
+            varFunctionDeclarations.Count == 0;
+        if (canUseDeclarationFreeStrictDirectEvalNoEnvironmentFastPath)
+        {
+            if (evalPrivateNameScopes is { IsDefaultOrEmpty: false } && callingContext is not null)
+            {
+                callingContext.RealmState.Logger?.LogInformation(
+                    "Eval direct: captured {PrivateScopeCount} private scopes (class initializer={InInitializer})",
+                    evalPrivateNameScopes.Value.Length,
+                    insideClassFieldInitializer);
+            }
+
+            return program.EvaluateProgramJsValue(environment, Engine.RealmState, CancellationToken.None,
+                ExecutionKind.Eval, false, inheritedPrivateNameScopes: evalPrivateNameScopes);
+        }
+
         JsEnvironment lexicalEnv;
         if (!isDirectEval)
         {
@@ -423,47 +485,6 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             : isStrictEval
                 ? lexicalEnv
                 : lexicalEnv.GetVarEnvironment();
-
-        // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
-        // reject var declarations that collide with caller lexicals (including parameters).
-        var varDeclaredNames = new HashSet<Symbol>();
-        CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
-        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
-        var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
-        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, false);
-        if (isStrictEval && ContainsStrictReservedBinding(program.Body))
-        {
-            throw StandardLibrary.ThrowSyntaxError(
-                "Unexpected reserved identifier in strict eval.",
-                callingContext,
-                environment.RealmState);
-        }
-
-        // Strict eval must reject strict reserved words that appear as binding identifiers
-        if (isStrictEval)
-        {
-            foreach (var name in varDeclaredNames)
-            {
-                if (IsStrictReservedName(name))
-                {
-                    throw StandardLibrary.ThrowSyntaxError(
-                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
-                        callingContext,
-                        environment.RealmState);
-                }
-            }
-
-            foreach (var name in lexicallyDeclaredNames)
-            {
-                if (IsStrictReservedName(name))
-                {
-                    throw StandardLibrary.ThrowSyntaxError(
-                        $"Unexpected reserved identifier '{name.Name}' in strict mode.",
-                        callingContext,
-                        environment.RealmState);
-                }
-            }
-        }
 
         if (!isStrictEval)
         {

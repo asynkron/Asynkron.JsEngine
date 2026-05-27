@@ -28,6 +28,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0203-keep-runner-symbol-stores-jsvalue-native.md`
   - `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`
   - `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`
+  - `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`
 
 ## Rules
 
@@ -243,6 +244,20 @@ When working inside the core engine, keep JavaScript values represented as
     setter/proxy receiver identity belongs to the JavaScript value, not to the
     extracted descriptor target. Related ADR:
     `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`.
+25. When a typed-array constructor helper builds the concrete typed-array object
+    for a host constructor that returns `JsValue`, keep the helper result typed
+    as the concrete `TypedArrayBase` subtype or as `JsValue`; do not return
+    `object?` only to rewrap with
+    `JsValue.FromObjectUnsafe(ConstructTypedArray(...))` at the callsite. Keep
+    all `newTarget`, prototype resolution, from-length, from-buffer,
+    from-typed-array, and from-array-like branches on the same shared helper so
+    every concrete typed-array constructor follows the same object-identity and
+    prototype behavior. WHY: issue `autrun-dit9qcqe3mzs-470462a366` / PR #2317
+    found that `ConstructTypedArray(...)` already returned concrete typed-array
+    instances with existing `TypedArrayBase` to `JsValue` conversion support,
+    but the helper's `object?` return type kept an avoidable constructor result
+    bridge alive. Related ADR:
+    `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`.
 
 ## Why
 
@@ -689,3 +704,16 @@ receiver identity on the `JsValue` path and prove the selected slice with a
 focused `object? receiver` before/after search plus assignment-reference tests.
 Related ADR:
 `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`.
+
+Issue `autrun-dit9qcqe3mzs-470462a366` / PR #2317 migrated the shared
+typed-array constructor result helper from `object?` to the generic concrete
+typed-array type `T`. The old constructor host-function path immediately
+rewrapped `ConstructTypedArray(args, newTarget)` with
+`JsValue.FromObjectUnsafe(...)` even though every helper branch returned a
+`TypedArrayBase` subtype and `JsValue` already has typed-array object conversion
+support. Future typed-array constructor unboxer work should keep the shared
+constructor helper typed, return it directly from the host-function invoke path,
+and prove the slice with the focused `object? ConstructTypedArray` /
+`FromObjectUnsafe(ConstructTypedArray` search plus typed-array constructor
+tests. Related ADR:
+`docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`.

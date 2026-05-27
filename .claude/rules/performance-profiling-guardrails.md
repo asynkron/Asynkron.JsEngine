@@ -388,6 +388,22 @@ optimization.
     changes with selected-profile before/after rows plus focused tests for
     immediate success without event-loop startup, synchronous throw with pending
     timer work, and pre-canceled tokens.
+27a. For `simplearithmetic`, and any repeated profiler workload with top-level
+     lexical declarations, prove profiler scope parity before interpreting the
+     CPU call tree or changing runtime evaluation APIs. `benchmark.sh` wraps
+     `simplearithmetic` in an IIFE, while issue
+     `autrun-dit5vu9h44b4-963ded0d32` / PR #2275 found that the exact
+     `rtk ./tools/profile simplearithmetic --cpu --calltree-depth 40
+     --calltree-width 40` path did not pass the equivalent wrapping and instead
+     spent repeated shared-engine iterations on caught top-level `let`
+     redeclaration errors. WHY: that polluted call tree made reverted
+     completed-task-timeout and public `EvaluateSync(ProgramNode)` experiments
+     look plausible without a clean engine-owned arithmetic hotspot, and both
+     missed the required 10% win. Fix the profiler scope (`--wrap-iife` or an
+     equivalent fresh lexical scope) or document an evidence-only failed attempt
+     before retrying expression-bytecode or public evaluation API changes.
+     Related ADR:
+     `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.
 
 ## Why
 
@@ -854,3 +870,12 @@ were part of the contract: cancellation must remain a canceled task, ordinary
 exceptions remain faulted, and timer work scheduled before a synchronous throw
 must not be cleared before a later drain can observe it. Related ADR:
 `docs/adrs/0207-keep-evaluate-synchronous-completion-task-shaped.md`.
+
+Issue `autrun-dit5vu9h44b4-963ded0d32` / PR #2275 selected
+`simplearithmetic` again but found the profiler command was not comparable to
+the benchmark table because it did not use the same IIFE wrapping for a
+top-level `let` workload. The durable lesson is that profiler-tool scope has to
+be made comparable before re-opening the `simplearithmetic` runtime boundary;
+otherwise agents can optimize exception/reporting noise instead of arithmetic
+execution. Related ADR:
+`docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.

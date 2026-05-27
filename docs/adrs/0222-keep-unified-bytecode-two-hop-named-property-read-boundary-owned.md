@@ -28,6 +28,9 @@ Accept exactly one additional named-read shape in production eligibility:
 - first non-optional `GetNamedProperty`
 - second non-optional `GetNamedProperty`
 
+Keep this widening explicitly within the current executable property-read
+boundary from ADR 0221 rather than as a standalone execution model.
+
 Compile this accepted shape to existing owned opcodes only:
 - `LoadSlot(base)`
 - `GetNamedProperty(name1)`
@@ -36,6 +39,7 @@ Compile this accepted shape to existing owned opcodes only:
 Keep adjacent families explicitly out of scope:
 - optional chains
 - computed-in-chain forms (`box[key].value`, `box.child[key]`)
+- richer computed-key expressions (`box[left + right]`)
 - calls/construct, writes/updates/delete, `super`, `this`, dynamic lookup
 
 Do not add `ExpressionProgram`, `ExecutionPlanRunner`, or AST callback fallback
@@ -46,6 +50,9 @@ for this boundary widening.
 - `box.child.value` can route to `unified-bytecode-production-fast-path`.
 - Compiler and selector remain aligned on a strict boundary.
 - Neighboring property shapes still decline before unified VM execution.
+- The no-mixed-execution rule remains unchanged: accepted programs stay on
+  owned unified VM opcodes and do not bridge to `ExpressionProgram`,
+  `ExecutionPlanRunner`, or AST evaluation.
 - Future property-read widening remains incremental and proof-driven.
 
 ## Evidence

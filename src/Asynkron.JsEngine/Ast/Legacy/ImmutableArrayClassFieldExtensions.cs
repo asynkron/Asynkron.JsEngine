@@ -41,11 +41,6 @@ public static partial class TypedAstEvaluator
         var prototypeAccessor = prototypeValue.TryGetObject<IJsPropertyAccessor>(out var pa) ? pa : null;
         var superConstructor = prototypeValue.TryGetObject<IJsEnvironmentAwareCallable>(out var sc) ? sc : null;
 
-        if (prototypeValue.IsNull)
-        {
-            return new SuperBinding(null, null, JsValue.FromObjectUnsafe(constructorAccessor), true);
-        }
-
         if (prototypeAccessor is null && superConstructor is null)
         {
             return null;

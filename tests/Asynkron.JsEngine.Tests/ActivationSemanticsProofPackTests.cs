@@ -452,6 +452,33 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsLoop_NonCapturingForLet_ComputesAndKeepsLoopBindingScoped()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            'use strict';
+
+            function score() {
+                let value = 0;
+                for (let i = 0; i < arguments.length; i++) {
+                    value += arguments[i];
+                }
+
+                try {
+                    i;
+                    return "leaked";
+                } catch (error) {
+                    return value + ":" + (error instanceof ReferenceError);
+                }
+            }
+
+            score(10, 20, 12);
+            """);
+
+        Assert.Equal("42:true", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NestedClosures_KeepCapturedActivationStateAcrossCalls()
     {
         await using var engine = CreateEngine();

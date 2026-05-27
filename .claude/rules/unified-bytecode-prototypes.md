@@ -196,6 +196,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
     Those opcodes intentionally avoid treating compound writes as permission for
     a generic expression-stack VM or broad property-write routing.
+20. When adding a broad production proof pack for an already-admitted unified
+    bytecode family, prove the accepted and rejected boundaries separately. For
+    accepted source shapes, assert selector eligibility, `None` decline code,
+    required owned opcodes, and an allowed-opcode subset per case so a future
+    compiler widening cannot smuggle unowned operations into the route. For
+    invocation coverage, assert `unified-bytecode-production-fast-path` on the
+    exact newly covered function variants and assert no-route fallback for
+    adjacent unsupported bodies such as discarded writes/updates, nested member
+    chains, complex compound writes, and destructuring writes. WHY: issue
+    `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-5-59d012f0b5`
+    / PR #2438 added the post-boundary baseline proof pack for property
+    write/update routing. The useful lesson was that behavior-only tests were
+    not enough; accepted mutation shapes also needed explicit owned-opcode
+    whitelist proof, while unsupported neighbors still needed public no-route
+    proof.
 
 ## Why
 

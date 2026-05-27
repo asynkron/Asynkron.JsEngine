@@ -69,6 +69,19 @@ optimization.
     #2155 then needed a build-back wording fix because `stringops` exercised
     `split("")`, while the non-empty separator split branch was only covered by
     focused regressions.
+6d. For recurring `classdef` optimizer retries, read failed-attempt notes before
+    touching adjacent construct, parameter-binding, or home-object activation
+    micro-slices. Issue `autrun-dit4lwfdshqo-b26070bcec` / PR #2266 tried a
+    typed no-spread construct shortcut, a simple parameter-binding shortcut,
+    and removing the class-method home-object fast-base invalidation; repeated
+    focused timings missed the required 10% win, and the post-revert row was
+    `739 ms` versus a `707 ms` focused baseline average. WHY: the call tree can
+    keep naming constructor and `super(...)` dispatch after earlier wins, but
+    that does not prove these smaller shortcuts pay for themselves. Future
+    work must show fresh profile ownership plus A/B timing before changing
+    `ReflectHelper.Construct`, parameter-binding storage, or `SetHomeObject` /
+    simple-activation gates again. ADR:
+    `docs/adrs/0214-keep-classdef-homeobject-and-construct-retries-profile-proven.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

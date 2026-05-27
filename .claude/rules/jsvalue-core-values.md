@@ -191,7 +191,13 @@ When working inside the core engine, keep JavaScript values represented as
     wrappers, or return `object?` from private execution plumbing only to
     immediately rewrap with `JsValue.FromObjectUnsafe(...)`; prefer
     `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram` or
-    typed execution helper, and focused eval/Function/ShadowRealm/module proof.
+    typed execution helper. Benchmark, test, profiling, or diagnostic harnesses
+    that bypass public facades and invoke internal evaluator entrypoints by
+    reflection are still repo-internal execution callers; keep them on `JsValue`
+    too, and unwrap only at an explicit reporting edge. Prove error-level
+    obsolete-wrapper changes with a repo-internal callsite scan that covers
+    `src`, `tests`, `benchmarks`, and `tools`, plus focused
+    eval/Function/ShadowRealm/module proof when behavior changes.
     Related ADRs:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
     `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
@@ -578,6 +584,17 @@ plumbing. Future module execution cleanup should keep typed helper flows on
 callers, and keep module `LastValue` storage as a separate owner surface until
 that exact slice is selected. Related ADR:
 `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
+
+Issue #2263 / PR #2264 showed why the execution-wrapper scan must include
+repo-internal harnesses, not just production runtime files. After
+`TypedAstEvaluator.EvaluateProgram(object?)` became error-level obsolete, the
+BenchmarkDotNet `EvaluationOverheadBenchmarks` direct-AST methods still called
+it through a reflection-driven internal evaluator path. That made
+`rtk dotnet build Asynkron.JsEngine.sln` red because the benchmark project is
+compiled by the default solution build. The fix changed those direct-evaluation
+benchmark methods to return `JsValue` and call `EvaluateProgramJsValue(...)`,
+leaving the obsolete wrapper as the only remaining `EvaluateProgram(` match.
+Related ADR: `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
 
 Issue `autrun-disnitlzqrkw-d2a93ff0bf` / PR #2135 migrated
 `ModuleNamespace.OwnKeys()` from `IEnumerable<object?>` to

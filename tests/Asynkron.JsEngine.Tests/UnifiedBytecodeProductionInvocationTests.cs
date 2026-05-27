@@ -885,6 +885,37 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readDynamic",
         2d)]
+    [InlineData(
+        """
+        function logicalWrite(box, value) {
+            return box.value ||= value;
+        }
+
+        logicalWrite({ value: 0 }, 42);
+        """,
+        "logicalWrite",
+        42d)]
+    [InlineData(
+        """
+        var externalValue = 42;
+        function dynamicValueWrite(box) {
+            return box.value = externalValue;
+        }
+
+        dynamicValueWrite({});
+        """,
+        "dynamicValueWrite",
+        42d)]
+    [InlineData(
+        """
+        function computedExpressionWrite(box, key, suffix, value) {
+            return box[key + suffix] = value;
+        }
+
+        computedExpressionWrite({}, "val", "ue", 42);
+        """,
+        "computedExpressionWrite",
+        42d)]
     public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,

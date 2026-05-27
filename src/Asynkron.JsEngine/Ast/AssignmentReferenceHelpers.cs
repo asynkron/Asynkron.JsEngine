@@ -109,7 +109,7 @@ public static partial class TypedAstEvaluator
                 isStrict,
                 context,
                 context.RealmState,
-                jsObject);
+                target);
             return;
         }
 

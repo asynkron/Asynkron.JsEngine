@@ -368,10 +368,9 @@ internal static class AssignmentReferenceResolver
         bool isStrict,
         EvaluationContext? context = null,
         RealmState? realmState = null,
-        object? receiver = null)
+        JsValue? receiver = null)
     {
-        receiver ??= target;
-        var receiverValue = JsValue.FromObjectUnsafe(receiver);
+        var receiverValue = receiver ?? JsValue.FromObjectUnsafe(target);
         realmState ??= context?.RealmState ?? target.RealmState;
 
         if (propertyName.IsPrivateSlotName())

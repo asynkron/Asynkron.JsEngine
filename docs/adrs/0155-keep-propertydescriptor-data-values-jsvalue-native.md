@@ -63,6 +63,12 @@ length owner surface under ADR 0114. Even though `JsArray.SetLength` was already
 internal JavaScript length value. The delivery moved those sites to
 `JsValue.FromDouble(_length)` while preserving length descriptor attributes.
 
+Issue `autrun-dithe2vzvzv4-52125cec24` / PR #2370 applied the same contract to
+`JsEnvironment.CreateSuppressedError`. The local `_errorData`, `error`,
+`suppressed`, and `message` descriptors already carried `JsValue` payloads, so
+the accepted slice changed only the data-value setter from `Value = ...` to
+`JsValue = ...` while preserving writable/enumerable/configurable attributes.
+
 ## Decision
 
 Keep core `PropertyDescriptor` data values on the `JsValue` setter whenever the
@@ -100,6 +106,9 @@ For descriptor cleanup slices:
 - Descriptor cleanup can be required next to an already typed helper boundary;
   a `JsValue` helper signature does not prove the helper body has no
   compatibility setter sink.
+- Local error-object descriptors such as `CreateSuppressedError` follow this
+  same contract when their payloads are already JavaScript values; they are not a
+  host-interop exception to the descriptor data-value rule.
 
 ## Related
 

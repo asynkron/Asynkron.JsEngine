@@ -334,13 +334,18 @@ host-runtime shortcuts.
     operation such as `RegExpCreate` gets the original value.
 39a. For Array splice-family delete counts, treat `args.Count == 0`,
     `args.Count == 1`, and `args.Count >= 2` as semantic branches. A shared
-    helper may own `actualDeleteCount` only when it receives the original
-    argument list/count and active `EvaluationContext?`, so explicit
-    `undefined` still flows through `ToIntegerOrInfinity(undefined) = 0` while
-    a missing `deleteCount` keeps the `length - actualStart` branch. WHY: issue
+    helper may own `actualDeleteCount` only when each call site first captures
+    the original argument count and passes that explicit `argumentCount` plus
+    the original argument list and active `EvaluationContext?`. Do not make the
+    helper rediscover count ownership by rereading `args.Count` internally:
+    explicit `undefined` must still flow through
+    `ToIntegerOrInfinity(undefined) = 0` while a missing `deleteCount` keeps the
+    `length - actualStart` branch. WHY: issue
     `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated `splice` and
     `toSpliced` delete-count logic without collapsing argument presence into
-    value conversion. Related ADR:
+    value conversion, then issue #2373 / PR #2382 made the call-site count
+    capture explicit so nearby cleanup cannot drift back into mixed ownership.
+    Related ADR:
     `docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.
 40. For `Temporal.PlainYearMonth.prototype.with` on non-ISO calendars, merge
     partial overrides against the receiver's observable calendar `year`,
@@ -898,11 +903,15 @@ Issue `autrun-ditfscj25yv4-eaf90267d5` / PR #2362 deduplicated the
 `Array.prototype.splice` and `Array.prototype.toSpliced` delete-count
 calculation after a code-reduction pass found repeated `actualDeleteCount`
 normalization. The durable lesson is that splice-family sharing belongs at the
-argument-presence helper boundary: no arguments means delete zero, a missing
-`deleteCount` means delete to the end, and an explicitly supplied `undefined`
-must still be converted as a value. Future splice-family cleanup should keep
-mutating/copying array construction, hole handling, insertion, length guards,
-and writes at the owning call sites unless separately proven.
+argument-presence helper boundary: call sites capture the original
+`argumentCount`, the helper receives that explicit count with the original
+argument list, no arguments means delete zero, a missing `deleteCount` means
+delete to the end, and an explicitly supplied `undefined` must still be
+converted as a value. Issue #2373 / PR #2382 reinforced this boundary after
+the first shared-helper slice still left count ownership implicit in nearby
+call-site branches. Future splice-family cleanup should keep mutating/copying
+array construction, hole handling, insertion, length guards, and writes at the
+owning call sites unless separately proven.
 
 Related ADR:
 `docs/adrs/0228-keep-splice-delete-count-argument-presence-shared.md`.

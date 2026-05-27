@@ -32,6 +32,13 @@ The accepted delivery added `ComputeSpliceDeleteCount(...)` in
 from `ArrayPrototype.Mutators.cs` and `ArrayPrototype.Transformations.cs`
 through it. It kept the mutating and copying bodies separate.
 
+Issue #2373 / PR #2382 followed through on that boundary after review noticed
+the call sites still reread `args.Count` in several nearby branches. The
+delivery cached the original argument count once in both `splice` and
+`toSpliced`, passed that explicit `argumentCount` into
+`ComputeSpliceDeleteCount(...)`, and added focused `splice(undefined)` coverage
+to match the existing `toSpliced(undefined)` proof.
+
 Focused evidence recorded by the build and review stages:
 
 ```bash
@@ -50,23 +57,28 @@ helper.
 
 The durable boundary is:
 
-1. The helper must receive the original argument list/count, `length`,
-   `actualStart`, and the active `EvaluationContext?`.
-2. `args.Count == 0`, `args.Count == 1`, and `args.Count >= 2` are semantic
-   branches. Do not normalize missing arguments into `JsValue.Undefined` before
-   this branch.
-3. Explicit `undefined` is a supplied value and must flow through
+1. The call sites must capture the original argument count before deriving
+   start, insert-count, or delete-count behavior.
+2. The helper must receive the original argument list, explicit
+   `argumentCount`, `length`, `actualStart`, and the active
+   `EvaluationContext?`.
+3. `argumentCount == 0`, `argumentCount == 1`, and `argumentCount >= 2` are
+   semantic branches. Do not normalize missing arguments into
+   `JsValue.Undefined` before this branch.
+4. Explicit `undefined` is a supplied value and must flow through
    `ToIntegerOrInfinity(args[1], context)`, producing zero rather than
    `length - actualStart`.
-4. Positive infinity, negative infinity, and finite bounds belong in the shared
+5. Positive infinity, negative infinity, and finite bounds belong in the shared
    helper because they are identical for `splice` and `toSpliced`.
-5. Keep method-specific construction, mutation/copy behavior, sparse-hole
+6. Keep method-specific construction, mutation/copy behavior, sparse-hole
    handling, insertion, length guards, and property writes outside the helper
    unless a separate proof shows those steps are also identical.
 
 ## Consequences
 
 - Future fixes to splice-family delete-count normalization have one owner.
+- Call sites own the observable argument-count snapshot, while the helper owns
+  the shared delete-count branch and numeric bounding.
 - Argument absence remains observable independently from explicit
   `undefined`, avoiding the common optional-argument regression where a helper
   sees only normalized values.
@@ -81,6 +93,8 @@ The durable boundary is:
 
 - Issue `autrun-ditfscj25yv4-eaf90267d5`
 - PR #2362
+- Issue #2373
+- PR #2382
 - `.claude/rules/ecmascript-abstract-operations.md`
 - `src/Asynkron.JsEngine/StdLib/Array/StandardLibrary.Array.Helpers.cs`
 - `src/Asynkron.JsEngine/StdLib/Array/ArrayPrototype.Mutators.cs`

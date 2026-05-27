@@ -38,10 +38,23 @@ and keep `arguments` handling path-specific.
    must keep the child `eval` environment path, and sloppy direct eval plus
    indirect eval must stay on their existing paths. The reused environment is
    the fresh strict direct-eval lexical environment for this eval call, not the
-   caller environment. Mark whichever environment executes the eval program as
-   the eval declaration environment before instantiation. Prove this with a
-   declaration-leak negative test and the focused activation/class-element eval
-   proof when environment depth changes.
+   caller environment, unless the narrower caller-strict no-environment rule
+   below applies. Mark whichever environment executes declaration
+   instantiation as the eval declaration environment before instantiation.
+   Prove this with a declaration-leak negative test and the focused
+   activation/class-element eval proof when environment depth changes.
+8. For declaration-free strict direct eval in an already-strict caller, it is
+   valid to skip creating any eval environment and execute directly in the
+   caller environment only after the normal parse/cache lookup, strict-reserved
+   binding validation, control-flow validation, `super` / `new.target`
+   validation, private-name validation, and declaration collection have run.
+   Require `hasStrictCaller`; strict source executed from a sloppy caller stays
+   on rule 7's fresh strict direct-eval lexical environment path. Do not mark
+   the caller environment as an eval declaration environment on the no-env
+   path, because there are no declarations to instantiate and the optimization
+   must not mutate caller activation state. Prove this with repeated current
+   activation binding observations plus the focused activation/class-element
+   eval proof.
 
 ## Why
 
@@ -81,7 +94,15 @@ to isolate strict eval declarations from the caller while preserving direct
 eval observability for `arguments`, `new.target`, `super`, private-name scopes,
 and class-element contexts.
 
+Issue #2257 / PR #2262 removed the next empty environment only for the narrower
+case where the caller was already strict and the eval program was
+declaration-free. The durable lesson is that no-environment direct eval is not
+the same as generic strict eval: it must be caller-strict, declaration-free, and
+post-validation, and it must not mark the caller environment as an eval
+declaration environment.
+
 Related ADRs:
 
 - `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`
 - `docs/adrs/0206-keep-strict-direct-eval-declaration-free-environment-reuse.md`
+- `docs/adrs/0213-keep-strict-direct-eval-no-environment-fast-path-caller-strict.md`

@@ -323,9 +323,9 @@ optimization.
     timings are noisy, report the CPU owner shape, such as disappearance of
     `InvokeWithContextSlow` or trampoline frames, plus the focused activation
     proof pack.
-24. For repeated direct-eval program-cache performance work, prove that the
-    selected `activation-evalscope` profile is paying parse and plan-build cost
-    under `EvalHostFunction` before caching. Cache parsed `ProgramNode`
+24. For repeated direct-eval cache or environment performance work, prove that
+    the selected `activation-evalscope` profile is paying the specific owner
+    under `EvalHostFunction` before editing. Cache parsed `ProgramNode`
     instances and warmed AST caches, not eval environments, declaration
     instantiation, execution results, caller bindings, or validation outcomes.
     Key the cache by source text plus forced strictness, keep it per engine and
@@ -333,9 +333,13 @@ optimization.
     validation, and current caller-environment execution after the cache
     lookup. A lock-free last-entry front cache may bypass the LRU lock only
     when it mirrors that exact key and stores only the immutable `ProgramNode`;
-    keep misses and less stable source patterns on the bounded LRU path. Prove
-    retained wins with repeated selected-profile timings plus the focused
-    activation/eval/private-name proof pack.
+    keep misses and less stable source patterns on the bounded LRU path. If the
+    owner has moved from cache lookup to eval environment setup, no-environment
+    shortcuts may cover only declaration-free strict direct eval whose caller
+    was already strict; strict source from a sloppy caller, declaration-bearing
+    eval, sloppy direct eval, and indirect eval must stay on their semantic
+    environment paths. Prove retained wins with repeated selected-profile
+    timings plus the focused activation/eval/private-name proof pack.
 25. For class constructor and `super()` dispatch performance work, prove the hot
     owner with a current `classdef` CPU profile before editing
     `ExecuteProgramSuperConstruct`, super-constructor resolution, or construct
@@ -795,6 +799,16 @@ machinery cost only when they preserve the same semantic key and continue to
 avoid caching caller state, declaration instantiation, validation, or execution
 results. Related ADR:
 `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`.
+
+Issue #2257 / PR #2262 returned again after those cache wins. The CPU owner was
+now strict direct eval still paying empty eval environment setup in an
+already-strict caller. The accepted slice skipped eval environment creation
+only after declaration collection proved no top-level declarations and after
+the normal eval validation path ran. The durable lesson is that direct-eval
+environment shortcuts are profile-owned and semantics-gated: caller-strict plus
+declaration-free is the predicate, not source text, benchmark name, or broad
+strict-eval status. Related ADR:
+`docs/adrs/0213-keep-strict-direct-eval-no-environment-fast-path-caller-strict.md`.
 
 Issue #2183 / PR #2185 continued the `classdef` constructor/super-dispatch
 follow-through after ADR 0193. The retained change was a kind-guarded boolean

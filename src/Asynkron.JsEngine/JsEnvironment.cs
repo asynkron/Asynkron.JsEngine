@@ -27,6 +27,7 @@ public sealed class JsEnvironment : IRentable
     private HashSet<Symbol>? _annexBBlockedNames;
     private Dictionary<Symbol, List<Action<JsValue>>>? _bindingObservers;
     private HashSet<Symbol>? _bodyLexicalNames;
+    private ImmutableArray<Symbol> _bodyLexicalNameTemplate = ImmutableArray<Symbol>.Empty;
     private SourceReference? _creatingSource;
     private string? _description;
     private HashSet<Symbol>? _evalDeletableBindings;
@@ -319,6 +320,7 @@ public sealed class JsEnvironment : IRentable
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
+        _bodyLexicalNameTemplate = ImmutableArray<Symbol>.Empty;
         _simpleCatchParameters?.Clear();
         _evalDeletableBindings?.Clear();
 
@@ -663,6 +665,7 @@ public sealed class JsEnvironment : IRentable
         _identifierBindingCache?.Clear();
         _bindingObservers?.Clear();
         _bodyLexicalNames?.Clear();
+        _bodyLexicalNameTemplate = ImmutableArray<Symbol>.Empty;
         _simpleCatchParameters?.Clear();
         _evalDeletableBindings?.Clear();
         _isDefaultDerivedConstructor = false;
@@ -2323,6 +2326,13 @@ public sealed class JsEnvironment : IRentable
     internal void SetBodyLexicalNames(HashSet<Symbol> names)
     {
         _bodyLexicalNames = names;
+        _bodyLexicalNameTemplate = ImmutableArray<Symbol>.Empty;
+    }
+
+    internal void SetBodyLexicalNames(ImmutableArray<Symbol> names)
+    {
+        _bodyLexicalNames = null;
+        _bodyLexicalNameTemplate = names.IsDefaultOrEmpty ? ImmutableArray<Symbol>.Empty : names;
     }
 
     /// <summary>
@@ -2339,7 +2349,11 @@ public sealed class JsEnvironment : IRentable
 
         if (_bodyLexicalNames is null)
         {
-            _bodyLexicalNames = new HashSet<Symbol>(names, ReferenceEqualityComparer<Symbol>.Instance);
+            _bodyLexicalNames = _bodyLexicalNameTemplate.IsDefaultOrEmpty
+                ? new HashSet<Symbol>(names, ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(_bodyLexicalNameTemplate, ReferenceEqualityComparer<Symbol>.Instance);
+            _bodyLexicalNames.UnionWith(names);
+            _bodyLexicalNameTemplate = ImmutableArray<Symbol>.Empty;
         }
         else
         {
@@ -2349,7 +2363,20 @@ public sealed class JsEnvironment : IRentable
 
     internal bool HasBodyLexicalName(Symbol name)
     {
-        return _bodyLexicalNames?.Contains(name) == true;
+        if (_bodyLexicalNames?.Contains(name) == true)
+        {
+            return true;
+        }
+
+        foreach (var lexicalName in _bodyLexicalNameTemplate)
+        {
+            if (ReferenceEquals(lexicalName, name))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

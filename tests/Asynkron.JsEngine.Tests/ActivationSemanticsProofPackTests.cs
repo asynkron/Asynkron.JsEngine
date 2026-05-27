@@ -385,6 +385,41 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsNumericIndexRead_RespectsAccessorDescriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.defineProperty(arguments, "0", {
+                    get() { return a + 1; }
+                });
+                return arguments[0];
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsNumericIndexRead_FallsBackToPrototypeAfterDelete()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.setPrototypeOf(arguments, { 0: 42 });
+                delete arguments[0];
+                return arguments[0];
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DefaultParameterDisablesArgumentsMapping()
     {
         await using var engine = CreateEngine();

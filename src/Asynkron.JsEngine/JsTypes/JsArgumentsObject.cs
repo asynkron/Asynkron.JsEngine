@@ -187,6 +187,34 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             out value);
     }
 
+    public bool TryGetIndex(int index, JsValue receiver, out JsValue value)
+    {
+        if ((uint)index >= (uint)_values.Length)
+        {
+            value = JsValue.Undefined;
+            return false;
+        }
+
+        if (_mappedEnabled &&
+            index < _mappedParameters.Length &&
+            _mappedParameters[index] is { } mappedSymbol)
+        {
+            value = _environment.GetJsValue(mappedSymbol);
+            return true;
+        }
+
+        var name = _indexNames[index];
+        if (_ownDescriptors.TryGetValue(name, out var descriptor) &&
+            !descriptor.IsAccessorDescriptor)
+        {
+            value = descriptor.JsValue;
+            return true;
+        }
+
+        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+            out value);
+    }
+
     public bool TryGetProperty(string name, out JsValue value)
     {
         return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);

@@ -24,9 +24,6 @@ public static partial class TypedAstEvaluator
             var lexicalTemplate = hoistPlan.LexicalTemplate;
             var simpleCatchParameterTemplate = hoistPlan.SimpleCatchParameterTemplate;
             var bodyLexicalTemplate = hoistPlan.BodyLexicalTemplate;
-            var bodyLexicalNames = bodyLexicalTemplate.Length == 0
-                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                : new HashSet<Symbol>(bodyLexicalTemplate, ReferenceEqualityComparer<Symbol>.Instance);
 
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
@@ -35,9 +32,9 @@ public static partial class TypedAstEvaluator
             if (!_isStrict)
             {
                 var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
-                blockedFunctionVarNames = bodyLexicalNames.Count == 0
+                blockedFunctionVarNames = bodyLexicalTemplate.Length == 0
                     ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                    : new HashSet<Symbol>(bodyLexicalNames, ReferenceEqualityComparer<Symbol>.Instance);
+                    : new HashSet<Symbol>(bodyLexicalTemplate, ReferenceEqualityComparer<Symbol>.Instance);
                 foreach (var parameterName in parameterNames)
                 {
                     blockedFunctionVarNames.Add(parameterName);
@@ -65,7 +62,7 @@ public static partial class TypedAstEvaluator
 
             // Per spec step 22.f: when argumentsObjectNeeded, "arguments" blocks AnnexB hoisting
             var argumentsIsParam = parameterNames.Contains(Symbol.Arguments);
-            var argumentsInBodyLex = bodyLexicalNames.Contains(Symbol.Arguments);
+            var argumentsInBodyLex = ContainsSymbol(bodyLexicalTemplate, Symbol.Arguments);
             var canSkipForBodyDecl = !hasParameterExpressions && argumentsInBodyLex;
             var argumentsObjectNeededBySpec = !argumentsIsParam && !canSkipForBodyDecl;
             var needsArgumentsObject = !_function.IsArrow && argumentsObjectNeededBySpec && needsArgumentsBinding;
@@ -112,7 +109,7 @@ public static partial class TypedAstEvaluator
 
             var executionEnvironment = CreateInvocationEnvironment(varEnvironment, false, description,
                 isBodyEnvironment: true);
-            executionEnvironment.SetBodyLexicalNames(bodyLexicalNames);
+            executionEnvironment.SetBodyLexicalNames(bodyLexicalTemplate);
             _ownsExecutionEnvironment = CanReturnExecutionEnvironmentAfterRunSync();
 
             // Store names that block Annex B.3.3 function-scope hoisting so runtime
@@ -353,6 +350,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return executionEnvironment;
+        }
+
+        private static bool ContainsSymbol(ImmutableArray<Symbol> symbols, Symbol symbol)
+        {
+            foreach (var candidate in symbols)
+            {
+                if (ReferenceEquals(candidate, symbol))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private int ComputeFunctionEnvironmentMinimumCapacity(

@@ -116,4 +116,3 @@ This run is a failed-attempt evidence slice. It keeps the repository source
 unchanged outside this report and records that the obvious no-spread construct,
 simple parameter-list, and home-object activation variants did not survive the
 noise-controlled focused benchmark check.
-

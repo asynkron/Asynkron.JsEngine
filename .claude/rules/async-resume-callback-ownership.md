@@ -1,7 +1,8 @@
 # Async Resume Callback Ownership
 
 When changing async function or async generator pending-await resume callbacks,
-keep callback lifetime explicit and pool-owned.
+keep callback lifetime explicit and pool-owned. When changing nearby
+await/resume scheduler state, keep state lifetime explicit and thread-local-free.
 
 ## Rules
 
@@ -34,6 +35,16 @@ keep callback lifetime explicit and pool-owned.
    cleanup, but do not merge the async-function and async-generator callback
    types or reshape `_isRejection` / pool-return mapping just to remove a few
    repeated assignments.
+10. Do not use `[ThreadStatic]`, `AsyncLocal<T>`, or shared static state for
+    `AwaitScheduler` await-state helpers such as `PromiseAwaitState`. If a
+    future optimization reduces await-state allocation, it must use an explicit
+    owner such as a bounded pool, per-runner state, or per-await-site state with
+    visible rent/reset/return semantics.
+11. When updating roadmap or architecture wording for async generators, keep
+    callback ownership and await scheduler state ownership distinct. The current
+    bridge is `ExecutionPlanRunner.ExecuteAsyncStep`; do not describe it as a
+    sync-generator wrapper or ThreadStatic callback cache unless that coupling
+    is actually present in code.
 
 ## Why
 
@@ -57,4 +68,14 @@ boundary: local cleanup dedupe is acceptable, but cross-type merging would have
 blurred two callback lifecycles for a tiny code-size win.
 
 Related ADR:
-`docs/adrs/0179-keep-async-generator-resume-callbacks-pool-owned.md`.
+- `docs/adrs/0179-keep-async-generator-resume-callbacks-pool-owned.md`
+- `docs/adrs/0235-keep-await-scheduler-state-explicit-and-thread-local-free.md`
+
+Issue #2409 / PR #2411 found that the async-generator callback cache lesson had
+already landed, but `AwaitScheduler.CachedState` still used `[ThreadStatic]` for
+`PromiseAwaitState` reuse and `docs/roadmap.md` still repeated stale
+sync-generator-wrapper plus ThreadStatic wording. `AwaitScheduler` is shared by
+async functions, async generators, for-await, and sync helper paths, so its
+await state is runtime lifecycle state, not thread-local scratch storage. The
+fix removed the cache, kept reset ownership explicit, and updated the roadmap to
+name `ExecutionPlanRunner.ExecuteAsyncStep` as the current bridge.

@@ -289,6 +289,25 @@ optimization.
      profile names repeated callback-shape predicate allocation, cache only
      constructor-stable predicate results on the invoker owner and keep mutable
      invocation-state checks out of that cache.
+14b. For Array `reduce` / `reduceRight` numeric callback fast paths, prove
+     that reducer callback invocation is still the selected `arrayops` owner
+     before bypassing ordinary sync-function invocation. Keep the shortcut
+     reducer-only and invoker-owned: the array helper should still own element
+     lookup, holes, prototype values, proxies, accessors, initial accumulator
+     selection, and empty-array errors. The invoker may bypass ordinary
+     callback invocation only when the existing two-argument reducer predicate
+     has proven omitted `index`, `array`, and callback-local `arguments` are
+     unobservable; the lowered plan carries a simple parameter-binary return
+     shape; and both selected runtime operands are already JavaScript numbers.
+     String/coercive operands, ordinary functions, rest/default/destructured
+     parameters, async/generator callbacks, observable extra arguments,
+     private/super/home-object state, and unsupported return shapes must stay
+     on the existing callback invocation path. WHY: issue
+     `autrun-ditkh3m7fjx4-a2cf88a53d` / PR #2414 retained a 29.0% focused
+     `arrayops` improvement by using `ExecutionPlan` parameter-binary metadata
+     for a number-only reducer callback shortcut while keeping string
+     concatenation and `reduceRight` semantics on focused regressions. ADR:
+     `docs/adrs/0236-keep-array-reduce-numeric-callback-fast-path-plan-and-runtime-guarded.md`.
 15. For repeated string append optimizations, prove whether the selected
     `stringops` cost is append-loop flattening, consumer flattening, or another
     string built-in before changing the rope or addition path. Keep primitive

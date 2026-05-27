@@ -270,11 +270,21 @@ public static partial class StandardLibrary
                             CanUseArrayReduceTwoArgumentFastPath: true
                         } twoArgTypedFunction)
                     {
-                        var twoArgCallbackArgs = new TwoValueArgs(accumulator, value);
-                        accumulator = twoArgTypedFunction.InvokeWithContext<TwoValueArgs>(
-                            twoArgCallbackArgs,
-                            JsValue.Undefined,
-                            null);
+                        if (!twoArgTypedFunction.TryInvokeArrayReduceTwoArgumentNumericFastPath(
+                                accumulator,
+                                value,
+                                out var fastAccumulator))
+                        {
+                            var twoArgCallbackArgs = new TwoValueArgs(accumulator, value);
+                            accumulator = twoArgTypedFunction.InvokeWithContext<TwoValueArgs>(
+                                twoArgCallbackArgs,
+                                JsValue.Undefined,
+                                null);
+                        }
+                        else
+                        {
+                            accumulator = fastAccumulator;
+                        }
                     }
                     else
                     {

@@ -428,6 +428,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """
+        function logicalWrite(box, value) {
+            return box.value ||= value;
+        }
+        """,
+        "logicalWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        var externalValue = 42;
+        function dynamicValueWrite(box) {
+            return box.value = externalValue;
+        }
+        """,
+        "dynamicValueWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(
+        """
+        function computedExpressionWrite(box, key, suffix, value) {
+            return box[key + suffix] = value;
+        }
+        """,
+        "computedExpressionWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
         function destructureWrite(box, source) {
             ({ value: box.value } = source);
             return 0;

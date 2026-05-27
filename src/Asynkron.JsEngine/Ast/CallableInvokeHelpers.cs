@@ -35,6 +35,12 @@ public static partial class TypedAstEvaluator
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
+        if (callable is HostFunction hostFunction &&
+            hostFunction.TryInvokeFastTwoArguments(arg0, arg1, out var fastHostResult))
+        {
+            return fastHostResult;
+        }
+
         if (callable is SyncFunctionInvoker typedFunction && callingContext is not null)
         {
             IJsEnvironmentAwareCallable? envAware = null;
@@ -127,6 +133,12 @@ public static partial class TypedAstEvaluator
         EvaluationContext? callingContext,
         JsEnvironment? callingEnvironment = null)
     {
+        if (callable is HostFunction hostFunction &&
+            hostFunction.TryInvokeFastSingleArgument(argument, out var fastHostResult))
+        {
+            return fastHostResult;
+        }
+
         if (callable is SyncFunctionInvoker typedFunction && callingContext is not null)
         {
             return typedFunction.InvokeWithContext1(argument, thisValue, callingContext);

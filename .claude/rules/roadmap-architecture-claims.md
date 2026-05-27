@@ -27,6 +27,12 @@ boundary-explicit.
    diagrams, and "fabric" component names must stay paired with explicit
    current-reality constraints and non-goals for module/runtime parity, host
    interop, async seam closure, and bounded bytecode routing.
+7. Before any roadmap, dream, ADR, PR, or issue text claims a capability
+   expansion, run the claim-discipline checklist explicitly: name the owner
+   surface down to module plus concrete file/class boundary, prove semantics on
+   the owning focused pack before widening, attach profile or benchmark evidence
+   when the claim is performance-related, and keep boundary wording explicit
+   about what remains host-layer, prototype-only, or otherwise directional.
 
 ## Why
 
@@ -49,3 +55,11 @@ runtime parity.
 
 Related ADR:
 `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`.
+
+Faktorial issue `autrun-ditlbq5q7p9k-29b6eca348` / PR #2430 added the
+`docs/dreaming.md` claim discipline checklist after the Dreamer document still
+needed a harder gate between useful architecture aspiration and capability
+claims. WHY: without the checklist, future agents can repeat the same failure
+mode by naming a capability expansion in roadmap or PR prose while omitting the
+owner surface, focused semantic proof, performance evidence, or host/prototype
+boundary that keeps the claim reviewable.

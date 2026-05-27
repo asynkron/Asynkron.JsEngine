@@ -43,6 +43,16 @@ The final `EvaluateProgram` scan left only the module-body callsite in
 `JsEngine.ExecuteModuleBody`, and the focused internal test pack passed 408
 tests.
 
+Issue #2263 / PR #2264 exposed a follow-up gap outside `src/`: the
+BenchmarkDotNet `EvaluationOverheadBenchmarks` direct-AST evaluation methods
+used reflection to fetch `GlobalEnvironment` and `RealmState`, then called the
+obsolete `ProgramNode.EvaluateProgram(...)` wrapper. Because the benchmark
+project is part of the default solution build, marking that wrapper
+`[Obsolete(..., true)]` made `rtk dotnet build Asynkron.JsEngine.sln` red with
+two CS0619 errors. The repair made the benchmark methods return `JsValue` and
+call `EvaluateProgramJsValue(...)`; the post-fix scan left `EvaluateProgram(`
+only at the obsolete wrapper definition.
+
 ## Decision
 
 Keep private program/script/eval execution plumbing `JsValue`-native once the
@@ -59,9 +69,15 @@ For future execution-wrapper migrations:
    unwrapping at the final API edge;
 4. treat async module result storage and `ExecuteModuleBody` as a separate
    migration surface with its own focused proof; and
-5. prove the slice with a before/after `EvaluateProgram`/`ExecuteProgram`
+5. treat benchmark, test, profiling, and diagnostic harnesses that bypass the
+   public facade and call internal program execution entrypoints as internal
+   core callers; keep those callsites on `JsValue` and unwrap only at an
+   explicit reporting edge; and
+6. prove the slice with a before/after `EvaluateProgram`/`ExecuteProgram`
    callsite scan plus focused eval, Function-constructor, and ShadowRealm
-   coverage.
+   coverage. When an obsolete wrapper is error-level, include repo-internal
+   harnesses such as `benchmarks`, `tests`, and `tools` in that scan, not only
+   `src/Asynkron.JsEngine`.
 
 ## Consequences
 
@@ -72,6 +88,9 @@ For future execution-wrapper migrations:
 - Future Unboxer slices should not widen an `ExecuteProgram` cleanup into
   module `LastValue` storage unless the module async/sync boundary is the
   selected owner surface.
+- Default solution builds compile benchmark harnesses, so internal migration
+  proof must include any benchmark direct-evaluation callsites that reach the
+  evaluator by reflection.
 - ShadowRealm wrapping remains cross-realm sensitive: keep primitive/callable
   wrapping semantics intact while removing only the carrier conversion.
 

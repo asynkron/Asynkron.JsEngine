@@ -48,6 +48,23 @@ public sealed class EvalFunctionTests(ITestOutputHelper output) : InternalTestBa
         Assert.Equal(42d, result);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task StrictDirectEval_WithDeclarations_DoesNotLeakBindingsToCallerScope()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe() {
+              "use strict";
+              eval("var innerVar = 1; let innerLet = 2; const innerConst = 3;");
+              return [typeof innerVar, typeof innerLet, typeof innerConst].join(",");
+            }
+
+            probe();
+            """);
+
+        Assert.Equal("undefined,undefined,undefined", result);
+    }
+
     [Fact(Timeout = 2000)]
     public async Task Eval_WithString()
     {

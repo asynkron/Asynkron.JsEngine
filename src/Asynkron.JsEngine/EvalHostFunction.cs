@@ -607,14 +607,23 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
-        var evalEnvironment = isStrictEval
-            ? JsEnvironment.CreateInstance(lexicalEnv,
-                false,
-                true,
-                description: "eval",
-                treatAsGlobalFunctionScope: false,
-                inheritStrictness: !isDirectEval)
-            : lexicalEnv;
+        var canReuseStrictDirectEvalEnvironment =
+            isDirectEval &&
+            isStrictEval &&
+            varDeclaredNames.Count == 0 &&
+            lexicalDeclarations.Count == 0 &&
+            varFunctionDeclarations.Count == 0;
+
+        var evalEnvironment = canReuseStrictDirectEvalEnvironment
+            ? lexicalEnv
+            : isStrictEval
+                ? JsEnvironment.CreateInstance(lexicalEnv,
+                    false,
+                    true,
+                    description: "eval",
+                    treatAsGlobalFunctionScope: false,
+                    inheritStrictness: !isDirectEval)
+                : lexicalEnv;
 
         evalEnvironment.MarkAsEvalDeclarationEnvironment();
         InstantiateLexicalDeclarations(evalEnvironment, lexicalDeclarations);

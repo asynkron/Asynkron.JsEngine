@@ -7,6 +7,10 @@ the ADR ID from the host runtime first:
 rtk faktorial-api adr-next
 ```
 
+Use the wrapped command form in agent-runnable examples and handoffs. Plain
+`faktorial-api adr-next` is only acceptable when prose is naming the helper, for
+example when describing helper availability or failure evidence.
+
 Use the returned `adr_id` as the four-digit filename prefix and heading number.
 Do not derive the next ADR number by scanning `docs/adrs/*.md`, sorting filenames,
 or guessing from nearby PRs.
@@ -21,3 +25,9 @@ both used ADR number `0071`. The fix was only a docs rename and heading update,
 but the duplicate number made references ambiguous and forced a separate cleanup
 cycle. The runtime allocator is the source of truth for monotonic ADR IDs, while
 filesystem scans can race with concurrent merged learn PRs.
+
+Issue #2224 / PR #2238 found the ADR allocation guidance still mixed helper-name
+prose with copy/paste command examples. In the agent runtime, shell commands
+must follow the repo's `rtk` invocation contract, so future edits should keep
+actionable allocator examples as `rtk faktorial-api adr-next` without rewriting
+non-runnable helper-name references.

@@ -4427,7 +4427,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             var dependency = dependencies[i];
             EnsureModuleInstantiated(dependency);
             var isAsyncDependency = dependency.IsAsync || dependency.HasAsyncDependency;
-            _ = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
+            var dependencyEvaluation = EnsureModuleEvaluatedAsync(dependency, !isAsyncDependency);
             if (isAsyncDependency)
             {
                 if (dependency.EvaluationTask is not null)
@@ -4445,10 +4445,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 continue;
             }
 
-            if (dependency.EvaluationTask is not null)
-            {
-                await dependency.EvaluationTask.ConfigureAwait(false);
-            }
+            await dependencyEvaluation.ConfigureAwait(false);
         }
 
         if (pendingAsyncDependencies.Count > 0)

@@ -1,5 +1,8 @@
 # Build and Test
 
+Prerequisite: install a .NET 10 SDK before running repo build/test commands.
+The engine and internal test projects target `net10.0`.
+
 ## Standard Commands
 ```bash
 # Restore dependencies

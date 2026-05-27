@@ -10,6 +10,11 @@ searches to specific existing paths, avoid broad `.faktorial/worktrees` scans
 unless the task explicitly requires that surface, and use targeted raw-log
 snippets with line caps when summaries are insufficient.
 
+Keep in-flight Faktorial progress updates as plain prose, not final-response
+schema JSON. Reserve machine-readable structured stage results for the actual
+final response so the worker does not misclassify status updates as failed
+stage outcomes.
+
 For agent runtime context gathering, use this practical order: supplied Source
 Context or issue/dashboard API details first, compact `/api/logs/<issue>/summary`
 next, and bounded raw-log snippets only when those are still insufficient.
@@ -107,6 +112,14 @@ lesson is to label fallback GitHub CLI examples as local/manual and write
 agent-runnable examples as `rtk gh ...`, so future agents do not confuse those
 examples with normal Faktorial issue reads or violate the repo command
 contract.
+
+Issue
+`planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-6-doc-f034e52976`
+learn-stage logs showed final-response-shaped JSON emitted as interim progress
+while preparing the post-PR knowledge pass. The worker recorded those messages
+as failed stage outcomes before the actual learn decision. The durable lesson is
+to keep interim Faktorial updates human-readable and reserve schema-shaped JSON
+for the final stage result only.
 
 Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
 recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the

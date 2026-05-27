@@ -30,6 +30,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0220-keep-assignment-property-receivers-jsvalue-native.md`
   - `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`
   - `docs/adrs/0232-keep-sync-function-this-binding-jsvalue-native.md`
+  - `docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`
 
 ## Rules
 
@@ -163,6 +164,14 @@ When working inside the core engine, keep JavaScript values represented as
     legacy branch must still call the typed helper, make its
     `JsValue.FromObjectUnsafe(...)` conversion explicit at that branch and keep
     the branch as a remaining migration target.
+    WHY: issue `autrun-ditlbq6xugc0-9d0cb22469` / PR #2432 removed the private
+    `TryGetPropertyValueObject(object? target, ...)` bridge from
+    `Runtime/JsOps.cs` after the helper was only reconstructing the original
+    JavaScript receiver with `JsValue.FromObjectUnsafe(target)`. Reintroducing
+    a private object-carrier property-read helper would undo that Unboxer slice
+    and risk losing accessor/prototype receiver identity.
+    Related ADR:
+    `docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`.
 17. When obsolete `object?` convenience overloads on a core runtime type no
     longer expose real compatibility callers or an intentional host boundary,
     delete the overloads rather than keeping them as permanent tripwires. For

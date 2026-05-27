@@ -47,12 +47,15 @@ all-or-nothing until a separate routing issue proves production readiness.
    and narrower than the prototype compiler until runtime proof widens it. Use
    `ExecutionPlan` plus explicit activation metadata, return stable decline
    codes/reasons before VM execution, and accept only the exact production
-   opcode subset that has been proven. Prototype opcodes such as `Binary`,
-   `Jump`, and `JumpIfFalse` stay prototype-only for production routing until a
-   separate routing slice proves their observable semantics. When a prototype
-   opcode is declined because of unproven semantic behavior, surface that
-   semantic decline before broader structural declines: for example, `Binary`
-   inside a branch or loop condition must decline as
+   opcode subset that has been proven. Prototype opcodes stay production-closed
+   until a separate routing slice proves their observable semantics: `Binary`
+   and `Jump` remain prototype-only, while `JumpIfFalse` is production-eligible
+   only for the direct forward branch-return topology proven by issue #2227 /
+   ADR 0208. Nested branches, branch joins, loops, and every other
+   `JumpIfFalse` topology stay prototype-only for production routing. When a
+   prototype opcode is declined because of unproven semantic behavior, surface
+   that semantic decline before broader structural declines: for example,
+   `Binary` inside a branch or loop condition must decline as
    `PrototypeOnlyBinaryOpcode` before `Jump` or `JumpIfFalse`, and the reason
    should name the operator token when the operand is known.
 10. When invoking production unified bytecode from sync calls, keep the bridge
@@ -63,7 +66,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     `ParameterSlotIndices`; do not create a `JsEnvironment`, call
     `ExecutionPlanRunner`, or add VM fallback for accepted programs. Prove both
     selected routing and nearby declined/faster routes through public invocation
-    tests plus the activation proof pack.
+    tests plus the activation proof pack. If an accepted selector shape overlaps
+    an earlier sync fast path, choose a route-discriminating proof shape instead
+    of reordering the invoker just to satisfy a production-log assertion. If the
+    intended change really is priority inversion, make that explicit and prove
+    the older fast path remains covered.
 
 ## Why
 
@@ -133,6 +140,18 @@ parity do not make `Binary` production-safe. Production eligibility must decline
 the operator family first, include operator-specific diagnostics, and keep
 branch/loop structural routing from admitting unproven condition semantics.
 
+Issue #2227 / PR #2239 admitted the first production `JumpIfFalse` shape:
+a single direct forward branch-return program with immediate return arms and no
+`Jump`. The review correction is part of the rule. The invocation proof first
+conflicted with restored `SyncIrCallTrampoline` priority, then was fixed by
+using a local selector shape that still lowers to the accepted branch-return
+program while avoiding the existing trampoline shortcut. Future agents should
+prove production routing with a route-discriminating shape, not by moving
+unified bytecode ahead of older fast paths. WHY: the incident showed that
+selector acceptance and invocation routing are separate contracts; a source
+shape can be eligible for unified bytecode but still correctly execute through
+a higher-priority fast path.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -141,3 +160,4 @@ Related ADRs:
 - `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`
 - `docs/adrs/0205-keep-unified-bytecode-binary-production-eligibility-operator-explicit.md`
+- `docs/adrs/0208-keep-unified-bytecode-branch-production-routing-shape-discriminated.md`

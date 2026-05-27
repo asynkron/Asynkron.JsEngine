@@ -91,7 +91,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BinaryComparisonFunction_DoesNotUseUnifiedBytecodeProductionFastPath()
+    public async Task BinaryComparisonFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -104,8 +104,126 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var logRecords = CurrentLogger!.Collector.Snapshot();
         Assert.Equal(true, result);
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=isLess argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BranchBothArms_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pick(flag) {
+                if (flag) {
+                    return 1;
+                }
+
+                return 2;
+            }
+
+            pick(true) * 10 + pick(false);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(12d, result);
+        Assert.Equal(2, logRecords.Count(record =>
+            record.Message.Contains("unified-bytecode-production-fast-path func=pick argc=1", StringComparison.Ordinal)));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BranchJoinedLocalUpdates_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function choose(pick) {
+                var value = 1;
+                if (pick) {
+                    value = 2;
+                } else {
+                    value = 3;
+                }
+
+                return value;
+            }
+
+            choose(true) * 10 + choose(false);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(23d, result);
+        Assert.Equal(2, logRecords.Count(record =>
+            record.Message.Contains("unified-bytecode-production-fast-path func=choose argc=1", StringComparison.Ordinal)));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData(0, 0)]
+    [InlineData(4, 10)]
+    public async Task CanonicalWhileLoop_UsesUnifiedBytecodeProductionFastPath(int input, int expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            function sumTo(n) {
+                var total = 0;
+                while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                return total;
+            }
+
+            sumTo({{input}});
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal((double)expected, result);
+        Assert.Contains(logRecords,
+            record => record.Message.Contains("unified-bytecode-production-fast-path func=sumTo argc=1", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StringConcatenationBinary_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function concatWithSuffix(value) {
+                return value + "!";
+            }
+
+            concatWithSuffix("ok");
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal("ok!", result?.ToString());
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=concatWithSuffix argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [MemberData(nameof(UnsupportedControlFlowFunctions))]
+    public async Task UnsupportedControlFlowShapes_DeclineUnifiedBytecodeAndFallBack(
+        string source,
+        string invocation,
+        double expected,
+        string functionName)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            {{source}}
+
+            {{invocation}};
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(expected, result);
         Assert.DoesNotContain(logRecords,
-            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -131,4 +249,83 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));
     }
+
+    public static TheoryData<string, string, double, string> UnsupportedControlFlowFunctions =>
+        new()
+        {
+            {
+                """
+                function labeled(n) {
+                    outer: while (n > 0) {
+                        n = n - 1;
+                    }
+
+                    return n;
+                }
+                """,
+                "labeled(2)",
+                0d,
+                "labeled"
+            },
+            {
+                """
+                function breakLoop(n) {
+                    while (n > 0) {
+                        break;
+                    }
+
+                    return n;
+                }
+                """,
+                "breakLoop(3)",
+                3d,
+                "breakLoop"
+            },
+            {
+                """
+                function continueLoop(n) {
+                    var total = 0;
+                    while (n > 0) {
+                        n = n - 1;
+                        continue;
+                        total = total + 1;
+                    }
+
+                    return total;
+                }
+                """,
+                "continueLoop(3)",
+                0d,
+                "continueLoop"
+            },
+            {
+                """
+                function nonCanonicalFor(n) {
+                    var total = 0;
+                    for (; n > 0; n = n - 1) {
+                        total = total + n;
+                    }
+
+                    return total;
+                }
+                """,
+                "nonCanonicalFor(3)",
+                6d,
+                "nonCanonicalFor"
+            },
+            {
+                """
+                function unsupportedBranchPayload(a, b, pick) {
+                    if (pick) {
+                        return Math.max(a, b);
+                    }
+
+                    return b;
+                }
+                """,
+                "unsupportedBranchPayload(2, 3, true)",
+                3d,
+                "unsupportedBranchPayload"
+            }
+        };
 }

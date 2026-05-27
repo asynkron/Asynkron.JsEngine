@@ -74,6 +74,29 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Modul
 
 with 56 passing tests, and review reported the repo quality gate clean.
 
+Follow-up issue `gh2372` / PR #2380 selected the previously deferred
+module-result owner surface. `ModuleEntry.LastValue`, `ExecuteModuleBody(...)`,
+and `AsyncModuleBodyRunner._lastValue` now store statement completion values as
+`JsValue`, while public `object?` facades and `Task<object?>` completion edges
+convert through `ConvertJsValueToLegacyObject(...)`.
+
+Focused evidence from that follow-up:
+
+```text
+src/Asynkron.JsEngine/JsEngine.cs | 43 +++++++++++++++++++++++----------------
+1 file changed, 26 insertions(+), 17 deletions(-)
+```
+
+The build stage ran:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c Release --filter "FullyQualifiedName~ModuleTests|FullyQualifiedName~AsyncModuleTryAwaitTests"
+```
+
+with 56 passing tests. Review required the build handoff to state the ADR 0212
+boundary explicitly: private typed module execution remains `JsValue`-native,
+while public `object?` APIs stay adapter boundaries.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -91,9 +114,9 @@ For future typed module execution migrations:
 5. use `[Obsolete(..., true)]` on legacy private wrappers after the selected
    direct usage is removed, so hidden core callsites become compiler errors
    instead of new accidental object-carrier seams;
-6. keep module `LastValue` storage and other remaining object-shaped module
-   result surfaces as separate focused migration slices unless that owner
-   surface is explicitly selected; and
+6. keep module `LastValue` storage, module-body completion storage, and async
+   module runner last-value storage `JsValue`-native; convert only at public
+   `object?` facade or `Task<object?>` completion boundaries; and
 7. prove each slice with a before/after search for the selected legacy
    signatures plus focused module or async-module coverage when behavior, not
    just helper plumbing, changes.
@@ -105,8 +128,9 @@ For future typed module execution migrations:
 - The selected `ExecuteTypedExpression(...)` private object adapter is gone; a
   future reintroduction should be treated as a regression unless it is tied to
   a new explicit public, host interop, debugger, or diagnostic boundary.
-- Remaining `object?` module result storage is visible as deferred work instead
-  of being hidden behind private typed execution wrappers.
+- Module result storage is no longer a deferred `object?` owner surface:
+  `ModuleEntry.LastValue`, synchronous module-body completion, and async module
+  runner last-value storage now stay typed as `JsValue`.
 - Future Unboxer slices should focus on other object-shaped module result
   surfaces without reopening the public `Evaluate*` facade shape.
 - Obsolete error-level wrappers are useful as temporary compiler pressure, but

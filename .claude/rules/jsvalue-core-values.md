@@ -191,25 +191,34 @@ When working inside the core engine, keep JavaScript values represented as
 20. When private program/script/eval or typed module execution wrappers feed
     callsites that already consume JavaScript values, keep the wrapper and
     immediate callsites typed as `JsValue`. Public `Evaluate*` facades may
-    unwrap at the API edge, and module-body result storage can remain a separate
-    `object?` migration surface until it is the selected slice. Do not call
+    unwrap at the API edge. Module-body result storage, `ModuleEntry.LastValue`,
+    and async module runner last-value storage are now selected typed module
+    owner surfaces and must stay `JsValue`-native. Do not call
     `EvaluateProgram(...)`, private typed statement/expression `object?`
-    wrappers, or return `object?` from private execution plumbing only to
-    immediately rewrap with `JsValue.FromObjectUnsafe(...)`; prefer
-    `EvaluateProgramJsValue(...)`, a `JsValue`-returning `ExecuteProgram` or
-    typed execution helper. Benchmark, test, profiling, or diagnostic harnesses
-    that bypass public facades and invoke internal evaluator entrypoints by
-    reflection are still repo-internal execution callers; keep them on `JsValue`
-    too, and unwrap only at an explicit reporting edge. Prove error-level
-    obsolete-wrapper changes with a repo-internal callsite scan that covers
-    `src`, `tests`, `benchmarks`, and `tools`, plus focused
-    eval/Function/ShadowRealm/module proof when behavior changes.
+    wrappers, use private module last-value storage as `object?`, or return
+    `object?` from private execution plumbing only to immediately rewrap with
+    `JsValue.FromObjectUnsafe(...)`; prefer `EvaluateProgramJsValue(...)`, a
+    `JsValue`-returning `ExecuteProgram`, `ExecuteModuleBody(...)`, or typed
+    execution helper. Convert with the local legacy object adapter only at
+    public `object?` facade or `Task<object?>` completion boundaries.
+    Benchmark, test, profiling, or diagnostic harnesses that bypass public
+    facades and invoke internal evaluator entrypoints by reflection are still
+    repo-internal execution callers; keep them on `JsValue` too, and unwrap only
+    at an explicit reporting edge. Prove error-level obsolete-wrapper changes
+    with a repo-internal callsite scan that covers `src`, `tests`, `benchmarks`,
+    and `tools`, plus focused eval/Function/ShadowRealm/module proof when
+    behavior changes.
     WHY: issue `autrun-ditfw6gh2qag-7ade4a3977` / PR #2364 removed the last
     private `ExecuteTypedExpression(...)` `object?` adapter in `JsEngine.cs`
     after the remaining module and async-module callers moved to
     `ExecuteTypedExpressionJsValue(...)`. Reintroducing that bridge would hide a
     core-runtime JavaScript value behind a legacy object carrier and undo the
     focused Unboxer cleanup.
+    WHY: issue `gh2372` / PR #2380 completed the ADR 0212 follow-through by
+    moving `ModuleEntry.LastValue`, `ExecuteModuleBody(...)`, and
+    `AsyncModuleBodyRunner._lastValue` to `JsValue` while keeping public
+    `object?` APIs as adapter boundaries. Reintroducing object-shaped module
+    last-value storage would reopen the same private compatibility seam.
     Related ADRs:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
     `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
@@ -637,8 +646,9 @@ result back with `JsValue.FromObjectUnsafe(...)` or equivalent guards. That
 boundary was not public interop; it was private execution plumbing. Future
 program/eval execution cleanup should keep direct eval and dynamic constructor
 callers on `EvaluateProgramJsValue(...)` or a `JsValue`-returning wrapper, while
-preserving public `Evaluate*` unwrapping and leaving module `LastValue` storage
-for a separate focused slice. Related ADR:
+preserving public `Evaluate*` unwrapping. Module `LastValue` storage has since
+been selected and migrated; do not use this older script/eval slice as
+permission to keep module last-value storage object-shaped. Related ADR:
 `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`.
 
 Issue `autrun-dit4lwg5pkm0-72a23c5a9c` / PR #2260 migrated the selected typed
@@ -650,8 +660,18 @@ and several async-module callsites immediately rewrapped
 That was not a public or interop boundary; it was private module execution
 plumbing. Future module execution cleanup should keep typed helper flows on
 `JsValue`, use obsolete error-level wrappers only to expose remaining internal
-callers, and keep module `LastValue` storage as a separate owner surface until
-that exact slice is selected. Related ADR:
+callers, and keep module last-value storage `JsValue`-native now that the
+follow-through slice selected it. Related ADR:
+`docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
+
+Issue `gh2372` / PR #2380 selected the remaining typed module last-value owner
+surface. The old module completion path stored `ModuleEntry.LastValue`,
+`ExecuteModuleBody(...)` local completion values, and
+`AsyncModuleBodyRunner._lastValue` as `object?`, even though the values were
+private JavaScript statement completions. The fix kept those carriers typed as
+`JsValue` and converted back only at public `Evaluate*` and `Task<object?>`
+completion boundaries. Future typed module cleanup should treat object-shaped
+module last-value storage as a regression, not as deferred work. Related ADR:
 `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
 
 Issue #2263 / PR #2264 showed why the execution-wrapper scan must include

@@ -44,3 +44,26 @@ boxing under `InvokeWithContextSlow`.
 The change is intentionally narrow: it only changes eval program-cache lookup
 and does not alter eval parsing, validation, declaration instantiation, or
 execution semantics.
+
+## Follow-up (issue #2228): strict direct eval declaration-free environment reuse
+
+### Change
+
+For strict direct eval, declaration-free programs now evaluate in the already
+created strict direct eval lexical environment instead of allocating an extra
+empty `eval` child environment. Programs with top-level `var`, function, or
+lexical declarations still use the existing eval child-environment path.
+
+### Selected signal
+
+- Baseline reference: `activation-evalscope-lite` Asynkron `1700ms` from this
+  document's baseline section.
+- Command: `rtk ./benchmark.sh activation-evalscope-lite`
+- Result (2026-05-27): Asynkron `511ms`, Jint `606ms` (`Asynkron 1.19x faster`).
+
+Relative to the baseline reference, Asynkron time dropped by `1189ms` (~70%).
+
+### Focused proof
+
+- `rtk dotnet test tests/Asynkron.JsEngine.Tests -c Release --filter "FullyQualifiedName~EvalFunctionTests|FullyQualifiedName~ActivationSemanticsProofPackTests|FullyQualifiedName~ClassElementEvalTests"`
+- Result: 86 tests passed.

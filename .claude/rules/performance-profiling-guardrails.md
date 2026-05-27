@@ -164,6 +164,21 @@ optimization.
      GetProgramNamedPropertyValue -> JsOps.TryGetPropertyValue ->
      JsObject.TryGetProperty*`; the win depended on ordinary-object and
      own-data proofs, not a generic property cache.
+10b. For evidence-only `propertyaccess` or unified-bytecode property-read
+     profile reports, use the canonical `tools/profile-manifest.json`
+     `propertyaccess` entry and `tools/profile-scripts/propertyaccess.js`.
+     Label historical baseline source/date separately from current rows, and
+     include timing, allocation, and CPU call-tree commands when the claim
+     covers production routing. State the exact accepted first-boundary
+     named/computed read shapes and the main pre-VM decline families. Do not
+     imply that every property read in the selected workload, broad Node.js
+     parity, or broad runtime parity executed through the unified VM. WHY:
+     issue #2313 / PR #2319 was an evidence-only profile pass after
+     property-read production routing became executable; the accepted note
+     distinguished the historical 2026-05-26 `1735 ms` baseline from current
+     2026-05-27 `1012`/`1035 ms` rows, and constrained claims to the proven
+     first-boundary named/computed routing because the workload can still
+     include fallback or declined shapes.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

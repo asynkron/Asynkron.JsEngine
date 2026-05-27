@@ -22,7 +22,7 @@ public static partial class TypedAstEvaluator
     /// Adds two JsValue operands without boxing intermediate results.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue AddValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue AddValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both operands are already numbers (very common in loops)
         if (left.IsNumber && right.IsNumber)
@@ -152,7 +152,7 @@ public static partial class TypedAstEvaluator
     /// Subtracts two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue SubtractValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue SubtractValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -167,7 +167,7 @@ public static partial class TypedAstEvaluator
     /// Multiplies two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue MultiplyValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue MultiplyValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)

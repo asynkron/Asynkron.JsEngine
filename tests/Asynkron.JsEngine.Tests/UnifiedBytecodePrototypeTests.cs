@@ -48,7 +48,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         slots[program.Instructions[0].Operand] = JsValue.FromDouble(2);
         slots[program.Instructions[1].Operand] = JsValue.FromDouble(3);
 
-        var value = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        var value = ExecuteProgram(program, slots);
         Assert.Equal(5d, value.AsDouble());
     }
 
@@ -77,7 +77,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 3)];
         slots[program.Instructions[0].Operand] = JsValue.FromDouble(2);
         slots[program.Instructions[1].Operand] = JsValue.FromDouble(3);
-        var value = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        var value = ExecuteProgram(program, slots);
         Assert.Equal(5d, value.AsDouble());
     }
 
@@ -123,7 +123,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         slots[program.Instructions[0].Operand] = JsValue.FromDouble(2);
         slots[program.Instructions[1].Operand] = JsValue.FromDouble(3);
 
-        var value = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        var value = ExecuteProgram(program, slots);
         Assert.Equal(expected, value.AsDouble(), 12);
     }
 
@@ -147,7 +147,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
         SetSlot(plan, slots, "a", JsValue.FromDouble(7));
         SetSlot(plan, slots, "b", JsValue.FromDouble(3));
-        var vmResult = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+        var vmResult = ExecuteProgram(program, slots);
 
         await using var engine = CreateEngine();
         var runtimeResult = await engine.Evaluate($$"""
@@ -190,11 +190,11 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
         SetSlot(plan, slots, "a", JsValue.FromDouble(2));
         SetSlot(plan, slots, "b", JsValue.FromDouble(3));
-        Assert.Equal(2d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(2d, ExecuteProgram(program, slots).AsDouble());
 
         SetSlot(plan, slots, "a", JsValue.FromDouble(5));
         SetSlot(plan, slots, "b", JsValue.FromDouble(3));
-        Assert.Equal(3d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(3d, ExecuteProgram(program, slots).AsDouble());
     }
 
     [Fact]
@@ -224,12 +224,12 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         SetSlot(plan, slots, "a", JsValue.FromDouble(2));
         SetSlot(plan, slots, "b", JsValue.FromDouble(3));
         SetSlot(plan, slots, "pick", JsValue.True);
-        Assert.Equal(10d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(10d, ExecuteProgram(program, slots).AsDouble());
 
         SetSlot(plan, slots, "a", JsValue.FromDouble(2));
         SetSlot(plan, slots, "b", JsValue.FromDouble(3));
         SetSlot(plan, slots, "pick", JsValue.False);
-        Assert.Equal(4d, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(4d, ExecuteProgram(program, slots).AsDouble());
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
 
         var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
         SetSlot(plan, slots, "n", JsValue.FromDouble(n));
-        Assert.Equal(expected, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(expected, ExecuteProgram(program, slots).AsDouble());
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
 
         var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
         SetSlot(plan, slots, "n", JsValue.FromDouble(n));
-        Assert.Equal(expected, UnifiedBytecodeVirtualMachine.Execute(program, slots).AsDouble());
+        Assert.Equal(expected, ExecuteProgram(program, slots).AsDouble());
     }
 
     [Fact]
@@ -498,6 +498,13 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return (Assert.IsType<ExecutionPlan>(cache.Plan), declaration.Function.IsAsync, declaration.Function.IsGenerator);
+    }
+
+    private JsValue ExecuteProgram(UnifiedBytecodeProgram program, JsValue[] slots)
+    {
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        return UnifiedBytecodeVirtualMachine.Execute(program, slots, context);
     }
 
     private static void SetSlot(ExecutionPlan plan, JsValue[] slots, string name, JsValue value)

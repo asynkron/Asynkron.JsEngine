@@ -222,6 +222,17 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     break;
+
+                case ExpressionOpKind.Binary:
+                    if (!IsProductionBinaryOperator(operation.Operator))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
+                        declineReason =
+                            $"Binary operator '{FormatBinaryOperator(operation.Operator)}' is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
             }
         }
 
@@ -277,22 +288,22 @@ internal static class UnifiedBytecodeProductionEligibility
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
-        var hasJump = false;
-        var hasJumpIfFalse = false;
         foreach (var instruction in program.Instructions)
         {
             switch (instruction.OpCode)
             {
-                case UnifiedBytecodeOpCode.Binary:
-                    TryGetPrototypeOnlyBinaryDecline(instruction, out declineCode, out declineReason);
-                    return true;
-
                 case UnifiedBytecodeOpCode.Jump:
-                    hasJump = true;
+                case UnifiedBytecodeOpCode.JumpIfFalse:
                     break;
 
-                case UnifiedBytecodeOpCode.JumpIfFalse:
-                    hasJumpIfFalse = true;
+                case UnifiedBytecodeOpCode.Binary:
+                    if (!TryDecodeBinaryOperator(instruction, out var binaryOperator) ||
+                        !IsProductionBinaryOperator(binaryOperator))
+                    {
+                        TryGetPrototypeOnlyBinaryDecline(instruction, out declineCode, out declineReason);
+                        return true;
+                    }
+
                     break;
 
                 case UnifiedBytecodeOpCode.LoadSlot:
@@ -309,80 +320,9 @@ internal static class UnifiedBytecodeProductionEligibility
             }
         }
 
-        if (hasJump)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyJumpOpcode;
-            declineReason = "Jump opcode is prototype-only for production unified bytecode routing.";
-            return true;
-        }
-
-        if (hasJumpIfFalse && !IsDirectForwardJumpIfFalseBranchReturnProgram(program))
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyJumpIfFalseOpcode;
-            declineReason = "JumpIfFalse opcode is prototype-only for production unified bytecode routing.";
-            return true;
-        }
-
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
         return false;
-    }
-
-    private static bool IsDirectForwardJumpIfFalseBranchReturnProgram(UnifiedBytecodeProgram program)
-    {
-        var instructions = program.Instructions;
-        var jumpIfFalseIndex = -1;
-        var jumpIfFalseTarget = -1;
-        for (var index = 0; index < instructions.Length; index++)
-        {
-            var instruction = instructions[index];
-            if (instruction.OpCode != UnifiedBytecodeOpCode.JumpIfFalse)
-            {
-                continue;
-            }
-
-            if (jumpIfFalseIndex >= 0)
-            {
-                return false;
-            }
-
-            jumpIfFalseIndex = index;
-            jumpIfFalseTarget = instruction.Operand;
-        }
-
-        if (jumpIfFalseIndex < 0)
-        {
-            return false;
-        }
-
-        if (jumpIfFalseTarget <= jumpIfFalseIndex ||
-            jumpIfFalseTarget != jumpIfFalseIndex + 3 ||
-            jumpIfFalseTarget + 1 >= instructions.Length ||
-            jumpIfFalseTarget + 2 != instructions.Length)
-        {
-            return false;
-        }
-
-        return IsImmediateReturnPair(instructions, jumpIfFalseIndex + 1) &&
-               IsImmediateReturnPair(instructions, jumpIfFalseTarget);
-    }
-
-    private static bool IsImmediateReturnPair(
-        ImmutableArray<UnifiedBytecodeInstruction> instructions,
-        int startIndex)
-    {
-        if (startIndex < 0 || startIndex + 1 >= instructions.Length)
-        {
-            return false;
-        }
-
-        var loadInstruction = instructions[startIndex];
-        if (loadInstruction.OpCode is not (UnifiedBytecodeOpCode.LoadSlot or UnifiedBytecodeOpCode.LoadLiteral))
-        {
-            return false;
-        }
-
-        return instructions[startIndex + 1].OpCode == UnifiedBytecodeOpCode.Return;
     }
 
     private static void TryGetPrototypeOnlyBinaryDecline(
@@ -391,15 +331,7 @@ internal static class UnifiedBytecodeProductionEligibility
         out string declineReason)
     {
         declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
-        if (instruction.Operand is < byte.MinValue or > byte.MaxValue)
-        {
-            declineReason =
-                $"Binary opcode is prototype-only for production unified bytecode routing (unknown operator operand {instruction.Operand}).";
-            return;
-        }
-
-        var binaryOperator = (BinaryOperator)(byte)instruction.Operand;
-        if (!Enum.IsDefined(binaryOperator))
+        if (!TryDecodeBinaryOperator(instruction, out var binaryOperator))
         {
             declineReason =
                 $"Binary opcode is prototype-only for production unified bytecode routing (unknown operator operand {instruction.Operand}).";
@@ -409,6 +341,32 @@ internal static class UnifiedBytecodeProductionEligibility
         declineReason =
             $"Binary operator '{FormatBinaryOperator(binaryOperator)}' is prototype-only for production unified bytecode routing.";
     }
+
+    private static bool TryDecodeBinaryOperator(
+        UnifiedBytecodeInstruction instruction,
+        out BinaryOperator binaryOperator)
+    {
+        if (instruction.Operand is < byte.MinValue or > byte.MaxValue)
+        {
+            binaryOperator = default;
+            return false;
+        }
+
+        binaryOperator = (BinaryOperator)(byte)instruction.Operand;
+        return Enum.IsDefined(binaryOperator);
+    }
+
+    private static bool IsProductionBinaryOperator(BinaryOperator binaryOperator) =>
+        binaryOperator is
+            BinaryOperator.Add or
+            BinaryOperator.Subtract or
+            BinaryOperator.Multiply or
+            BinaryOperator.Divide or
+            BinaryOperator.Modulo or
+            BinaryOperator.LessThan or
+            BinaryOperator.LessThanOrEqual or
+            BinaryOperator.GreaterThan or
+            BinaryOperator.GreaterThanOrEqual;
 
     private static string FormatBinaryOperator(BinaryOperator binaryOperator) =>
         binaryOperator switch

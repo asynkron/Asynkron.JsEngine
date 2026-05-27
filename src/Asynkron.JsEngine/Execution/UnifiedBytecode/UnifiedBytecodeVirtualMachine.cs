@@ -6,7 +6,7 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeVirtualMachine
 {
-    public static JsValue Execute(UnifiedBytecodeProgram program, Span<JsValue> slots)
+    public static JsValue Execute(UnifiedBytecodeProgram program, Span<JsValue> slots, EvaluationContext context)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
@@ -37,19 +37,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var op = (BinaryOperator)instruction.Operand;
                     var right = stack[--stackPointer];
                     var left = stack[--stackPointer];
-                    stack[stackPointer++] = op switch
-                    {
-                        BinaryOperator.Add => JsValue.FromDouble(left.AsDouble() + right.AsDouble()),
-                        BinaryOperator.Subtract => JsValue.FromDouble(left.AsDouble() - right.AsDouble()),
-                        BinaryOperator.Multiply => JsValue.FromDouble(left.AsDouble() * right.AsDouble()),
-                        BinaryOperator.Divide => JsValue.FromDouble(left.AsDouble() / right.AsDouble()),
-                        BinaryOperator.Modulo => JsValue.FromDouble(JsOps.MathMod(left.AsDouble(), right.AsDouble())),
-                        BinaryOperator.LessThan => JsOps.LessThan(left, right) ? JsValue.True : JsValue.False,
-                        BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right) ? JsValue.True : JsValue.False,
-                        BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right) ? JsValue.True : JsValue.False,
-                        BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right) ? JsValue.True : JsValue.False,
-                        _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
-                    };
+                    stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
                     programCounter++;
                     break;
 
@@ -72,5 +60,26 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         throw new InvalidOperationException("Program terminated without Return.");
+    }
+
+    private static JsValue ApplyBinaryOperator(
+        BinaryOperator op,
+        in JsValue left,
+        in JsValue right,
+        EvaluationContext context)
+    {
+        return op switch
+        {
+            BinaryOperator.Add => TypedAstEvaluator.AddValue(left, right, context),
+            BinaryOperator.Subtract => TypedAstEvaluator.SubtractValue(left, right, context),
+            BinaryOperator.Multiply => TypedAstEvaluator.MultiplyValue(left, right, context),
+            BinaryOperator.Divide => TypedAstEvaluator.DivideValue(left, right, context),
+            BinaryOperator.Modulo => TypedAstEvaluator.ModuloValue(left, right, context),
+            BinaryOperator.LessThan => JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
+            _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
+        };
     }
 }

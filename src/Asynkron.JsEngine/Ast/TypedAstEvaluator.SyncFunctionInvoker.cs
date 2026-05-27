@@ -2500,6 +2500,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
 
+            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                TryInvokeProductionUnifiedBytecode(arguments, plan, context, callingContext, out result))
+            {
+                return true;
+            }
+
             if (SyncIrCallTrampoline.TryInvoke(
                     this,
                     arguments,
@@ -2510,12 +2516,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     out result))
             {
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-            }
-
-            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
-                TryInvokeProductionUnifiedBytecode(arguments, plan, context, callingContext, out result))
-            {
-                return true;
             }
 
             if (!canUseSimpleIrActivationFastPath)
@@ -2615,7 +2615,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                result = UnifiedBytecodeVirtualMachine.Execute(program, slots);
+                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             finally

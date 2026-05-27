@@ -19,6 +19,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     private bool _isConstructor = true;
     private string? _nativeSourceDisplayName;
     private string? _nativeFunctionSource;
+    private Func<JsValue, JsValue>? _fastSingleArgumentHandler;
+    private Func<JsValue, JsValue, JsValue>? _fastTwoArgumentHandler;
 
     // Cached JsValue to avoid repeated struct creation
     private readonly JsValue _cachedJsValue;
@@ -389,6 +391,42 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
         }
 
         return InvokeWithContextForSnapshot(arguments, thisValue, context, newTarget);
+    }
+
+    internal bool TryInvokeFastSingleArgument(JsValue argument, out JsValue result)
+    {
+        var handler = _fastSingleArgumentHandler;
+        if (handler is null)
+        {
+            result = JsValue.Undefined;
+            return false;
+        }
+
+        result = handler(argument);
+        return true;
+    }
+
+    internal bool TryInvokeFastTwoArguments(JsValue left, JsValue right, out JsValue result)
+    {
+        var handler = _fastTwoArgumentHandler;
+        if (handler is null)
+        {
+            result = JsValue.Undefined;
+            return false;
+        }
+
+        result = handler(left, right);
+        return true;
+    }
+
+    internal void SetFastSingleArgumentHandler(Func<JsValue, JsValue> handler)
+    {
+        _fastSingleArgumentHandler = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    internal void SetFastTwoArgumentHandler(Func<JsValue, JsValue, JsValue> handler)
+    {
+        _fastTwoArgumentHandler = handler ?? throw new ArgumentNullException(nameof(handler));
     }
 
     public void SetInvokeWithContext(

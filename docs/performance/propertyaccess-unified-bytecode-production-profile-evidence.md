@@ -75,16 +75,38 @@ Call Tree (Total Time) - root: ExecuteInstructionLoop
 Accepted first-boundary property-read shapes (eligible for production unified-bytecode routing):
 
 - Direct named property read from an activation-resolved base (`return box.value;`).
-- Exact two-hop named property-read chains where both hops are named and non-optional.
+- Exact two-hop named property-read chains from an activation-resolved base where both hops are named and non-optional (`return box.child.value;`).
 - Exact first-boundary computed property read shape using `RequireObjectCoercible(Depth: 1)` and `ResolvePropertyKey` immediately before `GetComputedProperty` (`return box[key];`).
+
+Current production program boundary for accepted property-read routing:
+
+- Accepted opcodes in these programs: `LoadSlot`, `LoadLiteral`, `StoreSlot`, supported `Binary` subset, `RequireObjectCoercible`, `ResolvePropertyKey`, `GetNamedProperty`, `GetComputedProperty`, `Jump`, `JumpIfFalse`, and `Return`.
+- Property-read operand ownership:
+  - `LoadSlot(slotIndex)` loads activation-resolved base/key slots.
+  - `LoadLiteral(literalIndex)` loads allowed literal keys for computed reads.
+  - `GetNamedProperty(stringConstantIndex)` resolves property names through `UnifiedBytecodeProgram.StringConstants`.
+  - `RequireObjectCoercible(Depth: 1)` checks the base operand before computed-key coercion.
+  - `ResolvePropertyKey` and `GetComputedProperty` use stack operands only (no instruction operand).
+
+Accepted source-shape summary:
+
+- `box.value`
+- `box.child.value`
+- `box[key]` where `box` is activation-resolved and `key` is activation-resolved identifier or supported literal.
 
 Primary pre-VM decline families (decline before production VM execution):
 
-- Property reads outside the first boundary (for example non-exact computed/read chains such as `left + right` or deeper mixed chains).
+- Property reads outside the first boundary (for example non-exact computed/read chains such as `left + right` keys or deeper mixed chains).
 - Optional chaining (`box?.value`, `box?.[key]`).
+- Computed-in-chain shapes (`box[key].value`, `box.child[key]`) and richer computed-key expressions.
 - Property writes and updates (`box.value = ...`, `box.value++`).
 - `delete` and `super` property access.
-- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, and captured/dynamic activation.
+- Call/construct shapes, dynamic lookup, `arguments`, `this`, `new.target`, async/generator activation, captured/dynamic activation, and object literal/spread adjacency.
+
+No-mixed-execution constraint for accepted programs:
+
+- Accepted production property-read programs execute through owned unified VM opcodes only.
+- They do not bridge to `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation callbacks.
 
 Reference surfaces:
 

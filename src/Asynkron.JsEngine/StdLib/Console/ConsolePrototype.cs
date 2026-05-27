@@ -12,37 +12,32 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class ConsolePrototype
 {
     [JsHostMethod("log", Length = 0d)]
-    public JsValue Log(IReadOnlyList<JsValue> args)
-    {
-        Console.WriteLine(FormatConsoleArgs(args));
-        return JsValue.Undefined;
-    }
+    public JsValue Log(IReadOnlyList<JsValue> args) => WriteConsoleLine(args);
 
     [JsHostMethod("error", Length = 0d)]
-    public JsValue Error(IReadOnlyList<JsValue> args)
-    {
-        Console.Error.WriteLine(FormatConsoleArgs(args));
-        return JsValue.Undefined;
-    }
+    public JsValue Error(IReadOnlyList<JsValue> args) => WriteConsoleLine(args, toError: true);
 
     [JsHostMethod("warn", Length = 0d)]
-    public JsValue Warn(IReadOnlyList<JsValue> args)
-    {
-        Console.WriteLine($"Warning: {FormatConsoleArgs(args)}");
-        return JsValue.Undefined;
-    }
+    public JsValue Warn(IReadOnlyList<JsValue> args) => WriteConsoleLine(args, "Warning: ");
 
     [JsHostMethod("info", Length = 0d)]
-    public JsValue Info(IReadOnlyList<JsValue> args)
-    {
-        Console.WriteLine(FormatConsoleArgs(args));
-        return JsValue.Undefined;
-    }
+    public JsValue Info(IReadOnlyList<JsValue> args) => WriteConsoleLine(args);
 
     [JsHostMethod("debug", Length = 0d)]
-    public JsValue Debug(IReadOnlyList<JsValue> args)
+    public JsValue Debug(IReadOnlyList<JsValue> args) => WriteConsoleLine(args, "Debug: ");
+
+    private static JsValue WriteConsoleLine(IReadOnlyList<JsValue> args, string prefix = "", bool toError = false)
     {
-        Console.WriteLine($"Debug: {FormatConsoleArgs(args)}");
+        var message = $"{prefix}{FormatConsoleArgs(args)}";
+        if (toError)
+        {
+            Console.Error.WriteLine(message);
+        }
+        else
+        {
+            Console.WriteLine(message);
+        }
+
         return JsValue.Undefined;
     }
 

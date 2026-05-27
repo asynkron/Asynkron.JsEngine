@@ -4,7 +4,7 @@ When creating a new ADR from Faktorial learn or knowledge-artifact work, reserve
 the ADR ID from the host runtime first:
 
 ```bash
-faktorial-api adr-next
+rtk faktorial-api adr-next
 ```
 
 Use the returned `adr_id` as the four-digit filename prefix and heading number.

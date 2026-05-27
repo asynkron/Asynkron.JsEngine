@@ -97,6 +97,21 @@ with 56 passing tests. Review required the build handoff to state the ADR 0212
 boundary explicitly: private typed module execution remains `JsValue`-native,
 while public `object?` APIs stay adapter boundaries.
 
+Follow-up issue `gh2374` / PR #2383 completed the adjacent module evaluation
+task seam. `ModuleEntry.EvaluationTask`, async module body completion tasks,
+dependency-drain task lists, and the selected module-body async helpers now
+carry `JsValue` internally. Public or compatibility `object?` returns still
+adapt at the edge through `ConvertJsValueToLegacyObject(...)`.
+
+That follow-up also exposed a scheduling regression risk during review: after
+the internal task storage became `Task<JsValue>`, a dependency walk briefly
+discarded the task returned by `EnsureModuleEvaluatedAsync(...)` and then
+conditionally awaited `dependency.EvaluationTask`. Synchronous dependencies do
+not necessarily install a stored async evaluation task, so faults raised through
+the returned task could be dropped. Commit `c365acc4` fixed the seam by
+capturing the returned task and awaiting it for non-async dependencies, while
+using stored `EvaluationTask` only for the pending async-dependency list.
+
 ## Decision
 
 Keep private typed module execution helpers `JsValue`-native.
@@ -114,10 +129,17 @@ For future typed module execution migrations:
 5. use `[Obsolete(..., true)]` on legacy private wrappers after the selected
    direct usage is removed, so hidden core callsites become compiler errors
    instead of new accidental object-carrier seams;
-6. keep module `LastValue` storage, module-body completion storage, and async
-   module runner last-value storage `JsValue`-native; convert only at public
-   `object?` facade or `Task<object?>` completion boundaries; and
-7. prove each slice with a before/after search for the selected legacy
+6. keep module `LastValue` storage, module-body completion storage, async
+   module runner last-value storage, stored module evaluation tasks, and
+   internal dependency-drain task lists `JsValue`-native; convert only at
+   public `object?` facade or edge-returning `Task<object?>` adapter
+   boundaries;
+7. when a dependency walker calls `EnsureModuleEvaluatedAsync(...)`, preserve
+   and await that returned task for synchronous dependencies instead of
+   substituting `dependency.EvaluationTask`; stored evaluation tasks are for
+   async module continuation tracking, not the only completion/fault surface;
+   and
+8. prove each slice with a before/after search for the selected legacy
    signatures plus focused module or async-module coverage when behavior, not
    just helper plumbing, changes.
 
@@ -131,6 +153,13 @@ For future typed module execution migrations:
 - Module result storage is no longer a deferred `object?` owner surface:
   `ModuleEntry.LastValue`, synchronous module-body completion, and async module
   runner last-value storage now stay typed as `JsValue`.
+- Stored module evaluation tasks and dependency-drain task lists are no longer
+  deferred `Task<object?>` owner surfaces; they stay typed as `Task<JsValue>`
+  until an edge adapter returns public or compatibility `object?`.
+- Module dependency evaluation must observe both completion surfaces: the
+  immediate task returned by `EnsureModuleEvaluatedAsync(...)` for synchronous
+  dependency faults, and stored `EvaluationTask` for async dependency
+  continuation/drain tracking.
 - Future Unboxer slices should focus on other object-shaped module result
   surfaces without reopening the public `Evaluate*` facade shape.
 - Obsolete error-level wrappers are useful as temporary compiler pressure, but

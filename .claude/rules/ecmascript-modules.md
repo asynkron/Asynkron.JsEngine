@@ -57,6 +57,13 @@ values, and async module evaluation order separate.
     lookup/descriptor observation. Self namespace re-exports such as
     `export * as ns from "./self.js"` must not recursively demand the same
     namespace before it has been cached.
+15. In module dependency evaluation, always observe the task returned by
+    `EnsureModuleEvaluatedAsync(...)` for synchronous dependencies. Do not
+    discard that task and then rely only on `dependency.EvaluationTask`:
+    synchronous dependencies can complete or fault through the returned task
+    without installing a stored async evaluation task. Use stored
+    `EvaluationTask` only for pending async dependency continuation/drain
+    tracking.
 
 ## Why
 
@@ -110,5 +117,13 @@ export name during construction can recursively enter the same self namespace
 re-export before the namespace object is cached. Future namespace fixes must
 prove both self evaluation/instantiation idempotence and nearby star-export
 ambiguity behavior.
+
+Issue `gh2374` / PR #2383 fixed a review-found dependency fault propagation
+regression after module evaluation task storage moved to `Task<JsValue>`. The
+bug was not the value carrier itself; it was dropping the task returned by
+`EnsureModuleEvaluatedAsync(...)` for synchronous dependencies and checking only
+`dependency.EvaluationTask`, which can be null for sync modules. Future module
+task or TLA dependency changes must prove synchronous dependency failures still
+reach the importer, alongside the existing sibling async and tick-order packs.
 
 Related ADR: `docs/adrs/0091-keep-module-namespace-construction-resolution-lazy.md`.

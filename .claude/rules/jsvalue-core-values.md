@@ -192,15 +192,18 @@ When working inside the core engine, keep JavaScript values represented as
     callsites that already consume JavaScript values, keep the wrapper and
     immediate callsites typed as `JsValue`. Public `Evaluate*` facades may
     unwrap at the API edge. Module-body result storage, `ModuleEntry.LastValue`,
-    and async module runner last-value storage are now selected typed module
-    owner surfaces and must stay `JsValue`-native. Do not call
+    async module runner last-value storage, stored module evaluation tasks, and
+    internal dependency-drain task lists are now selected typed module owner
+    surfaces and must stay `JsValue`-native. Do not call
     `EvaluateProgram(...)`, private typed statement/expression `object?`
     wrappers, use private module last-value storage as `object?`, or return
     `object?` from private execution plumbing only to immediately rewrap with
     `JsValue.FromObjectUnsafe(...)`; prefer `EvaluateProgramJsValue(...)`, a
     `JsValue`-returning `ExecuteProgram`, `ExecuteModuleBody(...)`, or typed
     execution helper. Convert with the local legacy object adapter only at
-    public `object?` facade or `Task<object?>` completion boundaries.
+    public `object?` facade or edge-returning `Task<object?>` adapter
+    boundaries; do not store module evaluation completion as `Task<object?>`
+    when the payload is a private JavaScript value.
     Benchmark, test, profiling, or diagnostic harnesses that bypass public
     facades and invoke internal evaluator entrypoints by reflection are still
     repo-internal execution callers; keep them on `JsValue` too, and unwrap only
@@ -219,6 +222,11 @@ When working inside the core engine, keep JavaScript values represented as
     `AsyncModuleBodyRunner._lastValue` to `JsValue` while keeping public
     `object?` APIs as adapter boundaries. Reintroducing object-shaped module
     last-value storage would reopen the same private compatibility seam.
+    WHY: issue `gh2374` / PR #2383 completed the adjacent module evaluation
+    task seam by moving `ModuleEntry.EvaluationTask`, async module body
+    completions, and dependency-drain task lists to `Task<JsValue>`. Keeping
+    those stored tasks object-shaped would recreate a private carrier bridge
+    immediately next to the typed `LastValue` owner surface.
     Related ADRs:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
     `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.

@@ -580,6 +580,49 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task StrictAndSloppyCall_WithPrimitiveThis_PreserveCoercionRules()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sloppyThis() {
+                return [typeof this, this instanceof Number, this.valueOf()].join(":");
+            }
+
+            function strictThis() {
+                "use strict";
+                return [typeof this, this === 7].join(":");
+            }
+
+            [sloppyThis.call(7), strictThis.call(7)].join("|");
+            """);
+
+        Assert.Equal("object:true:7|number:true", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructor_InitializesBaseInstanceWithSuperCall()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(value) {
+                    super(value + 1);
+                }
+            }
+
+            new Derived(41).value;
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorActivation_PreservesCapturedParameterAcrossSuspension()
     {
         await using var engine = CreateEngine();

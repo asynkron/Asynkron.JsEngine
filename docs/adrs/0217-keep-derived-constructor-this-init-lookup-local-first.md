@@ -47,6 +47,10 @@ When `ExecuteProgramSuperConstruct` needs the environment whose
 4. keep `ResolveConstructorThisEnvironment()` and the final
    `ThisInitialized` chain search as fallbacks.
 
+Treat that order as semantic, not just as a performance preference. The final
+generic `ThisInitialized` chain search is a fallback only; it must not move
+ahead of the lexical-this or constructor-this owner resolution.
+
 Do not turn this into a broader constructor shortcut. `ReflectHelper.Construct`
 remains the construction boundary, spread and generic construct handling stay on
 their existing paths, ADR 0193 simple-activation eligibility is unchanged, and
@@ -62,6 +66,11 @@ their existing paths, ADR 0193 simple-activation eligibility is unchanged, and
 - Future `classdef` constructor/super work should treat the derived-constructor
   function environment as the owner of `ThisInitialized` state before widening
   activation or construction boundaries.
+- Issue #2282 / PR #2296 proved the fallback order is externally observable in
+  direct-eval arrow constructor cases. Reordering the generic `ThisInitialized`
+  search ahead of constructor-this resolution can select a stale binding and
+  break `super()` initialization semantics; that runtime trial was reverted and
+  retained only as failed-attempt evidence.
 - The retained evidence for PR #2289 was:
   - baseline `classdef` Asynkron row: `1369 ms`;
   - final focused rows after one noisy outlier: `881 ms` and `900 ms`;
@@ -75,4 +84,5 @@ their existing paths, ADR 0193 simple-activation eligibility is unchanged, and
 - `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner.Helpers.cs`
 - `docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`
 - `docs/adrs/0214-keep-classdef-homeobject-and-construct-retries-profile-proven.md`
+- `docs/performance/failed-classdef-homeobject-and-construct-trials.md`
 - `.claude/rules/performance-profiling-guardrails.md`

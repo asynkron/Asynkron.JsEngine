@@ -96,7 +96,10 @@ optimization.
     #2289 retained the local-first derived-constructor this-init lookup after
     prior broader classdef retries had failed; the win came from resolving the
     existing semantic owner faster, not from weakening construction or activation
-    boundaries. ADR:
+    boundaries. Do not move the final generic `ThisInitialized` chain search
+    ahead of lexical-this or constructor-this owner resolution; issue #2282 /
+    PR #2296 showed that this reorder can select a stale binding in direct-eval
+    arrow constructor cases and break `super()` initialization semantics. ADR:
     `docs/adrs/0217-keep-derived-constructor-this-init-lookup-local-first.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before

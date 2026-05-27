@@ -1,5 +1,6 @@
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using BenchmarkDotNet.Attributes;
@@ -271,7 +272,7 @@ public class EvaluationOverheadBenchmarks
     /// </summary>
     [Benchmark]
     [BenchmarkCategory("DirectEval")]
-    public object? Simple_DirectAstEvaluation()
+    public JsValue Simple_DirectAstEvaluation()
     {
         // Use the engine's Parse method which does lex + parse + transformations
         var program = _reusableEngine.Parse(_simpleSource);
@@ -287,7 +288,7 @@ public class EvaluationOverheadBenchmarks
         var realmState = (RealmState)realmStateProp!.GetValue(_reusableEngine)!;
 
         // Directly evaluate the AST
-        return program.EvaluateProgram(globalEnv, realmState);
+        return program.EvaluateProgramJsValue(globalEnv, realmState);
     }
 
     /// <summary>
@@ -295,7 +296,7 @@ public class EvaluationOverheadBenchmarks
     /// </summary>
     [Benchmark]
     [BenchmarkCategory("DirectEval")]
-    public object? Loop_DirectAstEvaluation()
+    public JsValue Loop_DirectAstEvaluation()
     {
         var program = _reusableEngine.Parse(_loopSource);
 
@@ -308,6 +309,6 @@ public class EvaluationOverheadBenchmarks
         var globalEnv = (JsEnvironment)globalEnvProp!.GetValue(_reusableEngine)!;
         var realmState = (RealmState)realmStateProp!.GetValue(_reusableEngine)!;
 
-        return program.EvaluateProgram(globalEnv, realmState);
+        return program.EvaluateProgramJsValue(globalEnv, realmState);
     }
 }

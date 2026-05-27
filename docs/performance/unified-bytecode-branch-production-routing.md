@@ -19,7 +19,7 @@ This proves:
 
 - Direct `JumpIfFalse` branch-return eligibility is accepted.
 - Nested adjacent `JumpIfFalse` shape remains declined.
-- Invocation routes accepted branch-return through `unified-bytecode-production-fast-path`.
+- Invocation routes accepted branch-return through `unified-bytecode-production-fast-path` for both `pick(true)` and `pick(false)` while keeping `SyncIrCallTrampoline` priority intact.
 - Existing binary specialized fast path remains prioritized.
 
 ## Focused profile signal

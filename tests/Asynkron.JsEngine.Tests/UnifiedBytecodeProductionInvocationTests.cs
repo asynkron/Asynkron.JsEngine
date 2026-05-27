@@ -71,12 +71,13 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectBranchReturnFunction_PrefersExistingIrFastPathForTrueAndFalseOutcomes()
+    public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();
         var trueResult = await engine.Evaluate("""
             function pick(flag) {
-                if (flag) {
+                var branch = flag;
+                if (branch) {
                     return 1;
                 }
 
@@ -93,7 +94,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(1d, trueResult);
         Assert.Equal(2d, falseResult);
         var logRecords = CurrentLogger!.Collector.Snapshot();
-        Assert.DoesNotContain(logRecords,
+        Assert.Contains(logRecords,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=pick",
                 StringComparison.Ordinal));

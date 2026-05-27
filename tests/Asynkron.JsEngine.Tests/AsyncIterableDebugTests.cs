@@ -182,33 +182,6 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
         Assert.Equal("hello", result);
     }
 
-    [Fact(Timeout = 2000)]
-    public async Task Test_OR_Expression_Parsing()
-    {
-        // Test to see the parsed S-expression for the OR expression
-        await using var engine = CreateDebugEngine();
-
-        // Test simple OR first
-        var simpleOr = @"let result = a || b;";
-        var simpleSexpr = engine.Parse(simpleOr);
-        Output.WriteLine("=== SIMPLE OR ===");
-        Output.WriteLine(simpleSexpr.ToString());
-        Output.WriteLine("");
-
-        // Test OR with function call on right
-        var orWithCall = @"let result = a || b();";
-        var orWithCallSexpr = engine.Parse(orWithCall);
-        Output.WriteLine("=== OR WITH FUNCTION CALL ===");
-        Output.WriteLine(orWithCallSexpr.ToString());
-        Output.WriteLine("");
-
-        // Test the actual problematic expression
-        var problematicExpr = @"let iterator = str[Symbol.asyncIterator] || str[Symbol.iterator]();";
-        var problematicSexpr = engine.Parse(problematicExpr);
-        Output.WriteLine("=== PROBLEMATIC OR EXPRESSION ===");
-        Output.WriteLine(problematicSexpr.ToString());
-        Output.WriteLine("");
-    }
 
     [Fact(Timeout = 2000)]
     public async Task ForAwaitOf_WithString_ManualAsyncIteration()
@@ -469,55 +442,6 @@ public sealed class AsyncIterableDebugTests(ITestOutputHelper output) : Internal
         var result = await engine.Evaluate("count;");
         Output.WriteLine($"Final count: '{result}'");
         Assert.Equal(5.0, result);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task ForAwaitOf_WithIfNoBreak_ShowTransformation()
-    {
-        // Show the transformation for if without break
-        var source = """
-
-                                 async function test() {
-                                     let count = 0;
-                                     let arr = [1, 2, 3];
-                                     for await (let item of arr) {
-                                         if (item === 2) {
-                                             log("item is 2");
-                                         }
-                                         count = count + 1;
-                                     }
-                                 }
-
-                     """;
-
-        await using var engine = CreateDebugEngine();
-        var transformedSexpr = engine.Parse(source);
-        Output.WriteLine("=== TRANSFORMED S-EXPRESSION ===");
-        Output.WriteLine(transformedSexpr.ToString());
-    }
-
-    [Fact]
-    public async Task ForAwaitOf_WithBreak_ShowTypedTransformation()
-    {
-        const string source = """
-            async function test() {
-                let count = 0;
-                let arr = [1, 2, 3, 4, 5];
-                for await (let item of arr) {
-                    count = count + 1;
-                    if (item === 3) {
-                        break;
-                    }
-                }
-            }
-            """;
-
-        await using var engine = CreateDebugEngine();
-        var (_, typedBefore, _) = engine.ParseWithTransformationSteps(source);
-
-        var snapshot = TypedAstSnapshot.Create(typedBefore);
-        Output.WriteLine("=== TYPED AST SNAPSHOT ===");
-        Output.WriteLine(snapshot);
     }
 
     private JsEngine CreateDebugEngine()

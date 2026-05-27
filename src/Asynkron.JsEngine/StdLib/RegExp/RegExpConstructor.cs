@@ -95,11 +95,11 @@ public sealed partial class RegExpConstructor(IJsObjectLike prototype, RealmStat
             }, Realm, false);
         escapeFn.DefineProperty("name", new PropertyDescriptor
         {
-            Value = (JsValue)"escape", Writable = false, Enumerable = false, Configurable = true
+            JsValue = (JsValue)"escape", Writable = false, Enumerable = false, Configurable = true
         });
         escapeFn.DefineProperty("length", new PropertyDescriptor
         {
-            Value = JsValue.FromDouble(1), Writable = false, Enumerable = false, Configurable = true
+            JsValue = JsValue.FromDouble(1), Writable = false, Enumerable = false, Configurable = true
         });
         constructor.SetHostedProperty("escape", escapeFn, Realm);
     }

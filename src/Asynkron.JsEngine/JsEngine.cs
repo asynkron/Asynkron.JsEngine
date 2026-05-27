@@ -4545,14 +4545,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 _ => false
             };
 
-            var value = ExecuteTypedExpression(
+            var value = ExecuteTypedExpressionJsValue(
                 expression.Expression,
                 moduleEnv,
                 isStrict,
                 isAnonymousFunctionDefinition ? Symbol.Intern("default") : null);
 
             // Initialize the *default* binding (it was created in TDZ during PredeclareExportNames)
-            moduleEnv.AssignJsValue(defaultBindingName, JsValue.FromObjectUnsafe(value));
+            moduleEnv.AssignJsValue(defaultBindingName, value);
 
             return new LiveExportBinding(() => moduleEnv.GetJsValue(defaultBindingName));
         }
@@ -4734,16 +4734,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     {
         var statement = new ExpressionStatement(expression.Source, expression);
         return ExecuteTypedStatementJsValue(statement, environment, isStrict, functionNameHint: functionNameHint);
-    }
-
-    private object? ExecuteTypedExpression(
-        ExpressionNode expression,
-        JsEnvironment environment,
-        bool isStrict,
-        Symbol? functionNameHint = null)
-    {
-        var result = ExecuteTypedExpressionJsValue(expression, environment, isStrict, functionNameHint);
-        return ConvertJsValueToLegacyObject(result);
     }
 
     private JsValue ExecuteTypedStatementJsValue(
@@ -6068,8 +6058,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                                 {
                                     try
                                     {
-                                        var propValue = _engine.ExecuteTypedExpression(member.Property, env, isStrict);
-                                        propertyLabel = propValue?.ToString();
+                                        var propValue = _engine.ExecuteTypedExpressionJsValue(member.Property, env, isStrict);
+                                        propertyLabel = propValue.ToString();
                                     }
                                     catch
                                     {
@@ -6151,7 +6141,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             try
             {
-                var value = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(arg.Expression, env, isStrict));
+                var value = _engine.ExecuteTypedExpressionJsValue(arg.Expression, env, isStrict);
                 evaluated.Add(value);
                 return TryEvaluateArgumentsWithAwait(args, index + 1, evaluated, env, isStrict, onComplete,
                     advanceTopLevelStatement);
@@ -6197,7 +6187,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             try
             {
-                var calleeObj = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(calleeExpr, env, isStrict));
+                var calleeObj = _engine.ExecuteTypedExpressionJsValue(calleeExpr, env, isStrict);
                 continuation(calleeObj, JsValue.Undefined);
                 return true;
             }
@@ -6241,8 +6231,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 try
                 {
                     var propertyValue =
-                        JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(memberExpression.Property, env,
-                            isStrict));
+                        _engine.ExecuteTypedExpressionJsValue(memberExpression.Property, env, isStrict);
                     propertyCompletedSynchronously = Finish(propertyValue);
                 }
                 catch (ThrowSignal signal)
@@ -6282,8 +6271,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             JsEnvironment env,
             bool isStrict)
         {
-            var targetValue = _engine.ExecuteTypedExpression(memberExpression.Target, env, isStrict);
-            var thisValue = JsValue.FromObjectUnsafe(targetValue);
+            var thisValue = _engine.ExecuteTypedExpressionJsValue(memberExpression.Target, env, isStrict);
             JsValue propertyKey;
             if (memberExpression.Property is IdentifierExpression identifier)
             {
@@ -6291,7 +6279,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
             else
             {
-                propertyKey = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(memberExpression.Property, env, isStrict));
+                propertyKey = _engine.ExecuteTypedExpressionJsValue(memberExpression.Property, env, isStrict);
             }
 
             var calleeValue =
@@ -6402,13 +6390,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                             var context = _engine.RealmState.CreateContext(
                                 mode: isStrict ? ScopeMode.Strict : ScopeMode.Sloppy,
                                 pushScope: false);
-                            result = JsValue.FromObjectUnsafe(
-                                _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                            result = _engine.ExecuteTypedExpressionJsValue(rewrittenExpression, tempEnv, isStrict);
                         }
                         else
                         {
-                            result = JsValue.FromObjectUnsafe(
-                                _engine.ExecuteTypedExpression(rewrittenExpression, tempEnv, isStrict));
+                            result = _engine.ExecuteTypedExpressionJsValue(rewrittenExpression, tempEnv, isStrict);
                         }
                         continuation(result);
                         return true;
@@ -6466,7 +6452,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     try
                     {
                         var result =
-                            JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(rewrittenClass, tempEnv, isStrict));
+                            _engine.ExecuteTypedExpressionJsValue(rewrittenClass, tempEnv, isStrict);
                         continuation(result);
                         return true;
                     }
@@ -6734,7 +6720,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             try
             {
                 conditionValue =
-                    JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict));
+                    _engine.ExecuteTypedExpressionJsValue(whileStatement.Condition, env, isStrict);
             }
             catch (ThrowSignal signal)
             {
@@ -6765,9 +6751,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 // Re-evaluate condition
                 try
                 {
-                    conditionValue =
-                        JsValue.FromObjectUnsafe(
-                            _engine.ExecuteTypedExpression(whileStatement.Condition, env, isStrict));
+                    conditionValue = _engine.ExecuteTypedExpressionJsValue(whileStatement.Condition, env, isStrict);
                 }
                 catch (ThrowSignal signal)
                 {
@@ -7730,7 +7714,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 try
                 {
                     var conditionValue =
-                        JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(statement.Condition, env, isStrict));
+                        _engine.ExecuteTypedExpressionJsValue(statement.Condition, env, isStrict);
                     if (!conditionValue.IsTruthy)
                     {
                         _statementIndex++;
@@ -7798,7 +7782,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
                 try
                 {
-                    _ = JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(statement.Increment, env, isStrict));
+                    _ = _engine.ExecuteTypedExpressionJsValue(statement.Increment, env, isStrict);
                 }
                 catch (ThrowSignal signal)
                 {

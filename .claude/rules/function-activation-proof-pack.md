@@ -118,9 +118,10 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     as a lifecycle ownership change. Rent and return only transient ordinary
     sync invocation environments whose lifetime ends with `RunSync` or the
     simple IR activation fast path. Do not return the caller-owned closure root,
-    script-mode, generator, async, async-generator, or class-constructor
-    activation state, and do not reuse a caller context when private-name scope
-    replay requires a distinct callee context. Pair the allocation win with a
+    script-mode, generator, async, async-generator, or constructor activation
+    state that was not created and owned by that exact fast path, and do not
+    reuse a caller context when private-name scope replay requires a distinct
+    callee context. Pair the allocation win with a
     captured-closure regression, recursive binding/strict-self fallback tests,
     and selected-profile before/after allocation evidence.
 17. When adding parameter-only binary or binary-chain direct-return shortcuts,
@@ -170,6 +171,21 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `activation-arguments-lite` by adding a direct numeric read path, and the
     correctness boundary was preserving descriptor/prototype/mapping semantics
     while avoiding generic property-key conversion.
+21. When adding or widening base-class-constructor simple IR activation fast
+    paths, keep eligibility aligned with the binder and environment contract.
+    `BindSimpleIrActivationParameters` is a positional simple-identifier
+    binder; rest, default, destructured, parameter-expression, observable
+    `arguments`, dynamic-lookup, derived-constructor, home-object, explicit
+    `super`, and captured-private-scope shapes must stay on the existing
+    fallback unless the owning binder/environment setup is widened and proved.
+    The constructor fast path must also preserve `this`, `new.target`, active
+    function binding, instance initialization, throw propagation, and transient
+    activation-environment ownership. Pair retained changes with class/super
+    semantics, non-simple-parameter negative coverage, selected-profile timing,
+    and the AST-eval seam scan. WHY: issue
+    `autrun-dit813mc4a00-66ec91b3ab` / PR #2302 initially admitted rest
+    parameters into the base-constructor fast path until review-back added the
+    missing `_hasOnlySimpleIdentifierParameters` guard.
 
 ## Why
 

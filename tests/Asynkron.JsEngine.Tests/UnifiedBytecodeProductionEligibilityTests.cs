@@ -311,7 +311,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_BranchPlan_DeclinesAsPrototypeOnlyJumpIfFalse()
+    public void Evaluate_DirectBranchReturnPlan_Accepts()
     {
         var plan = GetFunctionPlan("""
             function pick(flag) {
@@ -320,6 +320,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 }
 
                 return 2;
+            }
+            """,
+            "pick");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NestedDirectBranchReturnPlan_DeclinesAsPrototypeOnlyJumpIfFalse()
+    {
+        var plan = GetFunctionPlan("""
+            function pick(flag, alt) {
+                if (flag) {
+                    return 1;
+                }
+
+                if (alt) {
+                    return 2;
+                }
+
+                return 3;
             }
             """,
             "pick");

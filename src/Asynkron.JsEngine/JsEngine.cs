@@ -4726,14 +4726,39 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private object? ExecuteTypedExpression(
+    private JsValue ExecuteTypedExpressionJsValue(
         ExpressionNode expression,
         JsEnvironment environment,
         bool isStrict,
         Symbol? functionNameHint = null)
     {
         var statement = new ExpressionStatement(expression.Source, expression);
-        return ExecuteTypedStatement(statement, environment, isStrict, functionNameHint: functionNameHint);
+        return ExecuteTypedStatementJsValue(statement, environment, isStrict, functionNameHint: functionNameHint);
+    }
+
+    private object? ExecuteTypedExpression(
+        ExpressionNode expression,
+        JsEnvironment environment,
+        bool isStrict,
+        Symbol? functionNameHint = null)
+    {
+        var result = ExecuteTypedExpressionJsValue(expression, environment, isStrict, functionNameHint);
+        return ConvertJsValueToLegacyObject(result);
+    }
+
+    private JsValue ExecuteTypedStatementJsValue(
+        StatementNode statement,
+        JsEnvironment environment,
+        bool isStrict,
+        bool createStrictEnvironment = true,
+        Symbol? functionNameHint = null,
+        bool drainAwaitMicrotasks = true)
+    {
+        var program = new ProgramNode(statement.Source, [statement], isStrict);
+        return program.EvaluateProgramJsValue(environment, RealmState,
+            executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
+            functionNameHint: functionNameHint,
+            drainAwaitMicrotasks: drainAwaitMicrotasks);
     }
 
     private object? ExecuteTypedStatement(
@@ -4744,11 +4769,25 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         Symbol? functionNameHint = null,
         bool drainAwaitMicrotasks = true)
     {
-        var program = new ProgramNode(statement.Source, [statement], isStrict);
-        return program.EvaluateProgram(environment, RealmState,
-            executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
-            functionNameHint: functionNameHint,
-            drainAwaitMicrotasks: drainAwaitMicrotasks);
+        var result = ExecuteTypedStatementJsValue(statement, environment, isStrict, createStrictEnvironment,
+            functionNameHint, drainAwaitMicrotasks);
+        return ConvertJsValueToLegacyObject(result);
+    }
+
+    private static object? ConvertJsValueToLegacyObject(JsValue result)
+    {
+        if (result.IsUnit || result.IsUndefined)
+        {
+            return Symbol.Undefined;
+        }
+
+        return result.Kind switch
+        {
+            JsValueKind.Null => null,
+            JsValueKind.Boolean => result.NumberValue != 0,
+            JsValueKind.Number => result.NumberValue,
+            _ => result.ObjectValue
+        };
     }
 
     //-------
@@ -5314,9 +5353,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 {
                     try
                     {
-                        var resolved =
-                            JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(declarator.Initializer, env,
-                                isStrict));
+                        var resolved = _engine.ExecuteTypedExpressionJsValue(declarator.Initializer, env, isStrict);
                         AssignResolvedValue(identifier.Name, resolved);
                         return EvaluateDeclarator(index + 1);
                     }
@@ -5875,7 +5912,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             try
             {
                 conditionValue =
-                    JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(ifStatement.Condition, env, isStrict));
+                    _engine.ExecuteTypedExpressionJsValue(ifStatement.Condition, env, isStrict);
             }
             catch (ThrowSignal signal)
             {
@@ -5973,7 +6010,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     try
                     {
                         var result =
-                            JsValue.FromObjectUnsafe(_engine.ExecuteTypedExpression(expression, env, isStrict));
+                            _engine.ExecuteTypedExpressionJsValue(expression, env, isStrict);
                         continuation(result);
                         return true;
                     }

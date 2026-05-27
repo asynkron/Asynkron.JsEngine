@@ -676,7 +676,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (TryAppendNamedPropertyReadChain(
+        if (TryAppendFirstBoundaryNamedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
                 unified,
@@ -734,18 +734,6 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
-                case ExpressionOpKind.GetNamedProperty:
-                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
-                    {
-                        reason = "Optional named property reads are not supported.";
-                        return false;
-                    }
-
-                    var propertyNameIndex = stringConstants.Count;
-                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
-                    break;
-
                 case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
@@ -760,25 +748,20 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool TryAppendNamedPropertyReadChain(
+    private static bool TryAppendFirstBoundaryNamedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount < 2)
+        if (expressionProgram.OperationCount is not (2 or 3))
         {
             reason = string.Empty;
             return false;
         }
 
-        if (!CanAppendActivationIdentifierLoad(expressionProgram.GetOperation(0), expressionProgram, activationSlots))
-        {
-            reason = string.Empty;
-            return false;
-        }
-
+        var baseLoad = expressionProgram.GetOperation(0);
         for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var propertyRead = expressionProgram.GetOperation(operationIndex);
@@ -795,12 +778,7 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        if (!TryAppendActivationIdentifierLoad(
-                expressionProgram.GetOperation(0),
-                expressionProgram,
-                activationSlots,
-                unified,
-                out reason))
+        if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
         {
             return false;
         }
@@ -937,20 +915,6 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
         reason = string.Empty;
         return true;
-    }
-
-    private static bool CanAppendActivationIdentifierLoad(
-        PackedExpressionOp operation,
-        ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots)
-    {
-        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
-        {
-            return false;
-        }
-
-        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-        return TryResolveActivationSlot(identifier, activationSlots, out _);
     }
 
     private static bool IsSupportedBinaryOperator(BinaryOperator binaryOperator) =>

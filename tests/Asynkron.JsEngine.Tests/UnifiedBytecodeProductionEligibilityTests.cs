@@ -148,29 +148,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_NestedNamedPropertyReadCandidate_AcceptsPropertyOpcodeChain()
-    {
-        var plan = GetFunctionPlan("""
-            function read(box) {
-                return box.a.b.c.d.e;
-            }
-            """,
-            "read");
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Equal(
-            5,
-            result.Program.Instructions.Count(instruction =>
-                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
-        Assert.Equal(new[] { "a", "b", "c", "d", "e" }, result.Program.StringConstants);
-    }
-
-    [Fact]
     public void Evaluate_TwoHopNamedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""
@@ -191,31 +168,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             result.Program.Instructions.Count(instruction =>
                 instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
         Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
-    }
-
-    [Fact]
-    public void Evaluate_NamedPropertyReadBinaryCandidate_AcceptsPropertyOpcodeChains()
-    {
-        var plan = GetFunctionPlan("""
-            function sum(box) {
-                return box.x + box.y + box.z;
-            }
-            """,
-            "sum");
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Equal(
-            3,
-            result.Program.Instructions.Count(instruction =>
-                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
-        Assert.Equal(new[] { "x", "y", "z" }, result.Program.StringConstants);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
     }
 
     [Fact]

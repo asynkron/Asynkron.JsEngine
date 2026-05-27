@@ -156,6 +156,20 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `YieldResumeContext` and the generator-instance back-reference on the
     actual generator runner kind; ordinary sync functions must not define or
     pre-size those bindings.
+20. When optimizing numeric `arguments[i]` reads, keep the shortcut owned by
+    `JsArgumentsObject`. A generic computed-property helper may route numeric
+    keys to `JsArgumentsObject.TryGetIndex`, but that owner must preserve
+    mapped sloppy parameter reads, direct unmapped data descriptors, accessor
+    descriptors, deleted indices, prototype fallback, and the original
+    receiver for ordinary `[[Get]]`. Do not treat `activation-arguments`
+    evidence as permission to skip observable arguments-object materialization
+    or to handle arguments objects as dense arrays. Pair the performance
+    evidence with activation proof-pack coverage for mapped arguments,
+    strict unmapped arguments, accessor descriptors, and prototype fallback.
+    WHY: issue `autrun-dit3byldulw0-d4ff922b20` / PR #2249 optimized
+    `activation-arguments-lite` by adding a direct numeric read path, and the
+    correctness boundary was preserving descriptor/prototype/mapping semantics
+    while avoiding generic property-key conversion.
 
 ## Why
 
@@ -177,6 +191,14 @@ durable rule is to prove the observable-binding decision, not just allocation
 avoidance.
 
 Related ADR: `docs/adrs/0100-keep-observable-arguments-binding-eval-aware-through-arrows.md`.
+
+Issue `autrun-dit3byldulw0-d4ff922b20` / PR #2249 added the numeric
+`arguments[i]` read fast path after profiling showed repeated computed
+arguments reads under `JsOps.TryGetPropertyValueJsValue`. The durable lesson is
+to keep the optimization inside `JsArgumentsObject`, where mapped parameters,
+tracked data descriptors, accessor descriptors, and prototype fallback are all
+known. Related ADR:
+`docs/adrs/0211-keep-arguments-object-index-reads-storage-owned-and-descriptor-aware.md`.
 
 Issue #1750 / PR #1789, reviewed again during the #gh1806 red-main learn pass,
 showed the inverse lazy-arguments trap directly:

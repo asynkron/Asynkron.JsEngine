@@ -9,6 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Asynkron.JsEngine\Asynkron.JsEngine.csproj" />
     <PackageReference Include="Jint" Version="$(JintVersion)" />
-    <PackageReference Include="Test262Harness" Version="1.0.6" />
+    <PackageReference Include="Test262Harness" Version="$(Test262HarnessVersion)" />
   </ItemGroup>
 </Project>

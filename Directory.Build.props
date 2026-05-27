@@ -2,6 +2,7 @@
   <PropertyGroup>
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
     <JintVersion>4.9.2</JintVersion>
+    <Test262HarnessVersion>1.0.6</Test262HarnessVersion>
     <MicrosoftExtensionsLoggingAbstractionsVersion>10.0.8</MicrosoftExtensionsLoggingAbstractionsVersion>
     <LangVersion>preview</LangVersion>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>

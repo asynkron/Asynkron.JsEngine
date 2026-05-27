@@ -4,9 +4,12 @@
 
 Accepted
 
-Follow-up issue `autrun-dita1u7282fk-c0402b3866` widened the same owner surface
-to activation-resolved named-read chains and direct property-read binary
-expressions. This ADR records the earlier two-hop increment.
+Follow-up issue `autrun-dita1u7282fk-c0402b3866` attempted to widen the same
+owner surface to activation-resolved named-read chains and direct property-read
+binary expressions, but that experiment was reverted because it did not meet
+the performance evidence gate. This ADR records only the earlier two-hop
+increment; the failed widening is documented in
+`docs/performance/failed-propertyaccess-named-read-production-routing.md`.
 
 ## Context
 

@@ -240,6 +240,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   before editing, use file-level line-count evidence for the deleted slice, and
   treat a focused filter with no remaining matching tests as confidence that no
   compiled test contract was removed, not as a behavioral regression proof.
+- If the code-reduction slice targets a top-level scratch playground project,
+  first prove it is absent from solution files, maintained docs, scripts, and
+  external references. When deleting it, remove paired `InternalsVisibleTo`
+  grants and tracked generated or binary artifacts in the same slice; do not
+  leave orphaned internal-access grants or delete maintained `examples/` or
+  `tools/` entries by analogy.
 - If the code-reduction slice targets an active scratch or debug smoke test
   with no assertions, delete it only after proving it is output-only or
   non-owning and naming the maintained owner coverage that remains. Do not
@@ -537,6 +543,14 @@ evidence-only, recorded that only this active Code reduction child overlapped
 the slice, and kept the delivery PR lifecycle intact. Future recurring
 code-reduction re-entries should repair missing sibling/no-overlap evidence in
 the handoff instead of making another source change.
+
+Issue `autrun-ditawgqprig0-51fe82c197` / PR #2330 removed the unused top-level
+`playground/` project, scratch probes, a tracked binary, and the paired
+`InternalsVisibleTo("Playground")` grant after investigation proved the surface
+was absent from the solution and maintained references. The durable lesson is
+that an internal-access grant for a proven-dead scratch project is part of the
+dead surface; future code-reduction children should remove both together and
+record final absence evidence.
 
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,

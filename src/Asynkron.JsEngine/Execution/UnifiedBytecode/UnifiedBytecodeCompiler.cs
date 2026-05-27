@@ -808,7 +808,6 @@ internal static class UnifiedBytecodeCompiler
         for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var propertyRead = expressionProgram.GetOperation(operationIndex);
-
             var propertyNameIndex = stringConstants.Count;
             stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));

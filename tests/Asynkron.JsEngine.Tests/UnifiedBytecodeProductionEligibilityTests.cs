@@ -171,6 +171,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_TwoHopNamedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box) {
+                return box.child.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(
+            2,
+            result.Program.Instructions.Count(instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+        Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyReadBinaryCandidate_AcceptsPropertyOpcodeChains()
     {
         var plan = GetFunctionPlan("""
@@ -328,6 +351,38 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readBinaryTarget",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+    [InlineData(
+        """
+        function readComputedObjectLiteralKey(box) {
+            return box[{ value: 1 }];
+        }
+        """,
+        "readComputedObjectLiteralKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+        """,
+        "readComputedSpreadKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
+        function readComputedOnBase(box, key) {
+            return box[key].value;
+        }
+        """,
+        "readComputedOnBase",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+    [InlineData(
+        """
+        function readComputedAfterNamed(box, key) {
+            return box.child[key];
+        }
+        """,
+        "readComputedAfterNamed",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
         string source,

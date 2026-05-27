@@ -572,6 +572,118 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NamedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndProxyReceiverIdentity()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var receiverMatches = false;
+            var observed = 0;
+            var proxy = new Proxy({}, {
+                set(target, key, value, receiver) {
+                    receiverMatches = receiver === proxy;
+                    observed = value;
+                    return true;
+                }
+            });
+
+            function write(box, value) {
+                return box.value = value;
+            }
+
+            (write(proxy, 42) === 42) && receiverMatches && (observed === 42);
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {};
+            Object.defineProperty(box, "value", {
+                value: 1,
+                writable: false
+            });
+
+            function sloppyWrite(box, value) {
+                return box.value = value;
+            }
+
+            function strictWrite(box, value) {
+                "use strict";
+                return box.value = value;
+            }
+
+            var sloppyResult = sloppyWrite(box, 42);
+            var sloppyStored = box.value;
+            var strictThrew = false;
+            try {
+                strictWrite(box, 43);
+            } catch (error) {
+                strictThrew = error instanceof TypeError;
+            }
+
+            (sloppyResult === 42) && (sloppyStored === 1) && strictThrew && (box.value === 1);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(true, result);
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sloppyWrite argc=2",
+                StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=strictWrite argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndEvaluationOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = new Proxy({}, {
+                set(target, key, value, receiver) {
+                    events.push("set:" + String(key) + ":" + value);
+                    target[key] = value;
+                    return true;
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+
+            function rhs() {
+                events.push("rhs");
+                return 9;
+            }
+
+            function write(box, key, value) {
+                return box[key] = value;
+            }
+
+            String(write(box, key, rhs())) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("9:rhs,key,set:value:9", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyUpdate_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

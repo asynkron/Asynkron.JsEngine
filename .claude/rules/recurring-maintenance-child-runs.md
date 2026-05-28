@@ -245,7 +245,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   not enough to prove Roslynator unavailable; check PATH/global tool discovery
   such as `rtk which roslynator` and the documented
   `dnx Roslynator.DotNet.Cli` fallback, then record the exact command and
-  failure if analyzer evidence still cannot run.
+  failure if analyzer evidence still cannot run. If QuickDup reports
+  `No .go files found` during a C# cleanup, treat that as the default
+  extension being wrong and rerun with `-ext .cs` before recording QuickDup as
+  unavailable or unsuitable evidence.
 - Treat QuickDup output as candidate evidence, not as an exhaustive
   no-duplication proof. If a code-reduction handoff names a narrow file, test
   class, or fixture family, inspect that surface manually for parameterizable
@@ -290,6 +293,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   handles every case. Prefer delegating to that owner over creating a new helper
   or reshaping the surrounding feature, and prove the owner surface with a
   focused test filter plus the usual code-size and diff checks.
+- When the code-reduction slice targets paired sync/async standard-library
+  prototypes, extract only identical input-validation guards into a named owner
+  helper. Keep method-specific TypeError text at the call sites, and keep
+  direct sync throw/return paths separate from promise-producing async
+  resolve/reject paths unless focused behavior tests prove the observable
+  contract unchanged.
 - When the code-reduction slice targets duplicated AST or shape-analysis
   traversal, compare the traversal boundaries before merging walkers that look
   structurally similar. If one existing owner is reused as a probe, pin any
@@ -951,3 +960,14 @@ plus proleptic Gregorian DateTimeFormat tests. Future Intl formatting
 reductions should preserve that named-versus-numeric boundary and avoid
 reshaping calendar value extraction when an existing separator-aware owner is
 available.
+
+Issue `autrun-diu4yqab0uq8-1e1088957e` / PR #2494 applied recurring code
+reduction to `DisposableStackPrototype` and `AsyncDisposableStackPrototype`.
+The accepted slice shared only the duplicated callable-disposer guard through
+`DisposableStackHelper.RequireCallable(...)`, kept prototype-specific TypeError
+messages at each `adopt`/`defer` call site, and left `dispose` separate from
+`disposeAsync` because one completes synchronously and the other resolves or
+rejects a promise. The build evidence also marked QuickDup unsuitable after a
+default `.go` invocation returned `No .go files found`; future C# cleanup runs
+should rerun QuickDup with `-ext .cs` before treating that output as a tooling
+limitation.

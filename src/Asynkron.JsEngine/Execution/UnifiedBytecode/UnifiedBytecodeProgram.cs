@@ -18,6 +18,12 @@ internal enum UnifiedBytecodeOpCode : byte
     SetComputedProperty,
     UpdateNamedProperty,
     UpdateComputedProperty,
+    CreateArray,
+    ArrayPush,
+    ArrayPushHole,
+    CreateObject,
+    DefineObjectProperty,
+    DefineComputedObjectProperty,
     Jump,
     JumpIfFalse,
     Return

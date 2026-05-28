@@ -8,6 +8,10 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeVirtualMachine
 {
+    private const int DefineObjectPropertyPrototypeMutationFlag = 1;
+    private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
+    private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
@@ -209,6 +213,85 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.CreateArray:
+                    stack[stackPointer++] = JsValue.FromJsArray(new JsArray(context.RealmState));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ArrayPush:
+                    var arrayElementValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetArray(out var targetArray))
+                    {
+                        throw new InvalidOperationException("Array push unified bytecode op requires an array receiver.");
+                    }
+
+                    targetArray.Push(arrayElementValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ArrayPushHole:
+                    if (!stack[stackPointer - 1].TryGetArray(out var targetArrayWithHole))
+                    {
+                        throw new InvalidOperationException("Array hole unified bytecode op requires an array receiver.");
+                    }
+
+                    targetArrayWithHole.PushHole();
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.CreateObject:
+                    var targetObject = new JsObject
+                    {
+                        RealmState = context.RealmState
+                    };
+                    if (context.RealmState.ObjectPrototype is { } objectPrototype)
+                    {
+                        targetObject.SetPrototype(objectPrototype);
+                    }
+
+                    stack[stackPointer++] = JsValue.FromJsObject(targetObject);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineObjectProperty:
+                    var propertyValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var objectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object property unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralProperty(
+                        objectLiteralTarget,
+                        program.StringConstants[DecodeDefineObjectPropertyNameOperand(instruction.Operand)],
+                        instruction.Operand,
+                        propertyValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                    var computedObjectPropertyValue = stack[--stackPointer];
+                    var computedObjectPropertyKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object property unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedObjectPropertyName = JsOps.GetRequiredPropertyName(computedObjectPropertyKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    DefineComputedObjectLiteralProperty(
+                        computedObjectLiteralTarget,
+                        computedObjectPropertyName,
+                        instruction.Operand,
+                        computedObjectPropertyValue);
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -288,6 +371,56 @@ internal static class UnifiedBytecodeVirtualMachine
             context.CurrentScope.IsStrict || isStrict,
             allowPrivate: false);
         handle.SetValue(propertyValue);
+    }
+
+    private static void DefineObjectLiteralProperty(
+        JsObject targetObject,
+        string propertyName,
+        int operand,
+        JsValue propertyValue)
+    {
+        if (DecodeDefineObjectPropertyIsPrototypeMutation(operand))
+        {
+            if (propertyValue.IsNull)
+            {
+                targetObject.SetPrototype(null);
+            }
+            else if (propertyValue.TryGetObject<IJsPropertyAccessor>(out var prototypeAccessor))
+            {
+                targetObject.SetPrototype(prototypeAccessor);
+            }
+
+            return;
+        }
+
+        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        {
+            throw new InvalidOperationException(
+                "Object literal name inference is not supported by unified bytecode.");
+        }
+
+        if (DecodeDefineObjectPropertyIsKnownNewProperty(operand))
+        {
+            targetObject.DefineKnownNewDefaultDataProperty(propertyName, propertyValue);
+            return;
+        }
+
+        targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
+    }
+
+    private static void DefineComputedObjectLiteralProperty(
+        JsObject targetObject,
+        string propertyName,
+        int operand,
+        JsValue propertyValue)
+    {
+        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        {
+            throw new InvalidOperationException(
+                "Computed object literal name inference is not supported by unified bytecode.");
+        }
+
+        targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
     }
 
     private static JsValue UpdatePropertyValue(
@@ -389,6 +522,17 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     private static int DecodeStringOperand(int operand) => operand >> 2;
+
+    private static int DecodeDefineObjectPropertyNameOperand(int operand) => operand >> 3;
+
+    private static bool DecodeDefineObjectPropertyIsPrototypeMutation(int operand) =>
+        (operand & DefineObjectPropertyPrototypeMutationFlag) != 0;
+
+    private static bool DecodeDefineObjectPropertyAllowNameInference(int operand) =>
+        (operand & DefineObjectPropertyAllowNameInferenceFlag) != 0;
+
+    private static bool DecodeDefineObjectPropertyIsKnownNewProperty(int operand) =>
+        (operand & DefineObjectPropertyKnownNewPropertyFlag) != 0;
 
     private static bool DecodeIsIncrement(int operand) => (operand & 1) != 0;
 

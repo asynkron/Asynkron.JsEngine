@@ -9,6 +9,9 @@ internal static class UnifiedBytecodeCompiler
 {
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
+    private const int DefineObjectPropertyPrototypeMutationFlag = 1;
+    private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
+    private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
 
     public static bool TryCompile(
         ExecutionPlan plan,
@@ -868,6 +871,51 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
                     break;
 
+                case ExpressionOpKind.ResolvePropertyKey:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+                    break;
+
+                case ExpressionOpKind.CreateArray:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateArray));
+                    break;
+
+                case ExpressionOpKind.ArrayPush:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPush));
+                    break;
+
+                case ExpressionOpKind.ArrayPushHole:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPushHole));
+                    break;
+
+                case ExpressionOpKind.CreateObject:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateObject));
+                    break;
+
+                case ExpressionOpKind.DefineObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Object literal name inference is not supported.";
+                        return false;
+                    }
+
+                    var propertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectProperty,
+                        EncodeDefineObjectPropertyOperand(propertyNameIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Computed object literal name inference is not supported.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineComputedObjectProperty));
+                    break;
+
                 default:
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;
@@ -1446,6 +1494,22 @@ internal static class UnifiedBytecodeCompiler
 
     private static int EncodeUpdateOperand(int stringConstantIndex, PackedExpressionOp update) =>
         (stringConstantIndex << 2) | EncodeUpdateFlags(update);
+
+    private static int EncodeDefineObjectPropertyOperand(int stringConstantIndex, PackedExpressionOp defineProperty)
+    {
+        var flags = defineProperty.IsPrototypeMutation ? DefineObjectPropertyPrototypeMutationFlag : 0;
+        if (defineProperty.AllowNameInference)
+        {
+            flags |= DefineObjectPropertyAllowNameInferenceFlag;
+        }
+
+        if (defineProperty.IsKnownNewObjectProperty)
+        {
+            flags |= DefineObjectPropertyKnownNewPropertyFlag;
+        }
+
+        return (stringConstantIndex << 3) | flags;
+    }
 
     private static int EncodeUpdateFlags(PackedExpressionOp update)
     {

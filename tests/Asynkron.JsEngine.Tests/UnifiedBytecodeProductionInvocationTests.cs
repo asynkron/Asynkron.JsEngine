@@ -360,6 +360,109 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrayLiteralConstruction_UsesUnifiedBytecodeProductionFastPathAndPreservesHoles()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function create(value) {
+                return [1, , [value]];
+            }
+
+            var array = create(7);
+            array.length === 3 && array[0] === 1 && !(1 in array) && array[2][0] === 7;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralConstruction_UsesUnifiedBytecodeProductionFastPathAndPreservesDataSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function create(key, proto) {
+                return { __proto__: proto, a: 1, a: 2, [key]: 3 };
+            }
+
+            var object = create("b", { inherited: 9 });
+            object.a + object.b + object.inherited;
+            """);
+
+        Assert.Equal(14d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralConstruction_UsesUnifiedBytecodeProductionFastPathAndCoercesComputedKeys()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function create(key) {
+                return { [key]: 41 };
+            }
+
+            create(key).value + hits;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData(
+        """
+        function spreadArray(source) {
+            return [1, ...source];
+        }
+
+        spreadArray([41])[1];
+        """,
+        "spreadArray",
+        41d)]
+    [InlineData(
+        """
+        function methodObject() {
+            return { value() { return 42; } };
+        }
+
+        methodObject().value();
+        """,
+        "methodObject",
+        42d)]
+    public async Task ExcludedLiteralConstructionShapes_DeclineUnifiedBytecodeAndFallBack(
+        string source,
+        string functionName,
+        object expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndToPropertyKeySemantics()
     {
         await using var engine = CreateEngine();

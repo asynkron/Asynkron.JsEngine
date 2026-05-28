@@ -409,6 +409,13 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.Return:
                     return stack[stackPointer - 1];
 
+                case UnifiedBytecodeOpCode.ReturnUndefined:
+                    return JsValue.Undefined;
+
+                case UnifiedBytecodeOpCode.Throw:
+                    context.SetThrow(stack[--stackPointer]);
+                    return JsValue.Undefined;
+
                 default:
                     throw new InvalidOperationException($"Unsupported unified opcode '{instruction.OpCode}'.");
             }

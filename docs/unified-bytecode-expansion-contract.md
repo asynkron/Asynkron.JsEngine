@@ -54,6 +54,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Jump`
 - `JumpIfFalse`
 - `Return`
+- `ReturnUndefined`
+- `Throw`
 - `PrepareIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`

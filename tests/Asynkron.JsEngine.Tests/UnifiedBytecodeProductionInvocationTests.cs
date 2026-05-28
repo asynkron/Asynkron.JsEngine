@@ -452,6 +452,134 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task EmptyReturns_UseUnifiedBytecodeProductionFastPathAndReturnUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function explicitEmpty() {
+                return;
+            }
+
+            function implicitEmpty(value) {
+                var local = value;
+            }
+
+            explicitEmpty() === undefined && implicitEmpty(1) === undefined;
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(true, result);
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=explicitEmpty argc=0",
+                StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=implicitEmpty argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ThrowStatement_UsesUnifiedBytecodeProductionFastPathAndIsCatchable()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function fail(value) {
+                throw value;
+            }
+
+            var caught = 0;
+            try {
+                fail(42);
+            } catch (error) {
+                caught = error;
+            }
+
+            caught;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=fail argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DiscardedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndKeepsSideEffects()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function writeDiscarded(box, value) {
+                box.value = value;
+                return box.value;
+            }
+
+            writeDiscarded({ value: 1 }, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=writeDiscarded argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DiscardedPropertyUpdate_UsesUnifiedBytecodeProductionFastPathAndKeepsSideEffects()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function updateDiscarded(box) {
+                box.value++;
+                return box.value;
+            }
+
+            updateDiscarded({ value: 1 });
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=updateDiscarded argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectivePrologue_UsesUnifiedBytecodeProductionFastPathAndKeepsStrictness()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {};
+            Object.defineProperty(box, "value", {
+                value: 1,
+                writable: false
+            });
+
+            function strictWriteDiscarded(box, value) {
+                "use strict";
+                box.value = value;
+                return "not reached";
+            }
+
+            var strictThrew = false;
+            try {
+                strictWriteDiscarded(box, 42);
+            } catch (error) {
+                strictThrew = error instanceof TypeError;
+            }
+
+            strictThrew && box.value === 1;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=strictWriteDiscarded argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task BranchBothArms_UseUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -1508,28 +1636,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "computedExpressionWrite",
         42d)]
-    [InlineData(
-        """
-        function writeDiscarded(box, value) {
-            box.value = value;
-            return box.value;
-        }
-
-        writeDiscarded({ value: 1 }, 42);
-        """,
-        "writeDiscarded",
-        42d)]
-    [InlineData(
-        """
-        function updateDiscarded(box) {
-            box.value++;
-            return box.value;
-        }
-
-        updateDiscarded({ value: 1 });
-        """,
-        "updateDiscarded",
-        2d)]
     [InlineData(
         """
         function complexCompoundWrite(box, value) {

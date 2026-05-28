@@ -38,6 +38,8 @@ internal enum UnifiedBytecodeOpCode : byte
     Jump,
     JumpIfFalse,
     Return,
+    ReturnUndefined,
+    Throw,
     PrepareIdentifierCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,

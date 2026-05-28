@@ -362,6 +362,112 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_EmptyReturnCandidate_AcceptsReturnUndefinedOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function explicitEmpty() {
+                return;
+            }
+            """,
+            "explicitEmpty");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ReturnUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_ImplicitReturnCandidate_AcceptsReturnUndefinedOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function implicitReturn(value) {
+                var local = value;
+            }
+            """,
+            "implicitReturn");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ReturnUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_ThrowCandidate_AcceptsThrowOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function fail(value) {
+                throw value;
+            }
+            """,
+            "fail");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Throw);
+    }
+
+    [Fact]
+    public void Evaluate_DiscardedPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function writeDiscarded(box, value) {
+                box.value = value;
+                return box.value;
+            }
+            """,
+            "writeDiscarded");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Pop);
+    }
+
+    [Fact]
+    public void Evaluate_DiscardedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function updateDiscarded(box) {
+                box.value++;
+                return box.value;
+            }
+            """,
+            "updateDiscarded");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Pop);
+    }
+
+    [Fact]
     public void Evaluate_ArrayLiteralCandidate_AcceptsLiteralConstructionOpcodes()
     {
         var plan = GetFunctionPlan("""
@@ -542,24 +648,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "construct",
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
-        function write(box, value) {
-            box.value = value;
-            return value;
-        }
-        """,
-        "write",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
-        function increment(box) {
-            box.value++;
-            return 0;
-        }
-        """,
-        "increment",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency)]
     [InlineData(
         """
         function remove(box) {

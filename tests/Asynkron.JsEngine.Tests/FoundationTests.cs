@@ -754,6 +754,68 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
     }
 
     [Fact]
+    public async Task Function_StrictCountUp_ConstantPlusSelfRecursion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function countUp(n) {
+                if (n <= 0) return 0;
+                return 1 + countUp(n - 1);
+            }
+            countUp(10);
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictCountUp_SelfPlusConstantRecursion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function countUp(n) {
+                if (n <= 0) return 0;
+                return countUp(n - 1) + 1;
+            }
+            countUp(10);
+        ");
+        Assert.Equal(10d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictCountUp_NonIntegerKeepsRecursiveSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function countUp(n) {
+                if (n <= 0) return 0;
+                return 1 + countUp(n - 1);
+            }
+            countUp(2.5);
+        ");
+        Assert.Equal(3d, result);
+    }
+
+    [Fact]
+    public async Task Function_StrictCountUp_ReassignedNameUsesCurrentBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            'use strict';
+            function countUp(n) {
+                if (n <= 0) return 0;
+                return 1 + countUp(n - 1);
+            }
+            const original = countUp;
+            countUp = function() { return 100; };
+            original(3);
+        ");
+        Assert.Equal(101d, result);
+    }
+
+    [Fact]
     public async Task Function_StrictFactorial_NonIntegerKeepsRecursiveSemantics()
     {
         await using var engine = CreateEngine();

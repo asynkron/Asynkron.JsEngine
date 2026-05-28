@@ -146,7 +146,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
-  helpers.
+  helpers with the active `EvaluationContext` and caller `JsEnvironment` when
+  the callee needs environment-aware or debug-aware invocation state.
 - Named member calls, computed member calls, direct eval, spread calls,
   construct/super calls, optional calls, arguments-object dependencies, dynamic
   lookup, and receiver-binding-sensitive adjacent families still decline before

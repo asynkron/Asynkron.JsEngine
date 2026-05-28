@@ -46,6 +46,7 @@ internal static class UnifiedBytecodeCompiler
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
         var stringConstants = ImmutableArray.CreateBuilder<string>();
+        var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
         var maxStackDepth = 0;
@@ -59,6 +60,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -71,7 +73,8 @@ internal static class UnifiedBytecodeCompiler
             maxStackDepth,
             literalConstants.ToImmutable(),
             stringConstants.ToImmutable(),
-            BuildSlotNames(plan.ActivationSlots));
+            BuildSlotNames(plan.ActivationSlots),
+            callTargetConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -82,7 +85,8 @@ internal static class UnifiedBytecodeCompiler
             0,
             ImmutableArray<JsValue>.Empty,
             ImmutableArray<string>.Empty,
-            ImmutableArray<string?>.Empty);
+            ImmutableArray<string?>.Empty,
+            ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
 
     private static ImmutableArray<string?> BuildSlotNames(ActivationSlotShape activationSlots)
     {
@@ -114,6 +118,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -165,6 +170,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -205,6 +211,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -247,6 +254,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -284,6 +292,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -353,6 +362,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -371,6 +381,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -386,6 +397,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -402,6 +414,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -419,6 +432,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 literalConstants,
                                 stringConstants,
+                                callTargetConstants,
                                 out reason))
                         {
                             return false;
@@ -465,6 +479,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -495,6 +510,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+            callTargetConstants,
             ref maxStackDepth,
             out reason);
     }
@@ -732,8 +748,26 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         out string reason)
     {
+        if (TryAppendFirstBoundaryCallTargetPreparation(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryNamedCompoundPropertySet(
                 expressionProgram,
                 activationSlots,
@@ -992,6 +1026,333 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryAppendFirstBoundaryCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (call.Kind != ExpressionOpKind.Call)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!call.HasExplicitThis)
+        {
+            reason = "Only direct identifier and member calls with explicit receiver records are supported.";
+            return false;
+        }
+
+        if (call.SpreadMaskConstantIndex >= 0)
+        {
+            reason = "Spread call arguments are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        if (call.IsDirectEval)
+        {
+            reason = "Direct eval invocation semantics are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        if (TryAppendIdentifierCallTargetPreparation(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                call,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendNamedMemberCallTargetPreparation(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                call,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendComputedMemberCallTargetPreparation(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                call,
+                out reason))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(reason))
+        {
+            reason = "Call target preparation is only supported for activation-resolved identifier and direct member calls.";
+        }
+
+        return false;
+    }
+
+    private static bool TryAppendIdentifierCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        out string reason)
+    {
+        var callTarget = expressionProgram.GetOperation(0);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (callTarget.IsArguments)
+        {
+            reason = "arguments call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+        {
+            reason = $"Unsupported identifier call target '{identifier.Name.Name}'.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(identifier.Name.Name ?? string.Empty);
+        var callTargetIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.Identifier,
+            slotIndex,
+            nameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+            callTargetIndex));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            activationSlots,
+            unified,
+            literalConstants,
+            argsStartIndex: 1,
+            call,
+            out reason);
+    }
+
+    private static bool TryAppendNamedMemberCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        out string reason)
+    {
+        var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadNamedCallTarget);
+        if (callTargetIndexInProgram < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (callTargetIndexInProgram == 0)
+        {
+            reason = "Named member call targets require a receiver expression.";
+            return false;
+        }
+
+        if (!TryAppendNamedReceiverOperations(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                callTargetIndexInProgram,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var propertyName = callTarget.GetString(expressionProgram.StringConstants.AsSpan());
+        if (propertyName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(propertyName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: nameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+            callTargetConstantIndex));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            activationSlots,
+            unified,
+            literalConstants,
+            callTargetIndexInProgram + 1,
+            call,
+            out reason);
+    }
+
+    private static bool TryAppendComputedMemberCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        out string reason)
+    {
+        var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadComputedCallTarget);
+        if (callTargetIndexInProgram < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (callTargetIndexInProgram < 2)
+        {
+            reason = "Computed member call targets require receiver and key operands.";
+            return false;
+        }
+
+        var keyIndex = callTargetIndexInProgram - 1;
+        if (!TryAppendNamedReceiverOperations(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                keyIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(keyIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            activationSlots,
+            unified,
+            literalConstants,
+            callTargetIndexInProgram + 1,
+            call,
+            out reason);
+    }
+
+    private static bool TryAppendNamedReceiverOperations(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        int endExclusive,
+        out string reason)
+    {
+        if (endExclusive is < 1 or > 3)
+        {
+            reason = "Member call receiver is outside the direct named-chain boundary.";
+            return false;
+        }
+
+        if (!TryAppendActivationIdentifierLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
+        {
+            var propertyRead = expressionProgram.GetOperation(operationIndex);
+            if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                reason = $"Unsupported member call receiver op '{propertyRead.Kind}'.";
+                return false;
+            }
+
+            var propertyName = propertyRead.GetString(expressionProgram.StringConstants.AsSpan());
+            if (propertyName.IsPrivateName())
+            {
+                reason = "Private named receiver properties are outside the call-target preparation boundary.";
+                return false;
+            }
+
+            if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+            {
+                reason = "Optional receiver properties are outside the call-target preparation boundary.";
+                return false;
+            }
+
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyName);
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryResolveTypeOfIdentifierSlot(
         PackedExpressionOp operation,
         ExpressionProgram expressionProgram,
@@ -1015,6 +1376,56 @@ internal static class UnifiedBytecodeCompiler
 
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryAppendCallArguments(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        out string reason)
+    {
+        var callIndex = expressionProgram.OperationCount - 1;
+        if (callIndex - argsStartIndex != call.ArgumentCount)
+        {
+            reason = "Call arguments must be simple one-op operands in the call-target preparation boundary.";
+            return false;
+        }
+
+        for (var operationIndex = argsStartIndex; operationIndex < callIndex; operationIndex++)
+        {
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(operationIndex),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            call.ArgumentCount));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static int FindFirstOperation(ExpressionProgram expressionProgram, ExpressionOpKind kind)
+    {
+        for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            if (expressionProgram.GetOperation(operationIndex).Kind == kind)
+            {
+                return operationIndex;
+            }
+        }
+
+        return -1;
     }
 
     private static bool TryAppendFirstBoundaryNamedCompoundPropertySet(
@@ -1606,6 +2017,31 @@ internal static class UnifiedBytecodeCompiler
     {
         var flags = update.IsIncrement ? UpdateIncrementFlag : 0;
         return update.IsPrefix ? flags | UpdatePrefixFlag : flags;
+    }
+
+    private static bool TryAppendActivationIdentifierLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        out string reason)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            reason = $"Unsupported property-read base op '{operation.Kind}'.";
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+        {
+            reason = $"Unsupported identifier '{identifier.Name.Name}'.";
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendActivationValueLoad(

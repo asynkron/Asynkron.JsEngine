@@ -74,6 +74,13 @@ tail restart behavior, keep runtime context ownership explicit.
     timeout and log-output budget. Do not copy Test262-scale counts such as
     `100000` into internal smoke tests unless that exact scale is the behavior
     under test and the focused command is proven under the repository timeout.
+16. Keep helper-mediated same-function tail restarts explicit and strict. A
+    helper call may collapse into a self callee only when the trampoline proves
+    a zero-argument sync non-generator helper returns the current function
+    identifier and the final call is still a return-purpose tail call. Tagged
+    template syntax does not justify treating arbitrary call results as restart
+    callees. No-explicit-receiver self calls stay strict-only; explicit
+    receiver forms must still capture and rebind the receiver.
 
 ## Why
 
@@ -145,6 +152,17 @@ Reducing those probes to `1500` preserved proof beyond the current guard of
 tail-call proof additions should size internal smoke depths against the guard,
 not against arbitrary Test262-scale iteration counts.
 
+Issue #2566 / PR #2580 exposed a helper-mediated tagged-template restart gap.
+The strict Test262 rows for direct calls and tagged-template call/member forms
+used `tcoHelper.js` shapes where a helper call returns the current function
+before the final tagged-template tail call. The repair kept ownership in
+`SyncIrCallTrampoline`: function declarations for proven helpers are executable
+setup, local/closure helpers are accepted only when they are zero-argument sync
+non-generators returning the current function identifier, and arbitrary call
+results still fall back to ordinary invocation. This keeps tagged-template tail
+restarts runtime-owned without weakening template-object cache identity or
+call-target receiver semantics.
+
 Related ADRs:
 - `docs/adrs/0126-keep-proper-tail-calls-runtime-context-owned.md`
 - `docs/adrs/0139-keep-tail-restarts-through-expression-branches-and-finally-completions.md`
@@ -153,3 +171,4 @@ Related ADRs:
 - `docs/adrs/0146-keep-functioncode-activation-isolation-ahead-of-ir-fast-paths.md`
 - `docs/adrs/0162-keep-tail-restarts-activation-capture-safe-after-arguments.md`
 - `docs/adrs/0197-keep-tail-call-smoke-depths-guard-sized.md`
+- `docs/adrs/0268-keep-tagged-template-tail-restarts-helper-mediated-and-strict.md`

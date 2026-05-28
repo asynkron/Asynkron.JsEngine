@@ -141,20 +141,28 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ## Production Call Invocation Boundary
 - Current executable call support is intentionally limited to no-spread
-  activation-resolved identifier calls and direct named/computed member calls
-  with an owned activation-resolved receiver chain, simple computed keys, and
-  simple literal or slot operands.
-- Accepted call programs use `PrepareIdentifierCallTarget`,
-  `PrepareNamedCallTarget`, or `PrepareComputedCallTarget` followed by
-  `CallInvocationBoundary`; the VM resolves the callable from unified
-  bytecode-owned slot/receiver/key state and invokes it through existing
-  callable invocation helpers with the active `EvaluationContext` and caller
-  `JsEnvironment` when the callee needs environment-aware or debug-aware
-  invocation state.
+  activation-resolved identifier calls, direct named member calls whose receiver
+  chain is activation-resolved, and direct computed member calls whose receiver
+  chain is activation-resolved. Arguments must be simple literal or slot
+  operands; computed member keys must also be simple literal or slot operands.
+- Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
+  by `CallInvocationBoundary`; the VM resolves the callable from unified
+  bytecode-owned slot state and invokes it through existing callable invocation
+  helpers with the active `EvaluationContext` and caller `JsEnvironment` when
+  the callee needs environment-aware or debug-aware invocation state.
+- Accepted named member-call programs use `PrepareNamedCallTarget` followed by
+  `CallInvocationBoundary`; the VM keeps the receiver on the stack, loads the
+  named callee from that receiver, and invokes through the existing
+  receiver-as-`this` stack contract.
+- Accepted computed member-call programs use `PrepareComputedCallTarget`
+  followed by `CallInvocationBoundary`; the VM keeps the receiver on the stack,
+  consumes the computed key with normal property-key semantics, loads the callee
+  from that receiver, and invokes through the existing receiver-as-`this` stack
+  contract.
 - Direct eval, spread calls, construct/super calls, optional calls,
-  arguments-object dependencies, dynamic lookup, and the remaining
-  receiver-binding-sensitive adjacent families still decline before VM
-  execution.
+  private/super member targets, arguments-object dependencies, dynamic lookup,
+  complex receiver/key shapes, and receiver-binding-sensitive adjacent families
+  still decline before VM execution.
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.

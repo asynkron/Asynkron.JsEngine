@@ -6,9 +6,10 @@ Accepted
 
 Superseded in part on 2026-05-28 for the first executable no-spread
 activation-resolved identifier-call slice. The original decline-first decision
-still applies to named/computed member calls, direct eval, spread calls,
-construct/super calls, optional calls, arguments-object dependencies, dynamic
-lookup, and other unproven call-adjacent families.
+was superseded again on 2026-05-28 for the direct named member-call slice from
+issue #2530 / PR #2534. It still applies to computed member calls, direct eval,
+spread calls, construct/super calls, optional calls, arguments-object
+dependencies, dynamic lookup, and other unproven call-adjacent families.
 
 ## Context
 
@@ -44,14 +45,14 @@ boundary until a later slice proves full call invocation.
 1. Unified bytecode may own call-target preparation records for no-spread
    activation-resolved identifier calls and direct member calls.
 2. The compiler may emit preparation opcodes plus `CallInvocationBoundary`, but
-   production eligibility must decline at the invocation boundary rather than
-   route the program through the VM.
+   production eligibility must decline at the invocation boundary for any call
+   family not explicitly admitted by a later executable call slice.
 3. The VM must not satisfy these opcodes by delegating to `ExpressionProgram`,
    `ExecutionPlanRunner`, AST evaluation, or host-call fallback.
-4. Direct eval, spread calls, construct/super calls, optional calls, arguments
-   object dependencies, dynamic lookup, private names, and unproven receiver
-   shapes stay outside the production route until selector, compiler, VM, and
-   public route proof move together.
+4. Computed member calls, direct eval, spread calls, construct/super calls,
+   optional calls, arguments object dependencies, dynamic lookup, private names,
+   and unproven receiver shapes stay outside the production route until
+   selector, compiler, VM, and public route proof move together.
 5. Any future slice that makes calls executable must preserve receiver binding
    and direct-eval classification explicitly, then update the expansion
    contract, positive route proof, nearby decline/no-route proof, AST-eval seam
@@ -96,6 +97,21 @@ implementation passed ordinary identifier-call tests but failed a
 parameter-passed `__debug` probe with missing environment/context. The repair
 kept the no-mixed-execution rule intact while adding regression proof for
 parameter-passed and block-scoped debug-aware calls.
+
+## 2026-05-28 executable named member-call update
+
+Issue #2530 / PR #2534 narrows the former member-call decline by allowing direct
+named member calls with activation-resolved receiver chains and simple
+literal/slot arguments to execute in `UnifiedBytecodeVirtualMachine`.
+`PrepareNamedCallTarget` now loads the callee from the receiver while leaving
+that receiver on the stack as the call `this` value for
+`CallInvocationBoundary`.
+
+This update does not make computed member calls, direct eval, spread calls,
+construct/super calls, optional calls, private/super member targets,
+arguments-dependent calls, dynamic lookup, or unproven receiver shapes
+production-eligible. Those families must still decline before VM execution
+instead of falling back inside the VM.
 
 ## Evidence
 

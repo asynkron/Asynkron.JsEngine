@@ -1821,10 +1821,19 @@ internal static class JsOps
             return false;
         }
 
-        if (target.TryGetObject<JsArgumentsObject>(out var argumentsObject) &&
-            TryResolveArrayIndexJsValue(propertyKey, out var argumentsIndex, context))
+        if (target.TryGetObject<JsArgumentsObject>(out var argumentsObject))
         {
-            return argumentsObject.TryGetIndex(argumentsIndex, target, out value);
+            if (propertyKey.Kind == JsValueKind.String &&
+                propertyKey.ObjectValue is "length" &&
+                argumentsObject.TryGetInitialLength(out value))
+            {
+                return true;
+            }
+
+            if (TryResolveArrayIndexJsValue(propertyKey, out var argumentsIndex, context))
+            {
+                return argumentsObject.TryGetIndex(argumentsIndex, target, out value);
+            }
         }
 
         if (target.TryGetObject<TypedArrayBase>(out var typedArray))

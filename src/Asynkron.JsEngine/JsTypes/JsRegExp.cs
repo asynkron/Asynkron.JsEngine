@@ -7286,9 +7286,19 @@ public sealed class JsRegExp
         if (ranges.Count == 0)
             return string.Empty;
 
+        // Property data is expected to be scalar and sorted, but normalize and clamp here so
+        // downstream regex generation does not crash if a narrow script table row is malformed.
+        var normalizedAstral = NormalizeRanges(ranges
+            .Select(static r => (Start: Math.Max(r.Start, 0x10000), End: Math.Min(r.End, 0x10FFFF)))
+            .Where(static r => r.Start <= r.End)
+            .ToList())
+            .ToList();
+        if (normalizedAstral.Count == 0)
+            return string.Empty;
+
         var lowRangesByHighSurrogate = new SortedDictionary<int, List<(int Start, int End)>>();
 
-        foreach (var (start, end) in ranges)
+        foreach (var (start, end) in normalizedAstral)
         {
             var highStart = ((start - 0x10000) >> 10) + 0xD800;
             var lowStart = ((start - 0x10000) & 0x3FF) + 0xDC00;

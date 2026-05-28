@@ -2758,7 +2758,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
-                TryInvokeProductionUnifiedBytecode(arguments, plan, context, callingContext, out result))
+                TryInvokeProductionUnifiedBytecode(arguments, thisValue, newTarget, plan, context, callingContext, out result))
             {
                 return true;
             }
@@ -3018,6 +3018,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool TryInvokeProductionUnifiedBytecode<TArgs>(
             TArgs arguments,
+            JsValue thisValue,
+            JsValue newTarget,
             ExecutionPlan plan,
             EvaluationContext context,
             EvaluationContext? callingContext,
@@ -3038,13 +3040,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 slots.Fill(JsValue.Undefined);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, activationSlots);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, activationSlots);
+                var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
 
                 RealmState.Logger?.LogInformation(
                     "unified-bytecode-production-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context, _isStrict);
+                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context, boundThis, newTarget, _isStrict);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             finally

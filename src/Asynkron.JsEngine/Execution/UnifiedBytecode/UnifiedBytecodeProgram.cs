@@ -5,6 +5,8 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 internal enum UnifiedBytecodeOpCode : byte
 {
     LoadSlot,
+    LoadThis,
+    LoadNewTarget,
     LoadLiteral,
     StoreSlot,
     Binary,
@@ -27,6 +29,12 @@ internal enum UnifiedBytecodeOpCode : byte
     UnaryVoid,
     ToString,
     Pop,
+    CreateArray,
+    ArrayPush,
+    ArrayPushHole,
+    CreateObject,
+    DefineObjectProperty,
+    DefineComputedObjectProperty,
     Jump,
     JumpIfFalse,
     Return

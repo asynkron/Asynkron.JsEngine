@@ -104,6 +104,20 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Unary, binary, and conversion operations
 - Control flow, stack mechanics, and invocation
 
+## Production Loop-Control Boundary
+- Current production control-flow support is compiler-owned, not
+  source-syntax-owned.
+- Accepted loop-control shapes include branch joins, direct branches, canonical
+  condition-first loop backedges, unlabeled `BreakInstruction` and
+  `ContinueInstruction` target jumps, simple for-style update continue targets,
+  and simple do-while consequent backedges proven by PR #2489.
+- Labeled breakable control flow still declines with `LabelControlFlow`.
+  Unsupported complex loop/control-flow shapes must decline before VM execution
+  instead of falling back from inside `UnifiedBytecodeVirtualMachine`.
+- `BreakOrContinueControlFlow` remains listed above because it is still a
+  decline-taxonomy enum member, but PR #2489 removed the blanket production
+  pre-scan that rejected every break/continue instruction.
+
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes
 - VM-owned property and assignment semantics lanes

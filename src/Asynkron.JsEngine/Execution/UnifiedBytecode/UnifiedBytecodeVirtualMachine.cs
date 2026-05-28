@@ -34,6 +34,7 @@ internal static class UnifiedBytecodeVirtualMachine
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
         var currentCallingEnvironment = callingEnvironment;
+
         var slotEnvironments = callingEnvironment is null
             ? null
             : InitializeSlotEnvironments(program, callingEnvironment);
@@ -1069,8 +1070,30 @@ internal static class UnifiedBytecodeVirtualMachine
         EvaluationContext context)
     {
         var symbol = Symbol.Intern(name);
-        if (!context.AllowIdentifierCache &&
-            environment.TryResolveWithBinding(symbol, context, out var withBinding))
+        var hasWithObject = environment.HasWithObjectInChain();
+        if (hasWithObject && environment.TryResolveWithBinding(symbol, context, out var withBinding))
+        {
+            stack[stackPointer++] = JsValue.FromObjectUnsafe(withBinding.BindingObject);
+            try
+            {
+                stack[stackPointer++] = JsEnvironment.GetWithBindingValueJsValue(withBinding);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                       "ReferenceError:",
+                                                       StringComparison.Ordinal))
+            {
+                context.SetThrow(StandardLibrary.CreateReferenceError(
+                    ex.Message,
+                    context,
+                    context.RealmState));
+                stack[stackPointer++] = JsValue.Undefined;
+            }
+
+            return;
+        }
+
+        if (!context.AllowIdentifierCache && !hasWithObject &&
+            environment.TryResolveWithBinding(symbol, context, out withBinding))
         {
             stack[stackPointer++] = JsValue.FromObjectUnsafe(withBinding.BindingObject);
             try

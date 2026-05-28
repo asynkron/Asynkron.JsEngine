@@ -52,12 +52,22 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `DefineObjectProperty`
 - `DefineComputedObjectProperty`
 - `Jump`
+- `JumpWithDriverCleanup`
 - `JumpIfFalse`
 - `Return`
 - `ReturnUndefined`
 - `Throw`
 - `PushEnvironment`
 - `PopEnvironment`
+- `IteratorInit`
+- `IteratorMoveNext`
+- `IteratorClose`
+- `ForInInit`
+- `ForInMoveNext`
+- `ArrayDestructuringInit`
+- `ArrayDestructuringElement`
+- `ArrayDestructuringRest`
+- `ArrayDestructuringClose`
 - `PrepareIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
@@ -105,6 +115,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Property get/set/update/delete operations
 - Unary, binary, and conversion operations
 - Control flow, stack mechanics, and invocation
+- Stateful iterator, for-in, and array destructuring driver operations
 
 ## Production Loop-Control Boundary
 - Current production control-flow support is compiler-owned, not
@@ -169,6 +180,32 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
 
+## Production Driver-State Boundary
+- Current driver-state support is VM-owned and descriptor-backed. Driver
+  instructions compile to `UnifiedBytecodeDriverDescriptor` entries rather than
+  unrelated stack-op translations or AST payloads.
+- `break` compiles as `JumpWithDriverCleanup`; before transferring control the
+  VM closes active driver states whose descriptor break target matches the jump
+  target. `continue` remains a plain same-loop `Jump`.
+- Accepted sync iterator driver shapes include `IteratorInit`,
+  `IteratorMoveNext`, and `IteratorClose` when the iterable source is lowered
+  to synchronous expression bytecode, the iterator kind is `Sync`, and no TDZ
+  head environment or awaited source program is required.
+- Accepted for-in driver shapes include `ForInInit` and `ForInMoveNext` when
+  the object source is lowered to synchronous expression bytecode and no TDZ
+  head environment or awaited source program is required. The VM owns driver
+  state and skips deleted properties during enumeration.
+- Accepted array destructuring driver shapes include
+  `ArrayDestructuringInit`, `ArrayDestructuringElement`,
+  `ArrayDestructuringRest`, and `ArrayDestructuringClose` when the source is
+  lowered to expression bytecode and element/rest targets resolve to unified
+  flat slots. Normal and abrupt cleanup close the destructuring iterator from
+  VM-owned driver state.
+- Object destructuring, expression-level `ApplyBindingTarget` destructuring,
+  async iterator drivers, TDZ head environments, awaited driver sources,
+  dynamic-name shapes, and targets that cannot resolve to unified slots still
+  decline before VM execution.
+
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes
 - VM-owned property and assignment semantics lanes
@@ -180,15 +217,21 @@ Reserved lanes define ownership for parallel work and do not imply runtime
 support today.
 
 ## Iterator/Destructuring Model Boundary
-- `ForInInitInstruction` and `ForInMoveNextInstruction` currently decline with
-  `ForInDriverStateDependency`.
-- `ArrayDestructuringInitInstruction`, `ArrayDestructuringElementInstruction`,
+- `IteratorInitInstruction`, `IteratorMoveNextInstruction`, and
+  `IteratorCloseInstruction` are eligible only for the synchronous lowered
+  iterator-driver model described above.
+- `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible only for
+  the lowered for-in driver model described above. Unsupported for-in driver
+  shapes still decline with `ForInDriverStateDependency`.
+- `ArrayDestructuringInitInstruction`,
+  `ArrayDestructuringElementInstruction`,
   `ArrayDestructuringRestInstruction`, and
-  `ArrayDestructuringCloseInstruction` currently decline with
-  `DestructuringDependency`.
-- Decision for this lane: model-first. Do not add partial unified bytecode
-  opcodes/VM paths for these stateful families until a full driver-state model
-  is implemented.
+  `ArrayDestructuringCloseInstruction` are eligible only for the lowered
+  direct-slot array destructuring model described above. Unsupported
+  destructuring shapes still decline with `DestructuringDependency`.
+- Decision for this lane: model-first. Any future widening must preserve
+  explicit driver-state descriptors and pre-VM declines for shapes that would
+  require mixed IR/AST execution.
 
 ## Next Unsupported Buckets (current boundary)
 - Wider call invocation remains outside the admitted boundary. Direct eval,
@@ -197,10 +240,13 @@ support today.
   receiver/key shapes, and receiver-binding-sensitive adjacent families beyond
   the direct activation-resolved member-call boundary must still decline before VM
   execution.
-- Iterator-driver state remains outside the admitted boundary
-  (`ForInDriverStateDependency`), including `for-in` driver instructions.
-- Destructuring driver-state execution remains outside the admitted boundary
-  (`DestructuringDependency`) for array/object binding and destructuring flows.
+- Async iterator drivers, TDZ head environments, and awaited iterator/for-in
+  sources remain outside the admitted boundary and must decline before VM
+  execution.
+- Object destructuring, expression-level `ApplyBindingTarget` destructuring,
+  dynamic-name destructuring shapes, and targets that cannot resolve to
+  unified slots remain outside the admitted boundary
+  (`DestructuringDependency`).
 - Label-dependent control flow remains outside the admitted boundary
   (`LabelControlFlow`) and must decline before VM execution.
 - Dynamic lookup families remain outside the admitted boundary
@@ -211,6 +257,7 @@ support today.
 ```bash
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests"
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodePrototypeTests"
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"
 rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*
 rtk ./tools/profile forloop --memory

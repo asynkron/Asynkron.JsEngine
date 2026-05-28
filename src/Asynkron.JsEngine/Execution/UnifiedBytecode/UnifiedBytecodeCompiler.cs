@@ -62,6 +62,7 @@ internal static class UnifiedBytecodeCompiler
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
+        var driverDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeDriverDescriptor>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
         var activeScopes = new Stack<UnifiedBytecodeScopeFrame>();
@@ -83,6 +84,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                driverDescriptors,
                 ref maxStackDepth,
                 out reason))
         {
@@ -100,7 +102,8 @@ internal static class UnifiedBytecodeCompiler
             slotLayout.ParameterSlotIndices,
             slotLayout.LexicalSlotIndices,
             callTargetConstants.ToImmutable(),
-            scopeDescriptors.ToImmutable());
+            scopeDescriptors.ToImmutable(),
+            driverDescriptors.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -116,7 +119,8 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<int>.Empty,
             ImmutableArray<int>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
-            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty);
+            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 
     private static UnifiedBytecodeSlotLayout BuildSlotLayout(ExecutionPlan plan)
     {
@@ -377,6 +381,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         ref int maxStackDepth,
         out string reason)
     {
@@ -416,11 +421,11 @@ internal static class UnifiedBytecodeCompiler
                         {
                             InitializerProgram: { } initializerProgram,
                             AwaitedProgram: null,
-                            TargetSymbol: { } targetSymbol
+                            TargetSymbol: { } declarationTargetSymbol
                         } declaration:
-                        if (!TryResolveDeclarationSlot(targetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
+                        if (!TryResolveDeclarationSlot(declarationTargetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
                         {
-                            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
+                            reason = $"Unsupported declaration target '{declarationTargetSymbol.Name}'.";
                             return false;
                         }
 
@@ -457,11 +462,11 @@ internal static class UnifiedBytecodeCompiler
                         {
                             ValueProgram: { } valueProgram,
                             AwaitedProgram: null,
-                            TargetSymbol: { } targetSymbol
+                            TargetSymbol: { } assignmentTargetSymbol
                         } assignment:
-                        if (!TryResolveInstructionSlot(targetSymbol, assignment.FlatSlotId, slotLayout, out var assignmentSlot))
+                        if (!TryResolveInstructionSlot(assignmentTargetSymbol, assignment.FlatSlotId, slotLayout, out var assignmentSlot))
                         {
-                            reason = $"Unsupported assignment target '{targetSymbol.Name}'.";
+                            reason = $"Unsupported assignment target '{assignmentTargetSymbol.Name}'.";
                             return false;
                         }
 
@@ -498,12 +503,12 @@ internal static class UnifiedBytecodeCompiler
                         {
                             RhsProgram: { } rhsProgram,
                             AwaitedProgram: null,
-                            TargetSymbol: { } targetSymbol
+                            TargetSymbol: { } compoundTargetSymbol
                         } compoundAssignment
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
-                        if (!TryResolveInstructionSlot(targetSymbol, compoundAssignment.FlatSlotId, slotLayout, out var compoundSlot))
+                        if (!TryResolveInstructionSlot(compoundTargetSymbol, compoundAssignment.FlatSlotId, slotLayout, out var compoundSlot))
                         {
-                            reason = $"Unsupported compound assignment target '{targetSymbol.Name}'.";
+                            reason = $"Unsupported compound assignment target '{compoundTargetSymbol.Name}'.";
                             return false;
                         }
 
@@ -601,6 +606,349 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = popEnvironment.Next;
                         continue;
 
+                    case IteratorInitInstruction
+                        {
+                            IteratorKind: IteratorDriverKind.Sync,
+                            IterableProgram: { } iterableProgram,
+                            AwaitedProgram: null
+                        } iteratorInit:
+                        if (!TryResolveDriverSlot(
+                                iteratorInit.IteratorSlot,
+                                iteratorInit.IteratorSlotIndex,
+                                slotLayout,
+                                out var iteratorStateSlot))
+                        {
+                            reason = $"Unsupported iterator state slot '{iteratorInit.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                iterableProgram,
+                                slotLayout,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.IteratorInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    iteratorStateSlot,
+                                    IteratorKind: iteratorInit.IteratorKind))));
+                        maxStackDepth = Math.Max(maxStackDepth, iterableProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                iteratorInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = iteratorInit.Next;
+                        continue;
+
+                    case IteratorMoveNextInstruction iteratorMoveNext:
+                        return TryAppendDriverMoveNext(
+                            instructionIndex,
+                            iteratorMoveNext.Next,
+                            iteratorMoveNext.BreakIndex,
+                            iteratorMoveNext.IteratorSlot,
+                            iteratorMoveNext.IteratorSlotIndex,
+                            iteratorMoveNext.ValueSlot,
+                            iteratorMoveNext.ValueSlotIndex,
+                            UnifiedBytecodeOpCode.IteratorMoveNext,
+                            instructions,
+                            slotLayout,
+                            activeScopes,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            scopeDescriptors,
+                            driverDescriptors,
+                            ref maxStackDepth,
+                            out reason);
+
+                    case IteratorCloseInstruction iteratorClose:
+                        if (!TryResolveActivationSymbolSlot(iteratorClose.IteratorSlot, slotLayout, out var closeStateSlot))
+                        {
+                            reason = $"Unsupported iterator close state slot '{iteratorClose.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.IteratorClose,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(closeStateSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                iteratorClose.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = iteratorClose.Next;
+                        continue;
+
+                    case ForInInitInstruction
+                        {
+                            ObjectProgram: { } objectProgram,
+                            AwaitedProgram: null
+                        } forInInit:
+                        if (!TryResolveDriverSlot(
+                                forInInit.StateSlot,
+                                forInInit.StateSlotIndex,
+                                slotLayout,
+                                out var forInStateSlot))
+                        {
+                            reason = $"Unsupported for-in state slot '{forInInit.StateSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                objectProgram,
+                                slotLayout,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ForInInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(forInStateSlot))));
+                        maxStackDepth = Math.Max(maxStackDepth, objectProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                forInInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = forInInit.Next;
+                        continue;
+
+                    case ForInMoveNextInstruction forInMoveNext:
+                        return TryAppendDriverMoveNext(
+                            instructionIndex,
+                            forInMoveNext.Next,
+                            forInMoveNext.BreakIndex,
+                            forInMoveNext.StateSlot,
+                            forInMoveNext.StateSlotIndex,
+                            forInMoveNext.ValueSlot,
+                            forInMoveNext.ValueSlotIndex,
+                            UnifiedBytecodeOpCode.ForInMoveNext,
+                            instructions,
+                            slotLayout,
+                            activeScopes,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            scopeDescriptors,
+                            driverDescriptors,
+                            ref maxStackDepth,
+                            out reason);
+
+                    case ArrayDestructuringInitInstruction arrayDestructuringInit:
+                        if (!TryResolveDriverSlot(
+                                arrayDestructuringInit.IteratorSlot,
+                                arrayDestructuringInit.IteratorSlotIndex,
+                                slotLayout,
+                                out var destructuringStateSlot))
+                        {
+                            reason =
+                                $"Unsupported array destructuring state slot '{arrayDestructuringInit.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                arrayDestructuringInit.SourceProgram,
+                                slotLayout,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ArrayDestructuringInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(destructuringStateSlot))));
+                        maxStackDepth = Math.Max(maxStackDepth, arrayDestructuringInit.SourceProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                arrayDestructuringInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = arrayDestructuringInit.Next;
+                        continue;
+
+                    case ArrayDestructuringElementInstruction arrayDestructuringElement:
+                        if (!TryResolveDriverSlot(
+                                arrayDestructuringElement.IteratorSlot,
+                                arrayDestructuringElement.IteratorSlotIndex,
+                                slotLayout,
+                                out var elementStateSlot))
+                        {
+                            reason =
+                                $"Unsupported array destructuring state slot '{arrayDestructuringElement.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        var targetSlot = -1;
+                        if (arrayDestructuringElement.TargetSymbol is { } targetSymbol &&
+                            !TryResolveDeclarationSlot(
+                                targetSymbol,
+                                arrayDestructuringElement.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out targetSlot))
+                        {
+                            reason = $"Unsupported array destructuring target '{targetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ArrayDestructuringElement,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    elementStateSlot,
+                                    TargetSlot: targetSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                arrayDestructuringElement.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = arrayDestructuringElement.Next;
+                        continue;
+
+                    case ArrayDestructuringRestInstruction arrayDestructuringRest:
+                        if (!TryResolveDriverSlot(
+                                arrayDestructuringRest.IteratorSlot,
+                                arrayDestructuringRest.IteratorSlotIndex,
+                                slotLayout,
+                                out var restStateSlot))
+                        {
+                            reason =
+                                $"Unsupported array destructuring state slot '{arrayDestructuringRest.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryResolveDeclarationSlot(
+                                arrayDestructuringRest.RestSymbol,
+                                arrayDestructuringRest.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var restTargetSlot))
+                        {
+                            reason = $"Unsupported array destructuring rest target '{arrayDestructuringRest.RestSymbol.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ArrayDestructuringRest,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    restStateSlot,
+                                    TargetSlot: restTargetSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                arrayDestructuringRest.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = arrayDestructuringRest.Next;
+                        continue;
+
+                    case ArrayDestructuringCloseInstruction arrayDestructuringClose:
+                        if (!TryResolveDriverSlot(
+                                arrayDestructuringClose.IteratorSlot,
+                                arrayDestructuringClose.IteratorSlotIndex,
+                                slotLayout,
+                                out var closeDestructuringStateSlot))
+                        {
+                            reason =
+                                $"Unsupported array destructuring state slot '{arrayDestructuringClose.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ArrayDestructuringClose,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(closeDestructuringStateSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                arrayDestructuringClose.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = arrayDestructuringClose.Next;
+                        continue;
+
                     case JumpInstruction jump:
                         return TryAppendResolvedJump(
                             instructionIndex,
@@ -615,6 +963,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            driverDescriptors,
+                            UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
                             out reason);
 
@@ -632,6 +982,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            driverDescriptors,
+                            UnifiedBytecodeOpCode.JumpWithDriverCleanup,
                             ref maxStackDepth,
                             out reason);
 
@@ -649,6 +1001,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            driverDescriptors,
+                            UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
                             out reason);
 
@@ -666,6 +1020,59 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         instructionIndex = setCompletionValue.Next;
+                        continue;
+
+                    case EnterTryInstruction enterTry:
+                        if (!IsSupportedIteratorCleanupTry(enterTry, instructions, out reason))
+                        {
+                            return false;
+                        }
+
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                enterTry.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = enterTry.Next;
+                        continue;
+
+                    case LeaveTryInstruction leaveTry:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                leaveTry.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = leaveTry.Next;
+                        continue;
+
+                    case EndFinallyInstruction endFinally:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                endFinally.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = endFinally.Next;
                         continue;
 
                     case BreakableEnterInstruction breakableEnter:
@@ -750,6 +1157,7 @@ internal static class UnifiedBytecodeCompiler
                                      stringConstants,
                                      callTargetConstants,
                                      scopeDescriptors,
+                                     driverDescriptors,
                                      ref maxStackDepth,
                                      out reason))
                         {
@@ -768,6 +1176,7 @@ internal static class UnifiedBytecodeCompiler
                                 stringConstants,
                                 callTargetConstants,
                                 scopeDescriptors,
+                                driverDescriptors,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -881,6 +1290,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         ref int maxStackDepth,
         out string reason)
     {
@@ -914,8 +1324,95 @@ internal static class UnifiedBytecodeCompiler
             stringConstants,
             callTargetConstants,
             scopeDescriptors,
+            driverDescriptors,
             ref maxStackDepth,
             out reason);
+    }
+
+    private static bool TryAppendDriverMoveNext(
+        int instructionIndex,
+        int nextIndex,
+        int breakIndex,
+        Symbol stateSymbol,
+        int stateSlotIndex,
+        Symbol valueSymbol,
+        int valueSlotIndex,
+        UnifiedBytecodeOpCode opCode,
+        ImmutableArray<ExecutionInstruction> instructions,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ref int maxStackDepth,
+        out string reason)
+    {
+        if (!TryResolveDriverSlot(stateSymbol, stateSlotIndex, slotLayout, out var stateSlot))
+        {
+            reason = $"Unsupported driver state slot '{stateSymbol.Name}'.";
+            return false;
+        }
+
+        if (!TryResolveDriverSlot(valueSymbol, valueSlotIndex, slotLayout, out var valueSlot))
+        {
+            reason = $"Unsupported driver value slot '{valueSymbol.Name}'.";
+            return false;
+        }
+
+        var descriptorIndex = AddDriverDescriptor(
+            driverDescriptors,
+            new UnifiedBytecodeDriverDescriptor(
+                stateSlot,
+                ValueSlot: valueSlot,
+                NextTarget: unified.Count + 1));
+        unified.Add(new UnifiedBytecodeInstruction(opCode, descriptorIndex));
+
+        if (!TryCompileTarget(
+                nextIndex,
+                instructions,
+                slotLayout,
+                activeScopes,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                scopeDescriptors,
+                driverDescriptors,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryCompileTarget(
+                breakIndex,
+                instructions,
+                slotLayout,
+                activeScopes,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                scopeDescriptors,
+                driverDescriptors,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        PatchDriverDescriptorBreakTarget(driverDescriptors, descriptorIndex, instructionPcMap[breakIndex]);
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendResolvedJump(
@@ -931,6 +1428,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        UnifiedBytecodeOpCode jumpOpCode,
         ref int maxStackDepth,
         out string reason)
     {
@@ -941,7 +1440,7 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var jumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump));
+        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode));
 
         if (activeInstructions.Contains(targetIndex))
         {
@@ -969,6 +1468,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                driverDescriptors,
                 ref maxStackDepth,
                 out reason))
         {
@@ -1025,6 +1525,24 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (instructions[targetIndex] is ForInMoveNextInstruction forInMoveNext)
+        {
+            return IsSupportedDriverLoopBackEdgeTarget(
+                sourceInstructionIndex,
+                targetIndex,
+                forInMoveNext.Next,
+                instructions);
+        }
+
+        if (instructions[targetIndex] is IteratorMoveNextInstruction iteratorMoveNext)
+        {
+            return IsSupportedDriverLoopBackEdgeTarget(
+                sourceInstructionIndex,
+                targetIndex,
+                iteratorMoveNext.Next,
+                instructions);
+        }
+
         if (instructions[targetIndex] is not BranchInstruction branch ||
             sourceInstructionIndex == targetIndex ||
             sourceInstructionIndex == branch.AlternateIndex)
@@ -1044,6 +1562,33 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return TryIsLinearCanonicalWhileBody(branch.ConsequentIndex, sourceInstructionIndex, instructions) &&
+               !HasExplicitJumpIntoLoopBackEdgeSource(sourceInstructionIndex, instructions);
+    }
+
+    private static bool IsSupportedDriverLoopBackEdgeTarget(
+        int sourceInstructionIndex,
+        int targetIndex,
+        int bodyStartIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if (sourceInstructionIndex == targetIndex)
+        {
+            return false;
+        }
+
+        if (instructions[sourceInstructionIndex] is ContinueInstruction { TargetIndex: var continueTargetIndex } &&
+            continueTargetIndex == targetIndex)
+        {
+            return true;
+        }
+
+        if (instructions[sourceInstructionIndex] is not AssignmentSlotInstruction and not
+            CompoundAssignmentSlotInstruction and not JumpInstruction)
+        {
+            return false;
+        }
+
+        return TryIsLinearCanonicalWhileBody(bodyStartIndex, sourceInstructionIndex, instructions) &&
                !HasExplicitJumpIntoLoopBackEdgeSource(sourceInstructionIndex, instructions);
     }
 
@@ -1099,6 +1644,10 @@ internal static class UnifiedBytecodeCompiler
                 case ContinueInstruction continueInstruction
                     when continueInstruction.TargetIndex == endInstructionIndex:
                     current = continueInstruction.TargetIndex;
+                    break;
+                case JumpInstruction jumpInstruction
+                    when jumpInstruction.TargetIndex == endInstructionIndex:
+                    current = jumpInstruction.TargetIndex;
                     break;
                 default:
                     return false;
@@ -1211,6 +1760,31 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool IsSupportedIteratorCleanupTry(
+        EnterTryInstruction enterTry,
+        ImmutableArray<ExecutionInstruction> instructions,
+        out string reason)
+    {
+        if (enterTry.HandlerIndex >= 0 ||
+            enterTry.FinallyIndex < 0 ||
+            enterTry.EndFinallyIndex < 0 ||
+            enterTry.LeaveTryIndex < 0 ||
+            (uint)enterTry.FinallyIndex >= (uint)instructions.Length ||
+            (uint)enterTry.EndFinallyIndex >= (uint)instructions.Length ||
+            (uint)enterTry.LeaveTryIndex >= (uint)instructions.Length ||
+            instructions[enterTry.FinallyIndex] is not IteratorCloseInstruction ||
+            instructions[enterTry.EndFinallyIndex] is not EndFinallyInstruction ||
+            instructions[enterTry.LeaveTryIndex] is not LeaveTryInstruction)
+        {
+            reason =
+                "Only iterator-cleanup try/finally regions are eligible for unified bytecode compilation.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
     private static void PatchOperand(
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         int instructionIndex,
@@ -1218,6 +1792,24 @@ internal static class UnifiedBytecodeCompiler
     {
         var instruction = unified[instructionIndex];
         unified[instructionIndex] = instruction with { Operand = operand };
+    }
+
+    private static int AddDriverDescriptor(
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder descriptors,
+        UnifiedBytecodeDriverDescriptor descriptor)
+    {
+        var index = descriptors.Count;
+        descriptors.Add(descriptor);
+        return index;
+    }
+
+    private static void PatchDriverDescriptorBreakTarget(
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder descriptors,
+        int descriptorIndex,
+        int breakTarget)
+    {
+        var descriptor = descriptors[descriptorIndex];
+        descriptors[descriptorIndex] = descriptor with { BreakTarget = breakTarget };
     }
 
     private static bool TryAppendExpressionProgramOps(
@@ -1381,7 +1973,7 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+                    if (!TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
                     {
                         reason = $"Unsupported identifier '{identifier.Name.Name}'.";
                         return false;
@@ -1410,7 +2002,7 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.TypeOfIdentifier:
-                    if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, activationSlots, out var typeOfSlot, out reason))
+                    if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, slotLayout, out var typeOfSlot, out reason))
                     {
                         return false;
                     }
@@ -1837,7 +2429,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryResolveTypeOfIdentifierSlot(
         PackedExpressionOp operation,
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         out int slotIndex,
         out string reason)
     {
@@ -1849,7 +2441,7 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-        if (!TryResolveActivationSlot(identifier, activationSlots, out slotIndex))
+        if (!TryResolveActivationSlot(identifier, slotLayout, out slotIndex))
         {
             reason = $"Unsupported typeof identifier '{identifier.Name.Name}'.";
             return false;
@@ -2593,6 +3185,36 @@ internal static class UnifiedBytecodeCompiler
         return TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex);
     }
 
+    private static bool TryResolveDriverSlot(
+        Symbol symbol,
+        int slotIndexOrFlatSlotId,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int slotIndex)
+    {
+        if (TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex))
+        {
+            return true;
+        }
+
+        if (slotIndexOrFlatSlotId >= 0)
+        {
+            if (TryMapSlot(
+                    slotLayout.ActivationSlots.ScopeId,
+                    slotIndexOrFlatSlotId,
+                    slotLayout.FlatSlotMappings,
+                    out slotIndex))
+            {
+                return true;
+            }
+
+            slotIndex = slotIndexOrFlatSlotId;
+            return (uint)slotIndex < (uint)slotLayout.SlotCount;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
     private static bool TryResolveDeclarationSlot(
         Symbol symbol,
         VariableKind varKind,
@@ -2654,6 +3276,70 @@ internal static class UnifiedBytecodeCompiler
         slotIndex = -1;
         return false;
     }
+
+    private static bool TryResolveActivationSlot(
+        IdentifierOperand identifier,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int slotIndex)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        if (identifier.FlatSlotId >= 0)
+        {
+            if (SlotNameMatches(slotLayout, identifier.FlatSlotId, identifier.Name))
+            {
+                slotIndex = identifier.FlatSlotId;
+                return true;
+            }
+
+            if ((identifier.ScopeId < 0 || identifier.ScopeId == activationSlots.ScopeId) &&
+                activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot) &&
+                TryMapSlot(activationSlots.ScopeId, mappedSlot, slotLayout.FlatSlotMappings, out var mappedFlatSlot))
+            {
+                slotIndex = mappedFlatSlot;
+                return true;
+            }
+
+            slotIndex = identifier.FlatSlotId;
+            return true;
+        }
+
+        if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
+        {
+            if (TryMapSlot(identifier.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out var mappedFlatSlot))
+            {
+                slotIndex = mappedFlatSlot;
+                return true;
+            }
+
+            slotIndex = identifier.SlotIndex;
+            return true;
+        }
+
+        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        {
+            slotIndex = -1;
+            return false;
+        }
+
+        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlotByName))
+        {
+            if (TryMapSlot(activationSlots.ScopeId, mappedSlotByName, slotLayout.FlatSlotMappings, out var mappedFlatSlot))
+            {
+                slotIndex = mappedFlatSlot;
+                return true;
+            }
+
+            slotIndex = mappedSlotByName;
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
+    private static bool SlotNameMatches(UnifiedBytecodeSlotLayout slotLayout, int slotIndex, Symbol name) =>
+        (uint)slotIndex < (uint)slotLayout.SlotNames.Length &&
+        string.Equals(slotLayout.SlotNames[slotIndex], name.Name, StringComparison.Ordinal);
 
     private static bool TryResolveActivationCallTargetSlot(
         IdentifierOperand identifier,

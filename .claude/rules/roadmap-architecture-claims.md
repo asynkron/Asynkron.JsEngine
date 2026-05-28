@@ -43,6 +43,12 @@ boundary-explicit.
    boundary map for future Dreamer wording. Update the central contract first
    when capability status changes, and do not scatter equivalent boundary prose
    into unrelated architecture text.
+10. When Dreamer, roadmap, ADR, PR, or issue text crosses the
+    `docs/dreaming.md` cross-fabric contract map, name one primary owner
+    surface and the receiving contract before claiming delivery. Do not present
+    multi-fabric wording as complete unless every handoff has focused semantic
+    proof, canonical quality-gate evidence, and profile or benchmark evidence
+    when the claim is performance-related.
 
 ## Why
 
@@ -62,9 +68,6 @@ module/runtime parity, host interop, async-generator seam risk, and bounded
 bytecode routing. Future Dreamer or architecture-doc passes should preserve
 that pairing instead of letting diagrams or product-language cleanup imply
 runtime parity.
-
-Related ADR:
-`docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`.
 
 Faktorial issue `autrun-ditlbq5q7p9k-29b6eca348` / PR #2430 added the
 `docs/dreaming.md` claim discipline checklist after the Dreamer document still
@@ -92,3 +95,15 @@ capability status and owner surfaces from broader architecture prose. Keeping
 the status table and routing section as the central contract prevents the same
 drift from reappearing as scattered Node.js/CommonJS, async, or unified-bytecode
 claims.
+
+Faktorial issue `autrun-diu3osh3kk68-13385ba687` / PR #2481 added the
+`docs/dreaming.md` cross-fabric contract surfaces map. WHY: the earlier routing
+guide named owner concerns, but it did not force a single primary owner plus an
+explicit receiving contract for boundary work. Future Dreamer and roadmap
+passes should use that map to keep big-to-small routing reviewable instead of
+letting frontend, compilation, execution, async, host, standard-library, and
+evidence ownership blur into one broad capability claim.
+
+Related ADRs:
+- `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`
+- `docs/adrs/0249-keep-dreamer-cross-fabric-contracts-single-owner-and-proof-backed.md`

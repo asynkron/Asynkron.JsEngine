@@ -644,6 +644,18 @@ optimization.
     constant-base factorial and sum-to shapes, while preserving fallback
     semantics for reassigned recursive names and fractional inputs. Related ADR:
     `docs/adrs/0241-keep-simple-numeric-self-recursion-fast-paths-shape-and-binding-guarded.md`.
+29. For simple arrow callback production unified-bytecode routing, do not reuse
+    the simple IR activation lexical-dependency guard as sufficient proof.
+    Before relaxing `CanUseProductionUnifiedBytecodeFastPath` for arrows, prove
+    a current `classdef` owner that is not already served by ADR 0150 simple IR
+    activation, keep ordinary arrow lexical binding and method receiver binding
+    covered by focused tests, and retain code only after repeated focused
+    `classdef` rows improve. WHY: issue
+    `autrun-diuj48oxr9eg-a2279c89bf` / PR #2586 tried exactly that guard
+    relaxation for `dogs.map(d => d.speak())`; semantic tests passed, but the
+    focused row regressed from 778 ms to 2957 ms, so the runtime edit was
+    reverted and retained as failed-attempt evidence. Related ADR:
+    `docs/adrs/0267-keep-simple-arrow-unified-bytecode-routing-benchmark-proven.md`.
 
 ## Why
 

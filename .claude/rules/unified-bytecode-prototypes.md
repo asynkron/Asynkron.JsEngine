@@ -297,6 +297,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     missed `PrepareIdentifierCallTarget`; the durable lesson is that call prep
     can become a reusable bytecode surface only while invocation remains an
     explicit, documented production decline.
+25. When encountering stateful for-in or array-destructuring driver
+    instructions in production unified bytecode eligibility, decline before VM
+    execution until a full driver-state model is owned. `ForInInitInstruction`
+    and `ForInMoveNextInstruction` must decline as
+    `ForInDriverStateDependency`; array-destructuring init/element/rest/close
+    instructions must decline as `DestructuringDependency`. Do not add partial
+    driver-step opcodes, VM callbacks, or `ExpressionProgram` /
+    `ExecutionPlanRunner` fallback to make one step executable before selector,
+    compiler, VM, state lifecycle, close/abrupt behavior, positive route proof,
+    adjacent no-route proof, and expansion-contract inventory all move
+    together. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-447731fb5a`
+    / PR #2486 found that the unified VM has no owned iterator/destructuring
+    driver-state model yet. The delivery added explicit decline codes/tests and
+    documented the model-first boundary instead of widening opcodes or VM paths
+    opportunistically.
 
 ## Why
 
@@ -533,3 +549,4 @@ Related ADRs:
 - `docs/adrs/0238-keep-unified-bytecode-compound-property-writes-get-for-set-owned.md`
 - `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`
 - `docs/adrs/0247-keep-unified-bytecode-activation-value-loads-call-time-owned.md`
+- `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`

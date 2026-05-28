@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 namespace Asynkron.JsEngine.Tests;
 
@@ -46,6 +47,31 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.Contains("## Source-Of-Truth Surfaces", mapText, StringComparison.Ordinal);
         Assert.Contains("## ExpressionOpKind Capability Inventory", mapText, StringComparison.Ordinal);
         Assert.Contains("## Expression Family And Risk Groups", mapText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var contractText = File.ReadAllText(contractPath);
+        Assert.Contains("## Source-Of-Truth Surfaces", contractText, StringComparison.Ordinal);
+        Assert.Contains("## No-Mixed-Execution Rule", contractText, StringComparison.Ordinal);
+        Assert.Contains("## Current Support Matrix", contractText, StringComparison.Ordinal);
+        Assert.Contains("## Reserved Ownership Lanes (planned, not implemented)", contractText, StringComparison.Ordinal);
+        Assert.Contains("## Proof Commands", contractText, StringComparison.Ordinal);
+
+        foreach (var opcodeName in Enum.GetNames<UnifiedBytecodeOpCode>())
+        {
+            Assert.Contains($"`{opcodeName}`", contractText, StringComparison.Ordinal);
+        }
+
+        foreach (var declineCodeName in Enum.GetNames<UnifiedBytecodeProductionDeclineCode>())
+        {
+            Assert.Contains($"`{declineCodeName}`", contractText, StringComparison.Ordinal);
+        }
     }
 
     private static DirectoryInfo FindRepositoryRoot()

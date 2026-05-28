@@ -14,7 +14,16 @@ help:
 		"  quality                Check diff, build internal projects, run internal tests (no Test262)" \
 		"  build-internal         Build internal projects used by the quality gate" \
 		"  test-internal          Run internal tests with build" \
-		"  test-internal-no-build Run internal tests without rebuilding"
+		"  test-internal-no-build Run internal tests without rebuilding" \
+		"" \
+		"Variable overrides:" \
+		"  CONFIGURATION=Debug|Release          Default: Debug" \
+		"  DOTNET=dotnet                        Dotnet executable override" \
+		"  GIT=git                              Git executable override" \
+		"  DOTNET_BUILD_ARGS='<args>'           Extra args passed to dotnet build commands" \
+		"  DOTNET_BUILD_STABILITY_ARGS='<args>' Extra build stability args (default: /m:1 /nr:false)" \
+		"  DOTNET_TEST_ARGS='<args>'            Extra args passed to dotnet test commands" \
+		"  XUNIT_ARGS='<args>'                  xUnit args after '--' (default: xUnit.MaxParallelThreads=1 -timeout 20000)"
 
 quality:
 	$(GIT) diff --check

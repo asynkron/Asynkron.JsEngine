@@ -90,9 +90,10 @@ all-or-nothing until a separate routing issue proves production readiness.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.
-    Direct named candidates are only activation-resolved base reads followed by
-    one non-optional `GetNamedProperty`, or the exact two-hop named chain
-    proven by ADR 0222. Direct computed candidates must preserve the exact
+    Direct named candidates are activation-resolved base reads followed by one
+    or more non-optional, non-private `GetNamedProperty` operations; this
+    supersedes the older exact two-hop limit from ADR 0222. Direct computed
+    candidates must preserve the exact
     ordinary-read lowering sequence:
     `RequireObjectCoercible(Depth: 1)`, then `ResolvePropertyKey`, then
     non-optional `GetComputedProperty`, with only production-safe base/key
@@ -309,8 +310,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     member-call slice plus the #2531 computed member-call slice and the #2538
     receiver-aware integration slice are the narrow exceptions: no-spread
     activation-resolved identifier calls, direct named member calls with
-    activation-resolved receiver chains, and direct computed member calls with
-    activation-resolved receiver chains may execute through the VM-owned
+    activation-resolved optional-free named receiver chains, and direct
+    computed member calls with shallow activation-resolved receiver chains may
+    execute through the VM-owned
     `CallInvocationBoundary` when their arguments are simple literal/slot
     operands and computed member keys are also simple literal/slot operands.
     Executable identifier calls must still carry the caller
@@ -370,6 +372,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     production calls must bind `this` to the final receiver in the accepted
     chain, keep computed nullish-receiver-before-key-coercion ordering, and
     prove optional and super call families still decline before VM execution.
+    Issue
+    `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-3cea46640b`
+    / PR #2609 then widened named member-call receivers to arbitrary
+    optional-free named-chain depth while deliberately keeping deeper named
+    receivers followed by computed call targets declined. The durable lesson is
+    that named-chain depth can widen with existing `GetNamedProperty` and
+    `PrepareNamedCallTarget` opcodes, but deeper computed-member call neighbors
+    require their own proof slice.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -682,7 +692,13 @@ small and owned by existing `GetNamedProperty` opcodes, and shape-probing
 compiler helpers must not partially mutate shared builders before a full shape
 match is known. WHY: focused verification first exposed stack corruption from
 partial emission in the new named-chain helper; the accepted fix prevalidated
-the full chain before emitting `LoadSlot` and property-read opcodes.
+the full chain before emitting `LoadSlot` and property-read opcodes. Issue
+`planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-3cea46640b`
+/ PR #2609 later removed the exact two-hop cap for optional-free
+activation-resolved named chains by reusing existing `GetNamedProperty`
+emission. The durable lesson is that deeper named reads are acceptable only
+when every hop remains VM-owned and adjacent computed/optional/private/dynamic
+families keep explicit pre-VM declines.
 
 Faktorial issue
 `planitem-planmanual1779860498694736000-batch-1-property-read-boundary-batch-3-com-ca10aa7559`

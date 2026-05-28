@@ -235,9 +235,10 @@ optimization.
      include timing, allocation, and CPU call-tree commands when the claim
      covers production routing. State the exact accepted first-boundary
      property-access shapes, the current accepted opcode set, and the main
-     pre-VM decline families. After PR #2442, the accepted boundary includes
-     direct named/computed reads, exact two-hop named reads, direct
-     named/computed writes, direct named/computed compound writes, and
+     pre-VM decline families. After PR #2609, the accepted boundary includes
+     direct named/computed reads, optional-free activation-resolved named read
+     chains, direct named/computed writes, direct named/computed compound
+     writes, and
      direct named/computed prefix/postfix updates. The evidence must also list
      the get-for-set, set, and update opcodes when those shapes are in scope,
      explicitly account for unavailable dependency status lookups such as the

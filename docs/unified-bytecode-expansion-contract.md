@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-05-28
+Date: 2026-05-29
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -193,12 +193,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ## Production Call Invocation Boundary
 - Current executable call support is intentionally limited to no-spread
-  activation-resolved identifier calls, direct named member calls whose receiver
-  chain is activation-resolved, and direct computed member calls whose receiver
-  chain is activation-resolved. Arguments must be simple literal or slot
-  operands; computed member keys must also be simple literal or slot operands.
-  For accepted member receiver chains, the call receiver is the final resolved
-  receiver object, not the root object.
+  activation-resolved identifier calls, direct named member calls whose
+  optional-free named receiver chain is activation-resolved, and direct computed
+  member calls whose receiver chain remains inside the shallow computed-call
+  boundary. Arguments must be simple literal or slot operands; computed member
+  keys must also be simple literal or slot operands. For accepted member
+  receiver chains, the call receiver is the final resolved receiver object, not
+  the root object.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -215,7 +216,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   receiver, and invokes through the existing receiver-as-`this` stack contract.
 - Direct eval, spread calls, construct/super calls, optional calls,
   private/super member targets, arguments-object dependencies, unsupported
-  non-with dynamic lookup, complex receiver/key shapes, and
+  non-with dynamic lookup, deeper computed-member call receiver chains,
+  complex receiver/key shapes, and
   receiver-binding-sensitive adjacent families still decline before VM
   execution.
 - Accepted programs must still satisfy the no-mixed-execution rule: no

@@ -181,7 +181,10 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   executable targets themselves must stay wrapper-free per
   `.claude/rules/pre-pr-required.md`. Treat `rtk make quality` as local
   build/test evidence only; it does not replace the mandatory pre-PR checklist
-  in `.claude/rules/pre-pr-required.md`.
+  in `.claude/rules/pre-pr-required.md`. For piped command examples, check each
+  agent-run command segment too: search/filter helpers after `|` should use
+  the current `rtk`-wrapped form, such as `| rtk rg ...`, rather than a bare
+  `grep`.
 - When fixing docs command examples, make the final command copy/paste-safe as
   a single shell invocation when possible. Do not use `rtk cd ...` as a setup
   line or rely on cwd state crossing command examples; prefer explicit path
@@ -692,6 +695,12 @@ harness-policy rule, where a historical focused proof still showed bare
 workflow-doc slices should treat durable rule examples as agent-facing command
 surfaces too: fix the stale invocation in place, keep the historical proof
 meaning intact, and avoid widening the slice into Test262 harness behavior.
+
+Issue #2518 / PR #2521 found the same command-wrapper drift inside a pipeline:
+the Test262 list-tests example started with `rtk dotnet test` but still piped
+into bare `grep`. Future docs maintenance should scan the whole shell pipeline,
+not only the first command, and convert agent-facing search helpers to the
+current wrapped command form such as `rtk rg`.
 
 Issue #1925 / PR #1930 closed the adjacent Test262 README ambiguity: the
 operator command is `rtk ./tools/run-test262-regressions.sh`, while the raw

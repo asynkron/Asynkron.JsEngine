@@ -37,6 +37,7 @@ internal enum UnifiedBytecodeOpCode : byte
     DefineObjectProperty,
     DefineComputedObjectProperty,
     Jump,
+    JumpWithDriverCleanup,
     JumpIfFalse,
     Return,
     ReturnUndefined,

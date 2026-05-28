@@ -492,6 +492,16 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter = instruction.Operand;
                     break;
 
+                case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
+                    CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter = instruction.Operand;
+                    break;
+
                 case UnifiedBytecodeOpCode.JumpIfFalse:
                     programCounter = stack[--stackPointer].IsTruthy
                         ? programCounter + 1
@@ -1140,6 +1150,78 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             CleanupDriverStateSlot(slotIndex, slots, slotEnvironments, context, ref preserveCloseThrow);
         }
+    }
+
+    private static void CleanupDriverStatesForBreakTarget(
+        int breakTarget,
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context)
+    {
+        List<ActiveDriverSlot>? activeDriverSlots = null;
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            if (descriptor.BreakTarget != breakTarget ||
+                descriptor.StateSlot < 0 ||
+                !TryGetActiveDriverOrdinal(slots, descriptor.StateSlot, out var ordinal))
+            {
+                continue;
+            }
+
+            activeDriverSlots ??= new List<ActiveDriverSlot>();
+            activeDriverSlots.Add(new ActiveDriverSlot(descriptor.StateSlot, ordinal));
+        }
+
+        if (activeDriverSlots is null)
+        {
+            return;
+        }
+
+        var preserveCloseThrow = false;
+        activeDriverSlots.Sort(static (left, right) => right.Ordinal.CompareTo(left.Ordinal));
+        foreach (var activeDriverSlot in activeDriverSlots)
+        {
+            CleanupDriverStateSlot(
+                activeDriverSlot.SlotIndex,
+                slots,
+                slotEnvironments,
+                context,
+                ref preserveCloseThrow);
+        }
+    }
+
+    private static bool TryGetActiveDriverOrdinal(
+        Span<JsValue> slots,
+        int slotIndex,
+        out int ordinal)
+    {
+        ordinal = 0;
+        if ((uint)slotIndex >= (uint)slots.Length)
+        {
+            return false;
+        }
+
+        var slotValue = slots[slotIndex];
+        if (slotValue.TryGetObject<IteratorDriverState>(out var iteratorState))
+        {
+            ordinal = iteratorState.ActiveDriverOrdinal;
+            return ordinal > 0;
+        }
+
+        if (slotValue.TryGetObject<ForInDriverState>(out var forInState))
+        {
+            ordinal = forInState.ActiveDriverOrdinal;
+            return ordinal > 0;
+        }
+
+        if (slotValue.TryGetObject<UnifiedArrayDestructuringState>(out var arrayState))
+        {
+            ordinal = arrayState.ActiveDriverOrdinal;
+            return ordinal > 0;
+        }
+
+        return false;
     }
 
     private static void CleanupDriverStateSlot(

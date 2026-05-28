@@ -1228,7 +1228,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpWithDriverCleanup);
     }
 
     [Fact]

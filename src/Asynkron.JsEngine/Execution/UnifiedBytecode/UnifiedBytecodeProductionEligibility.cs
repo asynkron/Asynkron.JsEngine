@@ -1250,6 +1250,7 @@ internal static class UnifiedBytecodeProductionEligibility
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.Jump:
+                case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
                 case UnifiedBytecodeOpCode.JumpIfFalse:
                 case UnifiedBytecodeOpCode.PushEnvironment:
                 case UnifiedBytecodeOpCode.PopEnvironment:

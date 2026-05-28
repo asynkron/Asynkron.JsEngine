@@ -964,6 +964,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             scopeDescriptors,
                             driverDescriptors,
+                            UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
                             out reason);
 
@@ -982,6 +983,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             scopeDescriptors,
                             driverDescriptors,
+                            UnifiedBytecodeOpCode.JumpWithDriverCleanup,
                             ref maxStackDepth,
                             out reason);
 
@@ -1000,6 +1002,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             scopeDescriptors,
                             driverDescriptors,
+                            UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
                             out reason);
 
@@ -1426,6 +1429,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        UnifiedBytecodeOpCode jumpOpCode,
         ref int maxStackDepth,
         out string reason)
     {
@@ -1436,7 +1440,7 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var jumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump));
+        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode));
 
         if (activeInstructions.Contains(targetIndex))
         {

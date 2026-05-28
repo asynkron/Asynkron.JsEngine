@@ -52,6 +52,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `DefineObjectProperty`
 - `DefineComputedObjectProperty`
 - `Jump`
+- `JumpWithDriverCleanup`
 - `JumpIfFalse`
 - `Return`
 - `ReturnUndefined`
@@ -183,6 +184,9 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Current driver-state support is VM-owned and descriptor-backed. Driver
   instructions compile to `UnifiedBytecodeDriverDescriptor` entries rather than
   unrelated stack-op translations or AST payloads.
+- `break` compiles as `JumpWithDriverCleanup`; before transferring control the
+  VM closes active driver states whose descriptor break target matches the jump
+  target. `continue` remains a plain same-loop `Jump`.
 - Accepted sync iterator driver shapes include `IteratorInit`,
   `IteratorMoveNext`, and `IteratorClose` when the iterable source is lowered
   to synchronous expression bytecode, the iterator kind is `Sync`, and no TDZ

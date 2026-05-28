@@ -27,6 +27,12 @@ unless the issue explicitly asks for a major migration.
 - Do not fold major-version migrations into a routine dependency sweep just
   because `latest` reports one. Major upgrades need their own issue, migration
   notes, and behavior-specific proof.
+- A recurring dependency run may take a previously deferred npm major only when
+  investigation deliberately scopes that one package as the bounded
+  compatibility slice, records the old safe-line/deferred-major signal, keeps
+  the manifest, lockfile, and owner docs aligned, and runs behavior-specific
+  smoke or build proof for the owning demo/project. Treat that run as the
+  dedicated compatibility pass, not as a broad latest sweep.
 - For npm dependencies, inspect the package dist-tags before deciding that
   `latest` is an actionable update. If the installed major is current on a
   maintenance tag such as `latest-4`, treat a newer `latest` major as deferred
@@ -47,6 +53,14 @@ unless the issue explicitly asks for a major migration.
 - Record the baseline and final dependency signals in the issue context:
   `outdated`, `audit`, installed versions, and the project build or demo proof
   that owns the dependency.
+- For the NodeHostDemo real Express package demo, keep
+  `examples/NodeHostDemo/package.json`,
+  `examples/NodeHostDemo/package-lock.json`, and the README dependency note in
+  agreement about the maintained Express baseline. After issue #2445 / PR
+  #2457, that baseline is Express `5.2.1`. Future Express dependency changes
+  should smoke at least `/api/status` and a parameterized route such as
+  `/api/hello/agent?from=smoke` because route matching and middleware behavior
+  are the compatibility surface.
 - Before committing an evidence-only dependency sweep, verify `git status`
   against the intended no-diff outcome. Do not commit transient command
   artifacts from metadata gathering, such as curl cookie jars or numeric
@@ -166,6 +180,16 @@ reported `express` with `wanted` `4.22.2` and `latest` `5.2.1`. The committed
 `express` to `4.22.2`, so the actionable lesson was to document the signal as
 local install-state evidence while continuing to defer Express 5 and Polka
 `1.0.0-next.28` to dedicated compatibility passes.
+
+Issue #2445 / PR #2457 performed the deferred NodeHostDemo Express 5
+compatibility pass. The slice changed only the direct Express dependency from
+`^4.22.2` to `^5.2.1`, refreshed `package-lock.json`, left `polka` unchanged,
+and proved the major update with `npm audit`, lockfile consistency, and smoke
+checks for `/api/status` plus `/api/hello/agent?from=smoke`. Future recurring
+dependency runs should no longer treat Express 5 as merely deferred for this
+demo; they should keep the package files and README baseline note aligned and
+apply the same behavior-specific smoke boundary to later Express updates.
+Related ADR: `docs/adrs/0242-keep-nodehostdemo-express-baseline-smoke-gated.md`.
 
 Issue #1972 / PR #1978 updated `Test262Harness` from `1.0.3` to `1.0.6` in both
 the generated Test262 test project and `ProfileRunner`. The package feeds

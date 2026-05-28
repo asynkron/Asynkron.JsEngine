@@ -294,24 +294,33 @@ all-or-nothing until a separate routing issue proves production readiness.
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
 24. When adding unified-bytecode call-target preparation, keep preparation
-    bytecode-owned but non-executable for computed/eval/spread/construct and
-    other unproven call families until a separate invocation slice owns
+    bytecode-owned but non-executable for eval/spread/construct and other
+    unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
     semantics end to end. The #2495 identifier-call slice and #2530 named
-    member-call slice are the narrow exceptions: no-spread activation-resolved
-    identifier calls and direct named member calls with activation-resolved
-    receiver chains and simple literal/slot arguments may execute through the
-    VM-owned `CallInvocationBoundary`. Executable identifier calls must still
-    carry the caller `EvaluationContext` and active `JsEnvironment` into
-    existing callable invocation helpers. Executable named member calls must
-    keep the receiver on the stack, load the named callee from that receiver,
-    and preserve that receiver as `this` for the invocation boundary. If an
+    member-call slice plus the #2531 computed member-call slice are the narrow
+    exceptions: no-spread activation-resolved identifier calls, direct named
+    member calls with activation-resolved receiver chains, and direct computed
+    member calls with activation-resolved receiver chains may execute through
+    the VM-owned `CallInvocationBoundary` when their arguments are simple
+    literal/slot operands and computed member keys are also simple literal/slot
+    operands. Executable identifier calls must still carry the caller
+    `EvaluationContext` and active `JsEnvironment` into existing callable
+    invocation helpers. Executable named member calls must keep the receiver on
+    the stack, load the named callee from that receiver, and preserve that
+    receiver as `this` for the invocation boundary. Executable computed member
+    calls must keep the receiver on the stack, consume the computed key through
+    the context-aware property lookup path, preserve key-conversion and nullish
+    receiver ordering, and preserve that receiver as `this` for the invocation
+    boundary. If an
     accepted program enters a block lexical scope before invoking the callable,
     the VM must maintain environment owners for the active slots so
     environment-aware and debug-aware callables observe the same scope chain as
     the existing expression-call path. Pair the route proof with regression
     coverage for parameter-passed and block-scoped debug-aware callables for
-    identifier calls, and receiver/`this` preservation for named member calls;
+    identifier calls, receiver/`this` preservation for named member calls, and
+    computed-key conversion side effects plus nullish receiver and non-callable
+    callee errors for computed member calls;
     do not rely only on ordinary JavaScript return values. It is valid for the
     compiler to emit typed `UnifiedBytecodeCallTarget` records and
     `Prepare*CallTarget` opcodes for no-spread activation-resolved
@@ -335,7 +344,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     the durable lesson is that `PrepareNamedCallTarget` may execute only when
     the VM preserves the receiver/callee stack contract and tests prove
     receiver-as-`this` behavior while computed, eval, spread, super/private,
-    optional, dynamic, and other unproven call families still decline.
+    optional, dynamic, and other unproven call families still decline. Issue
+    #2531 / PR #2535 then made the direct computed member-call slice
+    executable; the durable lesson is that `PrepareComputedCallTarget` may
+    execute only when the VM preserves receiver-as-`this`, computed key
+    conversion/order, nullish receiver errors, and non-callable callee errors
+    while eval, spread, construct/super, optional, private/super, dynamic,
+    complex computed-key, and other unproven call families still decline.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -459,8 +474,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     calls became the first remaining lane, computed member calls second, and
     constructor/super, spread/direct eval, dynamic lookup,
     iterator/destructuring, and label families stayed deferred. Issue #2530 /
-    PR #2534 has since landed named member calls, so future plan edits must
-    treat computed member calls as the first remaining call-family lane unless
+    PR #2534 has since landed named member calls, and issue #2531 / PR #2535
+    has since landed direct computed member calls, so future plan edits must
+    treat constructor/super, spread/direct eval, dynamic lookup,
+    iterator/destructuring, and label families as remaining lanes unless
     current `main` proves an even newer call slice has landed.
 
 ## Why

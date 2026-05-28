@@ -202,6 +202,30 @@ flowchart LR
     F -. fail .-> B
 ```
 
+## Bounded architecture improvement slice (this run)
+Primary owner: **Async and Concurrency Fabric**.
+
+This run narrows one recurring ambiguity: Milestone C language often spans
+execution, scheduler, and host callbacks in one sentence. The decomposition
+below preserves ADR 0249 single-owner routing by treating execution and host
+as explicit contracts consumed by the async owner surface.
+
+```mermaid
+flowchart LR
+    EXC[Execution contract<br/>await/yield suspension opcodes + completion lanes] --> ASO[Async owner surface<br/>resume scheduler + generator continuation state]
+    ASO --> HST[Host wakeup contract<br/>callback enqueue + wake signal delivery]
+    ASO --> EVG[Evidence gate<br/>focused async-generator pack + make quality + profile loop]
+
+    EXC -. must preserve .-> R1[Restart ordering + abrupt completion semantics]
+    HST -. must preserve .-> R2[Host boundary behavior remains integration-layer]
+    EVG -. blocks claim .-> R3[No seam-closure claim without proof-backed pass]
+```
+
+Milestone C routing rules for this slice:
+- Async owner consumes explicit suspension/restart contracts from Execution Fabric; no implicit AST fallback widening is allowed.
+- Host wakeup remains a receiving contract, not a transfer of core evaluator ownership.
+- Seam closure text is directional until focused async-generator proof and canonical quality evidence are attached.
+
 ## #2342 milestone architecture map
 The roadmap milestones are delivery-control points, not labels. Each one maps to explicit modules and seams.
 
@@ -319,11 +343,11 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
 
 ## Signals this run
-- Baseline timestamp: 2026-05-28T05:40:37Z
-- Baseline signal: `docs/dreaming.md` line_count = 256
-- Final timestamp: 2026-05-28T05:40:58Z
-- Final signal: `docs/dreaming.md` line_count = 281
-- Signal delta: +25 lines
+- Baseline timestamp: 2026-05-28T08:40:57Z
+- Baseline signal: `docs/dreaming.md` line_count = 329
+- Final timestamp: 2026-05-28T08:41:17Z
+- Final signal: `docs/dreaming.md` line_count = 353
+- Signal delta: +24 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

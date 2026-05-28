@@ -33,6 +33,11 @@ boundary-explicit.
    the owning focused pack before widening, attach profile or benchmark evidence
    when the claim is performance-related, and keep boundary wording explicit
    about what remains host-layer, prototype-only, or otherwise directional.
+8. When a Dreamer or roadmap refresh mentions unified-bytecode, CommonJS/Node
+   compatibility, or async-generator seam closure, restate the current accepted
+   boundary instead of using broad capability labels. Documentation run signals
+   such as line counts, timestamps, or diff stats are traceability only; they
+   are not runtime proof.
 
 ## Why
 
@@ -63,3 +68,13 @@ claims. WHY: without the checklist, future agents can repeat the same failure
 mode by naming a capability expansion in roadmap or PR prose while omitting the
 owner surface, focused semantic proof, performance evidence, or host/prototype
 boundary that keeps the claim reviewable.
+
+Faktorial issue `autrun-diu14wtcpia8-e0ec95bea3` / PR #2448 showed that the
+checklist still needs concrete boundary restatement in recurring Dreamer runs.
+WHY: phrases such as "unified-bytecode property access", "CommonJS
+compatibility", or "async-generator seam closure" can read as broad runtime
+parity unless the document says what is currently accepted, what remains
+host-layer or prototype-only, and what still needs focused proof. That run
+also recorded documentation baseline/final signals; future agents should keep
+those as audit signals rather than treating them as semantic or performance
+evidence.

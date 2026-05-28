@@ -64,6 +64,22 @@ AST fallback.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.
 
+## Learn-Stage Guardrail
+
+The review/build-back for PR #2515 found that the follow-on plan still started
+with direct identifier-call execution after issue #2495 / PR #2501 had already
+made no-spread activation-resolved identifier calls executable. Future
+call-invocation plan edits must rebase lane order against current `main`,
+`docs/unified-bytecode-expansion-contract.md`, and the current ADR/rule
+boundaries before preserving any previous batch list.
+
+If the first planned slice is already current support, record it as baseline,
+promote the next unsupported family to the first remaining lane, and update the
+Faktorial plan body and ADR wording together. For this incident, the corrected
+first remaining lane is named member calls, followed by computed member calls,
+while constructor/super, spread/direct eval, dynamic lookup,
+iterator/destructuring, and labels remain deferred.
+
 ## Proof Guidance
 
 Use these proofs for the implementation slices; do not claim performance wins

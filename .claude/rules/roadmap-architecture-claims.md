@@ -49,6 +49,13 @@ boundary-explicit.
     multi-fabric wording as complete unless every handoff has focused semantic
     proof, canonical quality-gate evidence, and profile or benchmark evidence
     when the claim is performance-related.
+11. When `docs/dreaming.md` decomposes architecture into delivery packets, keep
+    each packet tied to one primary owner module, an explicit cross-fabric
+    boundary contract, and the exact proven-now surface plus directional-next
+    boundary before implementation starts. Keep Node/CommonJS, async-generator
+    seam, and unified-bytecode production-routing wording directional unless
+    the packet itself carries the focused proof and profile or benchmark
+    evidence needed for the stronger claim.
 
 ## Why
 
@@ -103,6 +110,16 @@ explicit receiving contract for boundary work. Future Dreamer and roadmap
 passes should use that map to keep big-to-small routing reviewable instead of
 letting frontend, compilation, execution, async, host, standard-library, and
 evidence ownership blur into one broad capability claim.
+
+Faktorial issue `autrun-diu4yqb9zgww-22589f49e2` / PR #2493 added the
+`docs/dreaming.md` delivery packet decomposition after the cross-fabric map
+still needed a one-owner implementation path. WHY: without packet-level rules,
+future Dreamer slices can name the right fabrics but still blur review
+ownership by combining owner module, boundary contract, proof packet, and
+roadmap/ADR traceability into one broad delivery claim. Keeping each packet
+tied to one primary owner, exact proven-now surface, and directional-next
+boundary preserves #2342 claim discipline while async-generator and
+unified-bytecode work remains deliberately bounded.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

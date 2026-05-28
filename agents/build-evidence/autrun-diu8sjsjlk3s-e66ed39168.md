@@ -6,7 +6,7 @@ Final timestamp: 2026-05-28T10:51:33Z
 Final signal: ModuleNamespace.cs line count = 389
 Signal delta: -4 lines (reduction)
 
-- Slice check: only `src/Asynkron.JsEngine/Ast/Modules/ModuleNamespace.cs` changed in this PR slice; change is deletion-only in `SetPrototype` and preserves null-return/immutable-prototype throw behavior.
+- Slice check: only `src/Asynkron.JsEngine/JsTypes/ModuleNamespace.cs` changed in this PR slice; change is deletion-only in `SetPrototype` and preserves null-return/immutable-prototype throw behavior.
 - Scope note: recurring-child run stayed inside the module namespace cleanup slice and did not widen into unrelated Roslynator findings.
 - CLOC evidence: `cloc --git --diff origin/main HEAD --include-lang=C#` reports removed `3` code lines and `1` blank line.
 - QuickDup (.cs) evidence: `quickdup -path src -ext .cs -top 20` completed successfully; no source edits required from duplicate scan.

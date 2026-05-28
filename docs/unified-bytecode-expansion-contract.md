@@ -78,6 +78,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `OptionalChainDependency`
 - `ObjectLiteralOrSpreadDependency`
 - `PrivateFieldDependency`
+- `ForInDriverStateDependency`
 - `DestructuringDependency`
 - `LabelControlFlow`
 - `BreakOrContinueControlFlow`
@@ -110,6 +111,17 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 Reserved lanes define ownership for parallel work and do not imply runtime
 support today.
+
+## Iterator/Destructuring Model Boundary
+- `ForInInitInstruction` and `ForInMoveNextInstruction` currently decline with
+  `ForInDriverStateDependency`.
+- `ArrayDestructuringInitInstruction`, `ArrayDestructuringElementInstruction`,
+  `ArrayDestructuringRestInstruction`, and
+  `ArrayDestructuringCloseInstruction` currently decline with
+  `DestructuringDependency`.
+- Decision for this lane: model-first. Do not add partial unified bytecode
+  opcodes/VM paths for these stateful families until a full driver-state model
+  is implemented.
 
 ## Proof Commands
 ```bash

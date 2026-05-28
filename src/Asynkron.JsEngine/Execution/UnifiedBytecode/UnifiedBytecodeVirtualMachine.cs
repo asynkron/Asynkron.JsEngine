@@ -44,6 +44,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var right = stack[--stackPointer];
                     var left = stack[--stackPointer];
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     programCounter++;
                     break;
 
@@ -209,6 +214,72 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.TypeOf:
+                    stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(slots[instruction.Operand]));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryPlus:
+                    var plusOperand = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryMinus:
+                    stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryLogicalNot:
+                    stack[stackPointer - 1] = stack[stackPointer - 1].IsTruthy ? JsValue.False : JsValue.True;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryBitwiseNot:
+                    stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryVoid:
+                    stack[stackPointer - 1] = JsValue.Undefined;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ToString:
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Pop:
+                    stackPointer--;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -244,12 +315,45 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.Divide => TypedAstEvaluator.DivideValue(left, right, context),
             BinaryOperator.Modulo => TypedAstEvaluator.ModuloValue(left, right, context),
             BinaryOperator.Equal => JsOps.LooseEquals(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictEqual => JsOps.StrictEquals(left, right) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictNotEqual => JsOps.StrictEquals(left, right) ? JsValue.False : JsValue.True,
             BinaryOperator.LessThan => JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
         };
+    }
+
+    private static string GetTypeofStringValue(in JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Null => "object",
+            JsValueKind.Boolean => "boolean",
+            JsValueKind.Number => "number",
+            JsValueKind.BigInt => "bigint",
+            JsValueKind.String => "string",
+            JsValueKind.Symbol => "symbol",
+            JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
+            _ => "undefined"
+        };
+    }
+
+    private static string GetTypeofStringForObject(object? value)
+    {
+        if (value is IIsHtmlDda)
+        {
+            return "undefined";
+        }
+
+        if (value is JsProxy proxy)
+        {
+            return proxy.IsCallableTarget() ? "function" : "object";
+        }
+
+        return value is IJsCallable ? "function" : "object";
     }
 
     private static JsValue ResolvePropertyKey(JsValue propertyKey, EvaluationContext context)

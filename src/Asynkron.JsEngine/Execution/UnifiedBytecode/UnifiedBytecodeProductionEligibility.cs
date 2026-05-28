@@ -279,6 +279,25 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     break;
 
+                case ExpressionOpKind.TypeOfIdentifier:
+                    if (operation.IsArguments)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                        declineReason =
+                            "arguments object access is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    var typeOfIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (!TryResolveActivationSlot(typeOfIdentifier, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                        declineReason = $"typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
                     {
@@ -796,6 +815,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.SetComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                case UnifiedBytecodeOpCode.TypeOf:
+                case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                case UnifiedBytecodeOpCode.UnaryPlus:
+                case UnifiedBytecodeOpCode.UnaryMinus:
+                case UnifiedBytecodeOpCode.UnaryLogicalNot:
+                case UnifiedBytecodeOpCode.UnaryBitwiseNot:
+                case UnifiedBytecodeOpCode.UnaryVoid:
+                case UnifiedBytecodeOpCode.ToString:
+                case UnifiedBytecodeOpCode.Pop:
                 case UnifiedBytecodeOpCode.Return:
                     break;
 
@@ -851,6 +879,8 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
             BinaryOperator.Equal or
+            BinaryOperator.StrictEqual or
+            BinaryOperator.StrictNotEqual or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
@@ -865,6 +895,8 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Divide => "/",
             BinaryOperator.Modulo => "%",
             BinaryOperator.Equal => "==",
+            BinaryOperator.StrictEqual => "===",
+            BinaryOperator.StrictNotEqual => "!==",
             BinaryOperator.LessThan => "<",
             BinaryOperator.LessThanOrEqual => "<=",
             BinaryOperator.GreaterThan => ">",

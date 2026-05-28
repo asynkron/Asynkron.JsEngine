@@ -818,7 +818,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_UnsupportedStrictEqualityOperator_DeclinesWithOperatorSpecificReason()
+    public void Evaluate_StrictEqualityOperator_AcceptsProductionSubset()
     {
         var plan = GetFunctionPlan("""
             function strictEqual(a, b) {
@@ -831,9 +831,76 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.StrictEqual });
+    }
+
+    [Fact]
+    public void Evaluate_PrimitiveOperatorLane_AcceptsOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function primitiveLane(value) {
+                var text = `${value}`;
+                value;
+                return typeof value + ":" + (+value) + ":" + (-value) + ":" + (!value) + ":" + (~value) + ":" + (void value) + ":" + text;
+            }
+            """,
+            "primitiveLane");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.TypeOfIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UnaryPlus);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UnaryMinus);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UnaryLogicalNot);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UnaryBitwiseNot);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UnaryVoid);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ToString);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Pop);
+    }
+
+    [Fact]
+    public void Evaluate_TypeOfNonIdentifier_AcceptsTypeOfOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function kind(value) {
+                return typeof (value + 1);
+            }
+            """,
+            "kind");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.TypeOf);
+    }
+
+    [Fact]
+    public void Evaluate_TypeOfUnresolvedIdentifier_DeclinesWithDynamicLookupDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function kind() {
+                return typeof missing;
+            }
+            """,
+            "kind");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode, result.Code);
-        Assert.Contains("operator 'StrictEqual'", result.Reason, StringComparison.Ordinal);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+        Assert.Contains("typeof identifier 'missing'", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -970,6 +1037,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             { "divide", "/", (int)BinaryOperator.Divide },
             { "modulo", "%", (int)BinaryOperator.Modulo },
             { "equal", "==", (int)BinaryOperator.Equal },
+            { "strictEqual", "===", (int)BinaryOperator.StrictEqual },
+            { "strictNotEqual", "!==", (int)BinaryOperator.StrictNotEqual },
             { "lessThan", "<", (int)BinaryOperator.LessThan },
             { "lessThanOrEqual", "<=", (int)BinaryOperator.LessThanOrEqual },
             { "greaterThan", ">", (int)BinaryOperator.GreaterThan },

@@ -202,10 +202,10 @@ flowchart LR
     F -. fail .-> B
 ```
 
-## Bounded architecture improvement slice (this run)
+## Bounded architecture improvement slice (previous run)
 Primary owner: **Async and Concurrency Fabric**.
 
-This run narrows one recurring ambiguity: Milestone C language often spans
+The previous run narrowed one recurring ambiguity: Milestone C language often spans
 execution, scheduler, and host callbacks in one sentence. The decomposition
 below preserves ADR 0249 single-owner routing by treating execution and host
 as explicit contracts consumed by the async owner surface.

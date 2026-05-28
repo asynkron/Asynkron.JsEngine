@@ -62,7 +62,7 @@ public static partial class TypedAstEvaluator
 
         bool TryGetCallable(object propertyKey, out IJsCallable? callable)
         {
-            if (JsOps.TryGetPropertyValueJsValue(JsValue.FromObjectUnsafe(target),
+            if (JsOps.TryGetPropertyValueJsValue(thisArg,
                     JsValue.FromObjectUnsafe(propertyKey), out var candidate, context))
             {
                 if (candidate.TryGetObject<IJsCallable>(out var jsCallable))

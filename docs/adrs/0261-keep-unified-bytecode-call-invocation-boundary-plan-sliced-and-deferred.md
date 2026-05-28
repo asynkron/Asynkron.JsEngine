@@ -6,10 +6,11 @@ Accepted
 
 Superseded in part on 2026-05-28 by the executable no-spread
 activation-resolved identifier-call slice, issue #2530 / PR #2534's direct
-named member-call slice, and the direct receiver-aware named/computed
-member-call slice. The slicing decision still applies to direct eval, spread
-calls, construct/super calls, optional calls, arguments-object dependencies,
-dynamic lookup, and the other unproven call-adjacent families.
+named member-call slice, issue #2531 / PR #2535's direct computed member-call
+slice, and the direct receiver-aware named/computed member-call slice. The
+slicing decision still applies to direct eval, spread calls,
+construct/super calls, optional calls, arguments-object dependencies, dynamic
+lookup, and the other unproven call-adjacent families.
 
 ## Context
 
@@ -28,9 +29,10 @@ before VM execution:
 - `UnifiedBytecodeVirtualMachine` treats `CallInvocationBoundary` as
   non-executable.
 
-Main has since landed the first executable identifier-call slice and the direct
-named member-call slice, so this ADR records those slices as completed baselines
-and scopes the remaining call invocation widening lanes.
+Main has since landed the first executable identifier-call slice, the direct
+named member-call slice, and the direct computed member-call slice, so this ADR
+records those slices as completed baselines and scopes the remaining call
+invocation widening lanes.
 
 The remaining unsupported families also still include dynamic lookup, label
 control flow, and iterator/destructuring drivers. Mixing those with call
@@ -48,8 +50,10 @@ split the work into strict slices:
    activation-resolved and whose arguments are simple one-op operands, using
    existing prepared call-target metadata while preserving the receiver as
    `this`.
-3. Completed follow-up: direct computed member calls using existing prepared
-   call-target metadata.
+3. Baseline (already landed): direct computed member calls whose receiver chain
+   is activation-resolved, whose computed key is a simple operand, and whose
+   arguments are simple one-op operands, using existing prepared call-target
+   metadata while preserving the receiver as `this`.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
 6. Deferred lane: iterator/destructuring drivers, label control flow, and
@@ -62,8 +66,8 @@ AST fallback.
 ## Consequences
 
 - The completed implementation lane keeps the already-landed identifier-call
-  baseline explicit while adding direct receiver-aware named/computed member
-  calls.
+  baseline explicit while adding direct no-spread receiver-preserving
+  named/computed member-call boundaries.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.

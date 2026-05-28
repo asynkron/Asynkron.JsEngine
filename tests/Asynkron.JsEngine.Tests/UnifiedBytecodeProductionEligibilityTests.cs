@@ -861,6 +861,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
+        function invokeComputedExpressionKey(box, left, right) {
+            return box[left + right]();
+        }
+        """,
+        "invokeComputedExpressionKey",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
         function construct(ctor, value) {
             return new ctor(value);
         }

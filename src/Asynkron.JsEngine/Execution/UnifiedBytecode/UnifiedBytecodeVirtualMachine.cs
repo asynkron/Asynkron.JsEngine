@@ -92,10 +92,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                     var namedCallTarget = program.CallTargetConstants[instruction.Operand];
-                    if (namedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember)
+                    if (namedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember ||
+                        (uint)namedCallTarget.NameConstantIndex >= (uint)program.StringConstants.Length)
                     {
                         throw new InvalidOperationException(
-                            "Named call-target preparation requires a named member call target constant.");
+                            "Named member call-target preparation requires a named member call target constant.");
                     }
 
                     var namedReceiver = stack[stackPointer - 1];
@@ -116,27 +117,12 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (computedCallTarget.Kind != UnifiedBytecodeCallTargetKind.ComputedMember)
                     {
                         throw new InvalidOperationException(
-                            "Computed call-target preparation requires a computed member call target constant.");
+                            "Computed member call-target preparation requires a computed member call target constant.");
                     }
 
                     var computedCallKey = stack[--stackPointer];
                     var computedCallReceiver = stack[stackPointer - 1];
-                    if (computedCallReceiver.IsNullOrUndefined)
-                    {
-                        context.SetThrow(StandardLibrary.CreateTypeError(
-                            "Cannot read properties of null or undefined",
-                            context,
-                            context.RealmState));
-                        return JsValue.Undefined;
-                    }
-
-                    stack[stackPointer++] = JsOps.TryGetPropertyValueJsValue(
-                            computedCallReceiver,
-                            computedCallKey,
-                            out var computedCallValue,
-                            context)
-                        ? computedCallValue
-                        : JsValue.Undefined;
+                    stack[stackPointer++] = GetComputedCallTargetValue(computedCallReceiver, computedCallKey, context);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -907,6 +893,25 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
+            ? directValue
+            : JsValue.Undefined;
+    }
+
+    private static JsValue GetComputedCallTargetValue(
+        JsValue target,
+        JsValue propertyKey,
+        EvaluationContext context)
+    {
+        if (target.IsNullOrUndefined)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot read properties of null or undefined",
+                context,
+                context.RealmState));
+            return JsValue.Undefined;
+        }
+
+        return JsOps.TryGetPropertyValueJsValue(target, propertyKey, out var directValue, context)
             ? directValue
             : JsValue.Undefined;
     }

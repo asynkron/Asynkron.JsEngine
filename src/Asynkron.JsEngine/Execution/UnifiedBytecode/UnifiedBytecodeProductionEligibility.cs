@@ -804,7 +804,10 @@ internal static class UnifiedBytecodeProductionEligibility
                        stringConstants,
                        activationSlots,
                        keyIndex) &&
-                   IsSimpleOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
+                   IsSimpleComputedPropertyKey(
+                       program.GetOperation(keyIndex),
+                       identifierConstants,
+                       activationSlots) &&
                    HasSimpleCallArguments(
                        program,
                        identifierConstants,
@@ -860,6 +863,22 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static bool IsSimpleComputedPropertyKey(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        return operation.Kind switch
+        {
+            ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
+                operation,
+                identifierConstants,
+                activationSlots),
+            _ => false
+        };
     }
 
     private static bool HasSimpleCallArguments(

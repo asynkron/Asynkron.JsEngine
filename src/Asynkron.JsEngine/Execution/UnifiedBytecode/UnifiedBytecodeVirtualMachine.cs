@@ -34,6 +34,7 @@ internal static class UnifiedBytecodeVirtualMachine
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
         var currentCallingEnvironment = callingEnvironment;
+
         var slotEnvironments = callingEnvironment is null
             ? null
             : InitializeSlotEnvironments(program, callingEnvironment);

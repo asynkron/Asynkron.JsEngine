@@ -3033,6 +3033,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
+            JsEnvironment? executionEnvironment = null;
             try
             {
                 var slots = slotStorage.AsSpan(0, program.SlotCount);
@@ -3040,19 +3041,45 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
                 var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
+                if (RequiresProductionUnifiedBytecodeCallEnvironment(program))
+                {
+                    executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                }
 
                 RealmState.Logger?.LogInformation(
                     "unified-bytecode-production-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
-                result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context, boundThis, newTarget, _isStrict);
+                result = UnifiedBytecodeVirtualMachine.Execute(
+                    program,
+                    slots,
+                    context,
+                    executionEnvironment,
+                    boundThis,
+                    newTarget,
+                    _isStrict);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             finally
             {
+                ReturnSimpleIrActivationEnvironment(executionEnvironment);
                 ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
             }
+        }
+
+        private static bool RequiresProductionUnifiedBytecodeCallEnvironment(UnifiedBytecodeProgram program)
+        {
+            var instructions = program.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (instructions[i].OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool TryGetProductionUnifiedBytecodeProgram(

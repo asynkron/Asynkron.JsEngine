@@ -16,6 +16,7 @@ internal static class UnifiedBytecodeVirtualMachine
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         EvaluationContext context,
+        JsEnvironment? callingEnvironment = null,
         JsValue thisValue = default,
         JsValue newTarget = default,
         bool isStrict = false)
@@ -83,7 +84,12 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
-                    stackPointer = ExecuteIdentifierCall(instruction.Operand, stack, stackPointer, context);
+                    stackPointer = ExecuteIdentifierCall(
+                        instruction.Operand,
+                        stack,
+                        stackPointer,
+                        context,
+                        callingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -93,7 +99,14 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
-                    slots[instruction.Operand] = stack[--stackPointer];
+                    var storedValue = stack[--stackPointer];
+                    slots[instruction.Operand] = storedValue;
+                    if (callingEnvironment is not null &&
+                        (uint)instruction.Operand < (uint)callingEnvironment.SlotCount)
+                    {
+                        callingEnvironment.SetSlotDirect(instruction.Operand, storedValue);
+                    }
+
                     programCounter++;
                     break;
 
@@ -495,7 +508,8 @@ internal static class UnifiedBytecodeVirtualMachine
         int argumentCount,
         Span<JsValue> stack,
         int stackPointer,
-        EvaluationContext context)
+        EvaluationContext context,
+        JsEnvironment? callingEnvironment)
     {
         var calleeIndex = stackPointer - argumentCount - 1;
         var receiverIndex = calleeIndex - 1;
@@ -536,24 +550,43 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         JsValue[]? pooledArguments = null;
+        DebugAwareHostFunction? debugFunction = null;
+        JsEnvironment? previousDebugEnvironment = null;
+        EvaluationContext? previousDebugContext = null;
         JsValue result;
         try
         {
+            if (callingEnvironment is not null && callable is DebugAwareHostFunction debugAware)
+            {
+                debugFunction = debugAware;
+                previousDebugEnvironment = debugFunction.CurrentJsEnvironment;
+                previousDebugContext = debugFunction.CurrentContext;
+                debugFunction.CurrentJsEnvironment = callingEnvironment;
+                debugFunction.CurrentContext = context;
+            }
+
             result = argumentCount switch
             {
-                0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context),
-                1 => TypedAstEvaluator.InvokeCallableSingleArg(callable, stack[calleeIndex + 1], thisValue, context),
+                0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context, callingEnvironment),
+                1 => TypedAstEvaluator.InvokeCallableSingleArg(
+                    callable,
+                    stack[calleeIndex + 1],
+                    thisValue,
+                    context,
+                    callingEnvironment),
                 2 => TypedAstEvaluator.InvokeCallableTwoArgs(
                     callable,
                     stack[calleeIndex + 1],
                     stack[calleeIndex + 2],
                     thisValue,
-                    context),
+                    context,
+                    callingEnvironment),
                 _ => TypedAstEvaluator.InvokeCallableJsValue(
                     callable,
                     MaterializeCallArguments(argumentCount, stack, calleeIndex + 1, out pooledArguments),
                     thisValue,
-                    context)
+                    context,
+                    callingEnvironment)
             };
         }
         catch (ThrowSignal signal)
@@ -563,6 +596,12 @@ internal static class UnifiedBytecodeVirtualMachine
         }
         finally
         {
+            if (debugFunction is not null)
+            {
+                debugFunction.CurrentJsEnvironment = previousDebugEnvironment;
+                debugFunction.CurrentContext = previousDebugContext;
+            }
+
             if (pooledArguments is not null)
             {
                 JsValueCache.ReturnJsValueArray(pooledArguments);

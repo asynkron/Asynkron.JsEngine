@@ -210,6 +210,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ParameterPassedDebugAwareIdentifierCall_PreservesCallerEnvironment()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn) {
+                return fn();
+            }
+
+            invoke(__debug);
+            """);
+
+        Assert.Equal(Symbol.Undefined, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=1",
+                StringComparison.Ordinal));
+
+        var debugMessage = await engine.DebugMessages().ReadAsync();
+        Assert.Contains("fn", debugMessage.Variables.Keys);
+        Assert.Contains(debugMessage.EnvironmentChain,
+            static environment => environment.HasSlots && environment.SlotCount > 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NonCallableIdentifierCall_PropagatesTypeErrorThroughUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -80,6 +80,8 @@ rtk ./tools/profile forloop --memory
 
 - Issue
   `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-833518a41c`
+- Follow-on Faktorial plan
+  `planmanual1779961785446650000` ("Widen unified bytecode production to executable call invocation boundary")
 - `docs/unified-bytecode-expansion-contract.md`
 - ADR 0250: `docs/adrs/0250-keep-unified-bytecode-call-target-prep-boundary-non-executable.md`
 - ADR 0251: `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`

@@ -1362,7 +1362,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                 case UnifiedBytecodeOpCode.Return:
-                    var result = stack[stackPointer - 1];
+                    var result = stack[--stackPointer];
                     if (HandleAbruptCompletion(
                             AbruptKind.Return,
                             result,

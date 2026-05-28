@@ -385,6 +385,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryFinally_NestedReturnThroughFinallyClearsOperandStackOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceNestedReturn() {
+                try {
+                    return 3;
+                } finally {
+                    try {
+                        return (10 + 20) + (30 + 40);
+                    } finally {
+                        (1 + 2) + (3 + 4);
+                    }
+                }
+            }
+
+            replaceNestedReturn();
+            """);
+
+        Assert.Equal(100d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceNestedReturn argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TryFinally_ThrowFromFinallyReplacesPriorThrowOnProductionFastPath()
     {
         await using var engine = CreateEngine();

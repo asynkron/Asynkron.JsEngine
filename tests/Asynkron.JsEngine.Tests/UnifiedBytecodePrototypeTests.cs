@@ -612,6 +612,128 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_ForInDriverLoop_ProducesAndExecutesDriverOpcodes()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function countKeys(obj) {
+                var count = 0;
+                for (var key in obj) {
+                    count = count + 1;
+                }
+
+                return count;
+            }
+            """,
+            "countKeys");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+
+        var obj = new JsObject();
+        obj.DefineDefaultDataProperty("a", JsValue.FromDouble(1));
+        obj.DefineDefaultDataProperty("b", JsValue.FromDouble(2));
+        var slots = new JsValue[Math.Max(program.SlotCount, 2)];
+        SetSlot(program, slots, "obj", JsValue.FromJsObject(obj));
+
+        Assert.Equal(2d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_ArrayDestructuringDriver_ProducesAndExecutesDriverOpcodes()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(values) {
+                var [first, second] = values;
+                return first + second;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringInit);
+        Assert.Contains(program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringElement);
+        Assert.Contains(program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringClose);
+
+        var values = new JsArray();
+        values.Push(JsValue.FromDouble(2));
+        values.Push(JsValue.FromDouble(5));
+        var slots = new JsValue[Math.Max(program.SlotCount, 3)];
+        SetSlot(program, slots, "values", JsValue.FromJsArray(values));
+
+        Assert.Equal(7d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_ArrayDestructuringRestDriver_CollectsRemainingValues()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function read(values) {
+                var [first, ...rest] = values;
+                return first;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringRest);
+
+        var values = new JsArray();
+        values.Push(JsValue.FromDouble(3));
+        values.Push(JsValue.FromDouble(10));
+        values.Push(JsValue.FromDouble(20));
+        var slots = new JsValue[Math.Max(program.SlotCount, 3)];
+        SetSlot(program, slots, "values", JsValue.FromJsArray(values));
+
+        Assert.Equal(3d, ExecuteProgram(program, slots).AsDouble());
+        var restSlotIndex = program.SlotNames.IndexOf("rest");
+        Assert.True(restSlotIndex >= 0);
+        Assert.True(slots[restSlotIndex].TryGetArray(out var rest));
+        Assert.Equal(2, rest.Length);
+    }
+
+    [Fact]
+    public void TryCompile_ForOfDriverLoop_ProducesAndExecutesIteratorOpcodes()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function sumValues(values) {
+                var sum = 0;
+                for (var value of values) {
+                    sum = sum + value;
+                }
+
+                return sum;
+            }
+            """,
+            "sumValues");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+
+        var values = new JsArray();
+        values.Push(JsValue.FromDouble(1));
+        values.Push(JsValue.FromDouble(2));
+        values.Push(JsValue.FromDouble(3));
+        var slots = new JsValue[Math.Max(program.SlotCount, 3)];
+        SetSlot(program, slots, "values", JsValue.FromJsArray(values));
+
+        Assert.Equal(6d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
     public void TryCompile_WhileWithNestedBranchBreak_DeclinesWithLoopReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

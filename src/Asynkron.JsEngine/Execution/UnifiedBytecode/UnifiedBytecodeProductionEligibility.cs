@@ -70,7 +70,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
             ImmutableArray<int>.Empty,
             ImmutableArray<int>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
-            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty);
+            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 }
 
 internal static class UnifiedBytecodeProductionEligibility
@@ -177,21 +178,31 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is ForInInitInstruction or ForInMoveNextInstruction)
+            if (instruction is IteratorInitInstruction iteratorInit &&
+                !IsSupportedIteratorInit(iteratorInit, out declineReason))
             {
-                declineCode = UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency;
-                declineReason =
-                    "for-in driver state instructions are not eligible for production unified bytecode routing.";
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 return true;
             }
 
-            if (instruction is ArrayDestructuringInitInstruction or ArrayDestructuringElementInstruction or
-                ArrayDestructuringRestInstruction or ArrayDestructuringCloseInstruction)
+            if (instruction is ForInInitInstruction forInInit &&
+                !IsSupportedForInInit(forInInit, out declineReason))
             {
-                declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
-                declineReason =
-                    "Array destructuring driver state instructions are not eligible for production unified bytecode routing.";
+                declineCode = UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency;
                 return true;
+            }
+
+            if (instruction is ArrayDestructuringElementInstruction { TargetSymbol: null } or
+                ArrayDestructuringInitInstruction or
+                ArrayDestructuringElementInstruction or
+                ArrayDestructuringRestInstruction or
+                ArrayDestructuringCloseInstruction)
+            {
+                if (!IsSupportedArrayDestructuringInstruction(instruction, out declineReason))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                    return true;
+                }
             }
 
             if (instruction is EnterWithInstruction or LeaveWithInstruction)
@@ -653,6 +664,68 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
+    {
+        if (instruction.IteratorKind != IteratorDriverKind.Sync)
+        {
+            reason = "Async iterator driver state is not eligible for production unified bytecode routing.";
+            return false;
+        }
+
+        if (instruction.IterableProgram is null || instruction.AwaitedProgram is not null)
+        {
+            reason = "Iterator driver sources must be lowered to synchronous expression bytecode.";
+            return false;
+        }
+
+        if (!instruction.TdzBindings.IsDefaultOrEmpty)
+        {
+            reason = "Iterator driver TDZ head environments are not yet eligible for production unified bytecode routing.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool IsSupportedForInInit(ForInInitInstruction instruction, out string reason)
+    {
+        if (instruction.ObjectProgram is null || instruction.AwaitedProgram is not null)
+        {
+            reason = "for-in driver sources must be lowered to synchronous expression bytecode.";
+            return false;
+        }
+
+        if (!instruction.TdzBindings.IsDefaultOrEmpty)
+        {
+            reason = "for-in driver TDZ head environments are not yet eligible for production unified bytecode routing.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool IsSupportedArrayDestructuringInstruction(
+        ExecutionInstruction instruction,
+        out string reason)
+    {
+        switch (instruction)
+        {
+            case ArrayDestructuringInitInstruction { SourceProgram.IsEmpty: false }:
+            case ArrayDestructuringElementInstruction:
+            case ArrayDestructuringRestInstruction:
+            case ArrayDestructuringCloseInstruction:
+                reason = string.Empty;
+                return true;
+
+            default:
+                reason =
+                    "Only array destructuring driver instructions with lowered expression bytecode are eligible for production unified bytecode routing.";
+                return false;
+        }
     }
 
     private static bool TryGetActivationResolvedIdentifier(
@@ -1125,6 +1198,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = branch.ConditionProgram;
                 return true;
 
+            case IteratorInitInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram }:
+                program = iterableProgram;
+                return true;
+
+            case ForInInitInstruction { AwaitedProgram: null, ObjectProgram: { } objectProgram }:
+                program = objectProgram;
+                return true;
+
+            case ArrayDestructuringInitInstruction arrayDestructuringInit:
+                program = arrayDestructuringInit.SourceProgram;
+                return true;
+
             case ReturnInstruction { AwaitedProgram: null, ReturnProgram: { } returnProgram }:
                 program = returnProgram;
                 return true;
@@ -1168,6 +1253,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.JumpIfFalse:
                 case UnifiedBytecodeOpCode.PushEnvironment:
                 case UnifiedBytecodeOpCode.PopEnvironment:
+                case UnifiedBytecodeOpCode.IteratorInit:
+                case UnifiedBytecodeOpCode.IteratorMoveNext:
+                case UnifiedBytecodeOpCode.IteratorClose:
+                case UnifiedBytecodeOpCode.ForInInit:
+                case UnifiedBytecodeOpCode.ForInMoveNext:
+                case UnifiedBytecodeOpCode.ArrayDestructuringInit:
+                case UnifiedBytecodeOpCode.ArrayDestructuringElement:
+                case UnifiedBytecodeOpCode.ArrayDestructuringRest:
+                case UnifiedBytecodeOpCode.ArrayDestructuringClose:
                     break;
 
                 case UnifiedBytecodeOpCode.Binary:

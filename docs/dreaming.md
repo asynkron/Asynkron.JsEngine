@@ -18,7 +18,7 @@ The prior dream captured the right direction, but it was still too easy to read 
 4. bytecode unification intent did not clearly separate prototype capability from production-routing policy,
 5. evidence governance was named, but not strict enough to gate fast-path expansion decisions.
 
-This revision keeps the aspiration, but hardens the document into a routing guide: clear owner surfaces, explicit non-goals, and milestone-to-module mapping that mirrors the roadmap. It also tightens language around current #2342 milestone status, unified-bytecode production boundaries, and async-generator seam ownership so recurring implementation slices can route to the right layer without overclaiming parity.
+This revision keeps the aspiration, but hardens the document into a routing guide: clear owner surfaces, explicit non-goals, milestone-to-module mapping that mirrors the roadmap, and capability language that distinguishes "proven now" from "directional next." It also tightens language around current #2342 milestone status, unified-bytecode production boundaries, and async-generator seam ownership so recurring implementation slices can route to the right layer without overclaiming parity.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -125,6 +125,17 @@ graph TD
     M6 --> M7
 ```
 
+## Proven-now vs directional-next contract
+This section is the anti-drift guardrail for recurring architecture slices.
+
+| Area | Proven now | Directional next (needs new proof) |
+| --- | --- | --- |
+| Module runtime | ESM lifecycle, module registry, dynamic import phases, top-level await integration are runtime-owned seams. | Wider Node.js-competitive ergonomics and compatibility; no broad CommonJS parity claim. |
+| Host interop | Host callable/global bridge boundaries are explicit owner surfaces. | Broader host behavior expectations remain integration-layer work, not core-evaluator parity. |
+| Async seam | Async scheduling and pending-work tracking are runtime-owned and test-backed. | Async-generator seam closure remains active follow-through work under #2342 Milestone C. |
+| Unified bytecode | Production eligibility is explicit and bounded; accepted property-access subset is owned and test-linked. | Widening eligibility beyond current operator/control-flow/property subset requires parity + profile proof. |
+| Engine fallback policy | Dynamic/eval-sensitive paths remain correctness-first and explicitly bounded. | Removing fallback seams requires explicit proof-driven seam deletion, not preference-driven simplification. |
+
 ## Delivery lifecycle and evidence gates
 This is the operating lifecycle for every architecture slice. It keeps greenfield intent and current-runtime reality connected.
 
@@ -223,6 +234,17 @@ This dream is aspirational and does not claim current full parity. These constra
 - Compact statement-bytecode storage is a direction; it is not the current universal execution contract.
 - Dynamic/eval-sensitive paths remain correctness-first and cannot be erased by architecture preference.
 
+## Ownership routing by concern
+When a recurring slice starts, route work to one primary module owner first and treat cross-module edits as exceptions that must be justified by proof.
+
+- Semantics fidelity and parser/static validation drift: Language Frontend.
+- New execution shape eligibility and lowering: Compilation and Plan Fabric.
+- Hot-path dispatch, completion flow, and fallback seam deletion: Execution Fabric.
+- Await/resume behavior and async generator closure: Async and Concurrency Fabric.
+- Module lifecycle, host boundaries, and integration seams: Module and Host Fabric.
+- Built-in/runtime value semantics and storage behavior: Standard Library Fabric.
+- Proof discipline, quality gates, and claim governance: Evidence and Governance Fabric.
+
 ## Milestone-to-module ownership map
 The #2342 milestones map to specific architecture modules so recurring work can land on the right surface.
 
@@ -249,8 +271,11 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
 
 ## Signals this run
-- Baseline signal source: `docs/dreaming.md` at 2026-05-28T04:40:32Z (249 lines).
-- Final signal source: `docs/dreaming.md` at 2026-05-28T04:41:03Z (256 lines).
+- Baseline timestamp: 2026-05-28T05:40:37Z
+- Baseline signal: `docs/dreaming.md` line_count = 256
+- Final timestamp: 2026-05-28T05:40:58Z
+- Final signal: `docs/dreaming.md` line_count = 281
+- Signal delta: +25 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

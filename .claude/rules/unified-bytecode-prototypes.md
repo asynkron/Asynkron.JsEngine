@@ -220,9 +220,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     and ADR/rule surfaces synchronized in the same slice when shared boundary
     text changes. The contract must separate current support from
     reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
-    next unsupported buckets explicit (wider call families,
-    iterator/destructuring driver-state, label-dependent control flow, dynamic
-    lookup) until dedicated ownership slices land. Keep the drift guard in
+    next unsupported buckets explicit (wider call families; unsupported
+    driver-state subshapes: async iterator drivers, TDZ head environments,
+    awaited iterator/for-in sources, object destructuring, expression-level
+    `ApplyBindingTarget` destructuring, dynamic-name destructuring targets, and
+    non-slot/unified-slot failures that still decline before VM execution;
+    label-dependent control flow; dynamic lookup) until dedicated ownership
+    slices land. Keep the drift guard in
     `ExpressionProgramCoverageMapTests` covering required headings plus current
     `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
     Treat newly VM-executed literal-construction opcodes such as `CreateArray`,

@@ -10,6 +10,16 @@ namespace Asynkron.JsEngine.StdLib;
 
 internal static class DisposableStackHelper
 {
+    internal static IJsCallable RequireCallable(JsValue value, RealmState realm, string errorMessage)
+    {
+        if (!value.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw ThrowTypeError(errorMessage, realm: realm);
+        }
+
+        return callable;
+    }
+
     internal static IJsCallable? GetDisposeMethod(JsValue value, bool preferAsync, RealmState realm)
     {
         if (value.IsNull || value.IsUndefined)

@@ -38,10 +38,7 @@ public sealed partial class DisposableStackPrototype : JsPrototype
 
         var value = args.GetArgument(0);
         var onDispose = args.GetArgument(1);
-        if (!onDispose.TryGetObject<IJsCallable>(out var callable))
-        {
-            throw ThrowTypeError("DisposableStack.prototype.adopt requires a callable disposer", realm: Realm);
-        }
+        var callable = DisposableStackHelper.RequireCallable(onDispose, Realm, "DisposableStack.prototype.adopt requires a callable disposer");
 
         stack.AddRecord(callable, JsValue.Undefined, [value]);
         return value;
@@ -55,10 +52,7 @@ public sealed partial class DisposableStackPrototype : JsPrototype
         EnsureNotDisposed(stack);
 
         var onDispose = args.GetArgument(0);
-        if (!onDispose.TryGetObject<IJsCallable>(out var callable))
-        {
-            throw ThrowTypeError("DisposableStack.prototype.defer requires a callable disposer", realm: Realm);
-        }
+        var callable = DisposableStackHelper.RequireCallable(onDispose, Realm, "DisposableStack.prototype.defer requires a callable disposer");
 
         stack.AddRecord(callable, JsValue.Undefined, []);
         return JsValue.Undefined;

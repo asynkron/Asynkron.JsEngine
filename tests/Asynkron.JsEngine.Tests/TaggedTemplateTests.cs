@@ -246,4 +246,35 @@ public sealed class TaggedTemplateTests(ITestOutputHelper output) : InternalTest
                                            """);
         Assert.Equal(42d, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task TaggedTemplate_EvalInnerFunctionCacheIdentity_Sloppy()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let firstEvalResult = eval("(function(){ return function(tag) { return tag`x`; }; })();");
+            let secondEvalResult = eval("(function(){ return function(tag) { return tag`x`; }; })();");
+            let firstTemplate = firstEvalResult(function(template) { return template; });
+            let secondTemplate = secondEvalResult(function(template) { return template; });
+            firstTemplate !== secondTemplate;
+            """);
+
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task TaggedTemplate_EvalInnerFunctionCacheIdentity_Strict()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "use strict";
+            let firstEvalResult = eval("(function(){ return function(tag) { return tag`x`; }; })();");
+            let secondEvalResult = eval("(function(){ return function(tag) { return tag`x`; }; })();");
+            let firstTemplate = firstEvalResult(function(template) { return template; });
+            let secondTemplate = secondEvalResult(function(template) { return template; });
+            firstTemplate !== secondTemplate;
+            """);
+
+        Assert.True((bool)result!);
+    }
 }

@@ -254,6 +254,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     expansion contract, roadmap, ADR 0256, and this rule around explicit next
     unsupported buckets. The durable lesson is that shared boundary wording and
     unsupported-bucket guidance are delivery-slice artifacts, not later cleanup.
+    Issue #2574 / PR #2584 then removed stale generic driver-state bucket
+    wording from this rule after the roadmap/contract wording had become
+    explicit, confirming that adjacent rule text is part of the same
+    synchronization boundary.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with

@@ -300,7 +300,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     semantics end to end. The #2495 identifier-call slice is the narrow
     exception: no-spread activation-resolved identifier calls with simple
     literal/slot arguments may execute through the VM-owned
-    `CallInvocationBoundary`. It is valid for the compiler to emit typed
+    `CallInvocationBoundary`, but executable identifier calls must still carry
+    the caller `EvaluationContext` and active `JsEnvironment` into existing
+    callable invocation helpers. If an accepted program enters a block lexical
+    scope before invoking the callable, the VM must maintain environment owners
+    for the active slots so environment-aware and debug-aware callables observe
+    the same scope chain as the existing expression-call path. Pair the route
+    proof with regression coverage for parameter-passed and block-scoped
+    debug-aware callables, not only ordinary JavaScript functions. It is valid
+    for the compiler to emit typed
     `UnifiedBytecodeCallTarget` records and `Prepare*CallTarget` opcodes for
     no-spread activation-resolved identifier/member calls, but all unproven
     production call routing must decline at `CallInvocationBoundary` and the VM
@@ -313,7 +321,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     learn-stage drift guard immediately failed because the expansion contract
     missed `PrepareIdentifierCallTarget`; the durable lesson is that call prep
     can become a reusable bytecode surface only while invocation remains an
-    explicit, documented production decline.
+    explicit, documented production decline. Issue #2495 / PR #2501 then made
+    the first identifier-call slice executable; review found the initial VM
+    path invoked parameter-passed `__debug` without the caller environment or
+    context, so the accepted repair threads the invocation environment into the
+    VM and proves both parameter and block lexical debug-aware calls.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`

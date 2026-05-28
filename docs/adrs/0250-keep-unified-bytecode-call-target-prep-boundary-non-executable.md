@@ -77,10 +77,25 @@ arguments to execute in `UnifiedBytecodeVirtualMachine`.
 bytecode-owned call-target metadata and `CallInvocationBoundary` invokes the
 callable through existing invocation helpers.
 
+The executable slice also preserves the caller environment boundary for
+environment-aware and debug-aware callables. Production invocation creates the
+simple activation `JsEnvironment` only when a compiled program contains
+`CallInvocationBoundary`, passes it into the VM, and the VM forwards the active
+environment plus `EvaluationContext` to the shared callable helpers. When the
+accepted bytecode enters a block lexical scope before the call, the VM tracks
+slot environment ownership so debug-aware callees observe the active lexical
+scope chain.
+
 This update does not make member, computed, eval, spread, construct/super,
 optional, arguments-dependent, or dynamic lookup calls production-eligible.
 Those families must still decline before VM execution instead of falling back
 inside the VM.
+
+The friction point that made this explicit was the PR #2501 review: the first
+implementation passed ordinary identifier-call tests but failed a
+parameter-passed `__debug` probe with missing environment/context. The repair
+kept the no-mixed-execution rule intact while adding regression proof for
+parameter-passed and block-scoped debug-aware calls.
 
 ## Evidence
 

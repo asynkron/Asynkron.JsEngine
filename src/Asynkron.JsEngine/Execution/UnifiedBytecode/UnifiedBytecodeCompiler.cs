@@ -9,6 +9,9 @@ internal static class UnifiedBytecodeCompiler
 {
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
+    private const int DefineObjectPropertyPrototypeMutationFlag = 1;
+    private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
+    private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
 
     public static bool TryCompile(
         ExecutionPlan plan,
@@ -70,6 +73,7 @@ internal static class UnifiedBytecodeCompiler
             maxStackDepth,
             literalConstants.ToImmutable(),
             stringConstants.ToImmutable(),
+            BuildSlotNames(plan.ActivationSlots),
             callTargetConstants.ToImmutable());
         reason = string.Empty;
         return true;
@@ -81,7 +85,29 @@ internal static class UnifiedBytecodeCompiler
             0,
             ImmutableArray<JsValue>.Empty,
             ImmutableArray<string>.Empty,
+            ImmutableArray<string?>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
+
+    private static ImmutableArray<string?> BuildSlotNames(ActivationSlotShape activationSlots)
+    {
+        if (activationSlots.SlotCount == 0 ||
+            activationSlots.SlotNames.IsDefaultOrEmpty ||
+            activationSlots.LexicalSlotIndices.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<string?>.Empty;
+        }
+
+        var names = new string?[activationSlots.SlotCount];
+        foreach (var (name, slotIndex) in activationSlots.SlotNames)
+        {
+            if ((uint)slotIndex < (uint)names.Length)
+            {
+                names[slotIndex] = name.Name;
+            }
+        }
+
+        return names.ToImmutableArray();
+    }
 
     private static bool TryCompileBlock(
         int instructionIndex,
@@ -400,13 +426,20 @@ internal static class UnifiedBytecodeCompiler
                         return true;
 
                     case EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } discard:
-                        if (!IsDirectiveLiteralDiscard(discardedProgram))
+                        if (!TryAppendExpressionProgramOps(
+                                discardedProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
                         {
-                            reason =
-                                "Unsupported discarded expression in unified bytecode plan; only directive string literal discards are allowed.";
                             return false;
                         }
 
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                        maxStackDepth = Math.Max(maxStackDepth, discardedProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 discard.Next,
@@ -700,18 +733,6 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool IsDirectiveLiteralDiscard(ExpressionProgram expressionProgram)
-    {
-        if (expressionProgram.OperationCount != 1)
-        {
-            return false;
-        }
-
-        var operation = expressionProgram.GetOperation(0);
-        return operation.Kind == ExpressionOpKind.LoadLiteral &&
-               operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan()).Kind == JsValueKind.String;
-    }
-
     private static void PatchOperand(
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         int instructionIndex,
@@ -890,6 +911,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
                     break;
 
+                case ExpressionOpKind.LoadThis:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                    break;
+
+                case ExpressionOpKind.LoadNewTarget:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
+                    break;
+
                 case ExpressionOpKind.LoadLiteral:
                     var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
                     var literalIndex = literalConstants.Count;
@@ -897,8 +926,94 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
+                case ExpressionOpKind.TypeOf:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
+                    break;
+
+                case ExpressionOpKind.TypeOfIdentifier:
+                    if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, activationSlots, out var typeOfSlot, out reason))
+                    {
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOfIdentifier, typeOfSlot));
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryPlus));
+                    break;
+
+                case ExpressionOpKind.UnaryMinus:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryMinus));
+                    break;
+
+                case ExpressionOpKind.UnaryLogicalNot:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryLogicalNot));
+                    break;
+
+                case ExpressionOpKind.UnaryBitwiseNot:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryBitwiseNot));
+                    break;
+
+                case ExpressionOpKind.UnaryVoid:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryVoid));
+                    break;
+
+                case ExpressionOpKind.ToString:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
+                    break;
+
+                case ExpressionOpKind.Pop:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                    break;
+
                 case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
+                    break;
+
+                case ExpressionOpKind.ResolvePropertyKey:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+                    break;
+
+                case ExpressionOpKind.CreateArray:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateArray));
+                    break;
+
+                case ExpressionOpKind.ArrayPush:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPush));
+                    break;
+
+                case ExpressionOpKind.ArrayPushHole:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPushHole));
+                    break;
+
+                case ExpressionOpKind.CreateObject:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateObject));
+                    break;
+
+                case ExpressionOpKind.DefineObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Object literal name inference is not supported.";
+                        return false;
+                    }
+
+                    var propertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectProperty,
+                        EncodeDefineObjectPropertyOperand(propertyNameIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Computed object literal name inference is not supported.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineComputedObjectProperty));
                     break;
 
                 default:
@@ -1238,6 +1353,31 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryResolveTypeOfIdentifierSlot(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        out int slotIndex,
+        out string reason)
+    {
+        if (operation.IsArguments)
+        {
+            slotIndex = -1;
+            reason = "arguments typeof is not supported.";
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationSlot(identifier, activationSlots, out slotIndex))
+        {
+            reason = $"Unsupported typeof identifier '{identifier.Name.Name}'.";
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryAppendCallArguments(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -1347,7 +1487,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1424,7 +1564,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1493,7 +1633,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1547,7 +1687,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1610,7 +1750,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1649,7 +1789,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1713,7 +1853,7 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
         {
             return false;
         }
@@ -1772,7 +1912,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1811,7 +1951,7 @@ internal static class UnifiedBytecodeCompiler
         switch (operation.Kind)
         {
             case ExpressionOpKind.LoadIdentifier:
-                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+                return TryAppendActivationValueLoad(operation, expressionProgram, activationSlots, unified, out reason);
 
             case ExpressionOpKind.LoadLiteral:
                 var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
@@ -1838,7 +1978,7 @@ internal static class UnifiedBytecodeCompiler
         switch (operation.Kind)
         {
             case ExpressionOpKind.LoadIdentifier:
-                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+                return TryAppendActivationValueLoad(operation, expressionProgram, activationSlots, unified, out reason);
 
             case ExpressionOpKind.LoadLiteral:
                 var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
@@ -1856,6 +1996,22 @@ internal static class UnifiedBytecodeCompiler
 
     private static int EncodeUpdateOperand(int stringConstantIndex, PackedExpressionOp update) =>
         (stringConstantIndex << 2) | EncodeUpdateFlags(update);
+
+    private static int EncodeDefineObjectPropertyOperand(int stringConstantIndex, PackedExpressionOp defineProperty)
+    {
+        var flags = defineProperty.IsPrototypeMutation ? DefineObjectPropertyPrototypeMutationFlag : 0;
+        if (defineProperty.AllowNameInference)
+        {
+            flags |= DefineObjectPropertyAllowNameInferenceFlag;
+        }
+
+        if (defineProperty.IsKnownNewObjectProperty)
+        {
+            flags |= DefineObjectPropertyKnownNewPropertyFlag;
+        }
+
+        return (stringConstantIndex << 3) | flags;
+    }
 
     private static int EncodeUpdateFlags(PackedExpressionOp update)
     {
@@ -1888,6 +2044,44 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryAppendActivationValueLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        out string reason)
+    {
+        switch (operation.Kind)
+        {
+            case ExpressionOpKind.LoadThis:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadNewTarget:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
+                reason = string.Empty;
+                return true;
+        }
+
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            reason = $"Unsupported property-read base op '{operation.Kind}'.";
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+        {
+            reason = $"Unsupported identifier '{identifier.Name.Name}'.";
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool IsSupportedBinaryOperator(BinaryOperator binaryOperator) =>
         binaryOperator is
             BinaryOperator.Add or
@@ -1896,6 +2090,8 @@ internal static class UnifiedBytecodeCompiler
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
             BinaryOperator.Equal or
+            BinaryOperator.StrictEqual or
+            BinaryOperator.StrictNotEqual or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or

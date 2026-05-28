@@ -218,12 +218,39 @@ all-or-nothing until a separate routing issue proves production readiness.
     support from reserved/planned lanes, keep the no-mixed-execution rule
     explicit, and keep the drift guard in `ExpressionProgramCoverageMapTests`
     covering required headings plus current `UnifiedBytecodeOpCode` and
-    `UnifiedBytecodeProductionDeclineCode` names. WHY: issue
+    `UnifiedBytecodeProductionDeclineCode` names. Treat newly VM-executed
+    literal-construction opcodes such as `CreateArray`, `ArrayPush`,
+    `CreateObject`, and `DefineObjectProperty` as current contract inventory in
+    the same delivery slice; do not defer them to a learn-stage docs pass. WHY:
+    issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
     / PR #2466 established the shared contract before parallel lane work so
     future agents do not re-discover owner surfaces, imply planned-lane runtime
     support, or land selector/compiler/VM changes without matching proof
-    commands.
+    commands. Issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9f49fefe3d`
+    / PR #2476 then failed the quality gate after a literal-construction lane
+    added current unified opcodes without the matching contract inventory; the
+    build-back repair added the missing opcode names before the delivery PR was
+    merged.
+22. When admitting activation-value loads into production unified bytecode,
+    keep them call-time owned by the sync invocation bridge. `LoadThis` and
+    `LoadNewTarget` may execute only as owned VM opcodes supplied with
+    invocation-local values from `SyncFunctionInvoker`; sloppy `this` must reuse
+    the existing non-strict receiver coercion helper before VM execution, and
+    ordinary-call `new.target` stays within the existing undefined-newTarget
+    production gate. Do not create a `JsEnvironment`, call back into
+    `ExpressionProgram`, or infer that `arguments`, arrows, classes,
+    constructors, captured/dynamic activation, home/super/private state, or
+    non-undefined construct targets are covered by this lane. Keep selector,
+    compiler, VM, public route proof, and
+    `docs/unified-bytecode-expansion-contract.md` opcode inventory aligned in
+    the same slice. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9db8c7189a`
+    / PR #2473 admitted `this` and ordinary-call `new.target` through
+    production unified bytecode, and the quality gate caught a missing
+    `LoadThis` / `LoadNewTarget` expansion-contract inventory update before the
+    lane was complete.
 
 ## Why
 
@@ -459,3 +486,4 @@ Related ADRs:
 - `docs/adrs/0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md`
 - `docs/adrs/0238-keep-unified-bytecode-compound-property-writes-get-for-set-owned.md`
 - `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`
+- `docs/adrs/0247-keep-unified-bytecode-activation-value-loads-call-time-owned.md`

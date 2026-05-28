@@ -229,6 +229,71 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_ArrayLiteralWithHoleAndNestedLiteral_ProducesLiteralConstructionOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function create(x) {
+                return [1, , [x]];
+            }
+            """,
+            "create");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPush);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPushHole);
+
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 1)];
+        SetSlot(plan, slots, "x", JsValue.FromDouble(7));
+        var value = ExecuteProgram(program, slots);
+
+        Assert.True(value.TryGetArray(out var array));
+        Assert.Equal(3, array.Length);
+        Assert.True(array.TryGetProperty("0", out var first));
+        Assert.Equal(1d, first.AsDouble());
+        Assert.False(array.TryGetProperty("1", out _));
+        Assert.True(array.TryGetProperty("2", out var nestedValue));
+        Assert.True(nestedValue.TryGetArray(out var nestedArray));
+        Assert.True(nestedArray.TryGetProperty("0", out var nestedFirst));
+        Assert.Equal(7d, nestedFirst.AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_ObjectLiteralWithStaticComputedAndPrototypeMutation_ExecutesLiteralConstructionOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function create(key, proto) {
+                return { __proto__: proto, a: 1, a: 2, [key]: 3 };
+            }
+            """,
+            "create");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateObject);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+
+        var proto = new JsObject();
+        proto.SetProperty("inherited", JsValue.FromDouble(9));
+        var slots = new JsValue[Math.Max(plan.ActivationSlots!.SlotCount, 2)];
+        SetSlot(plan, slots, "key", new JsValue("b"));
+        SetSlot(plan, slots, "proto", JsValue.FromJsObject(proto));
+        var value = ExecuteProgram(program, slots);
+
+        Assert.True(value.TryGetObject(out var obj));
+        Assert.True(obj.TryGetProperty("a", out var a));
+        Assert.Equal(2d, a.AsDouble());
+        Assert.True(obj.TryGetProperty("b", out var b));
+        Assert.Equal(3d, b.AsDouble());
+        Assert.True(obj.TryGetProperty("inherited", out var inherited));
+        Assert.Equal(9d, inherited.AsDouble());
+    }
+
+    [Fact]
     public void TryCompile_ComputedPropertyReadOutsideBoundary_Declines()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

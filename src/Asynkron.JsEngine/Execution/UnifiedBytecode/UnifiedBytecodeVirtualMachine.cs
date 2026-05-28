@@ -8,10 +8,16 @@ namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
 internal static class UnifiedBytecodeVirtualMachine
 {
+    private const int DefineObjectPropertyPrototypeMutationFlag = 1;
+    private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
+    private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         EvaluationContext context,
+        JsValue thisValue = default,
+        JsValue newTarget = default,
         bool isStrict = false)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
@@ -25,7 +31,24 @@ internal static class UnifiedBytecodeVirtualMachine
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.LoadSlot:
-                    stack[stackPointer++] = slots[instruction.Operand];
+                    var slotValue = slots[instruction.Operand];
+                    if (slotValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = slotValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadThis:
+                    stack[stackPointer++] = thisValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadNewTarget:
+                    stack[stackPointer++] = newTarget;
                     programCounter++;
                     break;
 
@@ -51,6 +74,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var right = stack[--stackPointer];
                     var left = stack[--stackPointer];
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     programCounter++;
                     break;
 
@@ -216,6 +244,158 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.TypeOf:
+                    stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    var typeOfValue = slots[instruction.Operand];
+                    if (typeOfValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(typeOfValue));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryPlus:
+                    var plusOperand = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryMinus:
+                    stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryLogicalNot:
+                    stack[stackPointer - 1] = stack[stackPointer - 1].IsTruthy ? JsValue.False : JsValue.True;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryBitwiseNot:
+                    stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryVoid:
+                    stack[stackPointer - 1] = JsValue.Undefined;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ToString:
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Pop:
+                    stackPointer--;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.CreateArray:
+                    stack[stackPointer++] = JsValue.FromJsArray(new JsArray(context.RealmState));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ArrayPush:
+                    var arrayElementValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetArray(out var targetArray))
+                    {
+                        throw new InvalidOperationException("Array push unified bytecode op requires an array receiver.");
+                    }
+
+                    targetArray.Push(arrayElementValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ArrayPushHole:
+                    if (!stack[stackPointer - 1].TryGetArray(out var targetArrayWithHole))
+                    {
+                        throw new InvalidOperationException("Array hole unified bytecode op requires an array receiver.");
+                    }
+
+                    targetArrayWithHole.PushHole();
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.CreateObject:
+                    var targetObject = new JsObject
+                    {
+                        RealmState = context.RealmState
+                    };
+                    if (context.RealmState.ObjectPrototype is { } objectPrototype)
+                    {
+                        targetObject.SetPrototype(objectPrototype);
+                    }
+
+                    stack[stackPointer++] = JsValue.FromJsObject(targetObject);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineObjectProperty:
+                    var propertyValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var objectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object property unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralProperty(
+                        objectLiteralTarget,
+                        program.StringConstants[DecodeDefineObjectPropertyNameOperand(instruction.Operand)],
+                        instruction.Operand,
+                        propertyValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                    var computedObjectPropertyValue = stack[--stackPointer];
+                    var computedObjectPropertyKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object property unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedObjectPropertyName = JsOps.GetRequiredPropertyName(computedObjectPropertyKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    DefineComputedObjectLiteralProperty(
+                        computedObjectLiteralTarget,
+                        computedObjectPropertyName,
+                        instruction.Operand,
+                        computedObjectPropertyValue);
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -251,12 +431,65 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.Divide => TypedAstEvaluator.DivideValue(left, right, context),
             BinaryOperator.Modulo => TypedAstEvaluator.ModuloValue(left, right, context),
             BinaryOperator.Equal => JsOps.LooseEquals(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictEqual => JsOps.StrictEquals(left, right) ? JsValue.True : JsValue.False,
+            BinaryOperator.StrictNotEqual => JsOps.StrictEquals(left, right) ? JsValue.False : JsValue.True,
             BinaryOperator.LessThan => JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
         };
+    }
+
+    private static string GetTypeofStringValue(in JsValue value)
+    {
+        return value.Kind switch
+        {
+            JsValueKind.Undefined => "undefined",
+            JsValueKind.Null => "object",
+            JsValueKind.Boolean => "boolean",
+            JsValueKind.Number => "number",
+            JsValueKind.BigInt => "bigint",
+            JsValueKind.String => "string",
+            JsValueKind.Symbol => "symbol",
+            JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
+            _ => "undefined"
+        };
+    }
+
+    private static void SetUninitializedSlotReferenceError(
+        UnifiedBytecodeProgram program,
+        int slotIndex,
+        EvaluationContext context)
+    {
+        var slotName = GetSlotName(program, slotIndex);
+        var message = slotName is null
+            ? "Cannot access lexical binding before initialization"
+            : $"Cannot access '{slotName}' before initialization";
+        context.SetThrow(StandardLibrary.CreateReferenceError(message, context, context.RealmState));
+    }
+
+    private static string? GetSlotName(UnifiedBytecodeProgram program, int slotIndex)
+    {
+        var slotNames = program.SlotNames;
+        return !slotNames.IsDefaultOrEmpty && (uint)slotIndex < (uint)slotNames.Length
+            ? slotNames[slotIndex]
+            : null;
+    }
+
+    private static string GetTypeofStringForObject(object? value)
+    {
+        if (value is IIsHtmlDda)
+        {
+            return "undefined";
+        }
+
+        if (value is JsProxy proxy)
+        {
+            return proxy.IsCallableTarget() ? "function" : "object";
+        }
+
+        return value is IJsCallable ? "function" : "object";
     }
 
     private static JsValue ResolvePropertyKey(JsValue propertyKey, EvaluationContext context)
@@ -295,6 +528,56 @@ internal static class UnifiedBytecodeVirtualMachine
             context.CurrentScope.IsStrict || isStrict,
             allowPrivate: false);
         handle.SetValue(propertyValue);
+    }
+
+    private static void DefineObjectLiteralProperty(
+        JsObject targetObject,
+        string propertyName,
+        int operand,
+        JsValue propertyValue)
+    {
+        if (DecodeDefineObjectPropertyIsPrototypeMutation(operand))
+        {
+            if (propertyValue.IsNull)
+            {
+                targetObject.SetPrototype(null);
+            }
+            else if (propertyValue.TryGetObject<IJsPropertyAccessor>(out var prototypeAccessor))
+            {
+                targetObject.SetPrototype(prototypeAccessor);
+            }
+
+            return;
+        }
+
+        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        {
+            throw new InvalidOperationException(
+                "Object literal name inference is not supported by unified bytecode.");
+        }
+
+        if (DecodeDefineObjectPropertyIsKnownNewProperty(operand))
+        {
+            targetObject.DefineKnownNewDefaultDataProperty(propertyName, propertyValue);
+            return;
+        }
+
+        targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
+    }
+
+    private static void DefineComputedObjectLiteralProperty(
+        JsObject targetObject,
+        string propertyName,
+        int operand,
+        JsValue propertyValue)
+    {
+        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        {
+            throw new InvalidOperationException(
+                "Computed object literal name inference is not supported by unified bytecode.");
+        }
+
+        targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
     }
 
     private static JsValue UpdatePropertyValue(
@@ -396,6 +679,17 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     private static int DecodeStringOperand(int operand) => operand >> 2;
+
+    private static int DecodeDefineObjectPropertyNameOperand(int operand) => operand >> 3;
+
+    private static bool DecodeDefineObjectPropertyIsPrototypeMutation(int operand) =>
+        (operand & DefineObjectPropertyPrototypeMutationFlag) != 0;
+
+    private static bool DecodeDefineObjectPropertyAllowNameInference(int operand) =>
+        (operand & DefineObjectPropertyAllowNameInferenceFlag) != 0;
+
+    private static bool DecodeDefineObjectPropertyIsKnownNewProperty(int operand) =>
+        (operand & DefineObjectPropertyKnownNewPropertyFlag) != 0;
 
     private static bool DecodeIsIncrement(int operand) => (operand & 1) != 0;
 

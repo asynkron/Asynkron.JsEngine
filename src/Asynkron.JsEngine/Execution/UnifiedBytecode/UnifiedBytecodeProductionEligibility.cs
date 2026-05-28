@@ -64,6 +64,7 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
             0,
             ImmutableArray<JsTypes.JsValue>.Empty,
             ImmutableArray<string>.Empty,
+            ImmutableArray<string?>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
 }
 
@@ -247,16 +248,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
             switch (operation.Kind)
             {
-                case ExpressionOpKind.LoadThis:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.ThisDependency;
-                    declineReason = "'this' expression access is not eligible for production unified bytecode routing.";
-                    return true;
-
-                case ExpressionOpKind.LoadNewTarget:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.NewTargetDependency;
-                    declineReason = "new.target expression access is not eligible for production unified bytecode routing.";
-                    return true;
-
                 case ExpressionOpKind.LoadIdentifierCallTarget:
                     if (isCallTargetPreparationCandidate)
                     {
@@ -353,6 +344,25 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
                         declineReason = $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.TypeOfIdentifier:
+                    if (operation.IsArguments)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                        declineReason =
+                            "arguments object access is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    var typeOfIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (!TryResolveActivationSlot(typeOfIdentifier, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                        declineReason = $"typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
                         return true;
                     }
 
@@ -482,17 +492,53 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Optional-chain short-circuiting is outside the first production property-read boundary.";
                     return true;
 
-                case ExpressionOpKind.CreateObject:
-                case ExpressionOpKind.DefineObjectProperty:
-                case ExpressionOpKind.DefineComputedObjectProperty:
+                case ExpressionOpKind.LoadFunctionLiteral:
+                case ExpressionOpKind.LoadClassLiteral:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                    declineReason =
+                        "Function/class literal values are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.ArraySpread:
                 case ExpressionOpKind.DefineObjectMethod:
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
                 case ExpressionOpKind.DefineComputedObjectAccessor:
                 case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                    declineReason = "Object literal/spread expressions are not eligible for production unified bytecode routing.";
+                    declineReason =
+                        "Literal spread, object methods, and object accessors are not eligible for production unified bytecode routing.";
                     return true;
+
+                case ExpressionOpKind.DefineObjectProperty:
+                    if (operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
+                        declineReason =
+                            "Private-field expressions are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (operation.AllowNameInference)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Object literal name inference is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Computed object literal name inference is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
 
                 case ExpressionOpKind.PrivateFieldIn:
                     declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
@@ -537,6 +583,25 @@ internal static class UnifiedBytecodeProductionEligibility
         return TryResolveActivationSlot(identifier, activationSlots);
     }
 
+    private static bool TryGetActivationResolvedValue(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operation.Kind is ExpressionOpKind.LoadThis or ExpressionOpKind.LoadNewTarget)
+        {
+            return true;
+        }
+
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(identifierConstants);
+        return TryResolveActivationSlot(identifier, activationSlots);
+    }
+
     private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -547,7 +612,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
@@ -578,14 +643,14 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var baseLoad = program.GetOperation(0);
-        if (!TryGetActivationResolvedIdentifier(baseLoad, identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(baseLoad, identifierConstants, activationSlots))
         {
             return false;
         }
 
         var keyLoad = program.GetOperation(1);
         if (keyLoad.Kind == ExpressionOpKind.LoadIdentifier &&
-            !TryGetActivationResolvedIdentifier(keyLoad, identifierConstants, activationSlots))
+            !TryGetActivationResolvedValue(keyLoad, identifierConstants, activationSlots))
         {
             return false;
         }
@@ -747,7 +812,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
@@ -785,7 +850,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) ||
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) ||
             !IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots))
         {
             return false;
@@ -822,7 +887,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return propertyWrite.Kind == ExpressionOpKind.SetNamedProperty &&
                    !propertyWrite.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
                    !propertyWrite.AllowNameInference &&
-                   TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
                    IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
         }
 
@@ -834,7 +899,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var computedWrite = program.GetOperation(3);
         return computedWrite.Kind == ExpressionOpKind.SetComputedProperty &&
                !computedWrite.AllowNameInference &&
-               TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+               TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
                IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
                IsSimpleOperand(program.GetOperation(2), identifierConstants, activationSlots);
     }
@@ -849,7 +914,7 @@ internal static class UnifiedBytecodeProductionEligibility
             var propertyUpdate = program.GetOperation(1);
             return propertyUpdate.Kind == ExpressionOpKind.UpdateNamedProperty &&
                    !propertyUpdate.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
-                   TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots);
+                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots);
         }
 
         if (program.OperationCount != 3)
@@ -858,7 +923,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return program.GetOperation(2).Kind == ExpressionOpKind.UpdateComputedProperty &&
-               TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots) &&
+               TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
                IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
     }
 
@@ -870,10 +935,12 @@ internal static class UnifiedBytecodeProductionEligibility
         return operation.Kind switch
         {
             ExpressionOpKind.LoadLiteral => true,
-            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedIdentifier(
+            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,
                 activationSlots),
+            ExpressionOpKind.LoadThis => true,
+            ExpressionOpKind.LoadNewTarget => true,
             _ => false
         };
     }
@@ -988,6 +1055,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case UnifiedBytecodeOpCode.LoadSlot:
+                case UnifiedBytecodeOpCode.LoadThis:
+                case UnifiedBytecodeOpCode.LoadNewTarget:
                 case UnifiedBytecodeOpCode.LoadLiteral:
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
@@ -1003,6 +1072,21 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.SetComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                case UnifiedBytecodeOpCode.TypeOf:
+                case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                case UnifiedBytecodeOpCode.UnaryPlus:
+                case UnifiedBytecodeOpCode.UnaryMinus:
+                case UnifiedBytecodeOpCode.UnaryLogicalNot:
+                case UnifiedBytecodeOpCode.UnaryBitwiseNot:
+                case UnifiedBytecodeOpCode.UnaryVoid:
+                case UnifiedBytecodeOpCode.ToString:
+                case UnifiedBytecodeOpCode.Pop:
+                case UnifiedBytecodeOpCode.CreateArray:
+                case UnifiedBytecodeOpCode.ArrayPush:
+                case UnifiedBytecodeOpCode.ArrayPushHole:
+                case UnifiedBytecodeOpCode.CreateObject:
+                case UnifiedBytecodeOpCode.DefineObjectProperty:
+                case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
                 case UnifiedBytecodeOpCode.Return:
                     break;
 
@@ -1064,6 +1148,8 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
             BinaryOperator.Equal or
+            BinaryOperator.StrictEqual or
+            BinaryOperator.StrictNotEqual or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
@@ -1078,6 +1164,8 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Divide => "/",
             BinaryOperator.Modulo => "%",
             BinaryOperator.Equal => "==",
+            BinaryOperator.StrictEqual => "===",
+            BinaryOperator.StrictNotEqual => "!==",
             BinaryOperator.LessThan => "<",
             BinaryOperator.LessThanOrEqual => "<=",
             BinaryOperator.GreaterThan => ">",

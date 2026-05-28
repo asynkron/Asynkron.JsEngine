@@ -21,6 +21,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ### Unified Opcode Inventory (current)
 - `LoadSlot`
+- `LoadThis`
+- `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
 - `Binary`
@@ -34,6 +36,21 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `SetComputedProperty`
 - `UpdateNamedProperty`
 - `UpdateComputedProperty`
+- `TypeOf`
+- `TypeOfIdentifier`
+- `UnaryPlus`
+- `UnaryMinus`
+- `UnaryLogicalNot`
+- `UnaryBitwiseNot`
+- `UnaryVoid`
+- `ToString`
+- `Pop`
+- `CreateArray`
+- `ArrayPush`
+- `ArrayPushHole`
+- `CreateObject`
+- `DefineObjectProperty`
+- `DefineComputedObjectProperty`
 - `Jump`
 - `JumpIfFalse`
 - `Return`

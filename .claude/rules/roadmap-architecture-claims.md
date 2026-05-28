@@ -56,6 +56,13 @@ boundary-explicit.
     seam, and unified-bytecode production-routing wording directional unless
     the packet itself carries the focused proof and profile or benchmark
     evidence needed for the stronger claim.
+12. When `docs/dreaming.md` or roadmap prose scopes #2342 Milestone C, keep
+    Async and Concurrency Fabric as the primary owner for resume scheduling and
+    async-generator continuation state. Treat Execution Fabric as the source of
+    consumed await/yield suspension and completion-lane contracts, and Host as a
+    wakeup/callback receiving boundary. Do not call the async seam closed until
+    focused async-generator proof, canonical quality evidence, and required
+    profile evidence are attached.
 
 ## Why
 
@@ -121,6 +128,15 @@ tied to one primary owner, exact proven-now surface, and directional-next
 boundary preserves #2342 claim discipline while async-generator and
 unified-bytecode work remains deliberately bounded.
 
+Faktorial issue `autrun-diu68o5458hc-6ec572012c` / PR #2504 narrowed #2342
+Milestone C routing in `docs/dreaming.md` to the Async and Concurrency Fabric.
+WHY: Milestone C wording often spans execution opcodes, scheduler resume state,
+host callbacks, and evidence gates in one sentence. Without this rule, future
+Dreamer or roadmap slices can accidentally turn an Execution -> Async -> Host
+handoff contract into a broad async-seam-closure claim before focused
+async-generator proof and canonical quality evidence exist.
+
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`
 - `docs/adrs/0249-keep-dreamer-cross-fabric-contracts-single-owner-and-proof-backed.md`
+- `docs/adrs/0257-keep-dreamer-milestone-c-async-owner-contract-explicit.md`

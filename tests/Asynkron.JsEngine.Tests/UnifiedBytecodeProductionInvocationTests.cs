@@ -9,6 +9,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     private const string UnifiedBytecodeProductionFastPathLog = "unified-bytecode-production-fast-path";
     private const string SimpleIrParameterNumberBinaryFastPathLog =
         "simple-ir-parameter-number-binary-fast-path";
+    private const string SimpleIrParameterNumberBinaryChainFastPathLog =
+        "simple-ir-parameter-number-binary-chain-fast-path";
 
     [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
@@ -118,6 +120,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
         Assert.Contains(logRecords,
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BinaryChainReturnFunction_KeepsExistingSpecializedFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function addChain(a, b, c) {
+                return a + b + c;
+            }
+
+            addChain(10, 20, 12);
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(logRecords,
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(SimpleIrParameterNumberBinaryChainFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -417,6 +439,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=scoped argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IntegratedCompletedLaneProgram_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function integrated(box, n, key, seed) {
+                var total = seed;
+                var values = [1, , n];
+                var record = { first: 1, [key]: n };
+                {
+                    let local = record[key];
+                    const currentRaw = box.value;
+                    const current = +currentRaw;
+                    total = total + local + current;
+                }
+
+                while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                box.value = total;
+                var count = ++box.count;
+                var stored = box.value;
+                return stored + count + 1 + 3;
+            }
+
+            integrated({ value: 5, count: 0 }, 3, "dynamic", 10);
+            """);
+
+        Assert.Equal(29d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=integrated argc=4",
                 StringComparison.Ordinal));
     }
 

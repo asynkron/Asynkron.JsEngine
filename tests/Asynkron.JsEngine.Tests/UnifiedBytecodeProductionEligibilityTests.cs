@@ -544,6 +544,56 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.Program.SlotCount >= plan.FlatSlotCount);
     }
 
+    [Fact]
+    public void Evaluate_IntegratedCompletedLaneProgram_AcceptsAsOneExecutableProgram()
+    {
+        var plan = GetFunctionPlan("""
+            function integrated(box, n, key, seed) {
+                var total = seed;
+                var values = [1, , n];
+                var record = { first: 1, [key]: n };
+                {
+                    let local = record[key];
+                    const currentRaw = box.value;
+                    const current = +currentRaw;
+                    total = total + local + current;
+                }
+
+                while (n > 0) {
+                    total = total + n;
+                    n = n - 1;
+                }
+
+                box.value = total;
+                var count = ++box.count;
+                var stored = box.value;
+                return stored + count + 1 + 3;
+            }
+            """,
+            "integrated");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.CreateObject);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.PushEnvironment);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode is UnifiedBytecodeOpCode.PrepareIdentifierCallTarget
+                or UnifiedBytecodeOpCode.PrepareNamedCallTarget
+                or UnifiedBytecodeOpCode.PrepareComputedCallTarget
+                or UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
     [Theory]
     [InlineData(
         """

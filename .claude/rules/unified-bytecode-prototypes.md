@@ -356,6 +356,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     conflict-resolution stage had to preserve main's for-in/destructuring
     declines while repairing stale prototype tests that still expected
     for-loop post-update shapes to fail.
+28. When admitting block lexical scopes to production unified bytecode, make the
+    accepted program own the full flat-slot span, not just root activation
+    slots. Complete root activation mappings even when non-root flat mappings
+    are present, derive `UnifiedBytecodeProgram.SlotCount` from every flat-slot
+    id, preserve `ParameterSlotIndices` positions with `-1` sentinels for
+    unused formals, and resolve scoped `let` / `const` declarations through the
+    active scope flat mapping. `PushEnvironment` may stamp lexical TDZ slots as
+    `JsValue.Uninitialized` and `PopEnvironment` may remain an owned VM
+    cleanup opcode for the admitted linear shape, but neither opcode may create
+    a `JsEnvironment`, do name fallback, or call back into
+    `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. Keep
+    `BindingVariableDeclaration`, destructuring, `with`, direct eval / dynamic
+    lookup, captured activation, per-iteration bindings, and `using`
+    declarations declined until a later slice owns those semantics end to end.
+    WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-2f1dcc1cd5`
+    / PR #2490 widened the block lexical-scope lane, and the quality gate found
+    that partial root remapping plus non-root flat mappings broke unrelated
+    parameter-population paths. The accepted repair made slot layout
+    program-wide and positional instead of activation-only or name-based.
 
 ## Why
 
@@ -595,3 +615,4 @@ Related ADRs:
 - `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`
 - `docs/adrs/0252-keep-unified-bytecode-completion-lane-vm-owned.md`
 - `docs/adrs/0253-keep-unified-bytecode-loop-control-targets-compiler-owned.md`
+- `docs/adrs/0255-keep-unified-bytecode-block-lexical-scopes-program-slot-owned.md`

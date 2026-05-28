@@ -56,6 +56,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Return`
 - `ReturnUndefined`
 - `Throw`
+- `PushEnvironment`
+- `PopEnvironment`
 - `PrepareIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
@@ -117,6 +119,25 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `BreakOrContinueControlFlow` remains listed above because it is still a
   decline-taxonomy enum member, but PR #2489 removed the blanket production
   pre-scan that rejected every break/continue instruction.
+
+## Production Block Lexical Scope Boundary
+- Current production block-scope support is slot-layout-owned, not
+  source-syntax-owned.
+- Accepted block scopes are non-capturing, non-iterating lexical scopes with
+  flat slot mappings. Destructuring-free `let` / `const` declarations compile
+  through `SimpleVariableDeclaration` into active-scope flat slots.
+- `UnifiedBytecodeProgram.SlotCount` covers root activation slots and admitted
+  block-scope flat slots. Parameter slot metadata preserves formal positions,
+  using `-1` for unused or unmapped formals so invocation does not shift later
+  arguments.
+- `PushEnvironment` initializes the admitted scope's lexical flat slots to
+  `JsValue.Uninitialized`; `PopEnvironment` is an owned VM cleanup opcode for
+  the admitted linear shape. Neither opcode creates a `JsEnvironment`, uses
+  name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
+  or AST evaluation.
+- `BindingVariableDeclaration`, object/array destructuring driver
+  instructions, `with`, direct eval / dynamic lookup, captured activation,
+  per-iteration bindings, and `using` / `await using` remain pre-VM declines.
 
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes

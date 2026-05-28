@@ -310,6 +310,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchBindingDoesNotLeakAfterCatchOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function leak() {
+                try {
+                    throw 7;
+                } catch (e) {
+                }
+
+                return typeof e;
+            }
+
+            leak();
+            """);
+
+        Assert.Equal("undefined", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=leak argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TryFinally_ReturnFromFinallyReplacesPriorReturnOnProductionFastPath()
     {
         await using var engine = CreateEngine();

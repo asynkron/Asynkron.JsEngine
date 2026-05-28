@@ -69,6 +69,7 @@ internal static class UnifiedBytecodeVirtualMachine
         public bool FinallyScheduled { get; set; }
         public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
         public JsValue ThrownValue { get; set; } = JsValue.Undefined;
+        public UnifiedBytecodeCatchDescriptor? ActiveCatchDescriptor { get; set; }
     }
 
     public static JsValue Execute(
@@ -91,16 +92,18 @@ internal static class UnifiedBytecodeVirtualMachine
         var environmentStackCount = 0;
         AssignmentReference[]? dynamicIdentifierReferences = null;
         var dynamicIdentifierReferenceCount = 0;
+        bool[]? inactiveCatchBindingSlots = null;
         Stack<TryFrame>? tryStack = null;
         var nextActiveDriverOrdinal = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
-        bool TryHandleCurrentContextThrow()
+        bool TryHandleCurrentContextThrow(Span<JsValue> currentSlots)
         {
             if (!HandleContextThrow(
                 context,
                 tryStack,
+                currentSlots,
                 ref programCounter,
                 ref currentCallingEnvironment,
                 slotEnvironments,
@@ -126,7 +129,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (slotValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -146,7 +149,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -184,7 +187,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (callableValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -207,7 +210,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -234,7 +237,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -258,7 +261,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = GetComputedCallTargetValue(computedCallReceiver, computedCallKey, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -281,6 +284,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (HandleContextThrow(
                                 context,
                                 tryStack,
+                                slots,
                                 ref programCounter,
                                 ref currentCallingEnvironment,
                                 slotEnvironments,
@@ -311,7 +315,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -332,7 +336,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -364,7 +368,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         dynamicIdentifierReferences[dynamicIdentifierReferenceCount - 1].GetJsValue();
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -395,7 +399,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     dynamicIdentifierReferences[dynamicIdentifierReferenceCount] = default;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -424,7 +428,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -443,7 +447,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Cannot read properties of null or undefined",
                             context,
                             context.RealmState));
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -458,7 +462,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = ResolvePropertyKey(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -476,7 +480,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -495,7 +499,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -514,7 +518,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -537,7 +541,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -559,7 +563,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -578,7 +582,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedSetName = JsOps.GetRequiredPropertyName(computedSetKey, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -589,7 +593,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context, isStrict);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -612,7 +616,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -629,7 +633,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedUpdateName = JsOps.GetRequiredPropertyName(computedUpdateKey, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -646,7 +650,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -666,7 +670,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -683,11 +687,20 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    if (inactiveCatchBindingSlots is not null &&
+                        (uint)instruction.Operand < (uint)inactiveCatchBindingSlots.Length &&
+                        inactiveCatchBindingSlots[instruction.Operand])
+                    {
+                        stack[stackPointer++] = new JsValue("undefined");
+                        programCounter++;
+                        break;
+                    }
+
                     var typeOfValue = slots[instruction.Operand];
                     if (typeOfValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -717,7 +730,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.False;
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -733,7 +746,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -748,7 +761,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -768,7 +781,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -788,7 +801,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -872,7 +885,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedObjectPropertyName = JsOps.GetRequiredPropertyName(computedObjectPropertyKey, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -896,7 +909,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -920,6 +933,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             instruction.Operand,
                             hasControlTarget: true,
                             tryStack,
+                            slots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -940,6 +954,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (HandleContextThrow(
                                 context,
                                 tryStack,
+                                slots,
                                 ref programCounter,
                                 ref currentCallingEnvironment,
                                 slotEnvironments,
@@ -962,6 +977,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             instruction.Operand,
                             hasControlTarget: true,
                             tryStack,
+                            slots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -1014,7 +1030,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (environmentStackCount > 0 && slotEnvironments is not null)
                     {
                         var scopeFrame = environmentStack![--environmentStackCount];
-                        RestoreSlotEnvironmentOwners(slotEnvironments, scopeFrame);
+                        RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
                         currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
                     }
 
@@ -1031,9 +1047,10 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.EnterCatch:
+                    var catchDescriptor = program.CatchDescriptors[instruction.Operand];
                     EnterCatch(
                         program,
-                        program.CatchDescriptors[instruction.Operand],
+                        catchDescriptor,
                         tryStack,
                         slots,
                         slotEnvironments,
@@ -1041,11 +1058,17 @@ internal static class UnifiedBytecodeVirtualMachine
                         ref currentCallingEnvironment,
                         ref environmentStack,
                         ref environmentStackCount);
+                    MarkCatchBindingSlots(
+                        ref inactiveCatchBindingSlots,
+                        slots.Length,
+                        catchDescriptor,
+                        isInactive: false);
                     if (context.ShouldStopEvaluation)
                     {
                         if (HandleContextThrow(
                                 context,
                                 tryStack,
+                                slots,
                                 ref programCounter,
                                 ref currentCallingEnvironment,
                                 slotEnvironments,
@@ -1069,6 +1092,8 @@ internal static class UnifiedBytecodeVirtualMachine
                         CompleteTryNormally(
                             instruction.Operand,
                             tryStack,
+                            slots,
+                            ref inactiveCatchBindingSlots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -1121,7 +1146,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.ShouldStopEvaluation)
                     {
-                        if (TryHandleCurrentContextThrow())
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -1165,7 +1190,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ref nextActiveDriverOrdinal,
                                 out var nextProgramCounter))
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1188,7 +1213,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             HasPendingThrowCompletion(tryStack));
                         if (context.ShouldStopEvaluation)
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1231,7 +1256,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         var sourceValue = stack[--stackPointer];
                         if (!TryGetIteratorForArrayDestructuring(sourceValue, context, out var state))
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1256,7 +1281,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var value))
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1284,7 +1309,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var restValue))
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1304,7 +1329,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         CloseArrayDestructuringState(descriptor.StateSlot, slots, slotEnvironments, context, false);
                         if (context.ShouldStopEvaluation)
                         {
-                            if (TryHandleCurrentContextThrow())
+                            if (TryHandleCurrentContextThrow(slots))
                             {
                                 break;
                             }
@@ -1324,6 +1349,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             -1,
                             hasControlTarget: false,
                             tryStack,
+                            slots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -1343,6 +1369,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             -1,
                             hasControlTarget: false,
                             tryStack,
+                            slots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -1363,6 +1390,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             -1,
                             hasControlTarget: false,
                             tryStack,
+                            slots,
                             ref programCounter,
                             ref currentCallingEnvironment,
                             slotEnvironments,
@@ -1386,6 +1414,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 if (HandleContextThrow(
                         context,
                         tryStack,
+                        slots,
                         ref programCounter,
                         ref currentCallingEnvironment,
                         slotEnvironments,
@@ -1405,6 +1434,7 @@ internal static class UnifiedBytecodeVirtualMachine
     private static bool HandleContextThrow(
         EvaluationContext context,
         Stack<TryFrame>? tryStack,
+        Span<JsValue> slots,
         ref int programCounter,
         ref JsEnvironment? currentEnvironment,
         JsEnvironment?[]? slotEnvironments,
@@ -1424,6 +1454,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 -1,
                 hasControlTarget: false,
                 tryStack,
+                slots,
                 ref programCounter,
                 ref currentEnvironment,
                 slotEnvironments,
@@ -1446,6 +1477,8 @@ internal static class UnifiedBytecodeVirtualMachine
     private static void CompleteTryNormally(
         int resumeTarget,
         Stack<TryFrame> tryStack,
+        Span<JsValue> slots,
+        ref bool[]? inactiveCatchBindingSlots,
         ref int programCounter,
         ref JsEnvironment? currentEnvironment,
         JsEnvironment?[]? slotEnvironments,
@@ -1459,12 +1492,18 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         var frame = tryStack.Peek();
+        MarkCatchBindingSlots(
+            ref inactiveCatchBindingSlots,
+            slots.Length,
+            frame.ActiveCatchDescriptor,
+            isInactive: true);
         if (frame is { Descriptor.FinallyTarget: >= 0, FinallyScheduled: false })
         {
             frame.FinallyScheduled = true;
             frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
             RestoreEnvironmentToFrame(
                 frame,
+                slots,
                 ref currentEnvironment,
                 slotEnvironments,
                 ref environmentStack,
@@ -1473,6 +1512,13 @@ internal static class UnifiedBytecodeVirtualMachine
             return;
         }
 
+        RestoreEnvironmentToFrame(
+            frame,
+            slots,
+            ref currentEnvironment,
+            slotEnvironments,
+            ref environmentStack,
+            ref environmentStackCount);
         tryStack.Pop();
         programCounter = resumeTarget;
     }
@@ -1483,6 +1529,7 @@ internal static class UnifiedBytecodeVirtualMachine
         int controlTarget,
         bool hasControlTarget,
         Stack<TryFrame>? tryStack,
+        Span<JsValue> slots,
         ref int programCounter,
         ref JsEnvironment? currentEnvironment,
         JsEnvironment?[]? slotEnvironments,
@@ -1506,6 +1553,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 frame.ThrownValue = value;
                 RestoreEnvironmentToFrame(
                     frame,
+                    slots,
                     ref currentEnvironment,
                     slotEnvironments,
                     ref environmentStack,
@@ -1532,6 +1580,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         : PendingCompletion.FromValue(kind, value);
                     RestoreEnvironmentToFrame(
                         frame,
+                        slots,
                         ref currentEnvironment,
                         slotEnvironments,
                         ref environmentStack,
@@ -1589,6 +1638,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     -1,
                     hasControlTarget: false,
                     tryStack,
+                    slots,
                     ref programCounter,
                     ref currentEnvironment,
                     slotEnvironments,
@@ -1611,6 +1661,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     pending.Target,
                     hasControlTarget: true,
                     tryStack,
+                    slots,
                     ref programCounter,
                     ref currentEnvironment,
                     slotEnvironments,
@@ -1635,6 +1686,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 -1,
                 hasControlTarget: false,
                 tryStack,
+                slots,
                 ref programCounter,
                 ref currentEnvironment,
                 slotEnvironments,
@@ -1664,6 +1716,10 @@ internal static class UnifiedBytecodeVirtualMachine
         var thrownValue = tryStack is { Count: > 0 }
             ? tryStack.Peek().ThrownValue
             : JsValue.Undefined;
+        if (tryStack is { Count: > 0 })
+        {
+            tryStack.Peek().ActiveCatchDescriptor = descriptor;
+        }
 
         if (currentEnvironment is null || slotEnvironments is null)
         {
@@ -1701,6 +1757,27 @@ internal static class UnifiedBytecodeVirtualMachine
         }
     }
 
+    private static void MarkCatchBindingSlots(
+        ref bool[]? inactiveCatchBindingSlots,
+        int slotCount,
+        UnifiedBytecodeCatchDescriptor? descriptor,
+        bool isInactive)
+    {
+        if (descriptor is not { } catchDescriptor)
+        {
+            return;
+        }
+
+        inactiveCatchBindingSlots ??= new bool[slotCount];
+        foreach (var slotIndex in catchDescriptor.SlotIndices)
+        {
+            if ((uint)slotIndex < (uint)inactiveCatchBindingSlots.Length)
+            {
+                inactiveCatchBindingSlots[slotIndex] = isInactive;
+            }
+        }
+    }
+
     private static JsEnvironment CreateCatchEnvironment(
         UnifiedBytecodeProgram program,
         UnifiedBytecodeCatchDescriptor descriptor,
@@ -1720,6 +1797,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static void RestoreEnvironmentToFrame(
         TryFrame frame,
+        Span<JsValue> slots,
         ref JsEnvironment? currentEnvironment,
         JsEnvironment?[]? slotEnvironments,
         ref EnvironmentScopeFrame[]? environmentStack,
@@ -1730,7 +1808,7 @@ internal static class UnifiedBytecodeVirtualMachine
             while (environmentStackCount > frame.EntryEnvironmentStackCount && environmentStack is not null)
             {
                 var scopeFrame = environmentStack[--environmentStackCount];
-                RestoreSlotEnvironmentOwners(slotEnvironments, scopeFrame);
+                RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
             }
         }
 
@@ -2066,6 +2144,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static void RestoreSlotEnvironmentOwners(
         JsEnvironment?[] slotEnvironments,
+        Span<JsValue> slots,
         EnvironmentScopeFrame scopeFrame)
     {
         var slotIndices = scopeFrame.SlotIndices;

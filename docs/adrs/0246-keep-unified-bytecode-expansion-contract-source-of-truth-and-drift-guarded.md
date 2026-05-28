@@ -22,6 +22,17 @@ Earlier ADRs already keep unified bytecode IR-owned, decline-first, and
 fallback-free for accepted production programs. This ADR records the shared
 expansion-contract policy layered on top of those runtime decisions.
 
+Faktorial issue
+`planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9f49fefe3d`
+and PR #2476 immediately exercised the policy. The literal-construction
+production lane added unified opcodes for array and object literal execution,
+but the first build handoff missed the contract inventory update. The quality
+gate failed in
+`ExpressionProgramCoverageMapTests.UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums`
+until the repair commit listed `CreateArray`, `ArrayPush`, `ArrayPushHole`,
+`CreateObject`, `DefineObjectProperty`, and `DefineComputedObjectProperty` in
+the contract.
+
 ## Decision
 
 Keep `docs/unified-bytecode-expansion-contract.md` as the source-of-truth
@@ -38,6 +49,9 @@ coordination surface for parallel unified-bytecode expansion.
   evaluators.
 - Future opcode, production-decline, or proof-command changes should update the
   contract in the same slice that changes the owning implementation surface.
+  New VM-executed opcodes become contract inventory entries in the same delivery
+  slice, even when the code change and docs repair are separate commits in that
+  slice.
 - The drift guard in
   `ExpressionProgramCoverageMapTests.UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums`
   must continue to require the contract headings and current
@@ -52,6 +66,9 @@ coordination surface for parallel unified-bytecode expansion.
 - The contract remains cheap to maintain: enum-name drift and missing required
   sections fail in the internal test suite without parsing the full Markdown
   matrix.
+- The PR #2476 repair confirms that the drift guard is an active production-lane
+  gate. Agents should treat a missing contract inventory entry as a delivery
+  blocker, not as learn-stage cleanup.
 - Runtime widening still needs its own selector, compiler, VM, positive route
   proof, negative decline/no-route proof, AST-eval seam scan, and memory/profile
   stability evidence when the slice changes execution behavior.
@@ -60,7 +77,10 @@ coordination surface for parallel unified-bytecode expansion.
 
 - Issue
   `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
+- Issue
+  `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9f49fefe3d`
 - PR #2466
+- PR #2476
 - `docs/unified-bytecode-expansion-contract.md`
 - `tests/Asynkron.JsEngine.Tests/ExpressionProgramCoverageMapTests.cs`
 - `.claude/rules/unified-bytecode-prototypes.md`

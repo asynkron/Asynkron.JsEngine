@@ -2862,7 +2862,7 @@ public static partial class TypedAstEvaluator
                                 obj.DefineProperty(kvp.Key,
                                     new PropertyDescriptor
                                     {
-                                        Value = kvp.Value,
+                                        JsValue = JsValue.FromObjectUnsafe(kvp.Value),
                                         Writable = true,
                                         Enumerable = true,
                                         Configurable = true

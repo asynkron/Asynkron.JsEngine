@@ -216,16 +216,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     whitelist proof, while unsupported neighbors still needed public no-route
     proof.
 21. Before widening parallel unified-bytecode lanes, start from
-    `docs/unified-bytecode-expansion-contract.md` and keep it current in the
-    same slice that changes opcode, compiler, VM, selector, statement
-    diagnostics, or proof-command surfaces. The contract must separate current
-    support from reserved/planned lanes, keep the no-mixed-execution rule
-    explicit, and keep the drift guard in `ExpressionProgramCoverageMapTests`
-    covering required headings plus current `UnifiedBytecodeOpCode` and
-    `UnifiedBytecodeProductionDeclineCode` names. Treat newly VM-executed
-    literal-construction opcodes such as `CreateArray`, `ArrayPush`,
-    `CreateObject`, and `DefineObjectProperty` as current contract inventory in
-    the same delivery slice; do not defer them to a learn-stage docs pass. WHY:
+    `docs/unified-bytecode-expansion-contract.md` and keep contract, roadmap,
+    and ADR/rule surfaces synchronized in the same slice when shared boundary
+    text changes. The contract must separate current support from
+    reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
+    next unsupported buckets explicit (call invocation, iterator/destructuring
+    driver-state, label-dependent control flow, dynamic lookup) until dedicated
+    ownership slices land. Keep the drift guard in
+    `ExpressionProgramCoverageMapTests` covering required headings plus current
+    `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
+    Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
+    `ArrayPush`, `CreateObject`, and `DefineObjectProperty` as current contract
+    inventory in the same delivery slice; do not defer them to a learn-stage
+    docs pass. WHY:
     issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
     / PR #2466 established the shared contract before parallel lane work so

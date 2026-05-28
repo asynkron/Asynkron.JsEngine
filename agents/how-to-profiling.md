@@ -52,12 +52,14 @@ CreateNextIterationEnvironment
 ## Generated Profiler Output
 
 The `rtk ./tools/profile ...` workflow emits generated profiler artifacts under
-`tools/profile/generated/` as part of trace conversion.
+`tools/profile-output/` as part of trace conversion.
 
 - Treat those files as generated diagnostics, not hand-edited sources.
 - Do not patch generated contents manually to "fix" formatting or ordering.
 - If a review needs new profiler evidence, rerun the same profiling command and
   use the newly generated output as-is.
+- Exclude `tools/profile-output/` from broad docs/search audits unless trace
+  artifacts are explicitly in scope for that task.
 
 ## Manual Profiling
 

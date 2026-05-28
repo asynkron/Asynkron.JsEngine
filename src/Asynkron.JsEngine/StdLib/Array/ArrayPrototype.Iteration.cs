@@ -136,14 +136,23 @@ public sealed partial class ArrayPrototype
     [JsHostMethod("some", Length = 1d)]
     public JsValue Some(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
-        return SomeLike(thisValue, args, Realm, "Array.prototype.some");
+        return EvaluateArrayPredicate(thisValue, args, "Array.prototype.some", expectedTruthy: true);
     }
 
     [JsHostMethod("every", Length = 1d)]
     public JsValue Every(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
+        return EvaluateArrayPredicate(thisValue, args, "Array.prototype.every", expectedTruthy: false);
+    }
+
+    private JsValue EvaluateArrayPredicate(
+        JsValue thisValue,
+        IReadOnlyList<JsValue> args,
+        string methodName,
+        bool expectedTruthy)
+    {
         var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, Realm, "Array.prototype.every");
+            PrepareArrayIteration(thisValue, args, Realm, methodName);
         // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
         var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
 
@@ -155,13 +164,13 @@ public sealed partial class ArrayPrototype
             }
 
             var result = InvokeArrayIterationCallback(callback, value, k, accessorJsValue, thisArg);
-            if (!result.IsTruthy)
+            if (result.IsTruthy == expectedTruthy)
             {
-                return JsValue.False;
+                return expectedTruthy ? JsValue.True : JsValue.False;
             }
         }
 
-        return JsValue.True;
+        return expectedTruthy ? JsValue.False : JsValue.True;
     }
 
     [JsHostMethod("findLast", Length = 1d)]

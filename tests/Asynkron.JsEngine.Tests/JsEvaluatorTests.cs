@@ -1604,6 +1604,38 @@ public sealed class JsEvaluatorTests(ITestOutputHelper output) : InternalTestBas
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ArraySomeAndEveryCallbackReceivesValueIndexAndArray()
+    {
+        await using var engine = CreateEngine();
+
+        var someSnapshot = await engine.Evaluate("""
+
+                                                 let seen = [];
+                                                 let numbers = [4, 5, 6];
+                                                 numbers.some(function(value, index, arrayRef) {
+                                                   seen.push([value, index, arrayRef === numbers, arrayRef.length]);
+                                                   return false;
+                                                 });
+                                                 JSON.stringify(seen);
+
+                                                 """);
+        Assert.Equal("[[4,0,true,3],[5,1,true,3],[6,2,true,3]]", someSnapshot);
+
+        var everySnapshot = await engine.Evaluate("""
+
+                                                  let seen2 = [];
+                                                  let numbers2 = [7, 8, 9];
+                                                  numbers2.every(function(value, index, arrayRef) {
+                                                    seen2.push([value, index, arrayRef === numbers2, arrayRef.length]);
+                                                    return true;
+                                                  });
+                                                  JSON.stringify(seen2);
+
+                                                  """);
+        Assert.Equal("[[7,0,true,3],[8,1,true,3],[9,2,true,3]]", everySnapshot);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ArrayJoinConcatenatesElements()
     {
         await using var engine = CreateEngine();

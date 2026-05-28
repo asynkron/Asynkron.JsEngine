@@ -462,7 +462,7 @@ Realization rules:
 - Baseline signal: `docs/dreaming.md` line_count = 439
 - Final timestamp: 2026-05-28T19:12:06Z
 - Final signal: `docs/dreaming.md` line_count = 468
-- Signal delta: +32 lines
+- Signal delta: +29 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

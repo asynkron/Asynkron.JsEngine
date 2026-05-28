@@ -279,6 +279,24 @@ optimization.
      needed a follow-up correction so it did not describe the failed widening
      as retained. Related failed-attempt note:
      `docs/performance/failed-propertyaccess-named-read-production-routing.md`.
+10d. For `propertyaccess` compound-assignment RHS retries, do not add another
+     runner-local mini interpreter for simple named-property RHS expression
+     programs unless the slice removes `ExpressionProgram` operation decoding
+     and identifier/property lookup overhead together and then clears repeated
+     selected-profile timing beyond noise. Prefer an owned boundary instead:
+     emit/lowering-time normalization that gives the profiled loop real
+     flat-slot IDs, compact encoded `ExpressionProgram` execution owned by the
+     shared expression runtime, or unified-bytecode selector/compiler/VM support
+     for the whole accepted compound shape. Keep benchmark row provenance
+     explicit: a full-table baseline row and a focused selected-profile row are
+     not interchangeable labels. WHY: issue `autrun-diu68o64336o-198e1cf9f1` /
+     PR #2506 tried a simple named-property RHS evaluator and a slot-aware
+     compound target read/write micro-slice. Focused semantics passed while the
+     experiments were in place, but repeated `propertyaccess` timings did not
+     clear the 10%+ gate beyond noise, so the runtime/test edits were reverted.
+     A review-back fix also had to correct the retained `906 ms` evidence label
+     from "focused row" to "full-table baseline row". ADR:
+     `docs/adrs/0259-keep-propertyaccess-compound-rhs-retries-shared-expression-owned.md`.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

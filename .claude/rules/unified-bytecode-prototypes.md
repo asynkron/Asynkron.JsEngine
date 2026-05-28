@@ -216,16 +216,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     whitelist proof, while unsupported neighbors still needed public no-route
     proof.
 21. Before widening parallel unified-bytecode lanes, start from
-    `docs/unified-bytecode-expansion-contract.md` and keep it current in the
-    same slice that changes opcode, compiler, VM, selector, statement
-    diagnostics, or proof-command surfaces. The contract must separate current
-    support from reserved/planned lanes, keep the no-mixed-execution rule
-    explicit, and keep the drift guard in `ExpressionProgramCoverageMapTests`
-    covering required headings plus current `UnifiedBytecodeOpCode` and
-    `UnifiedBytecodeProductionDeclineCode` names. Treat newly VM-executed
-    literal-construction opcodes such as `CreateArray`, `ArrayPush`,
-    `CreateObject`, and `DefineObjectProperty` as current contract inventory in
-    the same delivery slice; do not defer them to a learn-stage docs pass. WHY:
+    `docs/unified-bytecode-expansion-contract.md` and keep contract, roadmap,
+    and ADR/rule surfaces synchronized in the same slice when shared boundary
+    text changes. The contract must separate current support from
+    reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
+    next unsupported buckets explicit (wider call families,
+    iterator/destructuring driver-state, label-dependent control flow, dynamic
+    lookup) until dedicated ownership slices land. Keep the drift guard in
+    `ExpressionProgramCoverageMapTests` covering required headings plus current
+    `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
+    Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
+    `ArrayPush`, `CreateObject`, and `DefineObjectProperty` as current contract
+    inventory in the same delivery slice; do not defer them to a learn-stage
+    docs pass. WHY:
     issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
     / PR #2466 established the shared contract before parallel lane work so
@@ -241,6 +244,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2474 repeated the same risk for primitive opcodes (`TypeOf`,
     `TypeOfIdentifier`, unary operators, `ToString`, and `Pop`), confirming the
     contract inventory is a delivery gate for every VM-executed opcode lane.
+    Issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-651d15496c`
+    / PR #2508 closed the Batch 5 documentation surface by synchronizing the
+    expansion contract, roadmap, ADR 0256, and this rule around explicit next
+    unsupported buckets. The durable lesson is that shared boundary wording and
+    unsupported-bucket guidance are delivery-slice artifacts, not later cleanup.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with
@@ -285,14 +294,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
 24. When adding unified-bytecode call-target preparation, keep preparation
-    bytecode-owned but non-executable until a separate invocation slice owns
+    bytecode-owned but non-executable for member/computed/eval/spread/construct
+    and other unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
-    semantics end to end. It is valid for the compiler to emit typed
+    semantics end to end. The #2495 identifier-call slice is the narrow
+    exception: no-spread activation-resolved identifier calls with simple
+    literal/slot arguments may execute through the VM-owned
+    `CallInvocationBoundary`. It is valid for the compiler to emit typed
     `UnifiedBytecodeCallTarget` records and `Prepare*CallTarget` opcodes for
-    no-spread activation-resolved identifier/member calls, but production
-    routing must decline at `CallInvocationBoundary` and the VM must not call
-    back into `ExpressionProgram`, `ExecutionPlanRunner`, AST evaluation, or a
-    generic host-call fallback. Update
+    no-spread activation-resolved identifier/member calls, but all unproven
+    production call routing must decline at `CallInvocationBoundary` and the VM
+    must not call back into `ExpressionProgram`, `ExecutionPlanRunner`, AST
+    evaluation, or a generic host-call fallback. Update
     `docs/unified-bytecode-expansion-contract.md` in the same slice for every
     new prep opcode or decline code. WHY: issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-161f73f52d`
@@ -376,6 +389,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     that partial root remapping plus non-root flat mappings broke unrelated
     parameter-population paths. The accepted repair made slot layout
     program-wide and positional instead of activation-only or name-based.
+29. After parallel unified-bytecode lanes have individually widened production
+    support, prove they compose as one accepted production boundary before
+    treating the batch as coherent. The integrated selector proof should combine
+    only already-owned families, assert `None` decline code, assert required
+    owned opcodes, and assert absence of non-executable call-target preparation
+    or invocation-boundary opcodes. The matching public invocation proof should
+    assert `unified-bytecode-production-fast-path` on the same function and
+    expected JavaScript result. Keep direct specialized simple-return binary and
+    binary-chain shortcuts ahead of unified bytecode and assert that those
+    functions do not log the unified route. Do not add VM fallback or broaden
+    adjacent unowned families to make an integrated test pass. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-fc03ae9db9`
+    / PR #2503 closed the production-routing integration slice with a guard-only
+    proof pack. The durable lesson was that per-lane acceptance is not enough:
+    completed lanes must compose inside one VM-owned program while route
+    priority still protects older specialized fast paths.
 
 ## Why
 
@@ -593,6 +622,19 @@ preserve the once-resolved key for the eventual set. A generic duplicate/swap
 surface or VM callback would have widened production unified bytecode beyond
 the proven selector, compiler, VM, and route-proof boundary.
 
+Faktorial issue
+`planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-fc03ae9db9`
+and PR #2503 closed the parallel-lane production-routing integration batch with
+tests rather than runtime widening. The lesson is that the accepted surface must
+be proven both lane-by-lane and as an ordinary mixed program: literals, property
+reads/writes/updates, block lexical scopes, loop control, and primitive
+operations should compose as one `UnifiedBytecodeProgram` without non-executable
+call-boundary opcodes or fallback. The same slice also proved binary-chain
+simple returns still use their specialized fast path. WHY: without an
+integrated guard, future agents can have complete-looking per-lane coverage
+while an ordinary sync function either drifts into mixed execution or shadows a
+faster established route.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -616,3 +658,4 @@ Related ADRs:
 - `docs/adrs/0252-keep-unified-bytecode-completion-lane-vm-owned.md`
 - `docs/adrs/0253-keep-unified-bytecode-loop-control-targets-compiler-owned.md`
 - `docs/adrs/0255-keep-unified-bytecode-block-lexical-scopes-program-slot-owned.md`
+- `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`

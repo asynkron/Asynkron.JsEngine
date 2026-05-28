@@ -1,4 +1,5 @@
 using Asynkron.JsEngine.Ast;
+using System.IO;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -1939,6 +1940,69 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
                 StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SourceGate_ProductionUnifiedBytecodeAcceptedPath_DoesNotDelegateToAstOrExecutionPlanRunner()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var invokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.SyncFunctionInvoker.cs");
+        var vmPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeVirtualMachine.cs");
+
+        var invokerSource = File.ReadAllText(invokerPath);
+        var acceptedPathStart = invokerSource.IndexOf(
+            "private bool TryInvokeProductionUnifiedBytecode<TArgs>(",
+            StringComparison.Ordinal);
+        Assert.True(acceptedPathStart >= 0, "Could not locate TryInvokeProductionUnifiedBytecode fast-path method.");
+        var acceptedPathEnd = invokerSource.IndexOf(
+            "private bool TryGetProductionUnifiedBytecodeProgram(",
+            acceptedPathStart,
+            StringComparison.Ordinal);
+        Assert.True(acceptedPathEnd > acceptedPathStart, "Could not locate end boundary for TryInvokeProductionUnifiedBytecode.");
+        var acceptedPathSource = invokerSource.Substring(acceptedPathStart, acceptedPathEnd - acceptedPathStart);
+
+        Assert.DoesNotContain("ExecutionPlanRunner", acceptedPathSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExpressionProgram", acceptedPathSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EvaluateExpression(", acceptedPathSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProfileEvaluateExpression(", acceptedPathSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EvaluateDynamicExpressionProgram(", acceptedPathSource, StringComparison.Ordinal);
+
+        var vmSource = File.ReadAllText(vmPath);
+        Assert.DoesNotContain("ExecutionPlanRunner", vmSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExpressionProgram", vmSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EvaluateExpression(", vmSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProfileEvaluateExpression(", vmSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("EvaluateDynamicExpressionProgram(", vmSource, StringComparison.Ordinal);
+    }
+
+    private static DirectoryInfo FindRepositoryRootForSourceGate()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if ((Directory.Exists(Path.Combine(current.FullName, ".git")) ||
+                 File.Exists(Path.Combine(current.FullName, ".git")) ||
+                 File.Exists(Path.Combine(current.FullName, "Asynkron.JsEngine.sln"))) &&
+                Directory.Exists(Path.Combine(current.FullName, "src", "Asynkron.JsEngine")))
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root for unified-bytecode source gate.");
     }
 
     public static TheoryData<string, string, double, string> UnsupportedControlFlowFunctions =>

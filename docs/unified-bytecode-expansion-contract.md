@@ -176,6 +176,22 @@ support today.
   opcodes/VM paths for these stateful families until a full driver-state model
   is implemented.
 
+## Next Unsupported Buckets (current boundary)
+- Wider call invocation remains outside the admitted boundary. Named member
+  calls, computed member calls, direct eval, spread calls, construct/super
+  calls, optional calls, arguments-object dependencies, dynamic lookup, and
+  receiver-binding-sensitive adjacent families must still decline before VM
+  execution.
+- Iterator-driver state remains outside the admitted boundary
+  (`ForInDriverStateDependency`), including `for-in` driver instructions.
+- Destructuring driver-state execution remains outside the admitted boundary
+  (`DestructuringDependency`) for array/object binding and destructuring flows.
+- Label-dependent control flow remains outside the admitted boundary
+  (`LabelControlFlow`) and must decline before VM execution.
+- Dynamic lookup families remain outside the admitted boundary
+  (`DynamicLookupDependency`), including `with` environments and unresolved
+  lookup shapes.
+
 ## Proof Commands
 ```bash
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests"

@@ -298,19 +298,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
     semantics end to end. The #2495 identifier-call slice and #2530 named
-    member-call slice plus the #2531 computed member-call slice are the narrow
-    exceptions: no-spread activation-resolved identifier calls, direct named
-    member calls with activation-resolved receiver chains, and direct computed
-    member calls with activation-resolved receiver chains may execute through
-    the VM-owned `CallInvocationBoundary` when their arguments are simple
-    literal/slot operands and computed member keys are also simple literal/slot
-    operands. Executable identifier calls must still carry the caller
+    member-call slice plus the #2531 computed member-call slice and the #2538
+    receiver-aware integration slice are the narrow exceptions: no-spread
+    activation-resolved identifier calls, direct named member calls with
+    activation-resolved receiver chains, and direct computed member calls with
+    activation-resolved receiver chains may execute through the VM-owned
+    `CallInvocationBoundary` when their arguments are simple literal/slot
+    operands and computed member keys are also simple literal/slot operands.
+    Executable identifier calls must still carry the caller
     `EvaluationContext` and active `JsEnvironment` into existing callable
     invocation helpers. Executable named member calls must keep the receiver on
-    the stack, load the named callee from that receiver, and preserve that
-    receiver as `this` for the invocation boundary. Executable computed member
-    calls must keep the receiver on the stack, consume the computed key through
-    the context-aware property lookup path, preserve key-conversion and nullish
+    the stack, load the named callee from that receiver, and preserve the final
+    resolved receiver as `this` for the invocation boundary; for accepted nested
+    receiver chains such as `root.child.read()`, the final receiver is
+    `root.child`, not `root`. Executable computed member calls must keep the
+    final receiver on the stack, consume the computed key through the
+    context-aware property lookup path, preserve key-conversion and nullish
     receiver ordering, and preserve that receiver as `this` for the invocation
     boundary. If an
     accepted program enters a block lexical scope before invoking the callable,
@@ -318,9 +321,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     environment-aware and debug-aware callables observe the same scope chain as
     the existing expression-call path. Pair the route proof with regression
     coverage for parameter-passed and block-scoped debug-aware callables for
-    identifier calls, receiver/`this` preservation for named member calls, and
-    computed-key conversion side effects plus nullish receiver and non-callable
-    callee errors for computed member calls;
+    identifier calls, final-receiver/`this` preservation for direct named
+    member calls, optional/super call declines, and computed-key conversion
+    side effects plus nullish receiver and non-callable callee errors for
+    computed member calls;
     do not rely only on ordinary JavaScript return values. It is valid for the
     compiler to emit typed `UnifiedBytecodeCallTarget` records and
     `Prepare*CallTarget` opcodes for no-spread activation-resolved
@@ -351,6 +355,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     conversion/order, nullish receiver errors, and non-callable callee errors
     while eval, spread, construct/super, optional, private/super, dynamic,
     complex computed-key, and other unproven call families still decline.
+    Issue
+    `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-cffd4a813a`
+    / PR #2538 integrated the named/computed member-call work after those
+    slices landed separately. The durable lesson is that receiver-aware
+    production calls must bind `this` to the final receiver in the accepted
+    chain, keep computed nullish-receiver-before-key-coercion ordering, and
+    prove optional and super call families still decline before VM execution.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`

@@ -67,8 +67,14 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Return`
 - `ReturnUndefined`
 - `Throw`
+- `Break`
+- `Continue`
 - `PushEnvironment`
 - `PopEnvironment`
+- `EnterTry`
+- `EnterCatch`
+- `LeaveTry`
+- `EndFinally`
 - `EnterWith`
 - `LeaveWith`
 - `IteratorInit`

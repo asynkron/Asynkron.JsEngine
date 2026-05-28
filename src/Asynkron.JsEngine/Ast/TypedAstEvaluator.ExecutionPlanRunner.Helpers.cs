@@ -606,7 +606,11 @@ public static partial class TypedAstEvaluator
                             }
 
                         case ExpressionOpKind.EnsureSuperReference:
-                            EnsureProgramSuperReference(environment, context);
+                            if (!EnsureProgramSuperReference(environment, context))
+                            {
+                                return JsValue.Undefined;
+                            }
+
                             programCounter++;
                             break;
 
@@ -2332,11 +2336,14 @@ public static partial class TypedAstEvaluator
             return templateObject;
         }
 
-        private static SuperBinding GetSuperBindingForProgramRead(
+        private static SuperBinding? GetSuperBindingForProgramRead(
             JsEnvironment environment,
             EvaluationContext context)
         {
-            EnsureProgramSuperReference(environment, context);
+            if (!EnsureProgramSuperReference(environment, context))
+            {
+                return null;
+            }
 
             var binding = environment.ExpectSuperBinding(context);
             if (binding.Prototype is null)
@@ -2351,14 +2358,20 @@ public static partial class TypedAstEvaluator
             return binding;
         }
 
-        private static void EnsureProgramSuperReference(
+        private static bool EnsureProgramSuperReference(
             JsEnvironment environment,
             EvaluationContext context)
         {
             if (!environment.IsThisInitializationKnownTrue(context))
             {
-                throw environment.CreateSuperReferenceError(context);
+                environment.RealmState?.Logger?.LogInformation("SuperBinding: reference error thisInit? {ThisInit}",
+                    context.IsThisInitialized);
+                var message = $"Super is not available in this context.{context.GetSourceInfo()}";
+                context.SetThrow(StandardLibrary.CreateReferenceError(message, context, context.RealmState));
+                return false;
             }
+
+            return true;
         }
 
         private static void LoadProgramNamedSuperCallTarget(
@@ -2369,6 +2382,13 @@ public static partial class TypedAstEvaluator
             out JsValue callee)
         {
             var binding = GetSuperBindingForProgramRead(environment, context);
+            if (binding is null)
+            {
+                receiver = JsValue.Undefined;
+                callee = JsValue.Undefined;
+                return;
+            }
+
             receiver = binding.ThisValue;
             callee = context.ShouldStopEvaluation
                 ? JsValue.Undefined
@@ -2550,7 +2570,7 @@ public static partial class TypedAstEvaluator
             EvaluationContext context)
         {
             var binding = GetSuperBindingForProgramRead(environment, context);
-            if (context.ShouldStopEvaluation)
+            if (binding is null || context.ShouldStopEvaluation)
             {
                 return JsValue.Undefined;
             }

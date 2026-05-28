@@ -815,7 +815,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
         Assert.True(result, reason);
-        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpWithDriverCleanup);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Break);
 
         var closeCount = 0;
         var iterable = CreateSingleValueIterable(

@@ -229,6 +229,18 @@ internal static class UnifiedBytecodeVirtualMachine
                         currentCallingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (HandleContextThrow(
+                                context,
+                                tryStack,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 

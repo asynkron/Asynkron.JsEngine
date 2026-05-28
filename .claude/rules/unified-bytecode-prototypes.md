@@ -232,7 +232,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2476 then failed the quality gate after a literal-construction lane
     added current unified opcodes without the matching contract inventory; the
     build-back repair added the missing opcode names before the delivery PR was
-    merged.
+    merged. Issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-b7fbd79613`
+    / PR #2474 repeated the same risk for primitive opcodes (`TypeOf`,
+    `TypeOfIdentifier`, unary operators, `ToString`, and `Pop`), confirming the
+    contract inventory is a delivery gate for every VM-executed opcode lane.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with
@@ -251,6 +255,31 @@ all-or-nothing until a separate routing issue proves production readiness.
     production unified bytecode, and the quality gate caught a missing
     `LoadThis` / `LoadNewTarget` expansion-contract inventory update before the
     lane was complete.
+23. When admitting primitive unary, conversion, discard, or strict equality
+    operations into production unified bytecode, keep the semantics VM-owned and
+    activation/TDZ-aware. The compiler may flatten only supported
+    `ExpressionProgram` operations into owned opcodes such as `TypeOf`,
+    `TypeOfIdentifier`, unary plus/minus/logical-not/bitwise-not/void,
+    `ToString`, `Pop`, and explicitly proven strict equality operators. The VM
+    must reuse the same runtime helpers as expression-program execution
+    (`JsOps.ToNumber`, `TypedAstEvaluator.NegateValue`,
+    `TypedAstEvaluator.BitwiseNot`, `JsOps.ToJsString`, and
+    `JsOps.StrictEquals`) and check `context.ShouldStopEvaluation` after
+    coercive helper calls. `TypeOfIdentifier` may route only for
+    activation-resolved names; unresolved `typeof` identifiers still decline as
+    dynamic lookup. Production invocation must mark root lexical activation
+    slots as `JsValue.Uninitialized` from `ActivationSlotShape` before
+    parameter population, and VM `LoadSlot` / `TypeOfIdentifier` must preserve
+    TDZ `ReferenceError` behavior with slot names when available.
+    `EvaluateAndDiscard` support must compile the supported expression first
+    and then append `Pop`, not skip side effects or abrupt completions. WHY:
+    issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-b7fbd79613`
+    / PR #2474 widened the primitive operator lane, then needed build-back
+    repairs for expansion-contract opcode inventory and production lexical TDZ
+    reads. The durable lesson is that broad primitive support is safe only when
+    selector, compiler, VM semantics, public route proof, dynamic declines,
+    TDZ setup, and contract docs move together.
 
 ## Why
 

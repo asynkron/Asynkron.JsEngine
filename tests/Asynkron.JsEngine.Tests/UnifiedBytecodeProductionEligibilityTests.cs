@@ -108,6 +108,58 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_TryCatchPlan_AcceptsOwnedExceptionRegionOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function recover() {
+                try {
+                    throw 40;
+                } catch (e) {
+                    return e + 2;
+                }
+            }
+            """,
+            "recover");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterCatch);
+    }
+
+    [Fact]
+    public void Evaluate_TryFinallyPlan_AcceptsOwnedFinallyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function run() {
+                var value = 0;
+                try {
+                    value = 1;
+                } finally {
+                    value = 2;
+                }
+
+                return value;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LeaveTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+    }
+
+    [Fact]
     public void Evaluate_IdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
@@ -1293,7 +1345,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.JumpWithDriverCleanup);
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
     }
 
     [Fact]
@@ -1318,7 +1370,71 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+    }
+
+    [Fact]
+    public void Evaluate_BreakThroughFinallyControlFlow_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function breakFinally(n) {
+                var marker = 0;
+                while (n > 0) {
+                    try {
+                        break;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker;
+            }
+            """,
+            "breakFinally");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+    }
+
+    [Fact]
+    public void Evaluate_ContinueThroughFinallyControlFlow_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function continueFinally(n) {
+                var i = 0;
+                var marker = 0;
+                while (i < n) {
+                    i = i + 1;
+                    try {
+                        continue;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker + i;
+            }
+            """,
+            "continueFinally");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
     }
 
     [Fact]

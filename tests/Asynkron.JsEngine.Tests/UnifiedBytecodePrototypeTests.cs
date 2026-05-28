@@ -95,6 +95,28 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void Execute_BreakThroughFinally_RunsFinallyBeforeTarget()
+    {
+        var program = CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode.Break);
+        var slots = new[] { JsValue.Undefined };
+
+        var result = ExecuteProgram(program, slots);
+
+        Assert.Equal(11d, result.AsDouble());
+    }
+
+    [Fact]
+    public void Execute_ContinueThroughFinally_RunsFinallyBeforeTarget()
+    {
+        var program = CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode.Continue);
+        var slots = new[] { JsValue.Undefined };
+
+        var result = ExecuteProgram(program, slots);
+
+        Assert.Equal(11d, result.AsDouble());
+    }
+
+    [Fact]
     public void TryCompile_DirectComputedPropertyRead_ProducesOrderedPropertyOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
@@ -793,7 +815,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
         Assert.True(result, reason);
-        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpWithDriverCleanup);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Break);
 
         var closeCount = 0;
         var iterable = CreateSingleValueIterable(
@@ -1161,6 +1183,8 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             LexicalSlotIndices: ImmutableArray<int>.Empty,
             CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
             ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             DriverDescriptors: ImmutableArray.Create(
                 new UnifiedBytecodeDriverDescriptor(StateSlot: 2),
                 new UnifiedBytecodeDriverDescriptor(
@@ -1201,6 +1225,8 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             LexicalSlotIndices: ImmutableArray<int>.Empty,
             CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
             ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             DriverDescriptors: ImmutableArray.Create(
                 new UnifiedBytecodeDriverDescriptor(StateSlot: 3),
                 new UnifiedBytecodeDriverDescriptor(
@@ -1214,6 +1240,36 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
                     ValueSlot: 6,
                     BreakTarget: 8,
                     NextTarget: 6)));
+    }
+
+    private static UnifiedBytecodeProgram CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode abruptOpCode)
+    {
+        return new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnterTry, 0),
+                new UnifiedBytecodeInstruction(abruptOpCode, 6),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EndFinally, 6),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 1,
+            SlotCount: 1,
+            LiteralConstants: ImmutableArray.Create(JsValue.FromDouble(11)),
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray.Create<string?>("value"),
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray.Create(new UnifiedBytecodeTryDescriptor(
+                HandlerTarget: -1,
+                FinallyTarget: 3,
+                EndFinallyTarget: 5,
+                LeaveTryTarget: -1)),
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
     }
 
     private static JsObject CreateSingleValueIterable(JsValue value, Action onReturn)

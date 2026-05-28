@@ -22,6 +22,56 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private readonly record struct ActiveDriverSlot(int SlotIndex, int Ordinal);
 
+    private enum AbruptKind
+    {
+        None,
+        Return,
+        Throw,
+        Break,
+        Continue
+    }
+
+    private readonly record struct PendingCompletion(
+        AbruptKind Kind,
+        JsValue Value,
+        int Target,
+        int ResumeTarget,
+        bool OriginatedInFinally)
+    {
+        public static PendingCompletion None { get; } =
+            new(AbruptKind.None, JsValue.Undefined, -1, -1, false);
+
+        public static PendingCompletion FromNormal(int resumeTarget) =>
+            new(AbruptKind.None, JsValue.Undefined, -1, resumeTarget, false);
+
+        public static PendingCompletion FromValue(
+            AbruptKind kind,
+            JsValue value,
+            bool originatedInFinally = false) =>
+            new(kind, value, -1, -1, originatedInFinally);
+
+        public static PendingCompletion FromTarget(
+            AbruptKind kind,
+            int target,
+            bool originatedInFinally = false) =>
+            new(kind, JsValue.Undefined, target, -1, originatedInFinally);
+    }
+
+    private sealed class TryFrame(
+        UnifiedBytecodeTryDescriptor descriptor,
+        JsEnvironment? entryEnvironment,
+        int entryEnvironmentStackCount)
+    {
+        public UnifiedBytecodeTryDescriptor Descriptor { get; } = descriptor;
+        public JsEnvironment? EntryEnvironment { get; } = entryEnvironment;
+        public int EntryEnvironmentStackCount { get; } = entryEnvironmentStackCount;
+        public bool CatchUsed { get; set; }
+        public bool FinallyScheduled { get; set; }
+        public PendingCompletion PendingCompletion { get; set; } = PendingCompletion.None;
+        public JsValue ThrownValue { get; set; } = JsValue.Undefined;
+        public UnifiedBytecodeCatchDescriptor? ActiveCatchDescriptor { get; set; }
+    }
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
@@ -42,10 +92,32 @@ internal static class UnifiedBytecodeVirtualMachine
         var environmentStackCount = 0;
         AssignmentReference[]? dynamicIdentifierReferences = null;
         var dynamicIdentifierReferenceCount = 0;
+        bool[]? inactiveCatchBindingSlots = null;
+        Stack<TryFrame>? tryStack = null;
         var nextActiveDriverOrdinal = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
+        bool TryHandleCurrentContextThrow(Span<JsValue> currentSlots)
+        {
+            if (!HandleContextThrow(
+                context,
+                program,
+                tryStack,
+                currentSlots,
+                ref programCounter,
+                ref currentCallingEnvironment,
+                slotEnvironments,
+                ref environmentStack,
+                ref environmentStackCount))
+            {
+                return false;
+            }
+
+            stackPointer = 0;
+            return true;
+        }
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -54,10 +126,26 @@ internal static class UnifiedBytecodeVirtualMachine
                 switch (instruction.OpCode)
                 {
                 case UnifiedBytecodeOpCode.LoadSlot:
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, instruction.Operand))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
                     var slotValue = slots[instruction.Operand];
                     if (slotValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -73,6 +161,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -102,10 +195,26 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Identifier call-target preparation requires an identifier call target constant.");
                     }
 
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, callTarget.SlotIndex))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, callTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
                     var callableValue = slots[callTarget.SlotIndex];
                     if (callableValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -124,6 +233,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -146,6 +260,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -165,6 +284,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = GetComputedCallTargetValue(computedCallReceiver, computedCallKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -180,6 +304,20 @@ internal static class UnifiedBytecodeVirtualMachine
                         currentCallingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (HandleContextThrow(
+                                context,
+                                program,
+                                tryStack,
+                                slots,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -201,6 +339,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -217,6 +360,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -244,6 +392,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         dynamicIdentifierReferences[dynamicIdentifierReferenceCount - 1].GetJsValue();
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -270,6 +423,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     dynamicIdentifierReferences[dynamicIdentifierReferenceCount] = default;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -294,6 +452,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -308,6 +471,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Cannot read properties of null or undefined",
                             context,
                             context.RealmState));
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -318,6 +486,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = ResolvePropertyKey(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -331,6 +504,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -345,6 +523,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -359,6 +542,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -377,6 +565,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -394,6 +587,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -408,12 +606,22 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedSetName = JsOps.GetRequiredPropertyName(computedSetKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
                     SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context, isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -432,6 +640,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -444,6 +657,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedUpdateName = JsOps.GetRequiredPropertyName(computedUpdateKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -456,6 +674,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -471,6 +694,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -483,10 +711,22 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, instruction.Operand))
+                    {
+                        stack[stackPointer++] = new JsValue("undefined");
+                        programCounter++;
+                        break;
+                    }
+
                     var typeOfValue = slots[instruction.Operand];
                     if (typeOfValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -512,6 +752,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.False;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -523,6 +768,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -533,6 +783,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -548,6 +803,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -563,6 +823,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -642,6 +907,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedObjectPropertyName = JsOps.GetRequiredPropertyName(computedObjectPropertyKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -661,6 +931,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -671,6 +946,73 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter = stack[--stackPointer].IsTruthy
                         ? programCounter + 1
                         : instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.Break:
+                    if (HandleAbruptCompletion(
+                            program,
+                            AbruptKind.Break,
+                            JsValue.Undefined,
+                            instruction.Operand,
+                            hasControlTarget: true,
+                            tryStack,
+                            slots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount))
+                    {
+                        break;
+                    }
+
+                    CleanupDriverStatesForBreakTarget(
+                        instruction.Operand,
+                        program,
+                        slots,
+                        slotEnvironments,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (HandleContextThrow(
+                                context,
+                                program,
+                                tryStack,
+                                slots,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter = instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.Continue:
+                    if (HandleAbruptCompletion(
+                            program,
+                            AbruptKind.Continue,
+                            JsValue.Undefined,
+                            instruction.Operand,
+                            hasControlTarget: true,
+                            tryStack,
+                            slots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount))
+                    {
+                        break;
+                    }
+
+                    programCounter = instruction.Operand;
                     break;
 
                 case UnifiedBytecodeOpCode.PushEnvironment:
@@ -713,11 +1055,107 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (environmentStackCount > 0 && slotEnvironments is not null)
                     {
                         var scopeFrame = environmentStack![--environmentStackCount];
-                        RestoreSlotEnvironmentOwners(slotEnvironments, scopeFrame);
+                        RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
                         currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
                     }
 
                     programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.EnterTry:
+                    tryStack ??= new Stack<TryFrame>();
+                    tryStack.Push(new TryFrame(
+                        program.TryDescriptors[instruction.Operand],
+                        currentCallingEnvironment,
+                        environmentStackCount));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.EnterCatch:
+                    var catchDescriptor = program.CatchDescriptors[instruction.Operand];
+                    EnterCatch(
+                        program,
+                        catchDescriptor,
+                        tryStack,
+                        slots,
+                        slotEnvironments,
+                        context,
+                        ref currentCallingEnvironment,
+                        ref environmentStack,
+                        ref environmentStackCount);
+                    MarkCatchBindingSlots(
+                        ref inactiveCatchBindingSlots,
+                        slots.Length,
+                        catchDescriptor,
+                        isInactive: false);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (HandleContextThrow(
+                                context,
+                                program,
+                                tryStack,
+                                slots,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LeaveTry:
+                    if (tryStack is not null &&
+                        tryStack.Count > 0 &&
+                        tryStack.Peek().Descriptor.LeaveTryTarget == programCounter)
+                    {
+                        CompleteTryNormally(
+                            instruction.Operand,
+                            tryStack,
+                            slots,
+                            ref inactiveCatchBindingSlots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount);
+                    }
+                    else
+                    {
+                        programCounter = instruction.Operand;
+                    }
+
+                    break;
+
+                case UnifiedBytecodeOpCode.EndFinally:
+                    if (tryStack is null || tryStack.Count == 0)
+                    {
+                        programCounter = instruction.Operand;
+                        break;
+                    }
+
+                    if (CompleteFinally(
+                            program,
+                            instruction.Operand,
+                            tryStack,
+                            slots,
+                            slotEnvironments,
+                            context,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            ref environmentStack,
+                            ref environmentStackCount,
+                            out var finalReturn))
+                    {
+                        return finalReturn;
+                    }
+
                     break;
 
                 case UnifiedBytecodeOpCode.EnterWith:
@@ -734,6 +1172,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -773,6 +1216,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ref nextActiveDriverOrdinal,
                                 out var nextProgramCounter))
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -783,9 +1231,19 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.IteratorClose:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
-                        CloseIteratorDriverState(descriptor.StateSlot, slots, slotEnvironments, context, false);
+                        CloseIteratorDriverState(
+                            descriptor.StateSlot,
+                            slots,
+                            slotEnvironments,
+                            context,
+                            HasPendingThrowCompletion(tryStack));
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                         }
 
@@ -824,6 +1282,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         var sourceValue = stack[--stackPointer];
                         if (!TryGetIteratorForArrayDestructuring(sourceValue, context, out var state))
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -844,6 +1307,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var value))
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -867,6 +1335,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var restValue))
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -882,6 +1355,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         CloseArrayDestructuringState(descriptor.StateSlot, slots, slotEnvironments, context, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                         }
 
@@ -890,16 +1368,68 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                 case UnifiedBytecodeOpCode.Return:
-                    var result = stack[stackPointer - 1];
+                    var result = stack[--stackPointer];
+                    if (HandleAbruptCompletion(
+                            program,
+                            AbruptKind.Return,
+                            result,
+                            -1,
+                            hasControlTarget: false,
+                            tryStack,
+                            slots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount))
+                    {
+                        break;
+                    }
+
                     CleanupActiveDriverStates(slots, slotEnvironments, context, false);
                     return context.ShouldStopEvaluation ? JsValue.Undefined : result;
 
                 case UnifiedBytecodeOpCode.ReturnUndefined:
+                    if (HandleAbruptCompletion(
+                            program,
+                            AbruptKind.Return,
+                            JsValue.Undefined,
+                            -1,
+                            hasControlTarget: false,
+                            tryStack,
+                            slots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount))
+                    {
+                        break;
+                    }
+
                     CleanupActiveDriverStates(slots, slotEnvironments, context, false);
                     return JsValue.Undefined;
 
                 case UnifiedBytecodeOpCode.Throw:
-                    context.SetThrow(stack[--stackPointer]);
+                    var thrownValue = stack[--stackPointer];
+                    if (HandleAbruptCompletion(
+                            program,
+                            AbruptKind.Throw,
+                            thrownValue,
+                            -1,
+                            hasControlTarget: false,
+                            tryStack,
+                            slots,
+                            ref programCounter,
+                            ref currentCallingEnvironment,
+                            slotEnvironments,
+                            ref environmentStack,
+                            ref environmentStackCount))
+                    {
+                        break;
+                    }
+
+                    context.SetThrow(thrownValue);
                     CleanupActiveDriverStates(slots, slotEnvironments, context, true);
                     return JsValue.Undefined;
 
@@ -910,11 +1440,479 @@ internal static class UnifiedBytecodeVirtualMachine
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
+                if (HandleContextThrow(
+                        context,
+                        program,
+                        tryStack,
+                        slots,
+                        ref programCounter,
+                        ref currentCallingEnvironment,
+                        slotEnvironments,
+                        ref environmentStack,
+                        ref environmentStackCount))
+                {
+                    continue;
+                }
+
                 return StopWithDriverCleanup(slots, slotEnvironments, context, true);
             }
         }
 
         throw new InvalidOperationException("Program terminated without Return.");
+    }
+
+    private static bool HandleContextThrow(
+        EvaluationContext context,
+        UnifiedBytecodeProgram program,
+        Stack<TryFrame>? tryStack,
+        Span<JsValue> slots,
+        ref int programCounter,
+        ref JsEnvironment? currentEnvironment,
+        JsEnvironment?[]? slotEnvironments,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount)
+    {
+        if (!context.IsThrow)
+        {
+            return false;
+        }
+
+        var thrownValue = context.FlowValue;
+        context.Clear();
+        if (HandleAbruptCompletion(
+                program,
+                AbruptKind.Throw,
+                thrownValue,
+                -1,
+                hasControlTarget: false,
+                tryStack,
+                slots,
+                ref programCounter,
+                ref currentEnvironment,
+                slotEnvironments,
+                ref environmentStack,
+                ref environmentStackCount))
+        {
+            return true;
+        }
+
+        context.SetThrow(thrownValue);
+        return false;
+    }
+
+    private static bool HasPendingThrowCompletion(Stack<TryFrame>? tryStack)
+    {
+        return tryStack is { Count: > 0 } &&
+               tryStack.Peek() is { FinallyScheduled: true, PendingCompletion.Kind: AbruptKind.Throw };
+    }
+
+    private static void CompleteTryNormally(
+        int resumeTarget,
+        Stack<TryFrame> tryStack,
+        Span<JsValue> slots,
+        ref bool[]? inactiveCatchBindingSlots,
+        ref int programCounter,
+        ref JsEnvironment? currentEnvironment,
+        JsEnvironment?[]? slotEnvironments,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount)
+    {
+        if (tryStack.Count == 0)
+        {
+            programCounter = resumeTarget;
+            return;
+        }
+
+        var frame = tryStack.Peek();
+        MarkCatchBindingSlots(
+            ref inactiveCatchBindingSlots,
+            slots.Length,
+            frame.ActiveCatchDescriptor,
+            isInactive: true);
+        if (frame is { Descriptor.FinallyTarget: >= 0, FinallyScheduled: false })
+        {
+            frame.FinallyScheduled = true;
+            frame.PendingCompletion = PendingCompletion.FromNormal(resumeTarget);
+            RestoreEnvironmentToFrame(
+                frame,
+                slots,
+                ref currentEnvironment,
+                slotEnvironments,
+                ref environmentStack,
+                ref environmentStackCount);
+            programCounter = frame.Descriptor.FinallyTarget;
+            return;
+        }
+
+        RestoreEnvironmentToFrame(
+            frame,
+            slots,
+            ref currentEnvironment,
+            slotEnvironments,
+            ref environmentStack,
+            ref environmentStackCount);
+        tryStack.Pop();
+        programCounter = resumeTarget;
+    }
+
+    private static bool HandleAbruptCompletion(
+        UnifiedBytecodeProgram program,
+        AbruptKind kind,
+        JsValue value,
+        int controlTarget,
+        bool hasControlTarget,
+        Stack<TryFrame>? tryStack,
+        Span<JsValue> slots,
+        ref int programCounter,
+        ref JsEnvironment? currentEnvironment,
+        JsEnvironment?[]? slotEnvironments,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount)
+    {
+        if (tryStack is null)
+        {
+            return false;
+        }
+
+        while (tryStack.Count > 0)
+        {
+            var frame = tryStack.Peek();
+            if (kind == AbruptKind.Throw &&
+                frame.Descriptor.HandlerTarget >= 0 &&
+                !frame.CatchUsed &&
+                !frame.FinallyScheduled)
+            {
+                frame.CatchUsed = true;
+                frame.ThrownValue = value;
+                RestoreEnvironmentToFrame(
+                    frame,
+                    slots,
+                    ref currentEnvironment,
+                    slotEnvironments,
+                    ref environmentStack,
+                    ref environmentStackCount);
+                programCounter = frame.Descriptor.HandlerTarget;
+                return true;
+            }
+
+            if (frame.Descriptor.FinallyTarget >= 0)
+            {
+                if (hasControlTarget &&
+                    kind == AbruptKind.Continue &&
+                    frame.Descriptor.LoopContinueTarget >= 0 &&
+                    IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopContinueTarget))
+                {
+                    return false;
+                }
+
+                if (hasControlTarget &&
+                    kind == AbruptKind.Break &&
+                    frame.Descriptor.LoopBreakTarget >= 0 &&
+                    !IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopBreakTarget) &&
+                    IsBreakTargetInsideLoopFrame(program, controlTarget, frame.Descriptor.LoopBreakTarget))
+                {
+                    return false;
+                }
+
+                if (!frame.FinallyScheduled)
+                {
+                    frame.FinallyScheduled = true;
+                    frame.PendingCompletion = hasControlTarget
+                        ? PendingCompletion.FromTarget(kind, controlTarget)
+                        : PendingCompletion.FromValue(kind, value);
+                    RestoreEnvironmentToFrame(
+                        frame,
+                        slots,
+                        ref currentEnvironment,
+                        slotEnvironments,
+                        ref environmentStack,
+                        ref environmentStackCount);
+                    programCounter = frame.Descriptor.FinallyTarget;
+                    return true;
+                }
+
+                frame.PendingCompletion = hasControlTarget
+                    ? PendingCompletion.FromTarget(kind, controlTarget, originatedInFinally: true)
+                    : PendingCompletion.FromValue(kind, value, originatedInFinally: true);
+                if (frame.Descriptor.EndFinallyTarget >= 0)
+                {
+                    programCounter = frame.Descriptor.EndFinallyTarget;
+                    return true;
+                }
+
+                tryStack.Pop();
+                continue;
+            }
+
+            tryStack.Pop();
+        }
+
+        return false;
+    }
+
+    private static bool IsBreakTargetInsideLoopFrame(
+        UnifiedBytecodeProgram program,
+        int target,
+        int loopBreakTarget)
+    {
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            // The inner driver can already be closed when its pending break reaches an outer frame.
+            // Use descriptor topology instead of active driver state to mirror the runner's breakable stack.
+            if (descriptor.BreakTarget < 0)
+            {
+                continue;
+            }
+
+            if (IsSameLoopControlTarget(program, target, descriptor.BreakTarget))
+            {
+                return descriptor.BreakTarget != loopBreakTarget;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSameLoopControlTarget(
+        UnifiedBytecodeProgram program,
+        int target,
+        int loopControlTarget)
+    {
+        var instructions = program.Instructions;
+        var remainingCleanupDepth = instructions.Length;
+        while (target >= 0 &&
+               target < instructions.Length &&
+               remainingCleanupDepth-- > 0)
+        {
+            if (target == loopControlTarget)
+            {
+                return true;
+            }
+
+            if (instructions[target].OpCode != UnifiedBytecodeOpCode.PopEnvironment)
+            {
+                return false;
+            }
+
+            target++;
+        }
+
+        return false;
+    }
+
+    private static bool CompleteFinally(
+        UnifiedBytecodeProgram program,
+        int nextTarget,
+        Stack<TryFrame> tryStack,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context,
+        ref int programCounter,
+        ref JsEnvironment? currentEnvironment,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount,
+        out JsValue returnValue)
+    {
+        returnValue = JsValue.Undefined;
+        var completedFrame = tryStack.Pop();
+        var pending = completedFrame.PendingCompletion;
+        if (pending.Kind == AbruptKind.None)
+        {
+            programCounter = pending.ResumeTarget >= 0 ? pending.ResumeTarget : nextTarget;
+            return false;
+        }
+
+        if (pending.Kind == AbruptKind.Return)
+        {
+            if (HandleAbruptCompletion(
+                    program,
+                    AbruptKind.Return,
+                    pending.Value,
+                    -1,
+                    hasControlTarget: false,
+                    tryStack,
+                    slots,
+                    ref programCounter,
+                    ref currentEnvironment,
+                    slotEnvironments,
+                    ref environmentStack,
+                    ref environmentStackCount))
+            {
+                return false;
+            }
+
+            CleanupActiveDriverStates(slots, slotEnvironments, context, false);
+            returnValue = context.ShouldStopEvaluation ? JsValue.Undefined : pending.Value;
+            return true;
+        }
+
+        if (pending.Kind is AbruptKind.Break or AbruptKind.Continue)
+        {
+            if (HandleAbruptCompletion(
+                    program,
+                    pending.Kind,
+                    JsValue.Undefined,
+                    pending.Target,
+                    hasControlTarget: true,
+                    tryStack,
+                    slots,
+                    ref programCounter,
+                    ref currentEnvironment,
+                    slotEnvironments,
+                    ref environmentStack,
+                    ref environmentStackCount))
+            {
+                return false;
+            }
+
+            if (pending.Kind == AbruptKind.Break)
+            {
+                CleanupDriverStatesForBreakTarget(pending.Target, program, slots, slotEnvironments, context);
+            }
+
+            programCounter = pending.Target >= 0 ? pending.Target : nextTarget;
+            return false;
+        }
+
+        if (HandleAbruptCompletion(
+                program,
+                AbruptKind.Throw,
+                pending.Value,
+                -1,
+                hasControlTarget: false,
+                tryStack,
+                slots,
+                ref programCounter,
+                ref currentEnvironment,
+                slotEnvironments,
+                ref environmentStack,
+                ref environmentStackCount))
+        {
+            return false;
+        }
+
+        context.SetThrow(pending.Value);
+        CleanupActiveDriverStates(slots, slotEnvironments, context, true);
+        returnValue = JsValue.Undefined;
+        return true;
+    }
+
+    private static void EnterCatch(
+        UnifiedBytecodeProgram program,
+        UnifiedBytecodeCatchDescriptor descriptor,
+        Stack<TryFrame>? tryStack,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context,
+        ref JsEnvironment? currentEnvironment,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount)
+    {
+        var thrownValue = tryStack is { Count: > 0 }
+            ? tryStack.Peek().ThrownValue
+            : JsValue.Undefined;
+        if (tryStack is { Count: > 0 })
+        {
+            tryStack.Peek().ActiveCatchDescriptor = descriptor;
+        }
+
+        if (currentEnvironment is null || slotEnvironments is null)
+        {
+            if (descriptor.BindingSlot >= 0)
+            {
+                slots[descriptor.BindingSlot] = thrownValue;
+            }
+
+            return;
+        }
+
+        var catchEnvironment = CreateCatchEnvironment(program, descriptor, currentEnvironment, context);
+        var previousSlotEnvironments = new JsEnvironment?[descriptor.SlotIndices.Length];
+        for (var i = 0; i < descriptor.SlotIndices.Length; i++)
+        {
+            var slotIndex = descriptor.SlotIndices[i];
+            previousSlotEnvironments[i] = slotEnvironments[slotIndex];
+            slotEnvironments[slotIndex] = catchEnvironment;
+        }
+
+        environmentStack ??= new EnvironmentScopeFrame[program.Instructions.Length];
+        environmentStack[environmentStackCount++] = new EnvironmentScopeFrame(
+            catchEnvironment,
+            descriptor.SlotIndices,
+            previousSlotEnvironments);
+        currentEnvironment = catchEnvironment;
+
+        if (descriptor.BindingName is { } bindingName)
+        {
+            catchEnvironment.SetSimpleCatchParameters(
+                new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance) { bindingName });
+            catchEnvironment.DefineJsValue(bindingName, thrownValue, false, isLexicalBinding: true);
+            slots[descriptor.BindingSlot] = thrownValue;
+            SyncSlotEnvironment(slotEnvironments, descriptor.BindingSlot, thrownValue);
+        }
+    }
+
+    private static void MarkCatchBindingSlots(
+        ref bool[]? inactiveCatchBindingSlots,
+        int slotCount,
+        UnifiedBytecodeCatchDescriptor? descriptor,
+        bool isInactive)
+    {
+        if (descriptor is not { } catchDescriptor)
+        {
+            return;
+        }
+
+        inactiveCatchBindingSlots ??= new bool[slotCount];
+        foreach (var slotIndex in catchDescriptor.SlotIndices)
+        {
+            if ((uint)slotIndex < (uint)inactiveCatchBindingSlots.Length)
+            {
+                inactiveCatchBindingSlots[slotIndex] = isInactive;
+            }
+        }
+    }
+
+    private static bool IsInactiveCatchBindingSlot(bool[]? inactiveCatchBindingSlots, int slotIndex) =>
+        inactiveCatchBindingSlots is not null &&
+        (uint)slotIndex < (uint)inactiveCatchBindingSlots.Length &&
+        inactiveCatchBindingSlots[slotIndex];
+
+    private static JsEnvironment CreateCatchEnvironment(
+        UnifiedBytecodeProgram program,
+        UnifiedBytecodeCatchDescriptor descriptor,
+        JsEnvironment enclosing,
+        EvaluationContext context)
+    {
+        var catchEnvironment = JsEnvironment.CreateInstance(
+            enclosing,
+            isFunctionScope: false,
+            isStrict: context.CurrentScope.IsStrict || enclosing.IsStrict,
+            description: "unified-bytecode-catch");
+        catchEnvironment.InitializeSlots(GetScopeSlotCount(descriptor.SlotIndices), descriptor.ScopeId);
+        SetScopeSlotNames(catchEnvironment, program, descriptor.SlotIndices);
+        catchEnvironment.SetSlotsLexicalUninitialized(descriptor.SlotIndices);
+        return catchEnvironment;
+    }
+
+    private static void RestoreEnvironmentToFrame(
+        TryFrame frame,
+        Span<JsValue> slots,
+        ref JsEnvironment? currentEnvironment,
+        JsEnvironment?[]? slotEnvironments,
+        ref EnvironmentScopeFrame[]? environmentStack,
+        ref int environmentStackCount)
+    {
+        if (slotEnvironments is not null)
+        {
+            while (environmentStackCount > frame.EntryEnvironmentStackCount && environmentStack is not null)
+            {
+                var scopeFrame = environmentStack[--environmentStackCount];
+                RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
+            }
+        }
+
+        currentEnvironment = frame.EntryEnvironment ?? currentEnvironment;
     }
 
     private static JsEnvironment RequireDynamicEnvironment(JsEnvironment? environment)
@@ -1246,6 +2244,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static void RestoreSlotEnvironmentOwners(
         JsEnvironment?[] slotEnvironments,
+        Span<JsValue> slots,
         EnvironmentScopeFrame scopeFrame)
     {
         var slotIndices = scopeFrame.SlotIndices;
@@ -2209,6 +3208,18 @@ internal static class UnifiedBytecodeVirtualMachine
             ? "Cannot access lexical binding before initialization"
             : $"Cannot access '{slotName}' before initialization";
         context.SetThrow(StandardLibrary.CreateReferenceError(message, context, context.RealmState));
+    }
+
+    private static void SetInactiveCatchBindingReferenceError(
+        UnifiedBytecodeProgram program,
+        int slotIndex,
+        EvaluationContext context)
+    {
+        var slotName = GetSlotName(program, slotIndex) ?? "catch binding";
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            $"{slotName} is not defined",
+            context,
+            context.RealmState));
     }
 
     private static string? GetSlotName(UnifiedBytecodeProgram program, int slotIndex)

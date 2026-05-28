@@ -287,6 +287,267 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function recover() {
+                try {
+                    throw 40;
+                } catch (e) {
+                    return e + 2;
+                }
+            }
+
+            recover();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=recover argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchBindingDoesNotLeakAfterCatchOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function leak() {
+                try {
+                    throw 7;
+                } catch (e) {
+                }
+
+                return typeof e;
+            }
+
+            leak();
+            """);
+
+        Assert.Equal("undefined", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=leak argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchBindingDirectReadAfterCatchThrowsReferenceErrorOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe() {
+                try {
+                    throw 7;
+                } catch (e) {
+                }
+
+                try {
+                    return e;
+                } catch (error) {
+                    return error.name;
+                }
+            }
+
+            probe();
+            """);
+
+        Assert.Equal("ReferenceError", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ReturnFromFinallyReplacesPriorReturnOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceReturn() {
+                try {
+                    return 1;
+                } finally {
+                    return 2;
+                }
+            }
+
+            replaceReturn();
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceReturn argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_NestedReturnThroughFinallyClearsOperandStackOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceNestedReturn() {
+                try {
+                    return 3;
+                } finally {
+                    try {
+                        return (10 + 20) + (30 + 40);
+                    } finally {
+                        (1 + 2) + (3 + 4);
+                    }
+                }
+            }
+
+            replaceNestedReturn();
+            """);
+
+        Assert.Equal(100d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceNestedReturn argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ThrowFromFinallyReplacesPriorThrowOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceThrow() {
+                try {
+                    try {
+                        throw 1;
+                    } finally {
+                        throw 2;
+                    }
+                } catch (e) {
+                    return e;
+                }
+            }
+
+            replaceThrow();
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceThrow argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_BreakThroughFinallyUsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function breakFinally(n) {
+                var marker = 0;
+                while (n > 0) {
+                    try {
+                        break;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker;
+            }
+
+            breakFinally(2);
+            """);
+
+        Assert.Equal(10d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=breakFinally argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ContinueThroughFinallyUsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function continueFinally(n) {
+                var i = 0;
+                var marker = 0;
+                while (i < n) {
+                    i = i + 1;
+                    try {
+                        continue;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker + i;
+            }
+
+            continueFinally(2);
+            """);
+
+        Assert.Equal(22d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=continueFinally argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOfNestedInnerBreak_DoesNotCloseOuterIteratorBeforeReturnExpressionOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeIterable(closeValue, box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: closeValue };
+                            },
+                            return: function() {
+                                box.value = box.value + closeValue;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                for (var outerValue of outer) {
+                    for (var innerValue of inner) {
+                        break;
+                    }
+
+                    return box.value;
+                }
+
+                return -1;
+            }
+
+            var box = { value: 0 };
+            var result = probe(makeIterable(10, box), makeIterable(1, box), box);
+            result + ":" + box.value;
+            """);
+
+        Assert.Equal("1:11", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();
@@ -1311,6 +1572,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryCatch_GetterThrow_IsCaughtOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function recover(box) {
+                try {
+                    return box.value;
+                } catch (error) {
+                    return "caught:" + error;
+                }
+            }
+
+            recover({
+                get value() {
+                    throw "boom";
+                }
+            });
+            """);
+
+        Assert.Equal("caught:boom", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=recover argc=1",
                 StringComparison.Ordinal));
     }
 

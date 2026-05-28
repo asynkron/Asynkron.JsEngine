@@ -401,6 +401,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     proof pack. The durable lesson was that per-lane acceptance is not enough:
     completed lanes must compose inside one VM-owned program while route
     priority still protects older specialized fast paths.
+30. Keep production unified-bytecode no-mixed-execution source gates both
+    method-boundary-scoped and VM-scoped. The sync-invoker source gate should
+    scan only `TryInvokeProductionUnifiedBytecode<TArgs>(...)`, because the
+    surrounding invoker file legitimately owns fallback paths. The same test
+    must also scan `UnifiedBytecodeVirtualMachine.cs` and forbid
+    `ExecutionPlanRunner`, `ExpressionProgram`, `EvaluateExpression(`,
+    `ProfileEvaluateExpression(`, and `EvaluateDynamicExpressionProgram(`.
+    A gate that omits `ExpressionProgram` from the VM source can pass while
+    leaving the mixed-expression bridge open. Repository-root discovery for
+    source gates must work in normal checkouts and linked worktrees: accept a
+    `.git` directory, a `.git` file, or the solution marker together with the
+    expected `src/Asynkron.JsEngine` tree. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-a88c0a9ba1`
+    / PR #2509 hardened the accepted-path proof after review caught two
+    guardrail holes: linked-worktree root discovery and a missing VM-source
+    `ExpressionProgram` assertion.
 
 ## Why
 
@@ -630,6 +646,18 @@ simple returns still use their specialized fast path. WHY: without an
 integrated guard, future agents can have complete-looking per-lane coverage
 while an ordinary sync function either drifts into mixed execution or shadows a
 faster established route.
+
+Faktorial issue
+`planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-a88c0a9ba1`
+and PR #2509 made the production unified-bytecode source gate persistent. The
+lesson is that no-mixed-execution proof needs two precise scan scopes: the
+accepted sync-invoker method body, not the whole mixed-responsibility invoker
+file, and the unified VM source itself. Review feedback also showed that
+worktree-aware root discovery belongs in the gate, and that `ExpressionProgram`
+must be forbidden in the VM source alongside `ExecutionPlanRunner` and AST-eval
+entry points. WHY: otherwise a guard can look complete while either failing in
+linked worktrees or allowing an expression-bytecode bridge back into the
+production unified VM.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

@@ -144,16 +144,31 @@ When working inside the core engine, keep JavaScript values represented as
     stateful builtin data slots such as RegExp `lastIndex`, are still JavaScript
     data descriptors; use `new JsValue(...)`, `JsValue.True`, or an explicit
     object wrapping helper instead of hiding that conversion behind `Value =`.
+    Object-literal dictionary spread descriptors in both
+    `TypedAstEvaluator.ExecutionPlanRunner.Helpers` and
+    `Ast/Legacy/ExpressionNodeExtensions` are the same kind of core data
+    descriptor sink: `IDictionary<string, object?>` is the intentional interop
+    source shape, but copied values should enter `PropertyDescriptor` through
+    `JsValue = JsValue.FromObjectUnsafe(...)`, not the `Value` compatibility
+    setter.
     Prove descriptor migrations with a scoped before/after search that
     distinguishes legacy `Value =` setters from `JsValue =` setters, for
     example `\bValue\s*=` in the selected file set, and pair it with the
     focused semantic proof for that descriptor cluster. For helper migrations,
     prove the helper body as well as the signature and callsites: changing a
     parameter to `JsValue` is incomplete if an initializer still says
-    `Value = value`. Do not turn the compatibility setter into error-level
+    `Value = value`. When the selected owner surface has mirrored IR and
+    legacy/dynamic evaluator branches, include both branches in the legacy-setter
+    search and either update both or document the intentional divergence. Do not
+    turn the compatibility setter into error-level
     obsoletion inside a small descriptor slice when the exposed callers are
     repo-wide or include generated code; record that deferral and keep the
     bounded migration moving.
+    WHY: issue `autrun-diu14wv8korc-df99b99081` / PR #2449 initially migrated
+    only the IR object-literal dictionary spread branch. Review had to send the
+    slice back because the mirrored legacy/dynamic branch still used
+    `Value = kvp.Value`, which violated AC-2 even though the production runner
+    diff looked complete.
 16. When a private runtime property-read helper already has a JavaScript
     receiver, keep the context-aware read path typed as `JsValue` for both the
     receiver and the returned value. Do not unbox primitive receivers into CLR
@@ -813,4 +828,16 @@ setter and `JsValue.FromObjectUnsafe(...)` bridge in the path. Future
 SuppressedError or local error-object descriptor cleanup should migrate the
 owner-file descriptor setters to `JsValue = ...`, keep descriptor attributes
 unchanged, and record the exact before/after legacy-setter signal. Related ADR:
+`docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.
+
+Issue `autrun-diu14wv8korc-df99b99081` / PR #2449 applied the descriptor setter
+policy to object-literal dictionary spread. The first build migrated only
+`TypedAstEvaluator.ExecutionPlanRunner.Helpers.ApplyObjectLiteralSpread(...)`
+from `Value = value` to `JsValue = JsValue.FromObjectUnsafe(value)`. Review
+caught that the mirrored legacy/dynamic spread branch in
+`Ast/Legacy/ExpressionNodeExtensions.cs` still assigned `Value = kvp.Value`.
+Future object-literal or descriptor cleanup must include both the IR runner and
+legacy/dynamic evaluator owner paths in the scoped setter search, because the
+dictionary interop source can remain `object?` while the `PropertyDescriptor`
+sink still must be `JsValue`-native. Related ADR:
 `docs/adrs/0155-keep-propertydescriptor-data-values-jsvalue-native.md`.

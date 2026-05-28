@@ -71,6 +71,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
             ImmutableArray<int>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
             ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 }
 
@@ -1471,6 +1473,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:
+                case UnifiedBytecodeOpCode.Break:
+                case UnifiedBytecodeOpCode.Continue:
+                case UnifiedBytecodeOpCode.EnterTry:
+                case UnifiedBytecodeOpCode.EnterCatch:
+                case UnifiedBytecodeOpCode.LeaveTry:
+                case UnifiedBytecodeOpCode.EndFinally:
                 case UnifiedBytecodeOpCode.EnterWith:
                 case UnifiedBytecodeOpCode.LeaveWith:
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:

@@ -108,6 +108,58 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_TryCatchPlan_AcceptsOwnedExceptionRegionOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function recover() {
+                try {
+                    throw 40;
+                } catch (e) {
+                    return e + 2;
+                }
+            }
+            """,
+            "recover");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterCatch);
+    }
+
+    [Fact]
+    public void Evaluate_TryFinallyPlan_AcceptsOwnedFinallyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function run() {
+                var value = 0;
+                try {
+                    value = 1;
+                } finally {
+                    value = 2;
+                }
+
+                return value;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LeaveTry);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+    }
+
+    [Fact]
     public void Evaluate_IdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""

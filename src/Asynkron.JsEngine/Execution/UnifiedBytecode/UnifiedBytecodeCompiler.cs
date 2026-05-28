@@ -73,6 +73,8 @@ internal static class UnifiedBytecodeCompiler
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
+        var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
+        var catchDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeCatchDescriptor>();
         var driverDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeDriverDescriptor>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
@@ -96,6 +98,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
                 driverDescriptors,
                 ref maxStackDepth,
                 out reason))
@@ -115,6 +119,8 @@ internal static class UnifiedBytecodeCompiler
             slotLayout.LexicalSlotIndices,
             callTargetConstants.ToImmutable(),
             scopeDescriptors.ToImmutable(),
+            tryDescriptors.ToImmutable(),
+            catchDescriptors.ToImmutable(),
             driverDescriptors.ToImmutable());
         reason = string.Empty;
         return true;
@@ -132,6 +138,8 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<int>.Empty,
             ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
             ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 
     private static UnifiedBytecodeSlotLayout BuildSlotLayout(ExecutionPlan plan)
@@ -394,6 +402,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         ref int maxStackDepth,
         out string reason)
@@ -891,6 +901,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
                             driverDescriptors,
                             ref maxStackDepth,
                             out reason);
@@ -992,6 +1004,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
                             driverDescriptors,
                             ref maxStackDepth,
                             out reason);
@@ -1181,6 +1195,8 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
                             driverDescriptors,
                             UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
@@ -1201,8 +1217,10 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
                             driverDescriptors,
-                            UnifiedBytecodeOpCode.JumpWithDriverCleanup,
+                            UnifiedBytecodeOpCode.Break,
                             ref maxStackDepth,
                             out reason);
 
@@ -1221,8 +1239,10 @@ internal static class UnifiedBytecodeCompiler
                             stringConstants,
                             callTargetConstants,
                             scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
                             driverDescriptors,
-                            UnifiedBytecodeOpCode.Jump,
+                            UnifiedBytecodeOpCode.Continue,
                             ref maxStackDepth,
                             out reason);
 
@@ -1243,14 +1263,37 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case EnterTryInstruction enterTry:
-                        if (!IsSupportedIteratorCleanupTry(enterTry, instructions, out reason))
+                        return TryAppendTryRegion(
+                            enterTry,
+                            instructions,
+                            activeWithDepths,
+                            slotLayout,
+                            activeScopes,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
+                            driverDescriptors,
+                            ref maxStackDepth,
+                            out reason);
+
+                    case EnterCatchInstruction enterCatch:
+                        if (!TryAppendCatchDescriptor(enterCatch, slotLayout, catchDescriptors, out var catchDescriptorIndex, out reason))
                         {
                             return false;
                         }
 
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.EnterCatch,
+                            catchDescriptorIndex));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
-                                enterTry.Next,
+                                enterCatch.Next,
                                 instructions,
                                 instructionPcMap,
                                 activeInstructions,
@@ -1260,40 +1303,52 @@ internal static class UnifiedBytecodeCompiler
                             return true;
                         }
 
-                        instructionIndex = enterTry.Next;
+                        instructionIndex = enterCatch.Next;
                         continue;
 
                     case LeaveTryInstruction leaveTry:
-                        if (TryAppendJumpToCompiledTarget(
-                                instructionIndex,
-                                leaveTry.Next,
-                                instructions,
-                                instructionPcMap,
-                                activeInstructions,
-                                unified,
-                                out reason))
-                        {
-                            return true;
-                        }
-
-                        instructionIndex = leaveTry.Next;
-                        continue;
+                        return TryAppendResolvedJump(
+                            instructionIndex,
+                            leaveTry.Next,
+                            instructions,
+                            activeWithDepths,
+                            slotLayout,
+                            activeScopes,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
+                            driverDescriptors,
+                            UnifiedBytecodeOpCode.LeaveTry,
+                            ref maxStackDepth,
+                            out reason);
 
                     case EndFinallyInstruction endFinally:
-                        if (TryAppendJumpToCompiledTarget(
-                                instructionIndex,
-                                endFinally.Next,
-                                instructions,
-                                instructionPcMap,
-                                activeInstructions,
-                                unified,
-                                out reason))
-                        {
-                            return true;
-                        }
-
-                        instructionIndex = endFinally.Next;
-                        continue;
+                        return TryAppendResolvedJump(
+                            instructionIndex,
+                            endFinally.Next,
+                            instructions,
+                            activeWithDepths,
+                            slotLayout,
+                            activeScopes,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            scopeDescriptors,
+                            tryDescriptors,
+                            catchDescriptors,
+                            driverDescriptors,
+                            UnifiedBytecodeOpCode.EndFinally,
+                            ref maxStackDepth,
+                            out reason);
 
                     case BreakableEnterInstruction breakableEnter:
                         if (!IsSupportedBreakableEnter(breakableEnter, out reason))
@@ -1379,6 +1434,8 @@ internal static class UnifiedBytecodeCompiler
                                      stringConstants,
                                      callTargetConstants,
                                      scopeDescriptors,
+                                     tryDescriptors,
+                                     catchDescriptors,
                                      driverDescriptors,
                                      ref maxStackDepth,
                                      out reason))
@@ -1399,6 +1456,8 @@ internal static class UnifiedBytecodeCompiler
                                 stringConstants,
                                 callTargetConstants,
                                 scopeDescriptors,
+                                tryDescriptors,
+                                catchDescriptors,
                                 driverDescriptors,
                                 ref maxStackDepth,
                                 out reason))
@@ -1517,6 +1576,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         ref int maxStackDepth,
         out string reason)
@@ -1552,9 +1613,175 @@ internal static class UnifiedBytecodeCompiler
             stringConstants,
             callTargetConstants,
             scopeDescriptors,
+            tryDescriptors,
+            catchDescriptors,
             driverDescriptors,
             ref maxStackDepth,
             out reason);
+    }
+
+    private static bool TryAppendTryRegion(
+        EnterTryInstruction enterTry,
+        ImmutableArray<ExecutionInstruction> instructions,
+        int[] activeWithDepths,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ref int maxStackDepth,
+        out string reason)
+    {
+        var descriptorIndex = tryDescriptors.Count;
+        tryDescriptors.Add(new UnifiedBytecodeTryDescriptor(-1, -1, -1, -1));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnterTry, descriptorIndex));
+
+        if (!TryCompileTarget(
+                enterTry.Next,
+                instructions,
+                activeWithDepths,
+                slotLayout,
+                activeScopes,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
+                driverDescriptors,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        if (enterTry.HandlerIndex >= 0 &&
+            !TryCompileTarget(
+                enterTry.HandlerIndex,
+                instructions,
+                activeWithDepths,
+                slotLayout,
+                activeScopes,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
+                driverDescriptors,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        if (enterTry.FinallyIndex >= 0 &&
+            !TryCompileTarget(
+                enterTry.FinallyIndex,
+                instructions,
+                activeWithDepths,
+                slotLayout,
+                activeScopes,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
+                driverDescriptors,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        tryDescriptors[descriptorIndex] = new UnifiedBytecodeTryDescriptor(
+            GetMappedTarget(enterTry.HandlerIndex, instructionPcMap),
+            GetMappedTarget(enterTry.FinallyIndex, instructionPcMap),
+            GetMappedTarget(enterTry.EndFinallyIndex, instructionPcMap),
+            GetMappedTarget(enterTry.LeaveTryIndex, instructionPcMap),
+            GetMappedTarget(enterTry.LoopContinueTarget, instructionPcMap),
+            GetMappedTarget(enterTry.LoopBreakTarget, instructionPcMap));
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static int GetMappedTarget(int instructionIndex, Dictionary<int, int> instructionPcMap) =>
+        instructionIndex >= 0 && instructionPcMap.TryGetValue(instructionIndex, out var programCounter)
+            ? programCounter
+            : -1;
+
+    private static bool TryAppendCatchDescriptor(
+        EnterCatchInstruction enterCatch,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
+        out int descriptorIndex,
+        out string reason)
+    {
+        if (enterCatch.CatchBindingProgram is not null and not IdentifierBindingTargetProgram)
+        {
+            descriptorIndex = -1;
+            reason = "Only optional and simple identifier catch bindings are eligible for unified bytecode compilation.";
+            return false;
+        }
+
+        var slotIndices = ImmutableArray.CreateBuilder<int>(enterCatch.SlotMap.Count);
+        foreach (var slotIndex in enterCatch.SlotMap.Values)
+        {
+            if (TryMapSlot(enterCatch.ScopeId, slotIndex, slotLayout.FlatSlotMappings, out var flatSlotId))
+            {
+                slotIndices.Add(flatSlotId);
+            }
+        }
+
+        var bindingName = default(Symbol);
+        var bindingSlot = -1;
+        if (enterCatch.CatchBindingProgram is IdentifierBindingTargetProgram identifier)
+        {
+            bindingName = identifier.Name;
+            bindingSlot = identifier.FlatSlotId >= 0
+                ? identifier.FlatSlotId
+                : TryMapSlot(enterCatch.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out var flatSlotId)
+                    ? flatSlotId
+                    : -1;
+            if (bindingSlot < 0)
+            {
+                descriptorIndex = -1;
+                reason = $"Unsupported catch binding slot '{identifier.Name.Name}'.";
+                return false;
+            }
+
+            if (!slotIndices.Contains(bindingSlot))
+            {
+                slotIndices.Add(bindingSlot);
+            }
+        }
+
+        descriptorIndex = catchDescriptors.Count;
+        catchDescriptors.Add(new UnifiedBytecodeCatchDescriptor(
+            enterCatch.ScopeId,
+            slotIndices.ToImmutable(),
+            bindingName,
+            bindingSlot));
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendDriverMoveNext(
@@ -1577,6 +1804,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         ref int maxStackDepth,
         out string reason)
@@ -1614,6 +1843,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
                 driverDescriptors,
                 ref maxStackDepth,
                 out reason))
@@ -1634,6 +1865,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
                 driverDescriptors,
                 ref maxStackDepth,
                 out reason))
@@ -1660,6 +1893,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
+        ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
+        ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
         UnifiedBytecodeOpCode jumpOpCode,
         ref int maxStackDepth,
@@ -1701,6 +1936,8 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 scopeDescriptors,
+                tryDescriptors,
+                catchDescriptors,
                 driverDescriptors,
                 ref maxStackDepth,
                 out reason))

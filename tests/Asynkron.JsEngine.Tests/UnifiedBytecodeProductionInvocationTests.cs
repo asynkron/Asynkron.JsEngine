@@ -258,6 +258,79 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function recover() {
+                try {
+                    throw 40;
+                } catch (e) {
+                    return e + 2;
+                }
+            }
+
+            recover();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=recover argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ReturnFromFinallyReplacesPriorReturnOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceReturn() {
+                try {
+                    return 1;
+                } finally {
+                    return 2;
+                }
+            }
+
+            replaceReturn();
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceReturn argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ThrowFromFinallyReplacesPriorThrowOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function replaceThrow() {
+                try {
+                    try {
+                        throw 1;
+                    } finally {
+                        throw 2;
+                    }
+                } catch (e) {
+                    return e;
+                }
+            }
+
+            replaceThrow();
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=replaceThrow argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

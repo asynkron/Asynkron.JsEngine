@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
@@ -52,8 +53,14 @@ internal enum UnifiedBytecodeOpCode : byte
     Return,
     ReturnUndefined,
     Throw,
+    Break,
+    Continue,
     PushEnvironment,
     PopEnvironment,
+    EnterTry,
+    EnterCatch,
+    LeaveTry,
+    EndFinally,
     EnterWith,
     LeaveWith,
     IteratorInit,
@@ -92,6 +99,20 @@ internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
     ImmutableArray<int> LexicalSlotIndices);
 
+internal readonly record struct UnifiedBytecodeTryDescriptor(
+    int HandlerTarget,
+    int FinallyTarget,
+    int EndFinallyTarget,
+    int LeaveTryTarget,
+    int LoopContinueTarget = -1,
+    int LoopBreakTarget = -1);
+
+internal readonly record struct UnifiedBytecodeCatchDescriptor(
+    int ScopeId,
+    ImmutableArray<int> SlotIndices,
+    Symbol? BindingName,
+    int BindingSlot = -1);
+
 internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int StateSlot,
     int ValueSlot = -1,
@@ -111,4 +132,6 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<int> LexicalSlotIndices,
     ImmutableArray<UnifiedBytecodeCallTarget> CallTargetConstants,
     ImmutableArray<UnifiedBytecodeScopeDescriptor> ScopeDescriptors,
+    ImmutableArray<UnifiedBytecodeTryDescriptor> TryDescriptors,
+    ImmutableArray<UnifiedBytecodeCatchDescriptor> CatchDescriptors,
     ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors);

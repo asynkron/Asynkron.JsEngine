@@ -111,6 +111,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task WithThenOutsideDynamicIdentifier_DeclinesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalValue = 41;
+
+            function run(scope) {
+                with (scope) {
+                    value = value + 1;
+                }
+
+                return externalValue + 1;
+            }
+
+            run({ value: 1 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithDynamicIdentifierCallTarget_UsesWithReceiverOnProductionFastPath()
     {
         await using var engine = CreateEngine();

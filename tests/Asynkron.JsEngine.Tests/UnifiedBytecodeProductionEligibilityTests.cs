@@ -791,6 +791,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
     }
 
+    [Fact]
+    public void Evaluate_WithThenOutsideDynamicIdentifier_DeclinesWithDynamicLookupDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function dynamic(box) {
+                with (box) {
+                    value = value + 1;
+                }
+
+                return externalValue + 1;
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(
         """

@@ -168,9 +168,26 @@ internal static class UnifiedBytecodeProductionEligibility
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
-        var allowsDynamicIdentifiers = ContainsWithInstructions(plan.Instructions);
-        foreach (var instruction in plan.Instructions)
+        if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var activeWithDepths,
+                out var withDepthReason))
         {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason = withDepthReason;
+            return true;
+        }
+
+        for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
+        {
+            if (activeWithDepths[instructionIndex] < 0)
+            {
+                continue;
+            }
+
+            var instruction = plan.Instructions[instructionIndex];
+            var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
             if (instruction is BreakableEnterInstruction { Label: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.LabelControlFlow;
@@ -228,6 +245,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (!allowsDynamicIdentifiers &&
+                TryFindInstructionDynamicIdentifierDecline(
+                    instruction,
+                    activationSlots,
+                    out declineCode,
+                    out declineReason))
+            {
+                return true;
+            }
+
             if (TryGetExpressionProgram(instruction, out var program) &&
                 TryFindExpressionDecline(
                     program,
@@ -238,6 +265,53 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 return true;
             }
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool TryFindInstructionDynamicIdentifierDecline(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        switch (instruction)
+        {
+            case AssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
+            case CompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Compound assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
+            case IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Update target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
@@ -299,7 +373,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (!TryResolveActivationSlot(callIdentifier, activationSlots))
                     {
-                        if (!allowsDynamicIdentifiers)
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(callIdentifier, activationSlots))
                         {
                             declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
                             declineReason =
@@ -381,7 +456,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     var identifier = operation.GetIdentifier(identifierConstants);
                     if (!TryResolveActivationSlot(identifier, activationSlots))
                     {
-                        if (!allowsDynamicIdentifiers)
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
                         {
                             declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
                             declineReason = $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
@@ -695,19 +771,6 @@ internal static class UnifiedBytecodeProductionEligibility
         foreach (var mapping in mappings)
         {
             if (mapping.SlotIndex == slotIndex && mapping.FlatSlotId >= 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool ContainsWithInstructions(ImmutableArray<ExecutionInstruction> instructions)
-    {
-        foreach (var instruction in instructions)
-        {
-            if (instruction is EnterWithInstruction or LeaveWithInstruction)
             {
                 return true;
             }
@@ -1221,6 +1284,25 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name);
     }
+
+    private static bool TryResolveActivationSymbolSlot(
+        Symbol symbol,
+        int flatSlotId,
+        ActivationSlotShape activationSlots)
+    {
+        if (flatSlotId >= 0)
+        {
+            return true;
+        }
+
+        return activationSlots.SlotMap.ContainsKey(symbol);
+    }
+
+    private static bool CanUseMaterializedActivationDynamicLookup(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots) =>
+        identifier.ScopeId < 0 &&
+        activationSlots.MaterializedBindingNames.Contains(identifier.Name);
 
     private static bool TryFindPrototypeOnlyOpcode(
         UnifiedBytecodeProgram program,

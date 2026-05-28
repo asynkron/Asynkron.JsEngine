@@ -79,8 +79,6 @@ internal sealed partial class ExecutionPlanBuilder
     /// Builds an execution plan for a function expression.
     /// </summary>
     /// <param name="function">The function to build a plan for.</param>
-    /// <param name="plan">The resulting execution plan.</param>
-    /// <param name="failureReason">If building fails, the reason why.</param>
     /// <param name="reportDiagnostics">Whether to report diagnostics for test tracking.</param>
     /// <param name="isScriptLevel">
     ///     When true, indicates this is a top-level script (not a function body).
@@ -193,8 +191,9 @@ internal sealed partial class ExecutionPlanBuilder
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
+        var materializedBindingNames = BuildMaterializedActivationBindingNames(function, Instructions);
         var activationSlots = BuildActivationSlotShape(function, mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap,
-            rootLexicalBindings);
+            rootLexicalBindings, materializedBindingNames);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
@@ -322,7 +321,8 @@ internal sealed partial class ExecutionPlanBuilder
         int rootSlotCount,
         int layoutId,
         ImmutableDictionary<Symbol, int> rootSlotMap,
-        ImmutableHashSet<Symbol> rootLexicalBindings)
+        ImmutableHashSet<Symbol> rootLexicalBindings,
+        ImmutableHashSet<Symbol> materializedBindingNames)
     {
         var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache()
             .ParameterNames;
@@ -337,7 +337,8 @@ internal sealed partial class ExecutionPlanBuilder
                 ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance),
                 ImmutableArray<(Symbol Name, int SlotIndex)>.Empty,
                 parameterSlotIndices,
-                lexicalSlotIndices);
+                lexicalSlotIndices,
+                materializedBindingNames);
         }
 
         var slotNames = rootSlotMap
@@ -347,7 +348,41 @@ internal sealed partial class ExecutionPlanBuilder
 
         return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, rootSlotMap, slotNames,
             parameterSlotIndices,
-            lexicalSlotIndices);
+            lexicalSlotIndices,
+            materializedBindingNames);
+    }
+
+    private static ImmutableHashSet<Symbol> BuildMaterializedActivationBindingNames(
+        FunctionExpression function,
+        IReadOnlyList<ExecutionInstruction> instructions)
+    {
+        var builder = ImmutableHashSet.CreateBuilder<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+        var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache()
+            .ParameterNames;
+        foreach (var parameterName in parameterNames)
+        {
+            builder.Add(parameterName);
+        }
+
+        foreach (var instruction in instructions)
+        {
+            switch (instruction)
+            {
+                case SimpleVariableDeclarationInstruction
+                {
+                    VarKind: VariableKind.Var,
+                    TargetSymbol: { } targetSymbol
+                }:
+                    builder.Add(targetSymbol);
+                    break;
+
+                case FunctionDeclarationInstruction { Descriptor: { } descriptor }:
+                    builder.Add(descriptor.Name);
+                    break;
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private static ImmutableArray<int> BuildLexicalSlotIndices(

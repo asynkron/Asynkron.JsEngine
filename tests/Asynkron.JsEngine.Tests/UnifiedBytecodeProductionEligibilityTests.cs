@@ -514,6 +514,83 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
     }
 
+    [Fact]
+    public void Evaluate_SimpleBlockLexicalScope_AcceptsPushPopAndFlatScopedSlots()
+    {
+        var plan = GetFunctionPlan("""
+            function scoped(value) {
+                var result = value;
+                {
+                    let value = 5;
+                    const next = value + 1;
+                    result = next;
+                }
+
+                return result + value;
+            }
+            """,
+            "scoped");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PushEnvironment);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PopEnvironment);
+        Assert.True(result.Program.SlotCount >= plan.FlatSlotCount);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function destructure(source) {
+            {
+                let { value } = source;
+                return value;
+            }
+        }
+        """,
+        "destructure",
+        (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
+    [InlineData(
+        """
+        function dynamic(box) {
+            with (box) {
+                return value;
+            }
+        }
+        """,
+        "dynamic",
+        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(
+        """
+        function directEval() {
+            eval("var value = 1");
+            return value;
+        }
+        """,
+        "directEval",
+        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    public void Evaluate_DynamicAndDestructuringBlockShapes_StayDeclined(
+        string source,
+        string functionName,
+        int expectedCode)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.NotEmpty(result.Reason);
+    }
+
     [Theory]
     [InlineData(
         """

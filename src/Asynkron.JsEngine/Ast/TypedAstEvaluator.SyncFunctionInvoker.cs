@@ -3032,14 +3032,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            var activationSlots = plan.ActivationSlots!;
-            var slotStorage = ArrayPool<JsValue>.Shared.Rent(activationSlots.SlotCount);
+            var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
             try
             {
-                var slots = slotStorage.AsSpan(0, activationSlots.SlotCount);
+                var slots = slotStorage.AsSpan(0, program.SlotCount);
                 slots.Fill(JsValue.Undefined);
-                InitializeProductionUnifiedBytecodeLexicalSlots(slots, activationSlots);
-                PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, activationSlots);
+                InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
+                PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
                 var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
 
                 RealmState.Logger?.LogInformation(
@@ -3136,9 +3135,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         [MethodImpl(JsEngineConstants.Inlining)]
         private static void InitializeProductionUnifiedBytecodeLexicalSlots(
             Span<JsValue> slots,
-            ActivationSlotShape activationSlots)
+            UnifiedBytecodeProgram program)
         {
-            var lexicalSlotIndices = activationSlots.LexicalSlotIndices;
+            var lexicalSlotIndices = program.LexicalSlotIndices;
             if (lexicalSlotIndices.IsDefaultOrEmpty)
             {
                 return;
@@ -3154,10 +3153,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private void PopulateProductionUnifiedBytecodeParameterSlots<TArgs>(
             TArgs arguments,
             Span<JsValue> slots,
-            ActivationSlotShape activationSlots)
+            UnifiedBytecodeProgram program)
             where TArgs : IReadOnlyList<JsValue>
         {
-            var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+            var parameterSlotIndices = program.ParameterSlotIndices;
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 slots[parameterSlotIndices[i]] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
@@ -3416,7 +3415,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return plan.ActivationSlots is { } activationSlots &&
                    activationSlots.ScopeId == plan.RootScopeId &&
                    activationSlots.LayoutId == plan.LayoutId &&
-                   plan.HasOnlyRootFlatSlotMappings &&
                    !activationSlots.ParameterSlotIndices.IsDefault &&
                    activationSlots.ParameterSlotIndices.Length == _parameterNames.Length;
         }

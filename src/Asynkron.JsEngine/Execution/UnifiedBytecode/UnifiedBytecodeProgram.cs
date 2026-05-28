@@ -40,6 +40,8 @@ internal enum UnifiedBytecodeOpCode : byte
     Return,
     ReturnUndefined,
     Throw,
+    PushEnvironment,
+    PopEnvironment,
     PrepareIdentifierCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,
@@ -62,10 +64,17 @@ internal readonly record struct UnifiedBytecodeCallTarget(
     int SlotIndex = -1,
     int NameConstantIndex = -1);
 
+internal readonly record struct UnifiedBytecodeScopeDescriptor(
+    ImmutableArray<int> LexicalSlotIndices);
+
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
     int MaxStackDepth,
+    int SlotCount,
     ImmutableArray<JsTypes.JsValue> LiteralConstants,
     ImmutableArray<string> StringConstants,
     ImmutableArray<string?> SlotNames,
-    ImmutableArray<UnifiedBytecodeCallTarget> CallTargetConstants);
+    ImmutableArray<int> ParameterSlotIndices,
+    ImmutableArray<int> LexicalSlotIndices,
+    ImmutableArray<UnifiedBytecodeCallTarget> CallTargetConstants,
+    ImmutableArray<UnifiedBytecodeScopeDescriptor> ScopeDescriptors);

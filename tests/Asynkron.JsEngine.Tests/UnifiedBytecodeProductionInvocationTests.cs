@@ -395,6 +395,61 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BlockLexicalScope_UsesUnifiedBytecodeProductionFastPathAndPreservesShadowing()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function scoped(value) {
+                var result = value;
+                {
+                    let value = 5;
+                    const next = value + 1;
+                    result = next;
+                }
+
+                return result + value;
+            }
+
+            scoped(10);
+            """);
+
+        Assert.Equal(16d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=scoped argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BlockLexicalScope_ReadBeforeDeclarationPreservesTdz()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function scoped() {
+                {
+                    var result = value;
+                    let value = 1;
+                }
+
+                return 0;
+            }
+
+            try {
+                scoped();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'value' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=scoped argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task UnaryCoercionAbruptCompletion_PropagatesThroughUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

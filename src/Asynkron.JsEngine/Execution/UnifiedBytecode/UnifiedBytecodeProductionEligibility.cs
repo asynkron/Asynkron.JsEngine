@@ -63,10 +63,14 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
         new(
             ImmutableArray<UnifiedBytecodeInstruction>.Empty,
             0,
+            0,
             ImmutableArray<JsTypes.JsValue>.Empty,
             ImmutableArray<string>.Empty,
             ImmutableArray<string?>.Empty,
-            ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
+            ImmutableArray<int>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty);
 }
 
 internal static class UnifiedBytecodeProductionEligibility
@@ -187,6 +191,45 @@ internal static class UnifiedBytecodeProductionEligibility
                 declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
                 declineReason =
                     "Array destructuring driver state instructions are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is EnterWithInstruction or LeaveWithInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                declineReason = "with environments are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is BindingVariableDeclarationInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                declineReason = "Binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is SimpleVariableDeclarationInstruction
+                {
+                    VarKind: VariableKind.Using or VariableKind.AwaitUsing
+                })
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "using declarations require scope-exit disposal and are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is PushEnvironmentInstruction pushEnvironment &&
+                !IsSupportedPushEnvironment(pushEnvironment, plan.FlatSlotMappings))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "Only non-iterating lexical block environments with flat slot mappings are eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } &&
+                TryFindDiscardedExpressionDecline(discardedProgram, out declineCode, out declineReason))
+            {
                 return true;
             }
 
@@ -544,6 +587,47 @@ internal static class UnifiedBytecodeProductionEligibility
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool IsSupportedPushEnvironment(
+        PushEnvironmentInstruction instruction,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
+    {
+        if (!instruction.PerIterationBindings.IsDefaultOrEmpty ||
+            instruction.ScopeId < 0 ||
+            instruction.SlotCount < 0 ||
+            instruction.SlotMap.IsEmpty ||
+            flatSlotMappings is null ||
+            !flatSlotMappings.TryGetValue(instruction.ScopeId, out var mappings) ||
+            mappings.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var lexicalSlotIndex in instruction.LexicalSlotIndices)
+        {
+            if (!ContainsSlotMapping(mappings, lexicalSlotIndex))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsSlotMapping(
+        ImmutableArray<(int SlotIndex, int FlatSlotId)> mappings,
+        int slotIndex)
+    {
+        foreach (var mapping in mappings)
+        {
+            if (mapping.SlotIndex == slotIndex && mapping.FlatSlotId >= 0)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -989,9 +1073,19 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryResolveActivationSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots)
     {
+        if (identifier.FlatSlotId >= 0)
+        {
+            return true;
+        }
+
         if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
         {
             return true;
+        }
+
+        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        {
+            return false;
         }
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name);
@@ -1008,6 +1102,8 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 case UnifiedBytecodeOpCode.Jump:
                 case UnifiedBytecodeOpCode.JumpIfFalse:
+                case UnifiedBytecodeOpCode.PushEnvironment:
+                case UnifiedBytecodeOpCode.PopEnvironment:
                     break;
 
                 case UnifiedBytecodeOpCode.Binary:

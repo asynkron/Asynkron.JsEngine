@@ -13,6 +13,19 @@ internal static class UnifiedBytecodeCompiler
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
 
+    private readonly record struct UnifiedBytecodeScopeFrame(
+        int ScopeId,
+        ImmutableDictionary<Symbol, int> SlotMap,
+        ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings);
+
+    private sealed record UnifiedBytecodeSlotLayout(
+        int SlotCount,
+        ActivationSlotShape ActivationSlots,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> FlatSlotMappings,
+        ImmutableArray<int> ParameterSlotIndices,
+        ImmutableArray<int> LexicalSlotIndices,
+        ImmutableArray<string?> SlotNames);
+
     public static bool TryCompile(
         ExecutionPlan plan,
         bool isAsync,
@@ -42,25 +55,34 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var instructions = plan.Instructions;
+        var slotLayout = BuildSlotLayout(plan);
 
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
+        var activeScopes = new Stack<UnifiedBytecodeScopeFrame>();
+        activeScopes.Push(new UnifiedBytecodeScopeFrame(
+            slotLayout.ActivationSlots.ScopeId,
+            slotLayout.ActivationSlots.SlotMap,
+            GetFlatSlotMappings(slotLayout, slotLayout.ActivationSlots.ScopeId)));
         var maxStackDepth = 0;
 
         if (!TryCompileBlock(
                 plan.EntryPoint,
                 instructions,
-                plan.ActivationSlots,
+                slotLayout,
+                activeScopes,
                 instructionPcMap,
                 activeInstructions,
                 unified,
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                scopeDescriptors,
                 ref maxStackDepth,
                 out reason))
         {
@@ -71,10 +93,14 @@ internal static class UnifiedBytecodeCompiler
         program = new UnifiedBytecodeProgram(
             unified.ToImmutable(),
             maxStackDepth,
+            slotLayout.SlotCount,
             literalConstants.ToImmutable(),
             stringConstants.ToImmutable(),
-            BuildSlotNames(plan.ActivationSlots),
-            callTargetConstants.ToImmutable());
+            slotLayout.SlotNames,
+            slotLayout.ParameterSlotIndices,
+            slotLayout.LexicalSlotIndices,
+            callTargetConstants.ToImmutable(),
+            scopeDescriptors.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -83,46 +109,178 @@ internal static class UnifiedBytecodeCompiler
         new(
             ImmutableArray<UnifiedBytecodeInstruction>.Empty,
             0,
+            0,
             ImmutableArray<JsValue>.Empty,
             ImmutableArray<string>.Empty,
             ImmutableArray<string?>.Empty,
-            ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
+            ImmutableArray<int>.Empty,
+            ImmutableArray<int>.Empty,
+            ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty);
 
-    private static ImmutableArray<string?> BuildSlotNames(ActivationSlotShape activationSlots)
+    private static UnifiedBytecodeSlotLayout BuildSlotLayout(ExecutionPlan plan)
     {
-        if (activationSlots.SlotCount == 0 ||
-            activationSlots.SlotNames.IsDefaultOrEmpty ||
-            activationSlots.LexicalSlotIndices.IsDefaultOrEmpty)
+        var activationSlots = plan.ActivationSlots!;
+        var flatSlotMappings = plan.FlatSlotMappings ??
+                               ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
+        if (flatSlotMappings.Count == 0)
+        {
+            var rootMappings = ImmutableArray.CreateBuilder<(int SlotIndex, int FlatSlotId)>(activationSlots.SlotCount);
+            for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
+            {
+                rootMappings.Add((slotIndex, slotIndex));
+            }
+
+            flatSlotMappings = ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty
+                .Add(
+                    activationSlots.ScopeId,
+                    rootMappings.ToImmutable());
+        }
+
+        var slotCount = plan.FlatSlotCount > 0 ? plan.FlatSlotCount : activationSlots.SlotCount;
+        var names = BuildSlotNames(plan.Instructions, activationSlots, flatSlotMappings, slotCount);
+        var parameterSlotIndices = RemapSlotIndices(
+            activationSlots.ScopeId,
+            activationSlots.ParameterSlotIndices,
+            flatSlotMappings);
+        var lexicalSlotIndices = RemapSlotIndices(
+            activationSlots.ScopeId,
+            activationSlots.LexicalSlotIndices,
+            flatSlotMappings);
+
+        return new UnifiedBytecodeSlotLayout(
+            slotCount,
+            activationSlots,
+            flatSlotMappings,
+            parameterSlotIndices,
+            lexicalSlotIndices,
+            names);
+    }
+
+    private static ImmutableArray<string?> BuildSlotNames(
+        ImmutableArray<ExecutionInstruction> instructions,
+        ActivationSlotShape activationSlots,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings,
+        int slotCount)
+    {
+        if (slotCount == 0)
         {
             return ImmutableArray<string?>.Empty;
         }
 
-        var names = new string?[activationSlots.SlotCount];
+        var names = new string?[slotCount];
         foreach (var (name, slotIndex) in activationSlots.SlotNames)
         {
-            if ((uint)slotIndex < (uint)names.Length)
+            if (TryMapSlot(activationSlots.ScopeId, slotIndex, flatSlotMappings, out var flatSlotId) &&
+                (uint)flatSlotId < (uint)names.Length)
             {
-                names[slotIndex] = name.Name;
+                names[flatSlotId] = name.Name;
+            }
+        }
+
+        foreach (var instruction in instructions)
+        {
+            if (instruction is not PushEnvironmentInstruction push)
+            {
+                continue;
+            }
+
+            if (!push.SlotNames.IsDefaultOrEmpty)
+            {
+                foreach (var (name, slotIndex) in push.SlotNames)
+                {
+                    if (TryMapSlot(push.ScopeId, slotIndex, flatSlotMappings, out var flatSlotId) &&
+                        (uint)flatSlotId < (uint)names.Length)
+                    {
+                        names[flatSlotId] = name.Name;
+                    }
+                }
+
+                continue;
+            }
+
+            foreach (var (name, slotIndex) in push.SlotMap)
+            {
+                if (TryMapSlot(push.ScopeId, slotIndex, flatSlotMappings, out var flatSlotId) &&
+                    (uint)flatSlotId < (uint)names.Length)
+                {
+                    names[flatSlotId] = name.Name;
+                }
             }
         }
 
         return names.ToImmutableArray();
     }
 
+    private static ImmutableArray<int> RemapSlotIndices(
+        int scopeId,
+        ImmutableArray<int> slotIndices,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
+    {
+        if (slotIndices.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<int>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(slotIndices.Length);
+        foreach (var slotIndex in slotIndices)
+        {
+            if (TryMapSlot(scopeId, slotIndex, flatSlotMappings, out var flatSlotId))
+            {
+                builder.Add(flatSlotId);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static ImmutableArray<(int SlotIndex, int FlatSlotId)> GetFlatSlotMappings(
+        UnifiedBytecodeSlotLayout slotLayout,
+        int scopeId) =>
+        slotLayout.FlatSlotMappings.TryGetValue(scopeId, out var mappings)
+            ? mappings
+            : ImmutableArray<(int SlotIndex, int FlatSlotId)>.Empty;
+
+    private static bool TryMapSlot(
+        int scopeId,
+        int slotIndex,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings,
+        out int flatSlotId)
+    {
+        if (flatSlotMappings.TryGetValue(scopeId, out var mappings))
+        {
+            foreach (var mapping in mappings)
+            {
+                if (mapping.SlotIndex == slotIndex)
+                {
+                    flatSlotId = mapping.FlatSlotId;
+                    return true;
+                }
+            }
+        }
+
+        flatSlotId = -1;
+        return false;
+    }
+
     private static bool TryCompileBlock(
         int instructionIndex,
         ImmutableArray<ExecutionInstruction> instructions,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
         HashSet<int> activeInstructions,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ref int maxStackDepth,
         out string reason)
     {
         var activated = new List<int>();
+        var pushedScopeCount = 0;
+        var activationSlots = slotLayout.ActivationSlots;
         try
         {
             while (true)
@@ -158,7 +316,7 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } targetSymbol
                         } declaration:
-                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var storeSlot))
+                        if (!TryResolveDeclarationSlot(targetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
                         {
                             reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
                             return false;
@@ -199,7 +357,7 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } targetSymbol
                         } assignment:
-                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var assignmentSlot))
+                        if (!TryResolveInstructionSlot(targetSymbol, assignment.FlatSlotId, activationSlots, out var assignmentSlot))
                         {
                             reason = $"Unsupported assignment target '{targetSymbol.Name}'.";
                             return false;
@@ -241,7 +399,7 @@ internal static class UnifiedBytecodeCompiler
                             TargetSymbol: { } targetSymbol
                         } compoundAssignment
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
-                        if (!TryResolveActivationSlot(targetSymbol, activationSlots, out var compoundSlot))
+                        if (!TryResolveInstructionSlot(targetSymbol, compoundAssignment.FlatSlotId, activationSlots, out var compoundSlot))
                         {
                             reason = $"Unsupported compound assignment target '{targetSymbol.Name}'.";
                             return false;
@@ -280,18 +438,79 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = compoundAssignment.Next;
                         continue;
 
+                    case PushEnvironmentInstruction pushEnvironment:
+                        if (!pushEnvironment.PerIterationBindings.IsDefaultOrEmpty)
+                        {
+                            reason = "Loop iteration environments are not eligible for unified bytecode compilation.";
+                            return false;
+                        }
+
+                        var lexicalSlotIndices = RemapSlotIndices(
+                            pushEnvironment.ScopeId,
+                            pushEnvironment.LexicalSlotIndices,
+                            slotLayout.FlatSlotMappings);
+                        var scopeDescriptorIndex = scopeDescriptors.Count;
+                        scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(lexicalSlotIndices));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.PushEnvironment,
+                            scopeDescriptorIndex));
+                        activeScopes.Push(new UnifiedBytecodeScopeFrame(
+                            pushEnvironment.ScopeId,
+                            pushEnvironment.SlotMap,
+                            GetFlatSlotMappings(slotLayout, pushEnvironment.ScopeId)));
+                        pushedScopeCount++;
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                pushEnvironment.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = pushEnvironment.Next;
+                        continue;
+
+                    case PopEnvironmentInstruction popEnvironment:
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PopEnvironment));
+                        if (activeScopes.Count > 1 && activeScopes.Peek().ScopeId == popEnvironment.ScopeId)
+                        {
+                            activeScopes.Pop();
+                            pushedScopeCount--;
+                        }
+
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                popEnvironment.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = popEnvironment.Next;
+                        continue;
+
                     case JumpInstruction jump:
                         return TryAppendResolvedJump(
                             instructionIndex,
                             jump.TargetIndex,
                             instructions,
-                            activationSlots,
+                            slotLayout,
+                            activeScopes,
                             instructionPcMap,
                             activeInstructions,
                             unified,
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            scopeDescriptors,
                             ref maxStackDepth,
                             out reason);
 
@@ -300,13 +519,15 @@ internal static class UnifiedBytecodeCompiler
                             instructionIndex,
                             breakInstruction.TargetIndex,
                             instructions,
-                            activationSlots,
+                            slotLayout,
+                            activeScopes,
                             instructionPcMap,
                             activeInstructions,
                             unified,
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            scopeDescriptors,
                             ref maxStackDepth,
                             out reason);
 
@@ -315,13 +536,15 @@ internal static class UnifiedBytecodeCompiler
                             instructionIndex,
                             continueInstruction.TargetIndex,
                             instructions,
-                            activationSlots,
+                            slotLayout,
+                            activeScopes,
                             instructionPcMap,
                             activeInstructions,
                             unified,
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            scopeDescriptors,
                             ref maxStackDepth,
                             out reason);
 
@@ -414,13 +637,15 @@ internal static class UnifiedBytecodeCompiler
                         else if (!TryCompileTarget(
                                      branch.ConsequentIndex,
                                      instructions,
-                                     activationSlots,
+                                     slotLayout,
+                                     activeScopes,
                                      instructionPcMap,
                                      activeInstructions,
                                      unified,
                                      literalConstants,
                                      stringConstants,
                                      callTargetConstants,
+                                     scopeDescriptors,
                                      ref maxStackDepth,
                                      out reason))
                         {
@@ -430,13 +655,15 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryCompileTarget(
                                 branch.AlternateIndex,
                                 instructions,
-                                activationSlots,
+                                slotLayout,
+                                activeScopes,
                                 instructionPcMap,
                                 activeInstructions,
                                 unified,
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                scopeDescriptors,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -529,19 +756,27 @@ internal static class UnifiedBytecodeCompiler
             {
                 activeInstructions.Remove(activatedInstruction);
             }
+
+            while (pushedScopeCount > 0 && activeScopes.Count > 1)
+            {
+                activeScopes.Pop();
+                pushedScopeCount--;
+            }
         }
     }
 
     private static bool TryCompileTarget(
         int targetIndex,
         ImmutableArray<ExecutionInstruction> instructions,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
         HashSet<int> activeInstructions,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ref int maxStackDepth,
         out string reason)
     {
@@ -566,13 +801,15 @@ internal static class UnifiedBytecodeCompiler
         return TryCompileBlock(
             targetIndex,
             instructions,
-            activationSlots,
+            slotLayout,
+            activeScopes,
             instructionPcMap,
             activeInstructions,
             unified,
             literalConstants,
             stringConstants,
             callTargetConstants,
+            scopeDescriptors,
             ref maxStackDepth,
             out reason);
     }
@@ -581,13 +818,15 @@ internal static class UnifiedBytecodeCompiler
         int sourceInstructionIndex,
         int targetIndex,
         ImmutableArray<ExecutionInstruction> instructions,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
         HashSet<int> activeInstructions,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ref int maxStackDepth,
         out string reason)
     {
@@ -617,13 +856,15 @@ internal static class UnifiedBytecodeCompiler
         if (!TryCompileTarget(
                 targetIndex,
                 instructions,
-                activationSlots,
+                slotLayout,
+                activeScopes,
                 instructionPcMap,
                 activeInstructions,
                 unified,
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                scopeDescriptors,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2230,12 +2471,71 @@ internal static class UnifiedBytecodeCompiler
             BinaryOperator.GreaterThan or
             BinaryOperator.GreaterThanOrEqual;
 
+    private static bool TryResolveInstructionSlot(
+        Symbol symbol,
+        int flatSlotId,
+        ActivationSlotShape activationSlots,
+        out int slotIndex)
+    {
+        if (flatSlotId >= 0)
+        {
+            slotIndex = flatSlotId;
+            return true;
+        }
+
+        return TryResolveActivationSlot(symbol, activationSlots, out slotIndex);
+    }
+
+    private static bool TryResolveDeclarationSlot(
+        Symbol symbol,
+        VariableKind varKind,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        out int slotIndex)
+    {
+        if (varKind == VariableKind.Var)
+        {
+            return TryResolveActivationSlot(symbol, slotLayout.ActivationSlots, out slotIndex);
+        }
+
+        if (activeScopes.Count > 0)
+        {
+            var scope = activeScopes.Peek();
+            if (scope.SlotMap.TryGetValue(symbol, out var scopedSlotIndex))
+            {
+                foreach (var (candidateSlotIndex, flatSlotId) in scope.FlatSlotMappings)
+                {
+                    if (candidateSlotIndex == scopedSlotIndex)
+                    {
+                        slotIndex = flatSlotId;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
     private static bool TryResolveActivationSlot(IdentifierOperand identifier, ActivationSlotShape activationSlots, out int slotIndex)
     {
+        if (identifier.FlatSlotId >= 0)
+        {
+            slotIndex = identifier.FlatSlotId;
+            return true;
+        }
+
         if (identifier.ScopeId == activationSlots.ScopeId && identifier.SlotIndex >= 0)
         {
             slotIndex = identifier.SlotIndex;
             return true;
+        }
+
+        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        {
+            slotIndex = -1;
+            return false;
         }
 
         if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot))

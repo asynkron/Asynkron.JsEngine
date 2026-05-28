@@ -24,6 +24,7 @@ internal enum UnifiedBytecodeProductionDeclineCode
     OptionalChainDependency,
     ObjectLiteralOrSpreadDependency,
     PrivateFieldDependency,
+    ForInDriverStateDependency,
     DestructuringDependency,
     LabelControlFlow,
     BreakOrContinueControlFlow,
@@ -176,6 +177,23 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.BreakOrContinueControlFlow;
                 declineReason = "break/continue control flow is not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is ForInInitInstruction or ForInMoveNextInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency;
+                declineReason =
+                    "for-in driver state instructions are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is ArrayDestructuringInitInstruction or ArrayDestructuringElementInstruction or
+                ArrayDestructuringRestInstruction or ArrayDestructuringCloseInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                declineReason =
+                    "Array destructuring driver state instructions are not eligible for production unified bytecode routing.";
                 return true;
             }
 

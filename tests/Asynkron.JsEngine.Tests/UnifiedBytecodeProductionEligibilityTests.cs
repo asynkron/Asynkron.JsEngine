@@ -887,6 +887,50 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ForInPlan_DeclinesWithForInDriverStateDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function listKeys(obj) {
+                var sum = 0;
+                for (var key in obj) {
+                    sum = sum + 1;
+                }
+
+                return sum;
+            }
+            """,
+            "listKeys");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
+        Assert.Contains("for-in driver state", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_ArrayDestructuringPlan_DeclinesWithDestructuringDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function readFirst(values) {
+                var [first] = values;
+                return first;
+            }
+            """,
+            "readFirst");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
+        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Evaluate_BinaryOpcodePlan_Accepts()
     {
         var plan = GetFunctionPlan("""

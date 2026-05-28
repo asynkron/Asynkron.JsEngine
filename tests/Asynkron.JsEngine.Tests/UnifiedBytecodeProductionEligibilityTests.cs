@@ -930,7 +930,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_BreakControlFlow_DeclinesWithBreakContinueCode()
+    public void Evaluate_BreakControlFlow_Accepts()
     {
         var plan = GetFunctionPlan("""
             function breakLoop(n) {
@@ -947,12 +947,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.BreakOrContinueControlFlow, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
     }
 
     [Fact]
-    public void Evaluate_ContinueControlFlow_DeclinesWithBreakContinueCode()
+    public void Evaluate_ContinueControlFlow_Accepts()
     {
         var plan = GetFunctionPlan("""
             function continueLoop(n) {
@@ -970,8 +972,63 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.BreakOrContinueControlFlow, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+    }
+
+    [Fact]
+    public void Evaluate_ForLoopContinueTarget_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function continueFor(n) {
+                var total = 0;
+                for (; n > 0; n = n - 1) {
+                    total = total + n;
+                    continue;
+                    total = 1000;
+                }
+
+                return total;
+            }
+            """,
+            "continueFor");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+    }
+
+    [Fact]
+    public void Evaluate_DoWhileLoop_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function countDo(n) {
+                var count = 0;
+                do {
+                    count = count + 1;
+                    n = n - 1;
+                } while (n > 0);
+
+                return count;
+            }
+            """,
+            "countDo");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
     }
 
     [Fact]

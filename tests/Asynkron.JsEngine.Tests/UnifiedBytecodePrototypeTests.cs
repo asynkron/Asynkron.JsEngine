@@ -612,7 +612,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_WhileWithBreak_DeclinesWithExplicitReason()
+    public void TryCompile_WhileWithNestedBranchBreak_DeclinesWithLoopReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function breakLoop(n) {
@@ -632,7 +632,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
         Assert.False(result);
-        Assert.Contains("Unsupported", reason, StringComparison.Ordinal);
+        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -680,7 +680,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_ForLoopWithConditionAndPostUpdate_DeclinesWithExplicitReason()
+    public void TryCompile_ForLoopWithConditionAndPostUpdate_ProducesBackwardJump()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function sumTo(n) {
@@ -694,13 +694,16 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "sumTo");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(
+            program.Instructions.Select((instruction, index) => (instruction, index)),
+            pair => pair.instruction.OpCode == UnifiedBytecodeOpCode.Jump && pair.instruction.Operand < pair.index);
     }
 
     [Fact]
-    public void TryCompile_ForLoopWithInitializerAndPostUpdate_DeclinesWithExplicitReason()
+    public void TryCompile_ForLoopWithInitializerAndPostUpdate_ProducesBackwardJump()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function sumTo(n) {
@@ -713,9 +716,12 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             }
             """,
             "sumTo");
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(
+            program.Instructions.Select((instruction, index) => (instruction, index)),
+            pair => pair.instruction.OpCode == UnifiedBytecodeOpCode.Jump && pair.instruction.Operand < pair.index);
     }
 
     [Fact]

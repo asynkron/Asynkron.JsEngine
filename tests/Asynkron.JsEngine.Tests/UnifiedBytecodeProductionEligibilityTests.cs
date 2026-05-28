@@ -108,7 +108,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_CallExpressionPlan_DeclinesAtInvocationBoundary()
+    public void Evaluate_IdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
             function invoke(fn, x) {
@@ -121,9 +121,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary, result.Code);
-        Assert.Contains("Call-target preparation compiled", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]
@@ -692,7 +695,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeMember",
-        (int)UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary)]
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
         function invokeComputedMember(box, key) {
@@ -700,7 +703,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeComputedMember",
-        (int)UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary)]
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
         function invokeSpread(helper, values) {

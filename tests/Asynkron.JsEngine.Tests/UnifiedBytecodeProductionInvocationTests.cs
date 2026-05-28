@@ -141,7 +141,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectIdentifierCall_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task DirectIdentifierCall_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -157,9 +157,79 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=invoke",
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ZeroArgumentIdentifierCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function helper() {
+                return 42;
+            }
+
+            function invoke(helper) {
+                return helper();
+            }
+
+            invoke(helper);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TwoArgumentIdentifierCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function helper(left, right) {
+                return left + right;
+            }
+
+            function invoke(helper, left, right) {
+                return helper(left, right);
+            }
+
+            invoke(helper, 20, 22);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NonCallableIdentifierCall_PropagatesTypeErrorThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn) {
+                return fn();
+            }
+
+            try {
+                invoke(1);
+                "missing";
+            } catch (error) {
+                error instanceof TypeError;
+            }
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=1",
                 StringComparison.Ordinal));
     }
 
@@ -1600,7 +1670,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task CallExpressionFunction_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task IdentifierCallStoredInLocal_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -1617,9 +1687,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=invoke",
+                "unified-bytecode-production-fast-path func=invoke argc=2",
                 StringComparison.Ordinal));
     }
 

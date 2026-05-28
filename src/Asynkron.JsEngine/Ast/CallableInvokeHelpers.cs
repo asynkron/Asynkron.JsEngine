@@ -13,7 +13,7 @@ public static partial class TypedAstEvaluator
     /// This overload avoids interface-based argument setup for the common zero-argument case.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue InvokeCallableNoArgs(
+    internal static JsValue InvokeCallableNoArgs(
         IJsCallable callable,
         JsValue thisValue,
         EvaluationContext? callingContext,
@@ -27,7 +27,7 @@ public static partial class TypedAstEvaluator
     /// This overload avoids array allocation for common binary helper calls.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue InvokeCallableTwoArgs(
+    internal static JsValue InvokeCallableTwoArgs(
         IJsCallable callable,
         JsValue arg0,
         JsValue arg1,
@@ -126,7 +126,7 @@ public static partial class TypedAstEvaluator
     /// This overload avoids array allocation for the common single-argument case.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue InvokeCallableSingleArg(
+    internal static JsValue InvokeCallableSingleArg(
         IJsCallable callable,
         JsValue argument,
         JsValue thisValue,

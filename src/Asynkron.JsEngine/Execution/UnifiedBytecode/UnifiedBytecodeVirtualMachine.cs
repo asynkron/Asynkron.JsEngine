@@ -57,12 +57,40 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
-                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
-                case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     throw new InvalidOperationException(
                         $"Opcode '{instruction.OpCode}' is a call-preparation boundary and is not executable yet.");
+
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                    var callTarget = program.CallTargetConstants[instruction.Operand];
+                    if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    var callableValue = slots[callTarget.SlotIndex];
+                    if (callableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = JsValue.Undefined;
+                    stack[stackPointer++] = callableValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                    stackPointer = ExecuteIdentifierCall(instruction.Operand, stack, stackPointer, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
@@ -461,6 +489,105 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
         };
+    }
+
+    private static int ExecuteIdentifierCall(
+        int argumentCount,
+        Span<JsValue> stack,
+        int stackPointer,
+        EvaluationContext context)
+    {
+        var calleeIndex = stackPointer - argumentCount - 1;
+        var receiverIndex = calleeIndex - 1;
+        var baseIndex = receiverIndex;
+        var calleeValue = stack[calleeIndex];
+        var thisValue = stack[receiverIndex];
+
+        if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            var calleeDescription = calleeValue.IsUndefined
+                ? "undefined"
+                : calleeValue.IsNull
+                    ? "null"
+                    : JsOps.ToJsString(calleeValue);
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                $"Attempted to call a non-callable value '{calleeDescription}' of type '{calleeValue.Kind}'.",
+                context,
+                context.RealmState));
+            stack[baseIndex] = JsValue.Undefined;
+            return baseIndex + 1;
+        }
+
+        if (callable is TypedAstEvaluator.SyncFunctionInvoker { IsClassConstructor: true } classConstructor)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Class constructor cannot be invoked without 'new'",
+                context,
+                classConstructor.RealmState));
+            stack[baseIndex] = JsValue.Undefined;
+            return baseIndex + 1;
+        }
+
+        if (++context.CallDepth > context.MaxCallDepth)
+        {
+            context.CallDepth--;
+            throw new InvalidOperationException(
+                $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+        }
+
+        JsValue[]? pooledArguments = null;
+        JsValue result;
+        try
+        {
+            result = argumentCount switch
+            {
+                0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context),
+                1 => TypedAstEvaluator.InvokeCallableSingleArg(callable, stack[calleeIndex + 1], thisValue, context),
+                2 => TypedAstEvaluator.InvokeCallableTwoArgs(
+                    callable,
+                    stack[calleeIndex + 1],
+                    stack[calleeIndex + 2],
+                    thisValue,
+                    context),
+                _ => TypedAstEvaluator.InvokeCallableJsValue(
+                    callable,
+                    MaterializeCallArguments(argumentCount, stack, calleeIndex + 1, out pooledArguments),
+                    thisValue,
+                    context)
+            };
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            result = signal.ThrownValue;
+        }
+        finally
+        {
+            if (pooledArguments is not null)
+            {
+                JsValueCache.ReturnJsValueArray(pooledArguments);
+            }
+
+            context.CallDepth--;
+        }
+
+        stack[baseIndex] = result;
+        return baseIndex + 1;
+    }
+
+    private static IReadOnlyList<JsValue> MaterializeCallArguments(
+        int argumentCount,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        out JsValue[] pooledArguments)
+    {
+        pooledArguments = JsValueCache.RentJsValueArray(argumentCount);
+        for (var argumentIndex = 0; argumentIndex < argumentCount; argumentIndex++)
+        {
+            pooledArguments[argumentIndex] = stack[firstArgumentIndex + argumentIndex];
+        }
+
+        return pooledArguments;
     }
 
     private static string GetTypeofStringValue(in JsValue value)

@@ -139,6 +139,22 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   instructions, `with`, direct eval / dynamic lookup, captured activation,
   per-iteration bindings, and `using` / `await using` remain pre-VM declines.
 
+## Production Call Invocation Boundary
+- Current executable call support is intentionally limited to no-spread
+  activation-resolved identifier calls where the callee is loaded from an owned
+  activation slot and arguments are simple literal or slot operands.
+- Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
+  by `CallInvocationBoundary`; the VM resolves the callable from unified
+  bytecode-owned slot state and invokes it through existing callable invocation
+  helpers.
+- Named member calls, computed member calls, direct eval, spread calls,
+  construct/super calls, optional calls, arguments-object dependencies, dynamic
+  lookup, and receiver-binding-sensitive adjacent families still decline before
+  VM execution.
+- Accepted programs must still satisfy the no-mixed-execution rule: no
+  callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
+  is allowed from `UnifiedBytecodeVirtualMachine`.
+
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes
 - VM-owned property and assignment semantics lanes

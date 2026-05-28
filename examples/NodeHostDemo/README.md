@@ -142,19 +142,18 @@ resolver and runs the framework code unchanged. The host still only supplies
 the native edges: package resolution, `http`, `querystring`, and enough
 request/response behavior for Polka's router.
 
-## Dependency drift note (2026-05-27 signal)
+## Dependency baseline note (2026-05-28 signal)
 
-The demo intentionally stays on the Express 4 line for now. On 2026-05-27,
-`npm view express version dist-tags.latest dist-tags.latest-4` reported
-`express@5.2.1` on the `latest` tag and `express@4.22.2` on the `latest-4`
-tag; moving to Express 5 should be a dedicated compatibility pass because it
-can change framework routing and middleware behavior.
+The real Express package demo now uses the current stable Express line. On
+2026-05-28, `npm view express version dist-tags.latest` reported `5.2.1`.
+Issue #2445 / PR #2457 updated `package.json` to `^5.2.1` and refreshed
+`package-lock.json` to resolve `express` at `5.2.1`.
 
-For this recurring run, live npm metadata still reports the same selected line:
-`latest-4` remains `4.22.2` while `latest` is `5.2.1`. The committed
-`package.json` and `package-lock.json` already resolve the selected Express 4
-line (`^4.22.2` and lockfile `4.22.2`), so this run is treated as evidence-only
-rather than committed dependency drift.
+Express remains the framework compatibility surface for this demo, so future
+Express updates should keep `package.json`, `package-lock.json`, and this note
+aligned. After changing Express, smoke at least `/api/status` and a
+parameterized route such as `/api/hello/agent?from=smoke` because routing and
+middleware behavior are the observable risk.
 
 Polka is current on its stable npm tag: `polka@0.5.2` is both the installed
 range target and `latest`. On the same 2026-05-27 signal,

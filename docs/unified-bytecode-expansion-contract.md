@@ -179,6 +179,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   existing `JsEnvironment` with-binding helpers. The VM-owned opcodes must
   preserve proxy traps, `Symbol.unscopables`, strict/sloppy assignment, delete,
   and receiver binding without falling back into mixed execution.
+- The sync invocation bridge must create an activation environment that already
+  contains function-scoped var bindings before VM execution, so a callee's
+  hoisted var names shadow an outer `with` object instead of falling through to
+  dynamic lookup.
+- `PrepareDynamicIdentifierCallTarget` must resolve an active with binding
+  regardless of identifier-cache state. When the binding exists, the receiver is
+  the with binding object and the callee is read through that captured binding.
 - Dynamic identifier support does not admit direct eval source execution,
   unresolved non-with dynamic activation, captured dynamic activation,
   arguments-object dependencies, or async/generator functions. Those shapes

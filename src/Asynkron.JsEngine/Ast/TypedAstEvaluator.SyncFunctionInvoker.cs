@@ -3564,6 +3564,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             return executionEnvironment;
         }
@@ -3618,6 +3619,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             return executionEnvironment;
         }
@@ -3667,8 +3669,25 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             return executionEnvironment;
+        }
+
+        private void HoistFunctionScopedVarsForFastActivation(JsEnvironment executionEnvironment)
+        {
+            for (var i = 0; i < _legacyTailRestartResetVarNames.Length; i++)
+            {
+                executionEnvironment.DefineFunctionScoped(_legacyTailRestartResetVarNames[i], JsValue.Undefined, false);
+            }
+
+            if (_hasFunctionNameEnvironment &&
+                _function.Name is { } hoistedName &&
+                ContainsVarDeclaration(_function, hoistedName) &&
+                !executionEnvironment.HasBinding(hoistedName))
+            {
+                executionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false);
+            }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

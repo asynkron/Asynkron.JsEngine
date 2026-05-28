@@ -220,10 +220,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     and ADR/rule surfaces synchronized in the same slice when shared boundary
     text changes. The contract must separate current support from
     reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
-    next unsupported buckets explicit (wider call families, unsupported
-    driver-state subshapes that still decline before VM execution, label-dependent
-    control flow, dynamic lookup) until dedicated ownership slices land. Keep
-    the drift guard in
+    next unsupported buckets explicit (wider call families; unsupported
+    driver-state subshapes: async iterator drivers, TDZ head environments,
+    awaited iterator/for-in sources, object destructuring, expression-level
+    `ApplyBindingTarget` destructuring, dynamic-name destructuring targets, and
+    non-slot/unified-slot failures that still decline before VM execution;
+    label-dependent control flow; dynamic lookup) until dedicated ownership
+    slices land. Keep the drift guard in
     `ExpressionProgramCoverageMapTests` covering required headings plus current
     `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
     Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
@@ -251,6 +254,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     expansion contract, roadmap, ADR 0256, and this rule around explicit next
     unsupported buckets. The durable lesson is that shared boundary wording and
     unsupported-bucket guidance are delivery-slice artifacts, not later cleanup.
+    Issue #2574 / PR #2584 then removed stale generic driver-state bucket
+    wording from this rule after the roadmap/contract wording had become
+    explicit, confirming that adjacent rule text is part of the same
+    synchronization boundary.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with
@@ -491,6 +498,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     treat constructor/super, spread/direct eval, dynamic lookup,
     iterator/destructuring, and label families as remaining lanes unless
     current `main` proves an even newer call slice has landed.
+32. When preserving or widening with-backed dynamic names on the production
+    unified bytecode route, keep the accepted program activation-hoist aligned
+    and receiver-owned. The sync bridge must define function-scoped var bindings
+    in the fast activation environment before VM execution so nested callees
+    called from inside an outer `with` still see their own hoisted var names as
+    `undefined` before any initializer runs. VM
+    `PrepareDynamicIdentifierCallTarget` must resolve active with bindings
+    regardless of identifier-cache state and must push the with binding object
+    as the receiver when the identifier comes from that object. Keep direct
+    eval source execution, captured dynamic activation, arguments objects,
+    async/generator functions, and unresolved non-with dynamic lookup as
+    pre-VM declines. Pair retained changes with the focused
+    `Statements_with` Test262 row and public production invocation tests for
+    both hoisted-var shadowing and with-object receiver binding. WHY: issue
+    #2564 / PR #2571 fixed `S12.10_A1.11_T5` after the with-backed production
+    route failed to create a nested function's hoisted local `value` binding
+    before dynamic lookup and dynamic identifier call preparation still depended
+    on the identifier-cache path.
 
 ## Why
 

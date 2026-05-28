@@ -163,6 +163,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedFunctionVarDeclaration_IsHoistedAcrossOuterWithWhenThrowingOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(scope) {
+                var result = "result";
+                var f = function() {
+                    throw value;
+                    var value = "local";
+                };
+
+                try {
+                    with (scope) {
+                        f();
+                    }
+                } catch (error) {
+                    result = error;
+                }
+
+                return result;
+            }
+
+            run({ value: "scope" });
+            """);
+
+        Assert.Equal(Symbol.Undefined, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithThenOutsideDynamicIdentifier_DeclinesProductionFastPath()
     {
         await using var engine = CreateEngine();

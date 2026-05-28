@@ -125,6 +125,31 @@ graph TD
     M6 --> M7
 ```
 
+## Cross-fabric contract surfaces
+This is the routing map for boundary work. A slice should name one primary owner and only cross a boundary when the receiving contract is explicit and proof-backed.
+
+```mermaid
+flowchart LR
+    FE[Language Frontend<br/>typed AST + early semantics] --> CP[Compilation and Plan<br/>IR + ExpressionProgram + eligibility]
+    CP --> EX[Execution Fabric<br/>plan runner + expression VM]
+    EX --> AS[Async and Concurrency<br/>scheduler + await/generator resume]
+    EX --> MH[Module and Host<br/>ESM/dynamic import + host bridge]
+    EX --> SL[Standard Library<br/>JsValue/JsObject + built-ins]
+    AS --> EV[Evidence and Governance<br/>proof packs + quality gate + profiling]
+    MH --> EV
+    SL --> EV
+    EX --> EV
+    CP --> EV
+```
+
+Boundary contract rules:
+- Frontend -> Compilation: frontend guarantees typed AST invariants; compilation must refuse unsupported lowering shapes explicitly.
+- Compilation -> Execution: execution consumes only plan-owned artifacts; no silent runner-time AST fallback widening.
+- Execution -> Async: await/yield suspension points are explicit handoff seams with restart and completion ownership preserved.
+- Execution -> Module/Host: module/host may adapt behavior, but core evaluator semantics stay execution-owned.
+- Execution -> Standard Library: built-in fast paths remain JsValue-native and must preserve descriptor/brand semantics.
+- Every boundary -> Evidence: capability and performance claims are non-deliverable until focused proof plus canonical quality gate evidence exists.
+
 ## Proven-now vs directional-next contract
 This section is the anti-drift guardrail for recurring architecture slices.
 

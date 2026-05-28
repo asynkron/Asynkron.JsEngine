@@ -229,7 +229,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         var isAccessor = descriptor?.IsAccessorDescriptor == true;
         var isWritable = !isAccessor && (!hasWritable || descriptor?.Writable != false);
 
-        if (TryResolveIndex(name, out var index) &&
+        if (TryResolveCanonicalIndex(name, out var index) &&
             _mappedEnabled &&
             isWritable &&
             index < _mappedParameters.Length &&
@@ -289,7 +289,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return null;
         }
 
-        if (TryResolveIndex(name, out var index) &&
+        if (TryResolveCanonicalIndex(name, out var index) &&
             _mappedEnabled &&
             index < _mappedParameters.Length &&
             _mappedParameters[index] is { } mappedSymbol &&
@@ -345,7 +345,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         var deleted = _backing.DeleteOwnProperty(name);
-        if (deleted && TryResolveIndex(name, out var index) && (uint)index < (uint)_values.Length)
+        if (deleted && TryResolveCanonicalIndex(name, out var index) && (uint)index < (uint)_values.Length)
         {
             MarkInitialIndexDeleted(index);
         }
@@ -374,7 +374,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         var existingDescriptor = GetTrackedDescriptor(name);
-        var isIndexProperty = TryResolveIndex(name, out var index);
+        var isIndexProperty = TryResolveCanonicalIndex(name, out var index);
         var normalized = isIndexProperty || string.Equals(name, "callee", StringComparison.Ordinal)
             ? NormalizeDescriptor(name, descriptor, existingDescriptor)
             : descriptor;
@@ -466,6 +466,12 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         return int.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out index) && index >= 0;
     }
 
+    private static bool TryResolveCanonicalIndex(string candidate, out int index)
+    {
+        return TryResolveIndex(candidate, out index) &&
+               string.Equals(GetIndexName(index), candidate, StringComparison.Ordinal);
+    }
+
     private PropertyDescriptor? GetTrackedDescriptor(string name)
     {
         if (_ownDescriptors is not null && _ownDescriptors.TryGetValue(name, out var tracked))
@@ -520,7 +526,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private bool TryResolveExistingIndex(string candidate, out int index)
     {
-        return TryResolveIndex(candidate, out index) && HasInitialIndex(index);
+        return TryResolveCanonicalIndex(candidate, out index) && HasInitialIndex(index);
     }
 
     private PropertyDescriptor GetInitialIndexDescriptor(string name, int index)

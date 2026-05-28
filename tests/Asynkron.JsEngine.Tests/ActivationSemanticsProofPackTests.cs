@@ -443,6 +443,36 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsNonCanonicalNumericNames_DoNotAliasLazyIndices()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a, b) {
+                const beforeDescriptor = Object.getOwnPropertyDescriptor(arguments, "00");
+                const beforeHasOwn = Object.hasOwn(arguments, "00");
+                arguments["00"] = 99;
+                const afterDescriptor = Object.getOwnPropertyDescriptor(arguments, "00");
+                const names = Object.getOwnPropertyNames(arguments);
+                const keys = Object.keys(arguments);
+                return [
+                    beforeDescriptor === undefined,
+                    beforeHasOwn,
+                    Object.hasOwn(arguments, "00"),
+                    afterDescriptor.value,
+                    a,
+                    names.indexOf("00") >= 0,
+                    keys.indexOf("00") >= 0,
+                    Object.getOwnPropertyDescriptor(arguments, "0").value
+                ].join(":");
+            }
+
+            probe(41, 2);
+            """);
+
+        Assert.Equal("true:false:true:99:41:true:true:41", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArgumentsLazyIndices_DefinePropertyAfterPreventExtensionsUsesExistingIndex()
     {
         await using var engine = CreateEngine();

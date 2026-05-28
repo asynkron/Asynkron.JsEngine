@@ -1849,6 +1849,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var vmSource = File.ReadAllText(vmPath);
         Assert.DoesNotContain("ExecutionPlanRunner", vmSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExpressionProgram", vmSource, StringComparison.Ordinal);
         Assert.DoesNotContain("EvaluateExpression(", vmSource, StringComparison.Ordinal);
         Assert.DoesNotContain("ProfileEvaluateExpression(", vmSource, StringComparison.Ordinal);
         Assert.DoesNotContain("EvaluateDynamicExpressionProgram(", vmSource, StringComparison.Ordinal);

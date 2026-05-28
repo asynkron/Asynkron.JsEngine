@@ -430,8 +430,8 @@ public sealed partial class IteratorPrototype : JsPrototype
         }
 
         var getter = new HostFunction((_, _) => (JsValue)"Iterator", Realm, false);
-        getter.DefineProperty("length", new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });
-        getter.DefineProperty("name", new PropertyDescriptor { Value = "get [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
+        getter.DefineProperty("length", new PropertyDescriptor { JsValue = 0d, Writable = false, Enumerable = false, Configurable = true });
+        getter.DefineProperty("name", new PropertyDescriptor { JsValue = "get [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
 
         var home = proto;
         var setter = new HostFunction((thisValue, args) =>
@@ -455,7 +455,7 @@ public sealed partial class IteratorPrototype : JsPrototype
                     throw StandardLibrary.ThrowTypeError("Cannot define property Symbol.toStringTag on non-extensible object", realm: Realm);
                 }
 
-                receiverObject.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Value = v, Writable = true, Enumerable = true, Configurable = true });
+                receiverObject.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { JsValue = v, Writable = true, Enumerable = true, Configurable = true });
             }
             else
             {
@@ -481,8 +481,8 @@ public sealed partial class IteratorPrototype : JsPrototype
 
             return JsValue.Undefined;
         }, Realm, false);
-        setter.DefineProperty("length", new PropertyDescriptor { Value = 1d, Writable = false, Enumerable = false, Configurable = true });
-        setter.DefineProperty("name", new PropertyDescriptor { Value = "set [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
+        setter.DefineProperty("length", new PropertyDescriptor { JsValue = 1d, Writable = false, Enumerable = false, Configurable = true });
+        setter.DefineProperty("name", new PropertyDescriptor { JsValue = "set [Symbol.toStringTag]", Writable = false, Enumerable = false, Configurable = true });
 
         proto.DefineProperty(SymbolKeys.ToStringTag, new PropertyDescriptor { Get = getter, Set = setter, Enumerable = false, Configurable = true });
     }

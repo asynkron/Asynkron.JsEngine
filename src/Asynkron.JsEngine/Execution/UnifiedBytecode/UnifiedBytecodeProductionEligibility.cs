@@ -251,6 +251,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var isCallTargetPreparationCandidate = TryIsFirstBoundaryCallTargetPreparationCandidate(
             program,
             identifierConstants,
+            stringConstants,
             activationSlots);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
@@ -738,6 +739,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots)
     {
         if (program.OperationCount < 2)
@@ -769,6 +771,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return TryIsFirstBoundaryNamedReceiver(
                        program,
                        identifierConstants,
+                       stringConstants,
                        activationSlots,
                        namedCallTargetIndex) &&
                    HasSimpleCallArguments(
@@ -787,6 +790,7 @@ internal static class UnifiedBytecodeProductionEligibility
                    TryIsFirstBoundaryNamedReceiver(
                        program,
                        identifierConstants,
+                       stringConstants,
                        activationSlots,
                        keyIndex) &&
                    IsSimpleComputedPropertyKey(
@@ -820,16 +824,16 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryNamedReceiver(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
         int endExclusive)
     {
-        if (endExclusive is < 1 or > 3 ||
-            !TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        if (endExclusive < 1 ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);

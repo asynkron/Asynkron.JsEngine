@@ -843,14 +843,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
-        function invokeDeepReceiver(box) {
-            return box.a.b.c.d();
-        }
-        """,
-        "invokeDeepReceiver",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
-    [InlineData(
-        """
         function construct(ctor, value) {
             return new ctor(value);
         }

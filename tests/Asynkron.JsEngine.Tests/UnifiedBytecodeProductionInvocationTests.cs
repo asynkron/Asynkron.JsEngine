@@ -318,14 +318,13 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPath()
+    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var box = {
-                offset: 1,
                 read(value) {
-                    return value + this.offset;
+                    return this === box ? value + 1 : -1;
                 }
             };
 

@@ -307,7 +307,12 @@ optimization.
      shared expression runtime, or unified-bytecode selector/compiler/VM support
      for the whole accepted compound shape. Keep benchmark row provenance
      explicit: a full-table baseline row and a focused selected-profile row are
-     not interchangeable labels. WHY: issue `autrun-diu68o64336o-198e1cf9f1` /
+     not interchangeable labels. Do not retry the narrower
+     `GetProgramNamedPropertyValue` direct own-data-property shortcut as a
+     standalone fix either; skipping only generic property dispatch and the
+     repeated private-name check leaves the profile dominated by shared
+     expression-program execution, identifier reads, storage lookup, and
+     compound-assignment plumbing. WHY: issue `autrun-diu68o64336o-198e1cf9f1` /
      PR #2506 tried a simple named-property RHS evaluator and a slot-aware
      compound target read/write micro-slice. Focused semantics passed while the
      experiments were in place, but repeated `propertyaccess` timings did not
@@ -315,6 +320,14 @@ optimization.
      A review-back fix also had to correct the retained `906 ms` evidence label
      from "focused row" to "full-table baseline row". ADR:
      `docs/adrs/0259-keep-propertyaccess-compound-rhs-retries-shared-expression-owned.md`.
+     Issue `autrun-diu8sjuliufk-8777abed24` / PR #2533 then tried the direct
+     expression-boundary non-private `JsObject` data-read shortcut. Focused
+     semantic guardrails passed, but repeated rows with the edit were
+     `923`/`927`/`918`/`917` ms against a `914` ms focused baseline, so the
+     runtime edit was reverted and only
+     `docs/performance/failed-propertyaccess-expression-boundary-direct-read.md`
+     was retained. Future work should move the whole owner boundary instead of
+     shaving this single dispatch edge.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

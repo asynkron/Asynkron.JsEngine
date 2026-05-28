@@ -79,9 +79,9 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Named member call-target preparation requires a named member call target constant.");
                     }
 
-                    var namedReceiver = stack[stackPointer - 1];
-                    stack[stackPointer++] = GetNamedPropertyValue(
-                        namedReceiver,
+                    var receiver = stack[stackPointer - 1];
+                    var namedCallable = GetNamedPropertyValue(
+                        receiver,
                         program.StringConstants[namedCallTarget.NameConstantIndex],
                         context);
                     if (context.ShouldStopEvaluation)
@@ -89,6 +89,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         return JsValue.Undefined;
                     }
 
+                    stack[stackPointer++] = namedCallable;
                     programCounter++;
                     break;
 

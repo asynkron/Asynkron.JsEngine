@@ -62,6 +62,17 @@ review-back fix in commit `43d55a17` corrected the retained evidence label from
 `focused row = 906 ms` to `full-table baseline row = 906 ms`; the numbers did
 not change.
 
+Issue `autrun-diu8sjuliufk-8777abed24` / PR #2533 then tried the narrower
+expression-boundary direct-read variant under the same owner surface:
+`GetProgramNamedPropertyValue` called a `JsObject` helper for already
+non-private own data-property reads before falling back to
+`JsOps.TryGetPropertyValue`. Focused semantic guardrails passed, but repeated
+selected `propertyaccess` rows with the attempted edit were `923`, `927`,
+`918`, and `917` ms against a `914` ms focused baseline. The edit was reverted
+and only
+`docs/performance/failed-propertyaccess-expression-boundary-direct-read.md`
+was retained.
+
 ## Decision
 
 Keep future `propertyaccess` compound-assignment RHS retries shared-expression
@@ -73,6 +84,12 @@ just because the profile names
 GetProgramNamedPropertyValue`. A parallel evaluator that still decodes
 `ExpressionProgram` operations and performs the same identifier/property lookup
 work is too likely to move overhead around instead of removing it.
+
+Do not retry the `GetProgramNamedPropertyValue` direct own-data-property
+shortcut as a standalone fix either. Skipping only the generic property dispatch
+and repeated private-name check leaves the current profile dominated by
+expression-program execution, identifier reads, object storage lookup, and
+compound-assignment plumbing.
 
 Future work on this owner should start from one of these owned boundaries:
 
@@ -100,6 +117,10 @@ baseline.
 - Future agents should not retry the same simple named-property RHS evaluator
   or slot-aware target read/write micro-slice without fresh profile evidence and
   repeated A/B timing that clears the gate.
+- Future agents should not retry the same expression-boundary direct
+  non-private own-data read shortcut unless the surrounding shared expression
+  overhead has first been removed or a fresh profile proves this edge is now
+  the dominant owner.
 - Performance notes must preserve the provenance of baseline rows. A
   full-table baseline row and a focused selected-profile row can both be valid
   evidence, but they are not interchangeable labels.
@@ -110,6 +131,7 @@ baseline.
 ## Related
 
 - `docs/performance/failed-propertyaccess-compound-rhs-fast-path.md`
+- `docs/performance/failed-propertyaccess-expression-boundary-direct-read.md`
 - `.claude/rules/performance-profiling-guardrails.md`
 - `docs/adrs/0188-keep-named-property-read-fast-paths-storage-owned-and-receiver-preserving.md`
 - `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`

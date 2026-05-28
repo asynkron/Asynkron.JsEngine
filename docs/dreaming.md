@@ -202,10 +202,10 @@ flowchart LR
     F -. fail .-> B
 ```
 
-## Bounded architecture improvement slice (this run)
+## Bounded architecture improvement slice (previous run)
 Primary owner: **Async and Concurrency Fabric**.
 
-This run narrows one recurring ambiguity: Milestone C language often spans
+The previous run narrowed one recurring ambiguity: Milestone C language often spans
 execution, scheduler, and host callbacks in one sentence. The decomposition
 below preserves ADR 0249 single-owner routing by treating execution and host
 as explicit contracts consumed by the async owner surface.
@@ -225,6 +225,36 @@ Milestone C routing rules for this slice:
 - Async owner consumes explicit suspension/restart contracts from Execution Fabric; no implicit AST fallback widening is allowed.
 - Host wakeup remains a receiving contract, not a transfer of core evaluator ownership.
 - Seam closure text is directional until focused async-generator proof and canonical quality evidence are attached.
+
+## Capability lifecycle control plane (this run)
+Primary owner: **Evidence and Governance Fabric**.
+
+This run adds an explicit lifecycle control plane so capability statements
+cannot jump directly from prototype behavior to production claim language.
+The goal is to make claim state a first-class architecture object with hard
+gates owned by evidence discipline.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Candidate
+    Candidate --> Prototyped: owner-surface design accepted
+    Prototyped --> ProvenScoped: focused semantics pack green
+    ProvenScoped --> ProvenWidened: widened owning-cluster proof green
+    ProvenWidened --> PerfQualified: profile/benchmark evidence attached
+    PerfQualified --> ProductionClaim: canonical quality gate green
+
+    Prototyped --> Candidate: owner boundary changed
+    ProvenScoped --> Prototyped: boundary wording drift detected
+    ProvenWidened --> Prototyped: widened proof regression
+    PerfQualified --> ProvenWidened: perf signal regression
+    ProductionClaim --> Prototyped: roadmap/ADR contract changed
+```
+
+Lifecycle control rules:
+- Every state transition requires an explicit owner module and named proof artifact.
+- Node.js-competitive and CommonJS-adjacent wording cannot enter `ProductionClaim` without passing all gates.
+- Async-generator seam closure remains below `ProductionClaim` until Milestone C proof plus quality evidence are attached.
+- Unified-bytecode eligibility expansion must restart at `Prototyped` when opcode/control-flow boundaries change.
 
 ## #2342 milestone architecture map
 The roadmap milestones are delivery-control points, not labels. Each one maps to explicit modules and seams.
@@ -343,11 +373,11 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
 
 ## Signals this run
-- Baseline timestamp: 2026-05-28T08:40:57Z
-- Baseline signal: `docs/dreaming.md` line_count = 329
-- Final timestamp: 2026-05-28T08:41:17Z
-- Final signal: `docs/dreaming.md` line_count = 353
-- Signal delta: +24 lines
+- Baseline timestamp: 2026-05-28T10:42:31Z
+- Baseline signal: `docs/dreaming.md` line_count = 353
+- Final timestamp: 2026-05-28T10:43:31Z
+- Final signal: `docs/dreaming.md` line_count = 383
+- Signal delta: +30 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

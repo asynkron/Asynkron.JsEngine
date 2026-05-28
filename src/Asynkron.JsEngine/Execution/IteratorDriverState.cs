@@ -36,6 +36,12 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public bool HasEnteredLoop { get; set; }
 
     /// <summary>
+    /// Dynamic entry order for active driver cleanup. Higher values are more deeply nested
+    /// and must be closed first when unified bytecode exits abruptly.
+    /// </summary>
+    public int ActiveDriverOrdinal { get; set; }
+
+    /// <summary>
     /// Pre-resolved JsVariable for fast iterator state access (avoids dictionary lookups per iteration).
     /// </summary>
     public JsVariable IteratorVariable { get; set; }
@@ -131,6 +137,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         LoopScopeEnvironment = null;
         IteratorClosed = false;
         HasEnteredLoop = false;
+        ActiveDriverOrdinal = 0;
         PoolLeaseId = 0;
     }
 

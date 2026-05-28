@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Asynkron.JsEngine.Execution;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
@@ -46,6 +47,7 @@ internal enum UnifiedBytecodeOpCode : byte
     DefineObjectProperty,
     DefineComputedObjectProperty,
     Jump,
+    JumpWithDriverCleanup,
     JumpIfFalse,
     Return,
     ReturnUndefined,
@@ -54,6 +56,15 @@ internal enum UnifiedBytecodeOpCode : byte
     PopEnvironment,
     EnterWith,
     LeaveWith,
+    IteratorInit,
+    IteratorMoveNext,
+    IteratorClose,
+    ForInInit,
+    ForInMoveNext,
+    ArrayDestructuringInit,
+    ArrayDestructuringElement,
+    ArrayDestructuringRest,
+    ArrayDestructuringClose,
     PrepareIdentifierCallTarget,
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
@@ -81,6 +92,14 @@ internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
     ImmutableArray<int> LexicalSlotIndices);
 
+internal readonly record struct UnifiedBytecodeDriverDescriptor(
+    int StateSlot,
+    int ValueSlot = -1,
+    int TargetSlot = -1,
+    int BreakTarget = -1,
+    int NextTarget = -1,
+    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync);
+
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
     int MaxStackDepth,
@@ -91,4 +110,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<int> ParameterSlotIndices,
     ImmutableArray<int> LexicalSlotIndices,
     ImmutableArray<UnifiedBytecodeCallTarget> CallTargetConstants,
-    ImmutableArray<UnifiedBytecodeScopeDescriptor> ScopeDescriptors);
+    ImmutableArray<UnifiedBytecodeScopeDescriptor> ScopeDescriptors,
+    ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors);

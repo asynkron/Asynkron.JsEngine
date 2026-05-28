@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static JsValue InvokeIteratorNext(this IJsObjectLike iterator, IJsCallable nextMethod,
+    internal static JsValue InvokeIteratorNext(this IJsObjectLike iterator, IJsCallable nextMethod,
         JsValue sendValue = default,
         bool hasSendValue = false,
         EvaluationContext? context = null,
@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
         return result;
     }
 
-    private static IJsCallable GetIteratorNextCallable(this IJsObjectLike iterator, EvaluationContext? context)
+    internal static IJsCallable GetIteratorNextCallable(this IJsObjectLike iterator, EvaluationContext? context)
     {
         // Use context-aware property access to propagate getter errors
         if (!iterator.TryGetProperty("next", out var nextValue))

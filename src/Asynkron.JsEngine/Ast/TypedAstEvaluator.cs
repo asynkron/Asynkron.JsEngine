@@ -66,7 +66,7 @@ public static partial class TypedAstEvaluator
     /// <para>NOTE: TypedArray is NOT fast-pathed because resizable buffer shrink requires proper error propagation.</para>
     /// </summary>
     [MustDisposeResource]
-    private static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(in JsValue value)
+    internal static IEnumerator<JsValue>? TryGetFastEnumeratorForIteration(in JsValue value)
     {
         // JsArray - fast path only if no custom indexed properties (getters/setters)
         // Arrays with Object.defineProperty on numeric indices need full iterator protocol
@@ -97,7 +97,7 @@ public static partial class TypedAstEvaluator
     }
 
     // Per ECMA-262 §7.4.1/§7.4.2 (GetIterator / GetAsyncIterator) via @@iterator/@@asyncIterator.
-    private static bool TryGetIteratorFromProtocols(JsValue iterableValue, EvaluationContext context,
+    internal static bool TryGetIteratorFromProtocols(JsValue iterableValue, EvaluationContext context,
         out IJsObjectLike? iterator)
     {
         iterator = null;
@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
 
     // ToObject for iteration lookup: primitives must be wrapped so @@iterator can be
     // found on their prototypes (ES2024 GetIterator/ToObject step).
-    private static JsValue NormalizeIterableTarget(JsValue jsValue, EvaluationContext context)
+    internal static JsValue NormalizeIterableTarget(JsValue jsValue, EvaluationContext context)
     {
         if (jsValue.IsNull || jsValue.IsUndefined)
         {
@@ -929,7 +929,7 @@ public static partial class TypedAstEvaluator
     }
 
     // Array/object destructuring uses iterator protocol (ECMA-262 §14.1.5).
-    private static bool TryGetIteratorForDestructuring(JsValue jsValue, EvaluationContext context,
+    internal static bool TryGetIteratorForDestructuring(JsValue jsValue, EvaluationContext context,
         out IJsObjectLike? iterator, [MustDisposeResource] out IEnumerator<JsValue>? enumerator)
     {
         iterator = null;

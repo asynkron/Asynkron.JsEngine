@@ -1293,7 +1293,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpWithDriverCleanup);
     }
 
     [Fact]
@@ -1375,7 +1375,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ForInPlan_DeclinesWithForInDriverStateDependency()
+    public void Evaluate_ForInPlan_AcceptsDriverStateOpcodes()
     {
         var plan = GetFunctionPlan("""
             function listKeys(obj) {
@@ -1393,13 +1393,17 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
-        Assert.Contains("for-in driver state", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+        Assert.NotEmpty(result.Program.DriverDescriptors);
     }
 
     [Fact]
-    public void Evaluate_ArrayDestructuringPlan_DeclinesWithDestructuringDependency()
+    public void Evaluate_ArrayDestructuringPlan_AcceptsDriverStateOpcodes()
     {
         var plan = GetFunctionPlan("""
             function readFirst(values) {
@@ -1413,9 +1417,95 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringElement);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringClose);
+        Assert.NotEmpty(result.Program.DriverDescriptors);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function readDefault(values) {
+            var [first = 1] = values;
+            return first;
+        }
+        """,
+        "readDefault")]
+    [InlineData(
+        """
+        function readComputed(source, key) {
+            var { [key]: value } = source;
+            return value;
+        }
+        """,
+        "readComputed")]
+    public void Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
         Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_ForOfPlan_AcceptsIteratorDriverOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function sumValues(values) {
+                var sum = 0;
+                for (var value of values) {
+                    sum = sum + value;
+                }
+
+                return sum;
+            }
+            """,
+            "sumValues");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+    }
+
+    [Fact]
+    public void Evaluate_ForInTdzHead_DeclinesWithExplicitDriverReason()
+    {
+        var plan = GetFunctionPlan("""
+            function tdzHead() {
+                for (let key in { [key]: 1 }) {
+                    return key;
+                }
+            }
+            """,
+            "tdzHead");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
+        Assert.Contains("TDZ", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

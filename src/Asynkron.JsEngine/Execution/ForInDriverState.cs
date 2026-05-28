@@ -49,6 +49,12 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
     /// </summary>
     public JsValue SourceObject { get; set; }
 
+    /// <summary>
+    /// Dynamic entry order for active driver cleanup. Higher values are more deeply nested
+    /// and must be completed first when unified bytecode exits abruptly.
+    /// </summary>
+    public int ActiveDriverOrdinal { get; set; }
+
     [Conditional("DEBUG")]
     internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
 
@@ -77,6 +83,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
         ValueVariable = default;
         LoopScopeEnvironment = null;
         SourceObject = default;
+        ActiveDriverOrdinal = 0;
     }
 
     /// <summary>
@@ -92,6 +99,7 @@ internal sealed class ForInDriverState : IRentable, IAsJsValue
         ValueVariable = default;
         LoopScopeEnvironment = null;
         SourceObject = default;
+        ActiveDriverOrdinal = 0;
     }
 }
 

@@ -185,10 +185,6 @@ internal sealed class ModuleNamespace : IJsObjectLike, IPropertyDefinitionHost
     {
         if (candidate is null)
         {
-            if (_isDeferred)
-            {
-            }
-
             return;
         }
 

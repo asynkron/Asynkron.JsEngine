@@ -251,6 +251,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var isCallTargetPreparationCandidate = TryIsFirstBoundaryCallTargetPreparationCandidate(
             program,
             identifierConstants,
+            stringConstants,
             activationSlots);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
@@ -743,6 +744,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots)
     {
         if (program.OperationCount < 2)
@@ -774,10 +776,11 @@ internal static class UnifiedBytecodeProductionEligibility
             var namedCallTarget = program.GetOperation(namedCallTargetIndex);
             return !namedCallTarget.IsOptional &&
                    !namedCallTarget.ShortCircuitOnNullishTarget &&
-                   !namedCallTarget.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
+                   !namedCallTarget.GetString(stringConstants).IsPrivateName() &&
                    IsSupportedNamedReceiverChain(
                        program,
                        identifierConstants,
+                       stringConstants,
                        activationSlots,
                        namedCallTargetIndex) &&
                    HasSimpleCallArguments(
@@ -798,6 +801,7 @@ internal static class UnifiedBytecodeProductionEligibility
                    IsSupportedNamedReceiverChain(
                        program,
                        identifierConstants,
+                       stringConstants,
                        activationSlots,
                        keyIndex) &&
                    IsSimpleOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
@@ -828,6 +832,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool IsSupportedNamedReceiverChain(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
         int endExclusive)
     {
@@ -842,7 +847,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
         {
             var receiverOperation = program.GetOperation(operationIndex);

@@ -168,6 +168,11 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   scope, sibling/no-recurrence evidence, and no-unrelated-change note in the
   handoff instead of adding a new source/docs tweak to satisfy an
   already-delivered slice.
+- When a recurring-child `Slice check` or build-evidence artifact names changed
+  source paths, cross-check those paths against the actual diff before
+  finalizing. If review only catches a stale or wrong evidence path after the
+  runtime slice is complete, correct the evidence artifact only and keep the
+  delivery-source lifecycle intact.
 - Keep recurring-child progress updates plain and bounded while work is in
   flight. Reserve machine-readable structured schema output for the actual
   final stage result only; avoid emitting final-response-shaped interim status
@@ -622,6 +627,16 @@ evidence-only, recorded that only this active Code reduction child overlapped
 the slice, and kept the delivery PR lifecycle intact. Future recurring
 code-reduction re-entries should repair missing sibling/no-overlap evidence in
 the handoff instead of making another source change.
+
+Issue `autrun-diu8sjsjlk3s-e66ed39168` / PR #2529 repeated the evidence-only
+pattern for a stale changed-path claim. The runtime code slice only removed an
+empty deferred branch from `src/Asynkron.JsEngine/JsTypes/ModuleNamespace.cs`,
+but the first build evidence named the obsolete
+`src/Asynkron.JsEngine/Ast/Modules/ModuleNamespace.cs` path until review sent
+the build back. The corrective commit fixed only the evidence artifact. Future
+recurring-child evidence should verify `Slice check` path claims against the
+actual diff before handoff, and evidence-path corrections should not reopen the
+already-complete source slice.
 
 Issue `autrun-ditawgqprig0-51fe82c197` / PR #2330 removed the unused top-level
 `playground/` project, scratch probes, a tracked binary, and the paired

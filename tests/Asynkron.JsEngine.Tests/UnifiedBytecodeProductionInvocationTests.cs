@@ -323,9 +323,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var box = {
-                offset: 1,
                 read(value) {
-                    return value + this.offset;
+                    return this === box ? value + 1 : -1;
                 }
             };
 
@@ -339,7 +338,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=invoke",
+                "unified-bytecode-production-fast-path func=invoke argc=2",
                 StringComparison.Ordinal));
     }
 

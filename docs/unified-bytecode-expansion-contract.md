@@ -153,9 +153,9 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   resolve the callable, and invoke through the same `CallInvocationBoundary`
   path so JavaScript `this` binds to the final receiver object.
 - Direct eval, spread calls, construct/super calls, optional calls,
-  arguments-object dependencies, dynamic lookup, and broader
-  receiver-binding-sensitive adjacent families still decline before VM
-  execution.
+  private/super member targets, arguments-object dependencies, dynamic lookup,
+  and broader receiver-binding-sensitive adjacent families still decline before
+  VM execution.
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -184,9 +184,10 @@ support today.
 ## Next Unsupported Buckets (current boundary)
 - Wider call invocation remains outside the admitted boundary. Direct eval,
   spread calls, construct/super calls, optional calls, arguments-object
-  dependencies, dynamic lookup, and receiver-binding-sensitive adjacent families
-  beyond the direct activation-resolved member-call boundary must still decline
-  before VM execution.
+  dependencies, dynamic lookup, private/super member targets, and
+  receiver-binding-sensitive adjacent families beyond the direct
+  activation-resolved member-call boundary must still decline before VM
+  execution.
 - Iterator-driver state remains outside the admitted boundary
   (`ForInDriverStateDependency`), including `for-in` driver instructions.
 - Destructuring driver-state execution remains outside the admitted boundary

@@ -5,10 +5,11 @@
 Accepted
 
 Superseded in part on 2026-05-28 by the executable no-spread
-activation-resolved identifier-call slice and the direct receiver-aware
-named/computed member-call slice. The slicing decision still applies to direct
-eval, spread calls, construct/super calls, optional calls, arguments-object
-dependencies, dynamic lookup, and the other unproven call-adjacent families.
+activation-resolved identifier-call slice, issue #2530 / PR #2534's direct
+named member-call slice, and the direct receiver-aware named/computed
+member-call slice. The slicing decision still applies to direct eval, spread
+calls, construct/super calls, optional calls, arguments-object dependencies,
+dynamic lookup, and the other unproven call-adjacent families.
 
 ## Context
 
@@ -27,9 +28,9 @@ before VM execution:
 - `UnifiedBytecodeVirtualMachine` treats `CallInvocationBoundary` as
   non-executable.
 
-Main has since landed the first executable identifier-call slice, so this ADR
-records that slice as completed baseline and scopes the remaining call
-invocation widening lanes.
+Main has since landed the first executable identifier-call slice and the direct
+named member-call slice, so this ADR records those slices as completed baselines
+and scopes the remaining call invocation widening lanes.
 
 The remaining unsupported families also still include dynamic lookup, label
 control flow, and iterator/destructuring drivers. Mixing those with call
@@ -43,9 +44,11 @@ split the work into strict slices:
 1. Baseline (already landed): direct identifier calls where the target resolves
    to an activation slot, arguments are simple one-op operands, spread is
    absent, and direct eval is excluded.
-2. Completed follow-up: named member calls using existing prepared call-target
-   metadata.
-3. Completed follow-up: computed member calls using existing prepared
+2. Baseline (already landed): direct named member calls whose receiver chain is
+   activation-resolved and whose arguments are simple one-op operands, using
+   existing prepared call-target metadata while preserving the receiver as
+   `this`.
+3. Completed follow-up: direct computed member calls using existing prepared
    call-target metadata.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
@@ -102,3 +105,4 @@ rtk ./tools/profile forloop --memory
 - ADR 0250: `docs/adrs/0250-keep-unified-bytecode-call-target-prep-boundary-non-executable.md`
 - ADR 0251: `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`
 - ADR 0258: `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`
+- ADR 0262: `docs/adrs/0262-keep-unified-bytecode-named-member-call-receiver-owned.md`

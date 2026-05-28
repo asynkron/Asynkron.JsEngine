@@ -406,6 +406,21 @@ internal static class UnifiedBytecodeVirtualMachine
                         : instruction.Operand;
                     break;
 
+                case UnifiedBytecodeOpCode.PushEnvironment:
+                    var scopeDescriptor = program.ScopeDescriptors[instruction.Operand];
+                    var lexicalSlotIndices = scopeDescriptor.LexicalSlotIndices;
+                    for (var i = 0; i < lexicalSlotIndices.Length; i++)
+                    {
+                        slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PopEnvironment:
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Return:
                     return stack[stackPointer - 1];
 

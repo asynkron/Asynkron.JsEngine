@@ -266,7 +266,7 @@ for recurring slices while preserving evidence-gated claim discipline.
 
 ```mermaid
 flowchart TB
-    subgraph Spine[Runtime spine (execution-owned path)]
+    subgraph Spine["Runtime spine (execution-owned path)"]
         S1[Language Frontend]
         S2[Compilation and Plan Fabric]
         S3[Execution Fabric]

@@ -208,7 +208,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task StrictEqualityBranchFunction_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task StrictEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -224,9 +224,155 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(20d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=chooseByStrictEquality",
+                "unified-bytecode-production-fast-path func=chooseByStrictEquality argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrimitiveUnaryTypeofAndTemplateStringOperators_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function primitiveLane(value) {
+                var text = `${value}`;
+                return typeof value + ":" + (+value) + ":" + (-value) + ":" + (!value) + ":" + (~value) + ":" + (void value) + ":" + text;
+            }
+
+            primitiveLane("5");
+            """);
+
+        Assert.Equal("string:5:-5:false:-6:undefined:5", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=primitiveLane argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TypeOfNonIdentifier_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function kind(value) {
+                return typeof (value + 1);
+            }
+
+            kind(41);
+            """);
+
+        Assert.Equal("number", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=kind argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TypeOfIdentifierForLexicalTdz_PropagatesReferenceErrorThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function kind() {
+                return typeof x;
+                let x = 1;
+            }
+
+            try {
+                kind();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'x' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=kind argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LoadSlotForLexicalTdz_PropagatesReferenceErrorThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read() {
+                return x;
+                let x = 1;
+            }
+
+            try {
+                read();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'x' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task UnaryCoercionAbruptCompletion_PropagatesThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function plus(value) {
+                return +value;
+            }
+
+            try {
+                plus({
+                    valueOf() {
+                        throw new Error("boom");
+                    }
+                });
+                "missing";
+            } catch (e) {
+                e.message;
+            }
+            """);
+
+        Assert.Equal("boom", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=plus argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DiscardedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndKeepsSideEffects()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    hits = hits + 1;
+                    return 41;
+                }
+            });
+
+            function discardRead(box) {
+                box.value;
+                return 1;
+            }
+
+            discardRead(box) + hits;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=discardRead argc=1",
                 StringComparison.Ordinal));
     }
 

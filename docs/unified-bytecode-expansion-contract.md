@@ -36,6 +36,15 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `SetComputedProperty`
 - `UpdateNamedProperty`
 - `UpdateComputedProperty`
+- `TypeOf`
+- `TypeOfIdentifier`
+- `UnaryPlus`
+- `UnaryMinus`
+- `UnaryLogicalNot`
+- `UnaryBitwiseNot`
+- `UnaryVoid`
+- `ToString`
+- `Pop`
 - `CreateArray`
 - `ArrayPush`
 - `ArrayPushHole`

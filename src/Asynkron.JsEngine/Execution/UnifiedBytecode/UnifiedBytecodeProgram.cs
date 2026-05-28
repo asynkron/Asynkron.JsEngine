@@ -20,6 +20,15 @@ internal enum UnifiedBytecodeOpCode : byte
     SetComputedProperty,
     UpdateNamedProperty,
     UpdateComputedProperty,
+    TypeOf,
+    TypeOfIdentifier,
+    UnaryPlus,
+    UnaryMinus,
+    UnaryLogicalNot,
+    UnaryBitwiseNot,
+    UnaryVoid,
+    ToString,
+    Pop,
     CreateArray,
     ArrayPush,
     ArrayPushHole,
@@ -39,4 +48,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
     int MaxStackDepth,
     ImmutableArray<JsTypes.JsValue> LiteralConstants,
-    ImmutableArray<string> StringConstants);
+    ImmutableArray<string> StringConstants,
+    ImmutableArray<string?> SlotNames);

@@ -16,8 +16,8 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
 - Prefer the copy/paste `## Build Update` template in
   `agents/how-to-build-and-test.md` for the operational build-stage update
   format so child-run updates stay comparable across recurring issues.
-- When a top-level entrypoint such as `README.md` summarizes recurring-child
-  workflow, keep it as a short pointer to the owned surfaces:
+- When a top-level entrypoint such as `README.md` or `AGENTS.md` summarizes
+  recurring-child workflow, keep it as a short pointer to the owned surfaces:
   `agents/how-to-build-and-test.md` for the runnable checklist and `## Build
   Update` template, and this rule file for recurring-child policy ownership
   and durable compaction lessons. Include the sibling-summary check plus stable
@@ -429,6 +429,13 @@ policy and durable-compaction home. Future entrypoint docs should preserve that
 split: point runnable checklist/template ownership at
 `agents/how-to-build-and-test.md`, point semantic policy ownership here, and
 avoid turning README into a second policy body.
+
+Issue #2519 / PR #2523 applied that same entrypoint-pointer rule to
+`AGENTS.md`. The delivery added one concise pointer to the operational checklist
+and this durable policy file, instead of copying the checklist or rule body.
+Future top-level agent playbooks should keep recurring-child guidance as a
+pointer to the owned surfaces so entrypoints stay discoverable without becoming
+secondary policy homes.
 
 Issue #2100 / PR #2108 exposed the same mirror problem in the issue/workflow
 playbook. `agents/how-to-build-and-test.md` already required `Sibling check`

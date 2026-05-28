@@ -102,6 +102,7 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             if (!HandleContextThrow(
                 context,
+                program,
                 tryStack,
                 currentSlots,
                 ref programCounter,
@@ -305,6 +306,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         if (HandleContextThrow(
                                 context,
+                                program,
                                 tryStack,
                                 slots,
                                 ref programCounter,
@@ -948,6 +950,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.Break:
                     if (HandleAbruptCompletion(
+                            program,
                             AbruptKind.Break,
                             JsValue.Undefined,
                             instruction.Operand,
@@ -973,6 +976,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         if (HandleContextThrow(
                                 context,
+                                program,
                                 tryStack,
                                 slots,
                                 ref programCounter,
@@ -992,6 +996,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.Continue:
                     if (HandleAbruptCompletion(
+                            program,
                             AbruptKind.Continue,
                             JsValue.Undefined,
                             instruction.Operand,
@@ -1087,6 +1092,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         if (HandleContextThrow(
                                 context,
+                                program,
                                 tryStack,
                                 slots,
                                 ref programCounter,
@@ -1364,6 +1370,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.Return:
                     var result = stack[--stackPointer];
                     if (HandleAbruptCompletion(
+                            program,
                             AbruptKind.Return,
                             result,
                             -1,
@@ -1384,6 +1391,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                     if (HandleAbruptCompletion(
+                            program,
                             AbruptKind.Return,
                             JsValue.Undefined,
                             -1,
@@ -1405,6 +1413,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.Throw:
                     var thrownValue = stack[--stackPointer];
                     if (HandleAbruptCompletion(
+                            program,
                             AbruptKind.Throw,
                             thrownValue,
                             -1,
@@ -1433,6 +1442,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 context.SetThrow(signal.ThrownValue);
                 if (HandleContextThrow(
                         context,
+                        program,
                         tryStack,
                         slots,
                         ref programCounter,
@@ -1453,6 +1463,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool HandleContextThrow(
         EvaluationContext context,
+        UnifiedBytecodeProgram program,
         Stack<TryFrame>? tryStack,
         Span<JsValue> slots,
         ref int programCounter,
@@ -1469,6 +1480,7 @@ internal static class UnifiedBytecodeVirtualMachine
         var thrownValue = context.FlowValue;
         context.Clear();
         if (HandleAbruptCompletion(
+                program,
                 AbruptKind.Throw,
                 thrownValue,
                 -1,
@@ -1544,6 +1556,7 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     private static bool HandleAbruptCompletion(
+        UnifiedBytecodeProgram program,
         AbruptKind kind,
         JsValue value,
         int controlTarget,
@@ -1587,7 +1600,16 @@ internal static class UnifiedBytecodeVirtualMachine
                 if (hasControlTarget &&
                     kind == AbruptKind.Continue &&
                     frame.Descriptor.LoopContinueTarget >= 0 &&
-                    controlTarget == frame.Descriptor.LoopContinueTarget)
+                    IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopContinueTarget))
+                {
+                    return false;
+                }
+
+                if (hasControlTarget &&
+                    kind == AbruptKind.Break &&
+                    frame.Descriptor.LoopBreakTarget >= 0 &&
+                    !IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopBreakTarget) &&
+                    IsBreakTargetInsideLoopFrame(program, controlTarget, frame.Descriptor.LoopBreakTarget))
                 {
                     return false;
                 }
@@ -1628,6 +1650,56 @@ internal static class UnifiedBytecodeVirtualMachine
         return false;
     }
 
+    private static bool IsBreakTargetInsideLoopFrame(
+        UnifiedBytecodeProgram program,
+        int target,
+        int loopBreakTarget)
+    {
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            // The inner driver can already be closed when its pending break reaches an outer frame.
+            // Use descriptor topology instead of active driver state to mirror the runner's breakable stack.
+            if (descriptor.BreakTarget < 0)
+            {
+                continue;
+            }
+
+            if (IsSameLoopControlTarget(program, target, descriptor.BreakTarget))
+            {
+                return descriptor.BreakTarget != loopBreakTarget;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSameLoopControlTarget(
+        UnifiedBytecodeProgram program,
+        int target,
+        int loopControlTarget)
+    {
+        var instructions = program.Instructions;
+        var remainingCleanupDepth = instructions.Length;
+        while (target >= 0 &&
+               target < instructions.Length &&
+               remainingCleanupDepth-- > 0)
+        {
+            if (target == loopControlTarget)
+            {
+                return true;
+            }
+
+            if (instructions[target].OpCode != UnifiedBytecodeOpCode.PopEnvironment)
+            {
+                return false;
+            }
+
+            target++;
+        }
+
+        return false;
+    }
+
     private static bool CompleteFinally(
         UnifiedBytecodeProgram program,
         int nextTarget,
@@ -1653,6 +1725,7 @@ internal static class UnifiedBytecodeVirtualMachine
         if (pending.Kind == AbruptKind.Return)
         {
             if (HandleAbruptCompletion(
+                    program,
                     AbruptKind.Return,
                     pending.Value,
                     -1,
@@ -1676,6 +1749,7 @@ internal static class UnifiedBytecodeVirtualMachine
         if (pending.Kind is AbruptKind.Break or AbruptKind.Continue)
         {
             if (HandleAbruptCompletion(
+                    program,
                     pending.Kind,
                     JsValue.Undefined,
                     pending.Target,
@@ -1701,6 +1775,7 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         if (HandleAbruptCompletion(
+                program,
                 AbruptKind.Throw,
                 pending.Value,
                 -1,

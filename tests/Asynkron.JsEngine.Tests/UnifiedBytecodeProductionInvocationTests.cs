@@ -497,6 +497,57 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ForOfNestedInnerBreak_DoesNotCloseOuterIteratorBeforeReturnExpressionOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeIterable(closeValue, box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: closeValue };
+                            },
+                            return: function() {
+                                box.value = box.value + closeValue;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                for (var outerValue of outer) {
+                    for (var innerValue of inner) {
+                        break;
+                    }
+
+                    return box.value;
+                }
+
+                return -1;
+            }
+
+            var box = { value: 0 };
+            var result = probe(makeIterable(10, box), makeIterable(1, box), box);
+            result + ":" + box.value;
+            """);
+
+        Assert.Equal("1:11", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

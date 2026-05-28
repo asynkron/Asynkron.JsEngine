@@ -232,6 +232,56 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TypeOfIdentifierForLexicalTdz_PropagatesReferenceErrorThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function kind() {
+                return typeof x;
+                let x = 1;
+            }
+
+            try {
+                kind();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'x' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=kind argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LoadSlotForLexicalTdz_PropagatesReferenceErrorThroughUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read() {
+                return x;
+                let x = 1;
+            }
+
+            try {
+                read();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'x' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task UnaryCoercionAbruptCompletion_PropagatesThroughUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

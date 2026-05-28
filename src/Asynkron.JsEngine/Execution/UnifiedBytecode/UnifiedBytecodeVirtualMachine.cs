@@ -25,7 +25,14 @@ internal static class UnifiedBytecodeVirtualMachine
             switch (instruction.OpCode)
             {
                 case UnifiedBytecodeOpCode.LoadSlot:
-                    stack[stackPointer++] = slots[instruction.Operand];
+                    var slotValue = slots[instruction.Operand];
+                    if (slotValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = slotValue;
                     programCounter++;
                     break;
 
@@ -220,7 +227,14 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
-                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(slots[instruction.Operand]));
+                    var typeOfValue = slots[instruction.Operand];
+                    if (typeOfValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(typeOfValue));
                     programCounter++;
                     break;
 
@@ -339,6 +353,26 @@ internal static class UnifiedBytecodeVirtualMachine
             JsValueKind.Object => GetTypeofStringForObject(value.ObjectValue),
             _ => "undefined"
         };
+    }
+
+    private static void SetUninitializedSlotReferenceError(
+        UnifiedBytecodeProgram program,
+        int slotIndex,
+        EvaluationContext context)
+    {
+        var slotName = GetSlotName(program, slotIndex);
+        var message = slotName is null
+            ? "Cannot access lexical binding before initialization"
+            : $"Cannot access '{slotName}' before initialization";
+        context.SetThrow(StandardLibrary.CreateReferenceError(message, context, context.RealmState));
+    }
+
+    private static string? GetSlotName(UnifiedBytecodeProgram program, int slotIndex)
+    {
+        var slotNames = program.SlotNames;
+        return !slotNames.IsDefaultOrEmpty && (uint)slotIndex < (uint)slotNames.Length
+            ? slotNames[slotIndex]
+            : null;
     }
 
     private static string GetTypeofStringForObject(object? value)

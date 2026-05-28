@@ -62,7 +62,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
             ImmutableArray<UnifiedBytecodeInstruction>.Empty,
             0,
             ImmutableArray<JsTypes.JsValue>.Empty,
-            ImmutableArray<string>.Empty);
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string?>.Empty);
 }
 
 internal static class UnifiedBytecodeProductionEligibility

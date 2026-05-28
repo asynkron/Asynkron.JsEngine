@@ -67,7 +67,8 @@ internal static class UnifiedBytecodeCompiler
             unified.ToImmutable(),
             maxStackDepth,
             literalConstants.ToImmutable(),
-            stringConstants.ToImmutable());
+            stringConstants.ToImmutable(),
+            BuildSlotNames(plan.ActivationSlots));
         reason = string.Empty;
         return true;
     }
@@ -77,7 +78,29 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeInstruction>.Empty,
             0,
             ImmutableArray<JsValue>.Empty,
-            ImmutableArray<string>.Empty);
+            ImmutableArray<string>.Empty,
+            ImmutableArray<string?>.Empty);
+
+    private static ImmutableArray<string?> BuildSlotNames(ActivationSlotShape activationSlots)
+    {
+        if (activationSlots.SlotCount == 0 ||
+            activationSlots.SlotNames.IsDefaultOrEmpty ||
+            activationSlots.LexicalSlotIndices.IsDefaultOrEmpty)
+        {
+            return ImmutableArray<string?>.Empty;
+        }
+
+        var names = new string?[activationSlots.SlotCount];
+        foreach (var (name, slotIndex) in activationSlots.SlotNames)
+        {
+            if ((uint)slotIndex < (uint)names.Length)
+            {
+                names[slotIndex] = name.Name;
+            }
+        }
+
+        return names.ToImmutableArray();
+    }
 
     private static bool TryCompileBlock(
         int instructionIndex,

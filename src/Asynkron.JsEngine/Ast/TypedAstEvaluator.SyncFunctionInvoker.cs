@@ -3036,6 +3036,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 var slots = slotStorage.AsSpan(0, activationSlots.SlotCount);
                 slots.Fill(JsValue.Undefined);
+                InitializeProductionUnifiedBytecodeLexicalSlots(slots, activationSlots);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, activationSlots);
 
                 RealmState.Logger?.LogInformation(
@@ -3127,6 +3128,23 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return false;
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static void InitializeProductionUnifiedBytecodeLexicalSlots(
+            Span<JsValue> slots,
+            ActivationSlotShape activationSlots)
+        {
+            var lexicalSlotIndices = activationSlots.LexicalSlotIndices;
+            if (lexicalSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < lexicalSlotIndices.Length; i++)
+            {
+                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+            }
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

@@ -1374,6 +1374,70 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_BreakThroughFinallyControlFlow_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function breakFinally(n) {
+                var marker = 0;
+                while (n > 0) {
+                    try {
+                        break;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker;
+            }
+            """,
+            "breakFinally");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+    }
+
+    [Fact]
+    public void Evaluate_ContinueThroughFinallyControlFlow_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function continueFinally(n) {
+                var i = 0;
+                var marker = 0;
+                while (i < n) {
+                    i = i + 1;
+                    try {
+                        continue;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker + i;
+            }
+            """,
+            "continueFinally");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.EndFinally);
+    }
+
+    [Fact]
     public void Evaluate_ForLoopContinueTarget_Accepts()
     {
         var plan = GetFunctionPlan("""

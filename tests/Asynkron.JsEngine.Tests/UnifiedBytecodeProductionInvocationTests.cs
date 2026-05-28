@@ -439,6 +439,64 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryFinally_BreakThroughFinallyUsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function breakFinally(n) {
+                var marker = 0;
+                while (n > 0) {
+                    try {
+                        break;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker;
+            }
+
+            breakFinally(2);
+            """);
+
+        Assert.Equal(10d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=breakFinally argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TryFinally_ContinueThroughFinallyUsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function continueFinally(n) {
+                var i = 0;
+                var marker = 0;
+                while (i < n) {
+                    i = i + 1;
+                    try {
+                        continue;
+                    } finally {
+                        marker = marker + 10;
+                    }
+                }
+
+                return marker + i;
+            }
+
+            continueFinally(2);
+            """);
+
+        Assert.Equal(22d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=continueFinally argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

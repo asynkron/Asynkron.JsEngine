@@ -1950,6 +1950,22 @@ internal static class UnifiedBytecodeCompiler
 
         if (activeInstructions.Contains(targetIndex))
         {
+            if (IsSupportedActiveAbruptControlTarget(sourceInstructionIndex, targetIndex, instructions) &&
+                instructionPcMap.TryGetValue(targetIndex, out var activeTargetProgramCounter))
+            {
+                PatchOperand(unified, jumpIndex, activeTargetProgramCounter);
+                reason = string.Empty;
+                return true;
+            }
+
+            if (IsSupportedActiveTryCompletionTarget(sourceInstructionIndex, targetIndex, instructions) &&
+                instructionPcMap.TryGetValue(targetIndex, out var tryCompletionProgramCounter))
+            {
+                PatchOperand(unified, jumpIndex, tryCompletionProgramCounter);
+                reason = string.Empty;
+                return true;
+            }
+
             if (!IsSupportedLoopBackEdgeTarget(sourceInstructionIndex, targetIndex, instructions) ||
                 !instructionPcMap.TryGetValue(targetIndex, out var loopHeadProgramCounter))
             {
@@ -1987,6 +2003,41 @@ internal static class UnifiedBytecodeCompiler
         PatchOperand(unified, jumpIndex, instructionPcMap[targetIndex]);
         reason = string.Empty;
         return true;
+    }
+
+    private static bool IsSupportedActiveAbruptControlTarget(
+        int sourceInstructionIndex,
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        return (uint)sourceInstructionIndex < (uint)instructions.Length &&
+               (instructions[sourceInstructionIndex] switch
+               {
+                   BreakInstruction breakInstruction => breakInstruction.TargetIndex == targetIndex,
+                   ContinueInstruction continueInstruction => continueInstruction.TargetIndex == targetIndex,
+                   _ => false
+               });
+    }
+
+    private static bool IsSupportedActiveTryCompletionTarget(
+        int sourceInstructionIndex,
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if ((uint)sourceInstructionIndex >= (uint)instructions.Length ||
+            (uint)targetIndex >= (uint)instructions.Length ||
+            instructions[targetIndex] is not BranchInstruction branch ||
+            !HasLoopContinueTarget(targetIndex, branch.AlternateIndex, instructions))
+        {
+            return false;
+        }
+
+        return instructions[sourceInstructionIndex] switch
+        {
+            LeaveTryInstruction leaveTry => leaveTry.Next == targetIndex,
+            EndFinallyInstruction endFinally => endFinally.Next == targetIndex,
+            _ => false
+        };
     }
 
     private static bool TryAppendJumpToCompiledTarget(

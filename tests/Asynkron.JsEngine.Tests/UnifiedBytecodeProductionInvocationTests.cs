@@ -1859,7 +1859,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, ".git")) &&
+            if ((Directory.Exists(Path.Combine(current.FullName, ".git")) ||
+                 File.Exists(Path.Combine(current.FullName, ".git")) ||
+                 File.Exists(Path.Combine(current.FullName, "Asynkron.JsEngine.sln"))) &&
                 Directory.Exists(Path.Combine(current.FullName, "src", "Asynkron.JsEngine")))
             {
                 return current;

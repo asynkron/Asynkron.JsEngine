@@ -21,6 +21,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ### Unified Opcode Inventory (current)
 - `LoadSlot`
+- `LoadThis`
+- `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
 - `Binary`

@@ -51,6 +51,14 @@ a lock-free single-entry front cache for the most recent eval
 `EvalProgramCacheKey` and `ProgramNode`, while keeping the existing bounded LRU
 as the miss path and backing store.
 
+Issue #2563 / PR #2569 found the semantic limit of source-text eval program
+reuse. Test262's `cache-eval-inner-function.js` creates an inner function from
+separate eval parses, each containing the same tagged-template callsite. Those
+separate parses must not share a template object. Reusing the cached
+`ProgramNode` also reused the same tagged-template AST/descriptor identity, so
+the realm `TemplateObjectCache` collapsed distinct eval instantiations into one
+template object.
+
 ## Decision
 
 Keep repeated direct-eval program caching inside the eval host boundary and
@@ -73,6 +81,15 @@ same parse-shaping key as the LRU entry. It must store only the exact
 separate cache for caller context, eval environments, declaration
 instantiation, private-name validation, or execution results. Misses and less
 stable source patterns continue through the bounded LRU path.
+
+Eval sources that may contain template literals must not reuse a cached
+`ProgramNode` unless a future design adds a proven eval-instantiation identity
+to the template-object cache key. The current implementation uses a conservative
+backtick prefilter and reparses those eval sources, preserving distinct
+tagged-template parse-node/descriptor identity across separate eval
+instantiations. Do not replace this boundary with a source-text, cooked-string,
+or raw-string keyed template-object cache; ordinary non-eval callsites still
+need same-parse-node template-object reuse.
 
 Direct eval execution must continue to run declaration instantiation and program
 execution against the current eval environment. Private-name validation and
@@ -101,6 +118,12 @@ profile timings.
   and dictionary path without changing the semantic cache key.
 - Strict and sloppy eval source stay separated by cache key instead of relying
   on later runtime checks to repair a wrongly parsed program.
+- Eval sources containing template literals pay parse cost again so template
+  object identity stays tied to eval parse identity instead of eval source
+  text.
+- Future template-object cache optimizations must preserve both sides of the
+  identity rule: same callsite reuse for ordinary code and distinct objects for
+  separate eval parses of the same tagged-template source.
 - Cache size remains an engine-local operational bound, not a process-global
   source-text memory policy.
 - Same-engine direct-eval fast paths can remove generic host-call setup cost
@@ -120,3 +143,4 @@ profile timings.
 - `.claude/rules/expression-bytecode-call-targets.md`
 - `.claude/rules/performance-profiling-guardrails.md`
 - `.claude/rules/ecmascript-direct-eval-declaration-instantiation.md`
+- `.claude/rules/ecmascript-template-object-cache.md`

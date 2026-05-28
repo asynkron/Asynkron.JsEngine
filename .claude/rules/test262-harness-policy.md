@@ -21,6 +21,11 @@ path-normalized.
    fixture family with one semantic root, a current focused proof, path
    normalization coverage, default-timeout coverage for ordinary fixtures, and
    an ADR naming the accepted prefix.
+7. When a crash report targets a fixture that already has an exact extended
+   timeout, prove the focused row and the helper policy before editing runtime
+   code. If the current row passes and the gap is missing helper coverage, add
+   or update the path-normalized regression instead of widening timeout policy
+   or changing the owner runtime.
 
 ## Why
 
@@ -33,6 +38,14 @@ because the first helper matched only the bare path and missed the equivalent
 Future agents should treat Test262 path strings as harness inputs that need
 normalization and direct regression coverage, not as stable literals that can be
 matched in only one form.
+
+Issue #2562 / PR #2567 repeated the same URI fixture pattern for
+`built-ins/decodeURI/S15.1.3.1_A2.5_T1.js`. The current focused Release rows
+passed under the existing exact extended timeout, so the delivery did not change
+`GlobalHelper` or broaden harness policy. It added the missing helper
+regression coverage for both bare and `test/`-prefixed path shapes so future
+agents can classify the row as timeout-policy-owned before reopening the URI
+decoder.
 
 Issue #1058 / PR #1289 added the first accepted prefix-based timeout exception:
 `built-ins/RegExp/CharacterClassEscapes/`. The affected fixtures are generated

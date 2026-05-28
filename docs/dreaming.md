@@ -125,6 +125,29 @@ graph TD
     M6 --> M7
 ```
 
+## Delivery packet decomposition (one-owner path)
+This decomposition turns the greenfield architecture into one-owner delivery packets that can be reviewed and proven without blurring boundaries.
+
+```mermaid
+flowchart TD
+    T[Top-level Runtime Fabric concern] --> M[Owner module]
+    M --> C[Component and subcomponent]
+    C --> K[Cross-fabric boundary contract]
+    K --> P[Proof packet]
+    P --> R[Roadmap and ADR traceability]
+
+    P --> P1[Focused semantics pack]
+    P --> P2[Profile or benchmark evidence]
+    P --> P3[make quality gate result]
+```
+
+Packet rules:
+- One packet, one primary owner module; cross-fabric edits require an explicit boundary contract.
+- Each packet names the exact proven-now surface and directional-next boundary before implementation starts.
+- Node.js-competitive and CommonJS-adjacent wording must remain directional unless the packet carries explicit new proof.
+- Async-generator seam follow-through stays packetized under #2342 Milestone C until the shared async-step bridge dependency is removed.
+- Unified-bytecode production routing remains bounded to current accepted eligibility/opcode shapes unless a packet adds parity plus profile proof.
+
 ## Cross-fabric contract surfaces
 This is the routing map for boundary work. A slice should name one primary owner and only cross a boundary when the receiving contract is explicit and proof-backed.
 

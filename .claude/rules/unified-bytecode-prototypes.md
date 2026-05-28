@@ -48,20 +48,23 @@ all-or-nothing until a separate routing issue proves production readiness.
    `ExecutionPlan` plus explicit activation metadata, return stable decline
    codes/reasons before VM execution, and accept only the exact production
    opcode subset that has been proven. The current production subset includes
-   branch joins, direct branches, joined-local updates, and the canonical
-   condition-first loop back-edge only through the existing compiler-owned
-   shapes; do not add source-syntax exceptions or a selector-side second CFG
-   recognizer. `Binary` is production-eligible only for the explicitly proven
-   operator subset (`+`, `-`, `*`, `/`, `%`, `==`, `<`, `<=`, `>`, `>=`) and
+   branch joins, direct branches, joined-local updates, canonical
+   condition-first loop backedges, simple do-while consequent backedges, and
+   proven unlabeled loop-control target jumps including direct break/continue
+   and for-style update continue targets, all through the existing
+   compiler-owned shapes; do not add source-syntax exceptions or a
+   selector-side second CFG recognizer. `Binary` is production-eligible only
+   for the explicitly proven operator subset (`+`, `-`, `*`, `/`, `%`, `==`,
+   `<`, `<=`, `>`, `>=`) and
    must execute through the existing `JsValue` operator helpers with an
    `EvaluationContext`, not direct numeric extraction. Any new production
    Binary operator must update the selector, unified compiler allowlist, and VM
    semantics in the same slice, with positive selector/route proof and a nearby
    unsupported operator decline/no-route proof. Unsupported Binary operators
    must still decline as `PrototypeOnlyBinaryOpcode` with operator-specific
-   diagnostics, and labels, break/continue, calls, dynamic lookup,
-   noncanonical loops, and unsupported payloads must decline before VM
-   execution.
+   diagnostics, and labels, unproven or labeled loop-control shapes, calls,
+   dynamic lookup, noncanonical loops, and unsupported payloads must decline
+   before VM execution.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production
@@ -76,13 +79,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     activation proof pack. If a future slice changes priority again, make that
     explicit and prove the older route remains covered.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
-    bytecode production routing, treat ADR 0210 as the current production
-    boundary and keep ADR 0204/#2227 direct-branch wording historical unless a
-    newer accepted ADR supersedes it. The docs must state the no-mixed-execution
-    rule, list the exact eligible opcode/control-flow/operator families, keep
-    unsupported shapes as pre-VM declines, and describe Batch 5 memory/profile
-    evidence as allocation stability only unless a separate before/after proof
-    justifies a performance-improvement claim.
+    bytecode production routing, treat ADR 0253 as the current loop-control
+    production widening layered on ADR 0210, and keep ADR 0204/#2227
+    direct-branch wording historical unless a newer accepted ADR supersedes it.
+    The docs must state the no-mixed-execution rule, list the exact eligible
+    opcode/control-flow/operator families, keep unsupported shapes as pre-VM
+    declines, and describe Batch 5 memory/profile evidence as allocation
+    stability only unless a separate before/after proof justifies a
+    performance-improvement claim.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.
@@ -335,6 +339,23 @@ all-or-nothing until a separate routing issue proves production readiness.
     destructuring model-first declines while removing only the redundant
     discarded property write/update veto that current owned VM semantics had
     superseded.
+27. When admitting loop-control shapes to production unified bytecode, keep
+    target semantics compiler-owned and label decline explicit. Supported
+    unlabeled `BreakInstruction` and `ContinueInstruction` cases may compile
+    only as resolved `Jump` targets through the same IR-instruction to
+    bytecode-PC map used for ordinary jumps. Prove forward breaks, continue
+    backedges, for-style update continue targets, and do-while branch
+    consequent backedges with selector eligibility and public route-log tests.
+    Keep labeled breakable control flow declined through `LabelControlFlow`,
+    and keep unsupported complex loop/control-flow shapes as pre-VM declines.
+    After widening compile support, update prototype expectations that used to
+    assert old decline behavior so `make quality` catches drift before merge.
+    WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9d6cd3060b`
+    / PR #2489 widened production loop-control support. The
+    conflict-resolution stage had to preserve main's for-in/destructuring
+    declines while repairing stale prototype tests that still expected
+    for-loop post-update shapes to fail.
 
 ## Why
 
@@ -573,3 +594,4 @@ Related ADRs:
 - `docs/adrs/0247-keep-unified-bytecode-activation-value-loads-call-time-owned.md`
 - `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`
 - `docs/adrs/0252-keep-unified-bytecode-completion-lane-vm-owned.md`
+- `docs/adrs/0253-keep-unified-bytecode-loop-control-targets-compiler-owned.md`

@@ -280,6 +280,23 @@ all-or-nothing until a separate routing issue proves production readiness.
     reads. The durable lesson is that broad primitive support is safe only when
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
+24. When adding unified-bytecode call-target preparation, keep preparation
+    bytecode-owned but non-executable until a separate invocation slice owns
+    receiver binding, direct-eval, construct/super, optional-call, and spread
+    semantics end to end. It is valid for the compiler to emit typed
+    `UnifiedBytecodeCallTarget` records and `Prepare*CallTarget` opcodes for
+    no-spread activation-resolved identifier/member calls, but production
+    routing must decline at `CallInvocationBoundary` and the VM must not call
+    back into `ExpressionProgram`, `ExecutionPlanRunner`, AST evaluation, or a
+    generic host-call fallback. Update
+    `docs/unified-bytecode-expansion-contract.md` in the same slice for every
+    new prep opcode or decline code. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-161f73f52d`
+    / PR #2479 added the first shared call-target preparation lane, and the
+    learn-stage drift guard immediately failed because the expansion contract
+    missed `PrepareIdentifierCallTarget`; the durable lesson is that call prep
+    can become a reusable bytecode surface only while invocation remains an
+    explicit, documented production decline.
 
 ## Why
 

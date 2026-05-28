@@ -420,6 +420,161 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_RemainVisibleToDescriptorsAndEnumeration()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a, b) {
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                return [
+                    Object.keys(arguments).join(","),
+                    Object.getOwnPropertyNames(arguments).slice(0, 3).join(","),
+                    descriptor.value,
+                    descriptor.enumerable,
+                    descriptor.writable,
+                    descriptor.configurable
+                ].join(":");
+            }
+
+            probe(40, 2);
+            """);
+
+        Assert.Equal("0,1:0,1,length:40:true:true:true", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsNonCanonicalNumericNames_DoNotAliasLazyIndices()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a, b) {
+                const beforeDescriptor = Object.getOwnPropertyDescriptor(arguments, "00");
+                const beforeHasOwn = Object.hasOwn(arguments, "00");
+                arguments["00"] = 99;
+                const afterDescriptor = Object.getOwnPropertyDescriptor(arguments, "00");
+                const names = Object.getOwnPropertyNames(arguments);
+                const keys = Object.keys(arguments);
+                return [
+                    beforeDescriptor === undefined,
+                    beforeHasOwn,
+                    Object.hasOwn(arguments, "00"),
+                    afterDescriptor.value,
+                    a,
+                    names.indexOf("00") >= 0,
+                    keys.indexOf("00") >= 0,
+                    Object.getOwnPropertyDescriptor(arguments, "0").value
+                ].join(":");
+            }
+
+            probe(41, 2);
+            """);
+
+        Assert.Equal("true:false:true:99:41:true:true:41", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_DefinePropertyAfterPreventExtensionsUsesExistingIndex()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.preventExtensions(arguments);
+                Object.defineProperty(arguments, "0", { value: 42 });
+                return arguments[0] + ":" + Object.getOwnPropertyDescriptor(arguments, "0").value;
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:42", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_SealUpdatesTrackedIndexDescriptors()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.seal(arguments);
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                return [
+                    Object.isSealed(arguments),
+                    descriptor.configurable,
+                    descriptor.writable,
+                    descriptor.value
+                ].join(":");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("true:false:true:41", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_FreezeUpdatesTrackedIndexDescriptors()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.freeze(arguments);
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                const before = arguments[0];
+                arguments[0] = 42;
+                a = 99;
+                return [
+                    Object.isFrozen(arguments),
+                    descriptor.configurable,
+                    descriptor.writable,
+                    before,
+                    arguments[0],
+                    a
+                ].join(":");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("true:false:false:41:41:99", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsMaterializedIndex_DeleteStillFallsBackToPrototype()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.getOwnPropertyDescriptor(arguments, "0");
+                Object.setPrototypeOf(arguments, { 0: 42 });
+                delete arguments[0];
+                return arguments[0] + ":" + Object.keys(arguments).join(",");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsMaterializedIndex_AssignmentUpdatesTrackedDescriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                "use strict";
+                Object.getOwnPropertyDescriptor(arguments, "0");
+                arguments[0] = 42;
+                return arguments[0] + ":" + Object.getOwnPropertyDescriptor(arguments, "0").value;
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:42", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DefaultParameterDisablesArgumentsMapping()
     {
         await using var engine = CreateEngine();

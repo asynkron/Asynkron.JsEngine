@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-27
+Date: 2026-05-28
 
 ## Why this document exists
 This is the architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -18,7 +18,7 @@ The prior dream captured the right direction, but it was still too easy to read 
 4. bytecode unification intent did not clearly separate prototype capability from production-routing policy,
 5. evidence governance was named, but not strict enough to gate fast-path expansion decisions.
 
-This revision keeps the aspiration, but hardens the document into a routing guide: clear owner surfaces, explicit non-goals, and milestone-to-module mapping that mirrors the roadmap.
+This revision keeps the aspiration, but hardens the document into a routing guide: clear owner surfaces, explicit non-goals, and milestone-to-module mapping that mirrors the roadmap. It also tightens language around current #2342 milestone status, unified-bytecode production boundaries, and async-generator seam ownership so recurring implementation slices can route to the right layer without overclaiming parity.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -219,6 +219,7 @@ This dream is aspirational and does not claim current full parity. These constra
 - **Milestone B (host interop boundary):** host callable/global integration is explicit, but Node-style host behavior remains an integration-layer concern.
 - **Milestone C (async seam closure):** async-generator runtime still has known seam risk and remains active follow-through work.
 - Unified bytecode direction is strong, but production routing remains bounded by explicit eligibility and opcode/control-flow constraints.
+- Current accepted unified-bytecode property-access boundary remains intentionally strict: direct named/computed reads and writes (including two-hop named reads, compound writes, and updates) only, with out-of-boundary shapes declining before VM execution.
 - Compact statement-bytecode storage is a direction; it is not the current universal execution contract.
 - Dynamic/eval-sensitive paths remain correctness-first and cannot be erased by architecture preference.
 
@@ -234,6 +235,8 @@ The #2342 milestones map to specific architecture modules so recurring work can 
 
 ## Non-goals
 - Not a claim of full Node.js parity today.
+- Not a claim that CommonJS compatibility behavior is core-engine parity rather than host-layer interoperability.
+- Not a claim that async-generator seam closure is complete while the shared async-step bridge still owns part of the flow.
 - Not a replacement for ADRs, perf reports, or roadmap issue tracking.
 - Not a license to widen eligibility or remove fallback seams without proof.
 
@@ -244,6 +247,10 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Semantics proof is green on the owning focused pack first, then widened.
 - Profile/benchmark evidence is attached when the claim is performance-related.
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
+
+## Signals this run
+- Baseline signal source: `docs/dreaming.md` at 2026-05-28T04:40:32Z (249 lines).
+- Final signal source: `docs/dreaming.md` at 2026-05-28T04:41:03Z (256 lines).
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

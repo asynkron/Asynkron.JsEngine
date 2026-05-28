@@ -59,16 +59,33 @@ separate parses must not share a template object. Reusing the cached
 the realm `TemplateObjectCache` collapsed distinct eval instantiations into one
 template object.
 
+Issue #2595 / PR #2600 kept the #2563 tagged-template boundary and returned to
+the non-template `activation-evalscope-lite` path. The hot repeated source
+(`eval("y + shared")`) contains no template literal, so it can reuse the parsed
+program, but cache hits still paid repeated program-wide static work:
+module/import-meta checks, eval validation flag scans, declaration/name
+collection, var-function declaration collection, and strict-reserved binding
+checks.
+
 ## Decision
 
 Keep repeated direct-eval program caching inside the eval host boundary and
 keyed by all parse-shaping state used by the retained program. For the current
 implementation, that state is the eval source text and `forceStrict`.
 
-The cache may retain parsed `ProgramNode` instances and their warmed AST caches.
+The cache may retain parsed `ProgramNode` instances, their warmed AST caches,
+and immutable program-shaped static analysis derived from the retained program.
+Allowed cached analysis is limited to facts whose value is stable for the cache
+key, such as module/import-meta presence, `EvalValidationFlags`,
+declared-name/declaration collections, var-function declarations,
+strict-reserved binding presence, and declaration-free classification when the
+strictness inputs are part of the cache key. Cached collections must be
+immutable or read-only from the execution path.
+
 It must not cache eval environments, declaration-instantiation results,
-execution results, caller bindings, private-name validation, `super` /
-`new.target` eligibility, or any other invocation-local state.
+execution results, caller bindings, private-name validation outcomes, `super` /
+`new.target` eligibility, class-field-initializer state, or any other
+invocation-local state.
 
 The cache stays per engine through `EvalHostFunction`, bounded, and eviction
 based. Parse errors are not cached. If a future slice changes parser options or
@@ -77,10 +94,10 @@ key before the parsed program can be reused across calls.
 
 A single-entry front cache may bypass the LRU lock only when it mirrors the
 same parse-shaping key as the LRU entry. It must store only the exact
-`EvalProgramCacheKey` and immutable `ProgramNode`; it must not become a
+`EvalProgramCacheKey` and immutable program cache value; it must not become a
 separate cache for caller context, eval environments, declaration
-instantiation, private-name validation, or execution results. Misses and less
-stable source patterns continue through the bounded LRU path.
+instantiation, private-name validation outcomes, or execution results. Misses
+and less stable source patterns continue through the bounded LRU path.
 
 Eval sources that may contain template literals must not reuse a cached
 `ProgramNode` unless a future design adds a proven eval-instantiation identity
@@ -114,6 +131,9 @@ profile timings.
 
 - Repeated stable eval source can avoid reparsing and rebuilding execution
   plans without freezing the caller activation observed by direct eval.
+- Repeated non-template eval cache hits can also avoid rewalking the same
+  program for static eval checks and declaration collection, as long as the
+  cached facts remain immutable and program-shaped.
 - Repeated hits for the same eval source and strictness can avoid the LRU lock
   and dictionary path without changing the semantic cache key.
 - Strict and sloppy eval source stay separated by cache key instead of relying
@@ -135,6 +155,7 @@ profile timings.
 
 ## Related
 
+- Issue #2595 / PR #2600
 - `docs/performance/activation-evalscope-eval-program-cache.md`
 - `docs/performance/activation-evalscope-eval-program-last-entry-cache.md`
 - `docs/adrs/0015-keep-direct-eval-caller-lexical-context.md`

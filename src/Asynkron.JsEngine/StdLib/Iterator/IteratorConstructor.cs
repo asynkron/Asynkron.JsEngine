@@ -83,7 +83,7 @@ public sealed partial class IteratorConstructor(IJsObjectLike prototype, RealmSt
                     receiverObject.DefineProperty("constructor",
                         new PropertyDescriptor
                         {
-                            Value = nextValue,
+                            JsValue = nextValue,
                             Writable = true,
                             Enumerable = true,
                             Configurable = true

@@ -13,7 +13,7 @@ namespace Asynkron.JsEngine.StdLib;
 /// Iterator prototype provides helper methods for working with iterators.
 /// These are the Iterator Helper methods from the ECMAScript proposal.
 /// </summary>
-[JsPrototype("Iterator", ToStringTag = "Iterator")]
+[JsPrototype("Iterator")]
 public sealed partial class IteratorPrototype : JsPrototype
 {
     /// <summary>
@@ -294,7 +294,7 @@ public sealed partial class IteratorPrototype : JsPrototype
             var next = IteratorStep(iterated);
             if (next is null)
             {
-                return false;
+                return JsValue.False;
             }
 
             var value = IteratorValue(next);
@@ -313,7 +313,7 @@ public sealed partial class IteratorPrototype : JsPrototype
             if (JsOps.ToBoolean(result))
             {
                 IteratorCloseNormal(iterated.Iterator);
-                return true;
+                return JsValue.True;
             }
 
             counter++;
@@ -336,7 +336,7 @@ public sealed partial class IteratorPrototype : JsPrototype
             var next = IteratorStep(iterated);
             if (next is null)
             {
-                return true;
+                return JsValue.True;
             }
 
             var value = IteratorValue(next);
@@ -355,7 +355,7 @@ public sealed partial class IteratorPrototype : JsPrototype
             if (!JsOps.ToBoolean(result))
             {
                 IteratorCloseNormal(iterated.Iterator);
-                return false;
+                return JsValue.False;
             }
 
             counter++;

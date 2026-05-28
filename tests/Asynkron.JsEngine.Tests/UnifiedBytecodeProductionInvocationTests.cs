@@ -1392,6 +1392,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Theory(Timeout = 5000)]
+    [MemberData(nameof(SupportedLoopControlFunctions))]
+    public async Task SupportedLoopControlShapes_UseUnifiedBytecodeProductionFastPath(
+        string source,
+        string invocation,
+        double expected,
+        string functionName,
+        int argumentCount)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            {{source}}
+
+            {{invocation}};
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(expected, result);
+        Assert.Contains(logRecords,
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName} argc={argumentCount}",
+                StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task CallExpressionFunction_DeclinesUnifiedBytecodeAndFallsBack()
     {
@@ -1585,6 +1609,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             },
             {
                 """
+                function unsupportedBranchPayload(a, b, pick) {
+                    if (pick) {
+                        return Math.max(a, b);
+                    }
+
+                    return b;
+                }
+                """,
+                "unsupportedBranchPayload(2, 3, true)",
+                3d,
+                "unsupportedBranchPayload"
+            }
+        };
+
+    public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
+        new()
+        {
+            {
+                """
                 function breakLoop(n) {
                     while (n > 0) {
                         break;
@@ -1595,7 +1638,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 """,
                 "breakLoop(3)",
                 3d,
-                "breakLoop"
+                "breakLoop",
+                1
             },
             {
                 """
@@ -1612,36 +1656,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 """,
                 "continueLoop(3)",
                 0d,
-                "continueLoop"
+                "continueLoop",
+                1
             },
             {
                 """
-                function nonCanonicalFor(n) {
+                function continueFor(n) {
                     var total = 0;
                     for (; n > 0; n = n - 1) {
                         total = total + n;
+                        continue;
+                        total = 1000;
                     }
 
                     return total;
                 }
                 """,
-                "nonCanonicalFor(3)",
+                "continueFor(3)",
                 6d,
-                "nonCanonicalFor"
+                "continueFor",
+                1
             },
             {
                 """
-                function unsupportedBranchPayload(a, b, pick) {
-                    if (pick) {
-                        return Math.max(a, b);
-                    }
+                function countDo(n) {
+                    var count = 0;
+                    do {
+                        count = count + 1;
+                        n = n - 1;
+                    } while (n > 0);
 
-                    return b;
+                    return count;
                 }
                 """,
-                "unsupportedBranchPayload(2, 3, true)",
-                3d,
-                "unsupportedBranchPayload"
+                "countDo(0)",
+                1d,
+                "countDo",
+                1
             }
         };
 }

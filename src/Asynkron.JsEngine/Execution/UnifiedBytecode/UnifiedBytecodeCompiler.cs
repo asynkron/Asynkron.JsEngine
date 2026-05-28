@@ -281,26 +281,49 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case JumpInstruction jump:
-                        var jumpIndex = unified.Count;
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump));
-                        if (!TryCompileTarget(
-                                jump.TargetIndex,
-                                instructions,
-                                activationSlots,
-                                instructionPcMap,
-                                activeInstructions,
-                                unified,
-                                literalConstants,
-                                stringConstants,
-                                callTargetConstants,
-                                ref maxStackDepth,
-                                out reason))
-                        {
-                            return false;
-                        }
+                        return TryAppendResolvedJump(
+                            instructionIndex,
+                            jump.TargetIndex,
+                            instructions,
+                            activationSlots,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            ref maxStackDepth,
+                            out reason);
 
-                        PatchOperand(unified, jumpIndex, instructionPcMap[jump.TargetIndex]);
-                        return true;
+                    case BreakInstruction breakInstruction:
+                        return TryAppendResolvedJump(
+                            instructionIndex,
+                            breakInstruction.TargetIndex,
+                            instructions,
+                            activationSlots,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            ref maxStackDepth,
+                            out reason);
+
+                    case ContinueInstruction continueInstruction:
+                        return TryAppendResolvedJump(
+                            instructionIndex,
+                            continueInstruction.TargetIndex,
+                            instructions,
+                            activationSlots,
+                            instructionPcMap,
+                            activeInstructions,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            callTargetConstants,
+                            ref maxStackDepth,
+                            out reason);
 
                     case SetCompletionValueInstruction setCompletionValue:
                         if (TryAppendJumpToCompiledTarget(
@@ -372,18 +395,34 @@ internal static class UnifiedBytecodeCompiler
                         var jumpIfFalseIndex = unified.Count;
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfFalse));
 
-                        if (!TryCompileTarget(
-                                branch.ConsequentIndex,
-                                instructions,
-                                activationSlots,
-                                instructionPcMap,
-                                activeInstructions,
-                                unified,
-                                literalConstants,
-                                stringConstants,
-                                callTargetConstants,
-                                ref maxStackDepth,
-                                out reason))
+                        if (activeInstructions.Contains(branch.ConsequentIndex))
+                        {
+                            if (!IsSupportedBranchConsequentBackEdge(
+                                    instructionIndex,
+                                    branch,
+                                    instructions) ||
+                                !instructionPcMap.TryGetValue(branch.ConsequentIndex, out var consequentProgramCounter))
+                            {
+                                reason = $"Unsupported loop control flow at instruction {instructionIndex}.";
+                                return false;
+                            }
+
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.Jump,
+                                consequentProgramCounter));
+                        }
+                        else if (!TryCompileTarget(
+                                     branch.ConsequentIndex,
+                                     instructions,
+                                     activationSlots,
+                                     instructionPcMap,
+                                     activeInstructions,
+                                     unified,
+                                     literalConstants,
+                                     stringConstants,
+                                     callTargetConstants,
+                                     ref maxStackDepth,
+                                     out reason))
                         {
                             return false;
                         }
@@ -515,6 +554,64 @@ internal static class UnifiedBytecodeCompiler
             out reason);
     }
 
+    private static bool TryAppendResolvedJump(
+        int sourceInstructionIndex,
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions,
+        ActivationSlotShape activationSlots,
+        Dictionary<int, int> instructionPcMap,
+        HashSet<int> activeInstructions,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ref int maxStackDepth,
+        out string reason)
+    {
+        if ((uint)targetIndex >= (uint)instructions.Length)
+        {
+            reason = "Instruction flow reached an invalid target index.";
+            return false;
+        }
+
+        var jumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump));
+
+        if (activeInstructions.Contains(targetIndex))
+        {
+            if (!IsSupportedLoopBackEdgeTarget(sourceInstructionIndex, targetIndex, instructions) ||
+                !instructionPcMap.TryGetValue(targetIndex, out var loopHeadProgramCounter))
+            {
+                reason = $"Unsupported loop control flow at instruction {sourceInstructionIndex}.";
+                return false;
+            }
+
+            PatchOperand(unified, jumpIndex, loopHeadProgramCounter);
+            reason = string.Empty;
+            return true;
+        }
+
+        if (!TryCompileTarget(
+                targetIndex,
+                instructions,
+                activationSlots,
+                instructionPcMap,
+                activeInstructions,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                ref maxStackDepth,
+                out reason))
+        {
+            return false;
+        }
+
+        PatchOperand(unified, jumpIndex, instructionPcMap[targetIndex]);
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryAppendJumpToCompiledTarget(
         int sourceInstructionIndex,
         int targetIndex,
@@ -526,7 +623,7 @@ internal static class UnifiedBytecodeCompiler
     {
         if (activeInstructions.Contains(targetIndex))
         {
-            if (!IsCanonicalLoopBackEdgeTarget(sourceInstructionIndex, targetIndex, instructions) ||
+            if (!IsSupportedLoopBackEdgeTarget(sourceInstructionIndex, targetIndex, instructions) ||
                 !instructionPcMap.TryGetValue(targetIndex, out var loopHeadProgramCounter))
             {
                 reason = $"Unsupported loop control flow at instruction {sourceInstructionIndex}.";
@@ -549,7 +646,7 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool IsCanonicalLoopBackEdgeTarget(
+    private static bool IsSupportedLoopBackEdgeTarget(
         int sourceInstructionIndex,
         int targetIndex,
         ImmutableArray<ExecutionInstruction> instructions)
@@ -567,14 +664,29 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (instructions[sourceInstructionIndex] is ContinueInstruction { TargetIndex: var continueTargetIndex } &&
+            continueTargetIndex == targetIndex)
+        {
+            return HasLoopContinueTarget(targetIndex, branch.AlternateIndex, instructions);
+        }
+
         if (instructions[sourceInstructionIndex] is not AssignmentSlotInstruction and not CompoundAssignmentSlotInstruction)
         {
             return false;
         }
 
         return TryIsLinearCanonicalWhileBody(branch.ConsequentIndex, sourceInstructionIndex, instructions) &&
-               !HasForStyleContinueTarget(sourceInstructionIndex, targetIndex, branch.AlternateIndex, instructions) &&
                !HasExplicitJumpIntoLoopBackEdgeSource(sourceInstructionIndex, instructions);
+    }
+
+    private static bool IsSupportedBranchConsequentBackEdge(
+        int branchInstructionIndex,
+        BranchInstruction branch,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        return branch.ConsequentIndex != branchInstructionIndex &&
+               HasLoopContinueTarget(branchInstructionIndex, branch.AlternateIndex, instructions) &&
+               ReachesInstructionLinearly(branch.ConsequentIndex, branchInstructionIndex, instructions);
     }
 
     private static bool TryIsLinearCanonicalWhileBody(
@@ -616,6 +728,10 @@ internal static class UnifiedBytecodeCompiler
                 case SetCompletionValueInstruction setCompletion:
                     current = setCompletion.Next;
                     break;
+                case ContinueInstruction continueInstruction
+                    when continueInstruction.TargetIndex == endInstructionIndex:
+                    current = continueInstruction.TargetIndex;
+                    break;
                 default:
                     return false;
             }
@@ -645,29 +761,21 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
-    private static bool HasForStyleContinueTarget(
-        int loopBackEdgeSourceInstructionIndex,
-        int loopConditionInstructionIndex,
+    private static bool HasLoopContinueTarget(
+        int loopContinueInstructionIndex,
         int loopBreakInstructionIndex,
         ImmutableArray<ExecutionInstruction> instructions)
     {
         foreach (var instruction in instructions)
         {
-            if (instruction is not BreakableEnterInstruction breakableEnter)
-            {
-                continue;
-            }
-
-            if (breakableEnter.Next == loopConditionInstructionIndex &&
-                breakableEnter.BreakTarget == loopBreakInstructionIndex &&
-                breakableEnter.ContinueTarget == loopBackEdgeSourceInstructionIndex)
-            {
-                return true;
-            }
-
-            if (breakableEnter.BreakTarget == loopBreakInstructionIndex &&
-                breakableEnter.ContinueTarget == loopBackEdgeSourceInstructionIndex &&
-                ReachesInstructionLinearly(breakableEnter.Next, loopConditionInstructionIndex, instructions))
+            if (instruction is BreakableEnterInstruction
+                {
+                    Label: null,
+                    ContinueTarget: var continueTarget,
+                    BreakTarget: var breakTarget
+                } &&
+                continueTarget == loopContinueInstructionIndex &&
+                breakTarget == loopBreakInstructionIndex)
             {
                 return true;
             }
@@ -702,6 +810,8 @@ internal static class UnifiedBytecodeCompiler
                 AssignmentSlotInstruction assignment => assignment.Next,
                 CompoundAssignmentSlotInstruction compound => compound.Next,
                 SetCompletionValueInstruction setCompletion => setCompletion.Next,
+                ContinueInstruction continueInstruction
+                    when continueInstruction.TargetIndex == targetInstructionIndex => continueInstruction.TargetIndex,
                 _ => -1
             };
 

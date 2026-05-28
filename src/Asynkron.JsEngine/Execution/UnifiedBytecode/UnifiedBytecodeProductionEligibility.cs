@@ -173,13 +173,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is BreakInstruction or ContinueInstruction)
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.BreakOrContinueControlFlow;
-                declineReason = "break/continue control flow is not eligible for production unified bytecode routing.";
-                return true;
-            }
-
             if (instruction is ForInInitInstruction or ForInMoveNextInstruction)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency;

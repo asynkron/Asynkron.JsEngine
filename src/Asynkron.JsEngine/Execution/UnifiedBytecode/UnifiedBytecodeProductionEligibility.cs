@@ -393,6 +393,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -763,7 +768,94 @@ internal static class UnifiedBytecodeProductionEligibility
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex > 0)
+        {
+            var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+            return !namedCallTarget.IsOptional &&
+                   !namedCallTarget.ShortCircuitOnNullishTarget &&
+                   !namedCallTarget.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
+                   IsSupportedNamedReceiverChain(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       namedCallTargetIndex) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       namedCallTargetIndex + 1,
+                       call);
+        }
+
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex >= 2)
+        {
+            var computedCallTarget = program.GetOperation(computedCallTargetIndex);
+            var keyIndex = computedCallTargetIndex - 1;
+            return !computedCallTarget.IsOptional &&
+                   !computedCallTarget.ShortCircuitOnNullishTarget &&
+                   IsSupportedNamedReceiverChain(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       keyIndex) &&
+                   IsSimpleOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       computedCallTargetIndex + 1,
+                       call);
+        }
+
         return false;
+    }
+
+    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            if (program.GetOperation(operationIndex).Kind == kind)
+            {
+                return operationIndex;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool IsSupportedNamedReceiverChain(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        int endExclusive)
+    {
+        if (endExclusive is < 1 or > 3)
+        {
+            return false;
+        }
+
+        var firstOperation = program.GetOperation(0);
+        if (!TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
+        {
+            var receiverOperation = program.GetOperation(operationIndex);
+            if (receiverOperation.Kind != ExpressionOpKind.GetNamedProperty ||
+                receiverOperation.IsOptional ||
+                receiverOperation.ShortCircuitOnNullishTarget ||
+                receiverOperation.GetString(stringConstants).IsPrivateName())
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool HasSimpleCallArguments(

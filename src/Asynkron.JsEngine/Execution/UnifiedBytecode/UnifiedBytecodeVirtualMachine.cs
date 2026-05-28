@@ -70,11 +70,6 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
-                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
-                case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
-                    throw new InvalidOperationException(
-                        $"Opcode '{instruction.OpCode}' is a call-preparation boundary and is not executable yet.");
-
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                     var callTarget = program.CallTargetConstants[instruction.Operand];
                     if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
@@ -95,8 +90,54 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
+                    var namedCallTarget = program.CallTargetConstants[instruction.Operand];
+                    if (namedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember)
+                    {
+                        throw new InvalidOperationException(
+                            "Named call-target preparation requires a named member call target constant.");
+                    }
+
+                    var namedReceiver = stack[stackPointer - 1];
+                    stack[stackPointer++] = GetNamedPropertyValue(
+                        namedReceiver,
+                        program.StringConstants[namedCallTarget.NameConstantIndex],
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
+                    var computedCallTarget = program.CallTargetConstants[instruction.Operand];
+                    if (computedCallTarget.Kind != UnifiedBytecodeCallTargetKind.ComputedMember)
+                    {
+                        throw new InvalidOperationException(
+                            "Computed call-target preparation requires a computed member call target constant.");
+                    }
+
+                    var computedCallKey = stack[--stackPointer];
+                    var computedCallReceiver = stack[stackPointer - 1];
+                    stack[stackPointer++] = JsOps.TryGetPropertyValueJsValue(
+                            computedCallReceiver,
+                            computedCallKey,
+                            out var computedCallValue,
+                            context)
+                        ? computedCallValue
+                        : JsValue.Undefined;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
-                    stackPointer = ExecuteIdentifierCall(
+                    stackPointer = ExecutePreparedCall(
                         instruction.Operand,
                         stack,
                         stackPointer,
@@ -663,7 +704,7 @@ internal static class UnifiedBytecodeVirtualMachine
         };
     }
 
-    private static int ExecuteIdentifierCall(
+    private static int ExecutePreparedCall(
         int argumentCount,
         Span<JsValue> stack,
         int stackPointer,

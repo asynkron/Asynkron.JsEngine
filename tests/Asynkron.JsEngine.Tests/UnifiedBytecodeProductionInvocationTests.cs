@@ -318,7 +318,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NamedMemberCall_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -337,14 +337,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ComputedMemberCall_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task ComputedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -359,11 +359,40 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 return box[key](value);
             }
 
-            invoke(box, "read", 41);
+            invoke(box, { toString() { return "read"; } }, 41);
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedMemberCall_BindsThisToFinalReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var root = {
+                offset: 100,
+                child: {
+                    offset: 1,
+                    read(value) {
+                        return value + this.offset;
+                    }
+                }
+            };
+
+            function invoke(root, value) {
+                return root.child.read(value);
+            }
+
+            invoke(root, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));
@@ -1815,16 +1844,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Theory(Timeout = 5000)]
-    [InlineData(
-        """
-        function callMember(box) {
-            return box.read();
-        }
-
-        callMember({ read() { return 3; } });
-        """,
-        "callMember",
-        3d)]
     [InlineData(
         """
         function deleteMember(box) {

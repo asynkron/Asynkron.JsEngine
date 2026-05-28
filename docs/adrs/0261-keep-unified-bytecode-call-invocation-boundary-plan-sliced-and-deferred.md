@@ -4,11 +4,11 @@
 
 Accepted
 
-Superseded in part on 2026-05-28 by the first executable no-spread
-activation-resolved identifier-call slice. The slicing decision still applies
-to named/computed member calls, direct eval, spread calls, construct/super
-calls, optional calls, arguments-object dependencies, dynamic lookup, and the
-other unproven call-adjacent families.
+Superseded in part on 2026-05-28 by the executable no-spread
+activation-resolved identifier-call slice and the direct receiver-aware
+named/computed member-call slice. The slicing decision still applies to direct
+eval, spread calls, construct/super calls, optional calls, arguments-object
+dependencies, dynamic lookup, and the other unproven call-adjacent families.
 
 ## Context
 
@@ -43,9 +43,9 @@ split the work into strict slices:
 1. Baseline (already landed): direct identifier calls where the target resolves
    to an activation slot, arguments are simple one-op operands, spread is
    absent, and direct eval is excluded.
-2. First remaining slice: named member calls using existing prepared
-   call-target metadata.
-3. Second remaining slice: computed member calls using existing prepared
+2. Completed follow-up: named member calls using existing prepared call-target
+   metadata.
+3. Completed follow-up: computed member calls using existing prepared
    call-target metadata.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
@@ -58,8 +58,9 @@ AST fallback.
 
 ## Consequences
 
-- The next implementation lane starts at named member call execution and keeps
-  the already-landed identifier-call baseline explicit.
+- The completed implementation lane keeps the already-landed identifier-call
+  baseline explicit while adding direct receiver-aware named/computed member
+  calls.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.
@@ -75,10 +76,9 @@ boundaries before preserving any previous batch list.
 
 If the first planned slice is already current support, record it as baseline,
 promote the next unsupported family to the first remaining lane, and update the
-Faktorial plan body and ADR wording together. For this incident, the corrected
-first remaining lane is named member calls, followed by computed member calls,
-while constructor/super, spread/direct eval, dynamic lookup,
-iterator/destructuring, and labels remain deferred.
+Faktorial plan body and ADR wording together. After the receiver-aware member
+call slice, constructor/super, spread/direct eval, optional calls, dynamic
+lookup, iterator/destructuring, and labels remain deferred.
 
 ## Proof Guidance
 

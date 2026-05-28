@@ -141,17 +141,21 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ## Production Call Invocation Boundary
 - Current executable call support is intentionally limited to no-spread
-  activation-resolved identifier calls where the callee is loaded from an owned
-  activation slot and arguments are simple literal or slot operands.
+  activation-resolved identifier calls and direct named/computed member calls
+  where arguments are simple literal or slot operands.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
   helpers with the active `EvaluationContext` and caller `JsEnvironment` when
   the callee needs environment-aware or debug-aware invocation state.
-- Named member calls, computed member calls, direct eval, spread calls,
-  construct/super calls, optional calls, arguments-object dependencies, dynamic
-  lookup, and receiver-binding-sensitive adjacent families still decline before
-  VM execution.
+- Accepted member-call programs use `PrepareNamedCallTarget` or
+  `PrepareComputedCallTarget` to preserve the receiver on the unified stack,
+  resolve the callable, and invoke through the same `CallInvocationBoundary`
+  path so JavaScript `this` binds to the final receiver object.
+- Direct eval, spread calls, construct/super calls, optional calls,
+  arguments-object dependencies, dynamic lookup, and broader
+  receiver-binding-sensitive adjacent families still decline before VM
+  execution.
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -178,11 +182,11 @@ support today.
   is implemented.
 
 ## Next Unsupported Buckets (current boundary)
-- Wider call invocation remains outside the admitted boundary. Named member
-  calls, computed member calls, direct eval, spread calls, construct/super
-  calls, optional calls, arguments-object dependencies, dynamic lookup, and
-  receiver-binding-sensitive adjacent families must still decline before VM
-  execution.
+- Wider call invocation remains outside the admitted boundary. Direct eval,
+  spread calls, construct/super calls, optional calls, arguments-object
+  dependencies, dynamic lookup, and receiver-binding-sensitive adjacent families
+  beyond the direct activation-resolved member-call boundary must still decline
+  before VM execution.
 - Iterator-driver state remains outside the admitted boundary
   (`ForInDriverStateDependency`), including `for-in` driver instructions.
 - Destructuring driver-state execution remains outside the admitted boundary

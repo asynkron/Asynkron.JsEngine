@@ -5,10 +5,11 @@
 Accepted
 
 Superseded in part on 2026-05-28 for the first executable no-spread
-activation-resolved identifier-call slice. The original decline-first decision
-still applies to named/computed member calls, direct eval, spread calls,
-construct/super calls, optional calls, arguments-object dependencies, dynamic
-lookup, and other unproven call-adjacent families.
+activation-resolved identifier-call slice and the direct receiver-aware
+named/computed member-call slice. The original decline-first decision still
+applies to direct eval, spread calls, construct/super calls, optional calls,
+arguments-object dependencies, dynamic lookup, and other unproven
+call-adjacent families.
 
 ## Context
 
@@ -86,10 +87,12 @@ accepted bytecode enters a block lexical scope before the call, the VM tracks
 slot environment ownership so debug-aware callees observe the active lexical
 scope chain.
 
-This update does not make member, computed, eval, spread, construct/super,
+This update did not make member, computed, eval, spread, construct/super,
 optional, arguments-dependent, or dynamic lookup calls production-eligible.
-Those families must still decline before VM execution instead of falling back
-inside the VM.
+The later receiver-aware member-call slice admits direct named/computed member
+calls only; eval, spread, construct/super, optional, arguments-dependent,
+dynamic lookup, and broader call-adjacent families must still decline before VM
+execution instead of falling back inside the VM.
 
 The friction point that made this explicit was the PR #2501 review: the first
 implementation passed ordinary identifier-call tests but failed a

@@ -251,6 +251,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var isCallTargetPreparationCandidate = TryIsFirstBoundaryCallTargetPreparationCandidate(
             program,
             identifierConstants,
+            stringConstants,
             activationSlots);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
@@ -738,6 +739,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots)
     {
         if (program.OperationCount < 2)
@@ -763,7 +765,49 @@ internal static class UnifiedBytecodeProductionEligibility
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 
-        return false;
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex < 0)
+        {
+            return false;
+        }
+
+        if (namedCallTargetIndex == 0)
+        {
+            return false;
+        }
+
+        for (var receiverIndex = 0; receiverIndex < namedCallTargetIndex; receiverIndex++)
+        {
+            var receiverOperation = program.GetOperation(receiverIndex);
+            if (receiverIndex == 0)
+            {
+                if (!TryGetActivationResolvedValue(receiverOperation, identifierConstants, activationSlots))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (receiverOperation.Kind != ExpressionOpKind.GetNamedProperty ||
+                receiverOperation.IsOptional ||
+                receiverOperation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            if (receiverOperation.GetString(stringConstants).IsPrivateName())
+            {
+                return false;
+            }
+        }
+
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            argsStartIndex: namedCallTargetIndex + 1,
+            call);
     }
 
     private static bool HasSimpleCallArguments(
@@ -788,6 +832,19 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            if (program.GetOperation(operationIndex).Kind == kind)
+            {
+                return operationIndex;
+            }
+        }
+
+        return -1;
     }
 
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(

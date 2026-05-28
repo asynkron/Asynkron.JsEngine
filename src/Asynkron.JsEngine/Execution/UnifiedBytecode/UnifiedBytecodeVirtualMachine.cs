@@ -1180,7 +1180,12 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.IteratorClose:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
-                        CloseIteratorDriverState(descriptor.StateSlot, slots, slotEnvironments, context, false);
+                        CloseIteratorDriverState(
+                            descriptor.StateSlot,
+                            slots,
+                            slotEnvironments,
+                            context,
+                            HasPendingThrowCompletion(tryStack));
                         if (context.ShouldStopEvaluation)
                         {
                             if (TryHandleCurrentContextThrow())
@@ -1430,6 +1435,12 @@ internal static class UnifiedBytecodeVirtualMachine
 
         context.SetThrow(thrownValue);
         return false;
+    }
+
+    private static bool HasPendingThrowCompletion(Stack<TryFrame>? tryStack)
+    {
+        return tryStack is { Count: > 0 } &&
+               tryStack.Peek() is { FinallyScheduled: true, PendingCompletion.Kind: AbruptKind.Throw };
     }
 
     private static void CompleteTryNormally(

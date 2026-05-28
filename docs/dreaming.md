@@ -428,12 +428,41 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Profile/benchmark evidence is attached when the claim is performance-related.
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
 
+## Architecture realization slice (this run)
+Primary owner: **Evidence and Governance Fabric** with explicit receiving owners.
+
+This run adds a compact realization lane that binds each recurring slice to one
+owner surface, then forces receiving-owner acknowledgement before claim text can
+move forward. The goal is to stop cross-fabric drift in recurring optimization
+work without broadening runtime claims.
+
+```mermaid
+flowchart LR
+    I[Recurring slice intent] --> O[Primary owner selected]
+    O --> D[Bounded implementation delta]
+    D --> S[Owning semantics proof]
+    S --> R[Receiving-owner contract check]
+    R --> P[Profile or benchmark proof]
+    P --> Q[Canonical make quality gate]
+    Q --> C[Claim wording update]
+
+    C --> N1[No full Node.js parity claim]
+    C --> N2[No broad CommonJS core-engine parity claim]
+    C --> N3[Async-generator seam remains directional until Milestone C closure proof]
+    C --> N4[Unified-bytecode production widening remains bounded by accepted eligibility]
+```
+
+Realization rules:
+- Keep one primary owner for each slice; receiving-owner checks are contracts, not ownership transfer.
+- If receiving-owner contract checks fail, claim wording stays at proven-now scope.
+- Non-goals remain explicit in claim updates: no full Node.js parity, no broad CommonJS parity, no async-generator seam-closure claim, and no unbounded unified-bytecode widening claim.
+
 ## Signals this run
-- Baseline timestamp: 2026-05-28T11:47:04Z
-- Baseline signal: `docs/dreaming.md` line_count = 383
-- Final timestamp: 2026-05-28T11:47:25Z
-- Final signal: `docs/dreaming.md` line_count = 439
-- Signal delta: +56 lines
+- Baseline timestamp: 2026-05-28T19:11:00Z
+- Baseline signal: `docs/dreaming.md` line_count = 439
+- Final timestamp: 2026-05-28T19:12:06Z
+- Final signal: `docs/dreaming.md` line_count = 468
+- Signal delta: +29 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

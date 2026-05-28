@@ -169,8 +169,26 @@ internal static class UnifiedBytecodeProductionEligibility
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
-        foreach (var instruction in plan.Instructions)
+        if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var activeWithDepths,
+                out var withDepthReason))
         {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason = withDepthReason;
+            return true;
+        }
+
+        for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
+        {
+            if (activeWithDepths[instructionIndex] < 0)
+            {
+                continue;
+            }
+
+            var instruction = plan.Instructions[instructionIndex];
+            var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
             if (instruction is BreakableEnterInstruction { Label: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.LabelControlFlow;
@@ -205,10 +223,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
             }
 
-            if (instruction is EnterWithInstruction or LeaveWithInstruction)
+            if (instruction is EnterWithInstruction { AwaitedProgram: not null })
             {
-                declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                declineReason = "with environments are not eligible for production unified bytecode routing.";
+                declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
+                declineReason = "Awaited with-object evaluation is not eligible for production unified bytecode routing.";
                 return true;
             }
 
@@ -238,8 +256,23 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (!allowsDynamicIdentifiers &&
+                TryFindInstructionDynamicIdentifierDecline(
+                    instruction,
+                    activationSlots,
+                    out declineCode,
+                    out declineReason))
+            {
+                return true;
+            }
+
             if (TryGetExpressionProgram(instruction, out var program) &&
-                TryFindExpressionDecline(program, activationSlots, out declineCode, out declineReason))
+                TryFindExpressionDecline(
+                    program,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    out declineCode,
+                    out declineReason))
             {
                 return true;
             }
@@ -250,9 +283,57 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool TryFindInstructionDynamicIdentifierDecline(
+        ExecutionInstruction instruction,
+        ActivationSlotShape activationSlots,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        switch (instruction)
+        {
+            case AssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
+            case CompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Compound assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
+            case IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Update target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
     private static bool TryFindExpressionDecline(
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
@@ -263,7 +344,8 @@ internal static class UnifiedBytecodeProductionEligibility
             program,
             identifierConstants,
             stringConstants,
-            activationSlots);
+            activationSlots,
+            allowsDynamicIdentifiers);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
@@ -302,10 +384,16 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (!TryResolveActivationSlot(callIdentifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                        declineReason =
-                            $"Identifier call target '{callIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(callIdentifier, activationSlots))
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                            declineReason =
+                                $"Identifier call target '{callIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        break;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
@@ -379,12 +467,31 @@ internal static class UnifiedBytecodeProductionEligibility
                     var identifier = operation.GetIdentifier(identifierConstants);
                     if (!TryResolveActivationSlot(identifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                        declineReason = $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                            declineReason = $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                            return true;
+                        }
                     }
 
                     break;
+
+                case ExpressionOpKind.ResolveIdentifierReference:
+                case ExpressionOpKind.LoadResolvedIdentifierValue:
+                case ExpressionOpKind.StoreResolvedIdentifier:
+                case ExpressionOpKind.PopResolvedIdentifierReference:
+                case ExpressionOpKind.StoreIdentifier:
+                    if (allowsDynamicIdentifiers)
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        "Dynamic identifier assignment references are not eligible for production unified bytecode routing.";
+                    return true;
 
                 case ExpressionOpKind.TypeOfIdentifier:
                     if (operation.IsArguments)
@@ -398,9 +505,12 @@ internal static class UnifiedBytecodeProductionEligibility
                     var typeOfIdentifier = operation.GetIdentifier(identifierConstants);
                     if (!TryResolveActivationSlot(typeOfIdentifier, activationSlots))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                        declineReason = $"typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                            declineReason = $"typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                            return true;
+                        }
                     }
 
                     break;
@@ -497,6 +607,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.UpdateIdentifier:
+                    if (allowsDynamicIdentifiers && !operation.IsArguments)
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
                     declineReason = "Update expressions are not eligible for production unified bytecode routing.";
                     return true;
@@ -514,6 +629,15 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.DeleteIdentifier:
+                    if (allowsDynamicIdentifiers)
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
+                    declineReason = "delete expressions are not eligible for production unified bytecode routing.";
+                    return true;
+
                 case ExpressionOpKind.DeleteNamedProperty:
                 case ExpressionOpKind.DeleteComputedProperty:
                     declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
@@ -842,7 +966,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 2)
         {
@@ -863,7 +988,8 @@ internal static class UnifiedBytecodeProductionEligibility
         if (firstOperation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
         {
             return !firstOperation.IsArguments &&
-                   TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots) &&
+                   (TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots) ||
+                    allowsDynamicIdentifiers) &&
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 
@@ -1214,6 +1340,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = returnProgram;
                 return true;
 
+            case EnterWithInstruction { AwaitedProgram: null, ObjectProgram: { } objectProgram }:
+                program = objectProgram;
+                return true;
+
             default:
                 program = default;
                 return false;
@@ -1239,6 +1369,25 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return activationSlots.SlotMap.ContainsKey(identifier.Name);
     }
+
+    private static bool TryResolveActivationSymbolSlot(
+        Symbol symbol,
+        int flatSlotId,
+        ActivationSlotShape activationSlots)
+    {
+        if (flatSlotId >= 0)
+        {
+            return true;
+        }
+
+        return activationSlots.SlotMap.ContainsKey(symbol);
+    }
+
+    private static bool CanUseMaterializedActivationDynamicLookup(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots) =>
+        identifier.ScopeId < 0 &&
+        activationSlots.MaterializedBindingNames.Contains(identifier.Name);
 
     private static bool TryFindPrototypeOnlyOpcode(
         UnifiedBytecodeProgram program,
@@ -1276,13 +1425,21 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case UnifiedBytecodeOpCode.LoadSlot:
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 case UnifiedBytecodeOpCode.LoadThis:
                 case UnifiedBytecodeOpCode.LoadNewTarget:
                 case UnifiedBytecodeOpCode.LoadLiteral:
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.DeclareDynamicVar:
+                case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
+                case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:
+                case UnifiedBytecodeOpCode.StoreDynamicIdentifierReference:
+                case UnifiedBytecodeOpCode.PopDynamicIdentifierReference:
                 case UnifiedBytecodeOpCode.RequireObjectCoercible:
                 case UnifiedBytecodeOpCode.ResolvePropertyKey:
                 case UnifiedBytecodeOpCode.GetNamedProperty:
@@ -1293,8 +1450,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.SetComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:
                 case UnifiedBytecodeOpCode.TypeOf:
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                case UnifiedBytecodeOpCode.TypeOfDynamicIdentifier:
+                case UnifiedBytecodeOpCode.DeleteDynamicIdentifier:
                 case UnifiedBytecodeOpCode.UnaryPlus:
                 case UnifiedBytecodeOpCode.UnaryMinus:
                 case UnifiedBytecodeOpCode.UnaryLogicalNot:
@@ -1311,6 +1471,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:
+                case UnifiedBytecodeOpCode.EnterWith:
+                case UnifiedBytecodeOpCode.LeaveWith:
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     break;
 

@@ -16,6 +16,7 @@ internal sealed class DynamicScopeDetector : AstVisitor
     {
         Found = false;
         FoundWithStatement = false;
+        FoundDirectEval = false;
         ShouldStop = false;
     }
 
@@ -46,6 +47,17 @@ internal sealed class DynamicScopeDetector : AstVisitor
         detector.Reset();
         detector.Visit(block);
         return detector.FoundWithStatement;
+    }
+
+    /// <summary>
+    /// Checks if a block contains a direct eval call.
+    /// </summary>
+    public static bool ContainsDirectEval(BlockStatement block)
+    {
+        var detector = _instance ??= new DynamicScopeDetector();
+        detector.Reset();
+        detector.Visit(block);
+        return detector.FoundDirectEval;
     }
 
     /// <summary>
@@ -116,6 +128,7 @@ internal sealed class DynamicScopeDetector : AstVisitor
         // Direct eval: eval(...) where eval is an identifier (not optional chaining)
         if (!node.IsOptional && node.Callee is IdentifierExpression { Name.Name: "eval" })
         {
+            FoundDirectEval = true;
             Found = true;
             ShouldStop = true;
             return;
@@ -138,6 +151,8 @@ internal sealed class DynamicScopeDetector : AstVisitor
     protected override void VisitFunctionDeclaration(FunctionDeclaration node) { }
 
     private bool FoundWithStatement { get; set; }
+
+    private bool FoundDirectEval { get; set; }
 }
 
 /// <summary>

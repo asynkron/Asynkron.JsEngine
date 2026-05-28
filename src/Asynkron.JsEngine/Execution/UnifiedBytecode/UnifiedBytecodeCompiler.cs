@@ -9,6 +9,7 @@ internal static class UnifiedBytecodeCompiler
 {
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
+    private const int DynamicStoreAllowNameInferenceFlag = 1;
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
@@ -55,6 +56,16 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var instructions = plan.Instructions;
+        if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
+                instructions,
+                plan.EntryPoint,
+                out var activeWithDepths,
+                out reason))
+        {
+            program = EmptyProgram();
+            return false;
+        }
+
         var slotLayout = BuildSlotLayout(plan);
 
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
@@ -75,6 +86,7 @@ internal static class UnifiedBytecodeCompiler
         if (!TryCompileBlock(
                 plan.EntryPoint,
                 instructions,
+                activeWithDepths,
                 slotLayout,
                 activeScopes,
                 instructionPcMap,
@@ -372,6 +384,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryCompileBlock(
         int instructionIndex,
         ImmutableArray<ExecutionInstruction> instructions,
+        int[] activeWithDepths,
         UnifiedBytecodeSlotLayout slotLayout,
         Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
@@ -414,6 +427,7 @@ internal static class UnifiedBytecodeCompiler
                 activeInstructions.Add(instructionIndex);
                 activated.Add(instructionIndex);
                 instructionPcMap[instructionIndex] = unified.Count;
+                var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
 
                 switch (instructions[instructionIndex])
                 {
@@ -425,13 +439,41 @@ internal static class UnifiedBytecodeCompiler
                         } declaration:
                         if (!TryResolveDeclarationSlot(declarationTargetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
                         {
-                            reason = $"Unsupported declaration target '{declarationTargetSymbol.Name}'.";
-                            return false;
+                            if (!TryAppendDynamicVarDeclaration(
+                                    declaration,
+                                    initializerProgram,
+                                    allowsDynamicIdentifiers,
+                                    slotLayout,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    out reason))
+                            {
+                                return false;
+                            }
+
+                            maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                            if (TryAppendJumpToCompiledTarget(
+                                    instructionIndex,
+                                    declaration.Next,
+                                    instructions,
+                                    instructionPcMap,
+                                    activeInstructions,
+                                    unified,
+                                    out reason))
+                            {
+                                return true;
+                            }
+
+                            instructionIndex = declaration.Next;
+                            continue;
                         }
 
                         if (!TryAppendExpressionProgramOps(
                                 initializerProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -466,13 +508,52 @@ internal static class UnifiedBytecodeCompiler
                         } assignment:
                         if (!TryResolveInstructionSlot(assignmentTargetSymbol, assignment.FlatSlotId, slotLayout, out var assignmentSlot))
                         {
-                            reason = $"Unsupported assignment target '{assignmentTargetSymbol.Name}'.";
-                            return false;
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                reason = $"Unsupported assignment target '{assignmentTargetSymbol.Name}'.";
+                                return false;
+                            }
+
+                            if (!TryAppendExpressionProgramOps(
+                                    valueProgram,
+                                    slotLayout,
+                                    allowsDynamicIdentifiers,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    out reason))
+                            {
+                                return false;
+                            }
+
+                            AppendDynamicStoreInstruction(
+                                assignmentTargetSymbol,
+                                assignment.AllowNameInference,
+                                unified,
+                                stringConstants);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                            maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
+                            if (TryAppendJumpToCompiledTarget(
+                                    instructionIndex,
+                                    assignment.Next,
+                                    instructions,
+                                    instructionPcMap,
+                                    activeInstructions,
+                                    unified,
+                                    out reason))
+                            {
+                                return true;
+                            }
+
+                            instructionIndex = assignment.Next;
+                            continue;
                         }
 
                         if (!TryAppendExpressionProgramOps(
                                 valueProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -508,14 +589,61 @@ internal static class UnifiedBytecodeCompiler
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
                         if (!TryResolveInstructionSlot(compoundTargetSymbol, compoundAssignment.FlatSlotId, slotLayout, out var compoundSlot))
                         {
-                            reason = $"Unsupported compound assignment target '{compoundTargetSymbol.Name}'.";
-                            return false;
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                reason = $"Unsupported compound assignment target '{compoundTargetSymbol.Name}'.";
+                                return false;
+                            }
+
+                            var dynamicTargetNameIndex = stringConstants.Count;
+                            stringConstants.Add(compoundTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                                dynamicTargetNameIndex));
+                            if (!TryAppendExpressionProgramOps(
+                                    rhsProgram,
+                                    slotLayout,
+                                    allowsDynamicIdentifiers,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    out reason))
+                            {
+                                return false;
+                            }
+
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.Binary,
+                                (int)compoundAssignment.Operator));
+                            AppendDynamicStoreInstruction(
+                                compoundTargetSymbol,
+                                allowNameInference: false,
+                                unified,
+                                stringConstants);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                            maxStackDepth = Math.Max(maxStackDepth, rhsProgram.MaxStackDepth + 1);
+                            if (TryAppendJumpToCompiledTarget(
+                                    instructionIndex,
+                                    compoundAssignment.Next,
+                                    instructions,
+                                    instructionPcMap,
+                                    activeInstructions,
+                                    unified,
+                                    out reason))
+                            {
+                                return true;
+                            }
+
+                            instructionIndex = compoundAssignment.Next;
+                            continue;
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, compoundSlot));
                         if (!TryAppendExpressionProgramOps(
                                 rhsProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -543,6 +671,42 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         instructionIndex = compoundAssignment.Next;
+                        continue;
+
+                    case IncrementSlotInstruction
+                        {
+                            TargetSymbol: { } incrementTargetSymbol
+                        } increment:
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            reason =
+                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
+                            return false;
+                        }
+
+                        var dynamicUpdateNameIndex = stringConstants.Count;
+                        stringConstants.Add(incrementTargetSymbol.Name);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
+                            EncodeUpdateOperand(
+                                dynamicUpdateNameIndex,
+                                increment.IsIncrement,
+                                increment.IsPrefix)));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                        maxStackDepth = Math.Max(maxStackDepth, 1);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                increment.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = increment.Next;
                         continue;
 
                     case PushEnvironmentInstruction pushEnvironment:
@@ -606,6 +770,54 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = popEnvironment.Next;
                         continue;
 
+                    case EnterWithInstruction { ObjectProgram: { } enterWithObjectProgram, AwaitedProgram: null } enterWith:
+                        if (!TryAppendExpressionProgramOps(
+                                enterWithObjectProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnterWith));
+                        maxStackDepth = Math.Max(maxStackDepth, enterWithObjectProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                enterWith.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = enterWith.Next;
+                        continue;
+
+                    case LeaveWithInstruction leaveWith:
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LeaveWith));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                leaveWith.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = leaveWith.Next;
+                        continue;
+
                     case IteratorInitInstruction
                         {
                             IteratorKind: IteratorDriverKind.Sync,
@@ -625,6 +837,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 iterableProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -668,6 +881,7 @@ internal static class UnifiedBytecodeCompiler
                             iteratorMoveNext.ValueSlotIndex,
                             UnifiedBytecodeOpCode.IteratorMoveNext,
                             instructions,
+                            activeWithDepths,
                             slotLayout,
                             activeScopes,
                             instructionPcMap,
@@ -726,6 +940,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 objectProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -767,6 +982,7 @@ internal static class UnifiedBytecodeCompiler
                             forInMoveNext.ValueSlotIndex,
                             UnifiedBytecodeOpCode.ForInMoveNext,
                             instructions,
+                            activeWithDepths,
                             slotLayout,
                             activeScopes,
                             instructionPcMap,
@@ -795,6 +1011,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 arrayDestructuringInit.SourceProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -954,6 +1171,7 @@ internal static class UnifiedBytecodeCompiler
                             instructionIndex,
                             jump.TargetIndex,
                             instructions,
+                            activeWithDepths,
                             slotLayout,
                             activeScopes,
                             instructionPcMap,
@@ -973,6 +1191,7 @@ internal static class UnifiedBytecodeCompiler
                             instructionIndex,
                             breakInstruction.TargetIndex,
                             instructions,
+                            activeWithDepths,
                             slotLayout,
                             activeScopes,
                             instructionPcMap,
@@ -992,6 +1211,7 @@ internal static class UnifiedBytecodeCompiler
                             instructionIndex,
                             continueInstruction.TargetIndex,
                             instructions,
+                            activeWithDepths,
                             slotLayout,
                             activeScopes,
                             instructionPcMap,
@@ -1116,6 +1336,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 branch.ConditionProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -1148,6 +1369,7 @@ internal static class UnifiedBytecodeCompiler
                         else if (!TryCompileTarget(
                                      branch.ConsequentIndex,
                                      instructions,
+                                     activeWithDepths,
                                      slotLayout,
                                      activeScopes,
                                      instructionPcMap,
@@ -1167,6 +1389,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryCompileTarget(
                                 branch.AlternateIndex,
                                 instructions,
+                                activeWithDepths,
                                 slotLayout,
                                 activeScopes,
                                 instructionPcMap,
@@ -1190,6 +1413,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 returnProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -1213,6 +1437,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 throwProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -1231,6 +1456,7 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryAppendExpressionProgramOps(
                                 discardedProgram,
                                 slotLayout,
+                                allowsDynamicIdentifiers,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -1281,6 +1507,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryCompileTarget(
         int targetIndex,
         ImmutableArray<ExecutionInstruction> instructions,
+        int[] activeWithDepths,
         UnifiedBytecodeSlotLayout slotLayout,
         Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
@@ -1315,6 +1542,7 @@ internal static class UnifiedBytecodeCompiler
         return TryCompileBlock(
             targetIndex,
             instructions,
+            activeWithDepths,
             slotLayout,
             activeScopes,
             instructionPcMap,
@@ -1339,6 +1567,7 @@ internal static class UnifiedBytecodeCompiler
         int valueSlotIndex,
         UnifiedBytecodeOpCode opCode,
         ImmutableArray<ExecutionInstruction> instructions,
+        int[] activeWithDepths,
         UnifiedBytecodeSlotLayout slotLayout,
         Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
@@ -1375,6 +1604,7 @@ internal static class UnifiedBytecodeCompiler
         if (!TryCompileTarget(
                 nextIndex,
                 instructions,
+                activeWithDepths,
                 slotLayout,
                 activeScopes,
                 instructionPcMap,
@@ -1394,6 +1624,7 @@ internal static class UnifiedBytecodeCompiler
         if (!TryCompileTarget(
                 breakIndex,
                 instructions,
+                activeWithDepths,
                 slotLayout,
                 activeScopes,
                 instructionPcMap,
@@ -1419,6 +1650,7 @@ internal static class UnifiedBytecodeCompiler
         int sourceInstructionIndex,
         int targetIndex,
         ImmutableArray<ExecutionInstruction> instructions,
+        int[] activeWithDepths,
         UnifiedBytecodeSlotLayout slotLayout,
         Stack<UnifiedBytecodeScopeFrame> activeScopes,
         Dictionary<int, int> instructionPcMap,
@@ -1459,6 +1691,7 @@ internal static class UnifiedBytecodeCompiler
         if (!TryCompileTarget(
                 targetIndex,
                 instructions,
+                activeWithDepths,
                 slotLayout,
                 activeScopes,
                 instructionPcMap,
@@ -1815,6 +2048,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendExpressionProgramOps(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -1825,6 +2059,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryCallTargetPreparation(
                 expressionProgram,
                 slotLayout,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -1975,11 +2210,99 @@ internal static class UnifiedBytecodeCompiler
                     var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (!TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
                     {
-                        reason = $"Unsupported identifier '{identifier.Name.Name}'.";
-                        return false;
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
+                        {
+                            reason =
+                                $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                            return false;
+                        }
+
+                        var identifierNameIndex = stringConstants.Count;
+                        stringConstants.Add(identifier.Name.Name ?? string.Empty);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                            identifierNameIndex));
+                        break;
                     }
 
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
+                    break;
+
+                case ExpressionOpKind.ResolveIdentifierReference:
+                    if (operation.IsArguments)
+                    {
+                        reason = "arguments assignment references are not supported.";
+                        return false;
+                    }
+
+                    var referenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    var referenceNameIndex = stringConstants.Count;
+                    stringConstants.Add(referenceIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
+                        referenceNameIndex));
+                    break;
+
+                case ExpressionOpKind.LoadResolvedIdentifierValue:
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            "Dynamic identifier assignment references are not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadDynamicIdentifierReference));
+                    break;
+
+                case ExpressionOpKind.StoreResolvedIdentifier:
+                    var storeReferenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    var storeReferenceNameIndex = stringConstants.Count;
+                    stringConstants.Add(storeReferenceIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+                        EncodeDynamicStoreOperand(storeReferenceNameIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.PopResolvedIdentifierReference:
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            "Dynamic identifier assignment references are not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PopDynamicIdentifierReference));
+                    break;
+
+                case ExpressionOpKind.StoreIdentifier:
+                    var storeIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            $"Identifier '{storeIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    var storeIdentifierNameIndex = stringConstants.Count;
+                    stringConstants.Add(storeIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.StoreDynamicIdentifier,
+                        EncodeDynamicStoreOperand(storeIdentifierNameIndex, operation)));
                     break;
 
                 case ExpressionOpKind.LoadThis:
@@ -2004,10 +2327,50 @@ internal static class UnifiedBytecodeCompiler
                 case ExpressionOpKind.TypeOfIdentifier:
                     if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, slotLayout, out var typeOfSlot, out reason))
                     {
-                        return false;
+                        if (operation.IsArguments)
+                        {
+                            return false;
+                        }
+
+                        var typeOfIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            reason =
+                                $"typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                            return false;
+                        }
+
+                        var typeOfNameIndex = stringConstants.Count;
+                        stringConstants.Add(typeOfIdentifier.Name.Name ?? string.Empty);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.TypeOfDynamicIdentifier,
+                            typeOfNameIndex));
+                        break;
                     }
 
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOfIdentifier, typeOfSlot));
+                    break;
+
+                case ExpressionOpKind.DeleteIdentifier:
+                    if (operation.IsArguments)
+                    {
+                        reason = "arguments delete is not supported.";
+                        return false;
+                    }
+
+                    var deleteIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            $"delete identifier '{deleteIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    var deleteNameIndex = stringConstants.Count;
+                    stringConstants.Add(deleteIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DeleteDynamicIdentifier,
+                        deleteNameIndex));
                     break;
 
                 case ExpressionOpKind.UnaryPlus:
@@ -2040,6 +2403,28 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
+                    break;
+
+                case ExpressionOpKind.UpdateIdentifier:
+                    if (operation.IsArguments)
+                    {
+                        reason = "arguments update is not supported.";
+                        return false;
+                    }
+
+                    var updateIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!allowsDynamicIdentifiers)
+                    {
+                        reason =
+                            $"Update target '{updateIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
+                    }
+
+                    var updateNameIndex = stringConstants.Count;
+                    stringConstants.Add(updateIdentifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
+                        EncodeUpdateOperand(updateNameIndex, operation)));
                     break;
 
                 case ExpressionOpKind.ResolvePropertyKey:
@@ -2100,6 +2485,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryCallTargetPreparation(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -2146,6 +2532,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetConstants,
                 call,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return true;
@@ -2203,6 +2590,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         PackedExpressionOp call,
+        bool allowsDynamicIdentifiers,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
@@ -2222,8 +2610,28 @@ internal static class UnifiedBytecodeCompiler
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
-            reason = $"Unsupported identifier call target '{identifier.Name.Name}'.";
-            return false;
+            if (!allowsDynamicIdentifiers &&
+                !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
+            {
+                reason =
+                    $"Identifier call target '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                return false;
+            }
+
+            var dynamicNameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget,
+                dynamicNameIndex));
+
+            return TryAppendCallArguments(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                argsStartIndex: 1,
+                call,
+                out reason);
         }
 
         var nameIndex = stringConstants.Count;
@@ -3070,6 +3478,91 @@ internal static class UnifiedBytecodeCompiler
     private static int EncodeUpdateOperand(int stringConstantIndex, PackedExpressionOp update) =>
         (stringConstantIndex << 2) | EncodeUpdateFlags(update);
 
+    private static int EncodeUpdateOperand(int stringConstantIndex, bool isIncrement, bool isPrefix)
+    {
+        var flags = 0;
+        if (isIncrement)
+        {
+            flags |= UpdateIncrementFlag;
+        }
+
+        if (isPrefix)
+        {
+            flags |= UpdatePrefixFlag;
+        }
+
+        return (stringConstantIndex << 2) | flags;
+    }
+
+    private static int EncodeDynamicStoreOperand(int stringConstantIndex, PackedExpressionOp store)
+    {
+        var flags = store.AllowNameInference ? DynamicStoreAllowNameInferenceFlag : 0;
+        return (stringConstantIndex << 1) | flags;
+    }
+
+    private static int EncodeDynamicStoreOperand(int stringConstantIndex, bool allowNameInference)
+    {
+        var flags = allowNameInference ? DynamicStoreAllowNameInferenceFlag : 0;
+        return (stringConstantIndex << 1) | flags;
+    }
+
+    private static bool TryAppendDynamicVarDeclaration(
+        SimpleVariableDeclarationInstruction declaration,
+        ExpressionProgram initializerProgram,
+        bool allowsDynamicIdentifiers,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (declaration.VarKind != VariableKind.Var ||
+            declaration.TargetSymbol is not { } targetSymbol ||
+            !slotLayout.ActivationSlots.MaterializedBindingNames.Contains(targetSymbol))
+        {
+            reason = $"Unsupported declaration target '{declaration.TargetSymbol?.Name}'.";
+            return false;
+        }
+
+        var targetNameIndex = stringConstants.Count;
+        stringConstants.Add(targetSymbol.Name);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeclareDynamicVar, targetNameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference, targetNameIndex));
+        if (!TryAppendExpressionProgramOps(
+                initializerProgram,
+                slotLayout,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+            EncodeDynamicStoreOperand(targetNameIndex, declaration.AllowNameInference)));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static void AppendDynamicStoreInstruction(
+        Symbol targetSymbol,
+        bool allowNameInference,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants)
+    {
+        var targetNameIndex = stringConstants.Count;
+        stringConstants.Add(targetSymbol.Name);
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.StoreDynamicIdentifier,
+            EncodeDynamicStoreOperand(targetNameIndex, allowNameInference)));
+    }
+
     private static int EncodeDefineObjectPropertyOperand(int stringConstantIndex, PackedExpressionOp defineProperty)
     {
         var flags = defineProperty.IsPrototypeMutation ? DefineObjectPropertyPrototypeMutationFlag : 0;
@@ -3108,7 +3601,7 @@ internal static class UnifiedBytecodeCompiler
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
         {
-            reason = $"Unsupported identifier '{identifier.Name.Name}'.";
+            reason = $"Unsupported identifier '{identifier.Name.Name}' at dynamic property-read boundary.";
             return false;
         }
 
@@ -3146,7 +3639,7 @@ internal static class UnifiedBytecodeCompiler
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
         {
-            reason = $"Unsupported identifier '{identifier.Name.Name}'.";
+            reason = $"Unsupported identifier '{identifier.Name.Name}' at dynamic property-read boundary.";
             return false;
         }
 
@@ -3380,6 +3873,12 @@ internal static class UnifiedBytecodeCompiler
         slotIndex = -1;
         return false;
     }
+
+    private static bool CanUseMaterializedActivationDynamicLookup(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots) =>
+        identifier.ScopeId < 0 &&
+        activationSlots.MaterializedBindingNames.Contains(identifier.Name);
 
     private static bool TryResolveActivationSymbolSlot(
         Symbol symbol,

@@ -404,7 +404,8 @@ internal sealed record ActivationSlotShape(
     ImmutableDictionary<Symbol, int> SlotMap,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
     ImmutableArray<int> ParameterSlotIndices,
-    ImmutableArray<int> LexicalSlotIndices);
+    ImmutableArray<int> LexicalSlotIndices,
+    ImmutableHashSet<Symbol> MaterializedBindingNames);
 
 internal readonly record struct SimpleReturnParameterBinaryExpression(
     BinaryOperator Operator,

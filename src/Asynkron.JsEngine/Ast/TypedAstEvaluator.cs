@@ -21,7 +21,7 @@ public static partial class TypedAstEvaluator
 
     private static readonly object GeneratorBrandMarker = new();
 
-    private static bool TryConvertToWithBindingObject(
+    internal static bool TryConvertToWithBindingObject(
         JsValue value,
         EvaluationContext context,
         out IJsObjectLike? bindingObject)

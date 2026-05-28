@@ -716,16 +716,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
     [InlineData(
         """
-        function dynamic(box) {
-            with (box) {
-                return value;
-            }
-        }
-        """,
-        "dynamic",
-        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
-    [InlineData(
-        """
         function directEval() {
             eval("var value = 1");
             return value;
@@ -733,7 +723,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "directEval",
         (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
-    public void Evaluate_DynamicAndDestructuringBlockShapes_StayDeclined(
+    public void Evaluate_UnsupportedDynamicAndDestructuringBlockShapes_StayDeclined(
         string source,
         string functionName,
         int expectedCode)
@@ -747,6 +737,81 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
         Assert.NotEmpty(result.Reason);
+    }
+
+    [Fact]
+    public void Evaluate_WithDynamicIdentifierLoad_AcceptsBoundedDynamicNameProgram()
+    {
+        var plan = GetFunctionPlan("""
+            function dynamic(box) {
+                with (box) {
+                    return value;
+                }
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.EnterWith);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Return);
+    }
+
+    [Fact]
+    public void Evaluate_WithDynamicIdentifierOperations_AcceptsBoundedDynamicNameProgram()
+    {
+        var plan = GetFunctionPlan("""
+            function dynamic(box) {
+                with (box) {
+                    value = value + 2;
+                    ++count;
+                    missingType = typeof missing;
+                    deleteResult = delete removable;
+                    removableType = typeof removable;
+                    return value + count;
+                }
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_WithThenOutsideDynamicIdentifier_DeclinesWithDynamicLookupDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function dynamic(box) {
+                with (box) {
+                    value = value + 1;
+                }
+
+                return externalValue + 1;
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+        Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

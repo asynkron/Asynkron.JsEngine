@@ -21,10 +21,17 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
 ### Unified Opcode Inventory (current)
 - `LoadSlot`
+- `LoadDynamicIdentifier`
 - `LoadThis`
 - `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
+- `DeclareDynamicVar`
+- `StoreDynamicIdentifier`
+- `ResolveDynamicIdentifierReference`
+- `LoadDynamicIdentifierReference`
+- `StoreDynamicIdentifierReference`
+- `PopDynamicIdentifierReference`
 - `Binary`
 - `RequireObjectCoercible`
 - `ResolvePropertyKey`
@@ -36,8 +43,11 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `SetComputedProperty`
 - `UpdateNamedProperty`
 - `UpdateComputedProperty`
+- `UpdateDynamicIdentifier`
 - `TypeOf`
 - `TypeOfIdentifier`
+- `TypeOfDynamicIdentifier`
+- `DeleteDynamicIdentifier`
 - `UnaryPlus`
 - `UnaryMinus`
 - `UnaryLogicalNot`
@@ -59,6 +69,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Throw`
 - `PushEnvironment`
 - `PopEnvironment`
+- `EnterWith`
+- `LeaveWith`
 - `IteratorInit`
 - `IteratorMoveNext`
 - `IteratorClose`
@@ -69,6 +81,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `ArrayDestructuringRest`
 - `ArrayDestructuringClose`
 - `PrepareIdentifierCallTarget`
+- `PrepareDynamicIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
 - `CallInvocationBoundary`
@@ -147,8 +160,23 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
   or AST evaluation.
 - `BindingVariableDeclaration`, object/array destructuring driver
-  instructions, `with`, direct eval / dynamic lookup, captured activation,
+  instructions, direct eval / unsupported dynamic lookup, captured activation,
   per-iteration bindings, and `using` / `await using` remain pre-VM declines.
+
+## Production With-Backed Dynamic Name Boundary
+- Current production dynamic-name support is with-backed and compiler-gated.
+  The compiler may admit otherwise-supported sync functions that enter a
+  `with` environment and then use dynamic identifier load, store, update,
+  typeof, delete, assignment-reference, or receiver-aware identifier-call
+  opcodes.
+- `EnterWith` and `LeaveWith` create and unwind object environments through the
+  existing `JsEnvironment` with-binding helpers. The VM-owned opcodes must
+  preserve proxy traps, `Symbol.unscopables`, strict/sloppy assignment, delete,
+  and receiver binding without falling back into mixed execution.
+- Dynamic identifier support does not admit direct eval source execution,
+  unresolved non-with dynamic activation, captured dynamic activation,
+  arguments-object dependencies, or async/generator functions. Those shapes
+  still decline before VM execution.
 
 ## Production Call Invocation Boundary
 - Current executable call support is intentionally limited to no-spread
@@ -173,9 +201,10 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   computed key with normal property-key semantics, loads the callee from that
   receiver, and invokes through the existing receiver-as-`this` stack contract.
 - Direct eval, spread calls, construct/super calls, optional calls,
-  private/super member targets, arguments-object dependencies, dynamic lookup,
-  complex receiver/key shapes, and receiver-binding-sensitive adjacent families
-  still decline before VM execution.
+  private/super member targets, arguments-object dependencies, unsupported
+  non-with dynamic lookup, complex receiver/key shapes, and
+  receiver-binding-sensitive adjacent families still decline before VM
+  execution.
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -236,10 +265,10 @@ support today.
 ## Next Unsupported Buckets (current boundary)
 - Wider call invocation remains outside the admitted boundary. Direct eval,
   spread calls, construct/super calls, optional calls, arguments-object
-  dependencies, dynamic lookup, private/super member targets, complex
-  receiver/key shapes, and receiver-binding-sensitive adjacent families beyond
-  the direct activation-resolved member-call boundary must still decline before VM
-  execution.
+  dependencies, unsupported non-with dynamic lookup, private/super member
+  targets, complex receiver/key shapes, and receiver-binding-sensitive adjacent
+  families beyond the direct activation-resolved and with-backed
+  dynamic-identifier boundaries must still decline before VM execution.
 - Async iterator drivers, TDZ head environments, and awaited iterator/for-in
   sources remain outside the admitted boundary and must decline before VM
   execution.
@@ -250,8 +279,9 @@ support today.
 - Label-dependent control flow remains outside the admitted boundary
   (`LabelControlFlow`) and must decline before VM execution.
 - Dynamic lookup families remain outside the admitted boundary
-  (`DynamicLookupDependency`), including `with` environments and unresolved
-  lookup shapes.
+  (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
+  slice above. Direct eval source execution, unresolved non-with lookup shapes,
+  and captured dynamic activation still decline before VM execution.
 
 ## Proof Commands
 ```bash

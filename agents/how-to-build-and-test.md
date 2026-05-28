@@ -194,7 +194,7 @@ rtk dotnet run --project examples/NodeHostDemo
   `regression-packs/`; it is a static inventory of runnable pack names, not a
   snapshot of current failures.
 - List packs without failing (with per-pack entry counts): `rtk ./tools/run-test262-regressions.sh --list`.
-- Entry counts shown by `--list` are line counts from each pack file (typically
-  one Test262 filter entry per line). Treat them as pack-size signals; they are
-  not pass/fail totals from a live run.
+- Entry counts shown by `--list` include only non-empty, non-comment lines from
+  each pack file. Treat them as pack-size signals; they are not pass/fail
+  totals from a live run.
 - Examples: `rtk ./tools/run-test262-regressions.sh temporal`, `rtk ./tools/run-test262-regressions.sh intl`, `rtk ./tools/run-test262-regressions.sh regexp`.

@@ -516,6 +516,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     route failed to create a nested function's hoisted local `value` binding
     before dynamic lookup and dynamic identifier call preparation still depended
     on the identifier-cache path.
+33. When admitting `try/catch/finally` exception regions to production unified
+    bytecode, keep exception routing and abrupt-completion propagation
+    descriptor-backed and VM-owned. `EnterTry`, `EnterCatch`, `LeaveTry`, and
+    `EndFinally` must compile to owned opcodes with `UnifiedBytecodeTryDescriptor`
+    and `UnifiedBytecodeCatchDescriptor` payloads; the VM must own `TryFrame`,
+    `PendingCompletion`, catch binding activation/inactivation, and finally
+    replacement semantics without calling back into `ExecutionPlanRunner`,
+    `ExpressionProgram`, or AST evaluation. For loop control through finally,
+    compare compiled driver descriptor topology and mapped break/continue
+    targets; do not decide whether to schedule an outer synthetic for-of finally
+    from currently active driver-state slots alone, because an inner iterator can
+    already be closed when its pending break reaches an outer frame. Pair the
+    route proof with catch binding leak/direct-read regressions, return/throw
+    replacement through finally, break/continue through finally, nested for-of
+    inner-break cleanup ordering, and unsupported async/generator/dynamic
+    declines. WHY: issue
+    `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-0bfc08d573`
+    / PR #2591 admitted ordinary synchronous exception regions, then build-back
+    fixes exposed catch-slot lifetime, operand-stack cleanup, pending body-throw
+    preservation, and nested driver-cleanup topology as the durable guardrails.
 
 ## Why
 
@@ -782,3 +802,4 @@ Related ADRs:
 - `docs/adrs/0253-keep-unified-bytecode-loop-control-targets-compiler-owned.md`
 - `docs/adrs/0255-keep-unified-bytecode-block-lexical-scopes-program-slot-owned.md`
 - `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`
+- `docs/adrs/0271-keep-unified-bytecode-exception-regions-vm-owned-and-driver-cleanup-topology-guarded.md`

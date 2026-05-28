@@ -149,6 +149,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, key, value) {
+                return box[key](value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.ComputedMember, callTarget.Kind);
     }
 
     [Fact]
@@ -793,14 +819,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
-        function invokeComputedMember(box, key) {
-            return box[key]();
-        }
-        """,
-        "invokeComputedMember",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
         function invokeSpread(helper, values) {
             return helper(...values);
         }
@@ -814,6 +832,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeEval",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function invokeComputedExpressionKey(box, left, right) {
+            return box[left + right]();
+        }
+        """,
+        "invokeComputedExpressionKey",
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """

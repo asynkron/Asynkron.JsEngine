@@ -766,48 +766,103 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
-        if (namedCallTargetIndex < 0)
+        if (namedCallTargetIndex >= 0)
+        {
+            return TryIsFirstBoundaryNamedReceiver(
+                       program,
+                       identifierConstants,
+                       stringConstants,
+                       activationSlots,
+                       namedCallTargetIndex) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       namedCallTargetIndex + 1,
+                       call);
+        }
+
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex >= 0)
+        {
+            var keyIndex = computedCallTargetIndex - 1;
+            return keyIndex >= 1 &&
+                   TryIsFirstBoundaryNamedReceiver(
+                       program,
+                       identifierConstants,
+                       stringConstants,
+                       activationSlots,
+                       keyIndex) &&
+                   IsSimpleComputedPropertyKey(
+                       program.GetOperation(keyIndex),
+                       identifierConstants,
+                       activationSlots) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       computedCallTargetIndex + 1,
+                       call);
+        }
+
+        return false;
+    }
+
+    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            if (program.GetOperation(operationIndex).Kind == kind)
+            {
+                return operationIndex;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool TryIsFirstBoundaryNamedReceiver(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots,
+        int endExclusive)
+    {
+        if (endExclusive < 1 ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
 
-        if (namedCallTargetIndex == 0)
+        for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
         {
-            return false;
-        }
-
-        for (var receiverIndex = 0; receiverIndex < namedCallTargetIndex; receiverIndex++)
-        {
-            var receiverOperation = program.GetOperation(receiverIndex);
-            if (receiverIndex == 0)
-            {
-                if (!TryGetActivationResolvedValue(receiverOperation, identifierConstants, activationSlots))
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            if (receiverOperation.Kind != ExpressionOpKind.GetNamedProperty ||
-                receiverOperation.IsOptional ||
-                receiverOperation.ShortCircuitOnNullishTarget)
-            {
-                return false;
-            }
-
-            if (receiverOperation.GetString(stringConstants).IsPrivateName())
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.GetString(stringConstants).IsPrivateName() ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
             {
                 return false;
             }
         }
 
-        return HasSimpleCallArguments(
-            program,
-            identifierConstants,
-            activationSlots,
-            argsStartIndex: namedCallTargetIndex + 1,
-            call);
+        return true;
+    }
+
+    private static bool IsSimpleComputedPropertyKey(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        return operation.Kind switch
+        {
+            ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
+                operation,
+                identifierConstants,
+                activationSlots),
+            _ => false
+        };
     }
 
     private static bool HasSimpleCallArguments(
@@ -832,19 +887,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
-    }
-
-    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
-    {
-        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
-        {
-            if (program.GetOperation(operationIndex).Kind == kind)
-            {
-                return operationIndex;
-            }
-        }
-
-        return -1;
     }
 
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(

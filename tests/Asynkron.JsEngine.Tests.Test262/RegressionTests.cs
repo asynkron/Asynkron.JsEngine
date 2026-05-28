@@ -226,6 +226,15 @@ public class RegressionTests
         Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
     }
 
+    [TestCase("built-ins/decodeURI/S15.1.3.1_A2.5_T1.js")]
+    [TestCase("test/built-ins/decodeURI/S15.1.3.1_A2.5_T1.js")]
+    public void DecodeURIFourByteFixture_UsesExtendedExecutionTimeout(string fileName)
+    {
+        var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
+
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+    }
+
     [TestCase("built-ins/RegExp/character-class-escape-non-whitespace.js")]
     [TestCase("test/built-ins/RegExp/character-class-escape-non-whitespace.js")]
     public void RegExpNonWhitespaceFixture_UsesExtendedExecutionTimeout(string fileName)

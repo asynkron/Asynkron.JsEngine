@@ -108,6 +108,21 @@ optimization.
     PR #2296 showed that this reorder can select a stale binding in direct-eval
     arrow constructor cases and break `super()` initialization semantics. ADR:
     `docs/adrs/0217-keep-derived-constructor-this-init-lookup-local-first.md`.
+6f. For simple numeric self-recursion fast-path widening, treat ADR 0241 and
+    ADR 0245 as the boundary. Admit one source shape at a time, keep the
+    strict one-parameter/two-statement base-case detector, preserve the live
+    recursive-binding identity check, and keep finite bounded integer input as
+    the runtime gate. Pair positive accepted-shape tests with negative
+    non-integer and reassigned-recursive-name fallback tests. If no selected
+    profile workload exercised the newly admitted branch, report semantic
+    coverage only and do not update performance notes as a timing win. WHY:
+    issue #2450 / PR #2465 widened ADR 0241 only from parameter-term linear
+    recurrences to the adjacent constant-term plus self-call shape
+    (`k + f(n - d)` / `f(n - d) + k`) with a 9-test focused proof but without
+    a new profile workload for that branch. Future agents must not convert
+    that follow-through into a generic recurrence solver or claim
+    `recursion-lite` wins from unrelated already-covered shapes. Related ADR:
+    `docs/adrs/0245-keep-constant-term-self-recursion-widening-guarded.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

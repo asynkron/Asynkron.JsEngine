@@ -29,7 +29,7 @@ This step is **critical** - agent investigation findings are lost if not documen
   - 1) Use supplied Source Context first.
   - 2) Use supplied Faktorial HTTP API endpoints next.
   - 3) Prefer compact summaries before raw logs.
-  - 4) Only then consider external GitHub reads if required and allowed.
+  - 4) Use bounded raw-log snippets only when those sources are still insufficient.
 - Do not run the host `faktorial` binary for issue, log, or state reads from an agent runtime.
 - Compact summary example:
   - `curl -fsS "${FAKTORIAL_URL:-http://127.0.0.1:8787}/api/logs/<task-id>/summary"`

@@ -4,6 +4,12 @@
 
 Accepted
 
+Superseded in part on 2026-05-28 for the first executable no-spread
+activation-resolved identifier-call slice. The original decline-first decision
+still applies to named/computed member calls, direct eval, spread calls,
+construct/super calls, optional calls, arguments-object dependencies, dynamic
+lookup, and other unproven call-adjacent families.
+
 ## Context
 
 Faktorial issue
@@ -61,6 +67,20 @@ boundary until a later slice proves full call invocation.
   disappearing behind a generic call or expression-program callback.
 - The expansion contract is again aligned with the live enum surface, so the
   drift guard can catch the next opcode or decline-code inventory miss.
+
+## 2026-05-28 executable identifier-call update
+
+Issue #2495 narrows the former non-executable boundary by allowing only
+activation-slot identifier calls with no spread and simple literal/slot
+arguments to execute in `UnifiedBytecodeVirtualMachine`.
+`PrepareIdentifierCallTarget` now loads the receiver/callee pair from
+bytecode-owned call-target metadata and `CallInvocationBoundary` invokes the
+callable through existing invocation helpers.
+
+This update does not make member, computed, eval, spread, construct/super,
+optional, arguments-dependent, or dynamic lookup calls production-eligible.
+Those families must still decline before VM execution instead of falling back
+inside the VM.
 
 ## Evidence
 

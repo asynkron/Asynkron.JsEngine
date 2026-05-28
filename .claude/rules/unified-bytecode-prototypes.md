@@ -220,9 +220,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     and ADR/rule surfaces synchronized in the same slice when shared boundary
     text changes. The contract must separate current support from
     reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
-    next unsupported buckets explicit (call invocation, iterator/destructuring
-    driver-state, label-dependent control flow, dynamic lookup) until dedicated
-    ownership slices land. Keep the drift guard in
+    next unsupported buckets explicit (wider call families,
+    iterator/destructuring driver-state, label-dependent control flow, dynamic
+    lookup) until dedicated ownership slices land. Keep the drift guard in
     `ExpressionProgramCoverageMapTests` covering required headings plus current
     `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
     Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
@@ -294,14 +294,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
 24. When adding unified-bytecode call-target preparation, keep preparation
-    bytecode-owned but non-executable until a separate invocation slice owns
+    bytecode-owned but non-executable for member/computed/eval/spread/construct
+    and other unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
-    semantics end to end. It is valid for the compiler to emit typed
+    semantics end to end. The #2495 identifier-call slice is the narrow
+    exception: no-spread activation-resolved identifier calls with simple
+    literal/slot arguments may execute through the VM-owned
+    `CallInvocationBoundary`. It is valid for the compiler to emit typed
     `UnifiedBytecodeCallTarget` records and `Prepare*CallTarget` opcodes for
-    no-spread activation-resolved identifier/member calls, but production
-    routing must decline at `CallInvocationBoundary` and the VM must not call
-    back into `ExpressionProgram`, `ExecutionPlanRunner`, AST evaluation, or a
-    generic host-call fallback. Update
+    no-spread activation-resolved identifier/member calls, but all unproven
+    production call routing must decline at `CallInvocationBoundary` and the VM
+    must not call back into `ExpressionProgram`, `ExecutionPlanRunner`, AST
+    evaluation, or a generic host-call fallback. Update
     `docs/unified-bytecode-expansion-contract.md` in the same slice for every
     new prep opcode or decline code. WHY: issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-161f73f52d`

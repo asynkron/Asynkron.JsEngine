@@ -763,63 +763,7 @@ internal static class UnifiedBytecodeProductionEligibility
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 
-        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
-        if (namedCallTargetIndex > 0)
-        {
-            var callTarget = program.GetOperation(namedCallTargetIndex);
-            return !callTarget.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
-                   MatchesNamedReceiverOperations(program, identifierConstants, activationSlots, namedCallTargetIndex) &&
-                   HasSimpleCallArguments(
-                       program,
-                       identifierConstants,
-                       activationSlots,
-                       namedCallTargetIndex + 1,
-                       call);
-        }
-
-        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
-        if (computedCallTargetIndex >= 2)
-        {
-            var keyIndex = computedCallTargetIndex - 1;
-            return MatchesNamedReceiverOperations(program, identifierConstants, activationSlots, keyIndex) &&
-                   IsSimpleOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
-                   HasSimpleCallArguments(
-                       program,
-                       identifierConstants,
-                       activationSlots,
-                       computedCallTargetIndex + 1,
-                       call);
-        }
-
         return false;
-    }
-
-    private static bool MatchesNamedReceiverOperations(
-        ExpressionProgram program,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots,
-        int endExclusive)
-    {
-        if (endExclusive is < 1 or > 3 ||
-            !TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        var stringConstants = program.StringConstants.AsSpan();
-        for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
-        {
-            var propertyRead = program.GetOperation(operationIndex);
-            if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
-                propertyRead.GetString(stringConstants).IsPrivateName() ||
-                propertyRead.IsOptional ||
-                propertyRead.ShortCircuitOnNullishTarget)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private static bool HasSimpleCallArguments(
@@ -844,19 +788,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
-    }
-
-    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
-    {
-        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
-        {
-            if (program.GetOperation(operationIndex).Kind == kind)
-            {
-                return operationIndex;
-            }
-        }
-
-        return -1;
     }
 
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
@@ -1146,13 +1077,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:
-                    break;
-
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary;
-                    declineReason =
-                        "Call-target preparation compiled, but actual call invocation remains outside production unified bytecode routing.";
-                    return true;
+                    break;
 
                 default:
                     declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

@@ -162,11 +162,18 @@ internal static class UnifiedBytecodeCompiler
         var mappedSlots = new HashSet<int>();
         var usedFlatSlots = new HashSet<int>();
         var nextFlatSlotId = 0;
+        foreach (var scopeMappings in flatSlotMappings.Values)
+        {
+            foreach (var mapping in scopeMappings)
+            {
+                usedFlatSlots.Add(mapping.FlatSlotId);
+                nextFlatSlotId = Math.Max(nextFlatSlotId, mapping.FlatSlotId + 1);
+            }
+        }
+
         foreach (var mapping in mappings)
         {
             mappedSlots.Add(mapping.SlotIndex);
-            usedFlatSlots.Add(mapping.FlatSlotId);
-            nextFlatSlotId = Math.Max(nextFlatSlotId, mapping.FlatSlotId + 1);
         }
 
         var hasAllActivationSlots = true;
@@ -419,7 +426,7 @@ internal static class UnifiedBytecodeCompiler
 
                         if (!TryAppendExpressionProgramOps(
                                 initializerProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -460,7 +467,7 @@ internal static class UnifiedBytecodeCompiler
 
                         if (!TryAppendExpressionProgramOps(
                                 valueProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -503,7 +510,7 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, compoundSlot));
                         if (!TryAppendExpressionProgramOps(
                                 rhsProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -545,7 +552,9 @@ internal static class UnifiedBytecodeCompiler
                             pushEnvironment.LexicalSlotIndices,
                             slotLayout.FlatSlotMappings);
                         var scopeDescriptorIndex = scopeDescriptors.Count;
-                        scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(lexicalSlotIndices));
+                        scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(
+                            pushEnvironment.ScopeId,
+                            lexicalSlotIndices));
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.PushEnvironment,
                             scopeDescriptorIndex));
@@ -699,7 +708,7 @@ internal static class UnifiedBytecodeCompiler
                     case BranchInstruction branch:
                         if (!TryAppendExpressionProgramOps(
                                 branch.ConditionProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -771,7 +780,7 @@ internal static class UnifiedBytecodeCompiler
                     case ReturnInstruction { ReturnProgram: { } returnProgram, AwaitedProgram: null }:
                         if (!TryAppendExpressionProgramOps(
                                 returnProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -794,7 +803,7 @@ internal static class UnifiedBytecodeCompiler
                     case ThrowInstruction { ThrowProgram: { } throwProgram, AwaitedProgram: null }:
                         if (!TryAppendExpressionProgramOps(
                                 throwProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -812,7 +821,7 @@ internal static class UnifiedBytecodeCompiler
                     case EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } discard:
                         if (!TryAppendExpressionProgramOps(
                                 discardedProgram,
-                                activationSlots,
+                                slotLayout,
                                 unified,
                                 literalConstants,
                                 stringConstants,
@@ -1213,16 +1222,17 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendExpressionProgramOps(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (TryAppendFirstBoundaryCallTargetPreparation(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -1497,13 +1507,14 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendFirstBoundaryCallTargetPreparation(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 2)
         {
             reason = string.Empty;
@@ -1537,7 +1548,7 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendIdentifierCallTargetPreparation(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -1594,7 +1605,7 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendIdentifierCallTargetPreparation(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -1602,6 +1613,7 @@ internal static class UnifiedBytecodeCompiler
         PackedExpressionOp call,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         var callTarget = expressionProgram.GetOperation(0);
         if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget)
         {
@@ -1616,7 +1628,7 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
+        if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
             reason = $"Unsupported identifier call target '{identifier.Name.Name}'.";
             return false;
@@ -2636,6 +2648,46 @@ internal static class UnifiedBytecodeCompiler
         if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot))
         {
             slotIndex = mappedSlot;
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
+    private static bool TryResolveActivationCallTargetSlot(
+        IdentifierOperand identifier,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int slotIndex)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        if (identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+        {
+            if (identifier.ScopeId == activationSlots.ScopeId &&
+                TryMapSlot(identifier.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out slotIndex))
+            {
+                return true;
+            }
+
+            slotIndex = -1;
+            return false;
+        }
+
+        if (activationSlots.SlotMap.TryGetValue(identifier.Name, out var mappedSlot) &&
+            TryMapSlot(activationSlots.ScopeId, mappedSlot, slotLayout.FlatSlotMappings, out slotIndex))
+        {
+            return true;
+        }
+
+        if (identifier.ScopeId >= 0 && identifier.ScopeId != activationSlots.ScopeId)
+        {
+            slotIndex = -1;
+            return false;
+        }
+
+        if (identifier.FlatSlotId >= 0)
+        {
+            slotIndex = identifier.FlatSlotId;
             return true;
         }
 

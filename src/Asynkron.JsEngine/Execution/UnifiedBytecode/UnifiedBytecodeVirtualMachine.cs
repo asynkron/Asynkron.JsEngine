@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -12,16 +13,28 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
 
+    private readonly record struct EnvironmentScopeFrame(
+        JsEnvironment Environment,
+        ImmutableArray<int> SlotIndices,
+        JsEnvironment?[] PreviousSlotEnvironments);
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         EvaluationContext context,
+        JsEnvironment? callingEnvironment = null,
         JsValue thisValue = default,
         JsValue newTarget = default,
         bool isStrict = false)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
+        var currentCallingEnvironment = callingEnvironment;
+        var slotEnvironments = callingEnvironment is null
+            ? null
+            : InitializeSlotEnvironments(program, callingEnvironment);
+        EnvironmentScopeFrame[]? environmentStack = null;
+        var environmentStackCount = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
@@ -57,15 +70,51 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
-                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
-                case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     throw new InvalidOperationException(
                         $"Opcode '{instruction.OpCode}' is a call-preparation boundary and is not executable yet.");
 
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                    var callTarget = program.CallTargetConstants[instruction.Operand];
+                    if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    var callableValue = slots[callTarget.SlotIndex];
+                    if (callableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = JsValue.Undefined;
+                    stack[stackPointer++] = callableValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                    stackPointer = ExecuteIdentifierCall(
+                        instruction.Operand,
+                        stack,
+                        stackPointer,
+                        context,
+                        currentCallingEnvironment);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreSlot:
-                    slots[instruction.Operand] = stack[--stackPointer];
+                    var storedValue = stack[--stackPointer];
+                    slots[instruction.Operand] = storedValue;
+                    SyncSlotEnvironment(slotEnvironments, instruction.Operand, storedValue);
+
                     programCounter++;
                     break;
 
@@ -414,10 +463,42 @@ internal static class UnifiedBytecodeVirtualMachine
                         slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
                     }
 
+                    if (currentCallingEnvironment is not null && slotEnvironments is not null)
+                    {
+                        var scopeEnvironment = CreateScopeEnvironment(
+                            program,
+                            scopeDescriptor,
+                            lexicalSlotIndices,
+                            currentCallingEnvironment,
+                            context,
+                            isStrict);
+                        var previousSlotEnvironments = new JsEnvironment?[lexicalSlotIndices.Length];
+                        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+                        {
+                            var slotIndex = lexicalSlotIndices[i];
+                            previousSlotEnvironments[i] = slotEnvironments[slotIndex];
+                            slotEnvironments[slotIndex] = scopeEnvironment;
+                        }
+
+                        environmentStack ??= new EnvironmentScopeFrame[instructions.Length];
+                        environmentStack[environmentStackCount++] = new EnvironmentScopeFrame(
+                            scopeEnvironment,
+                            lexicalSlotIndices,
+                            previousSlotEnvironments);
+                        currentCallingEnvironment = scopeEnvironment;
+                    }
+
                     programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.PopEnvironment:
+                    if (environmentStackCount > 0 && slotEnvironments is not null)
+                    {
+                        var scopeFrame = environmentStack![--environmentStackCount];
+                        RestoreSlotEnvironmentOwners(slotEnvironments, scopeFrame);
+                        currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
+                    }
+
                     programCounter++;
                     break;
 
@@ -437,6 +518,125 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         throw new InvalidOperationException("Program terminated without Return.");
+    }
+
+    private static JsEnvironment?[] InitializeSlotEnvironments(
+        UnifiedBytecodeProgram program,
+        JsEnvironment callingEnvironment)
+    {
+        var slotCount = program.SlotCount;
+        var slotEnvironments = new JsEnvironment?[slotCount];
+        var rootSlotCount = Math.Min(slotCount, callingEnvironment.SlotCount);
+        for (var i = 0; i < rootSlotCount; i++)
+        {
+            if (SlotNameMatchesEnvironment(program, callingEnvironment, i))
+            {
+                slotEnvironments[i] = callingEnvironment;
+            }
+        }
+
+        return slotEnvironments;
+    }
+
+    private static bool SlotNameMatchesEnvironment(
+        UnifiedBytecodeProgram program,
+        JsEnvironment environment,
+        int slotIndex)
+    {
+        var slotNames = program.SlotNames;
+        if (slotNames.IsDefaultOrEmpty ||
+            (uint)slotIndex >= (uint)slotNames.Length ||
+            slotNames[slotIndex] is not { } expectedName)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            environment.GetSlotByIndex(slotIndex).Name?.Name,
+            expectedName,
+            StringComparison.Ordinal);
+    }
+
+    private static void SyncSlotEnvironment(
+        JsEnvironment?[]? slotEnvironments,
+        int slotIndex,
+        JsValue value)
+    {
+        if (slotEnvironments is null ||
+            (uint)slotIndex >= (uint)slotEnvironments.Length ||
+            slotEnvironments[slotIndex] is not { } environment ||
+            (uint)slotIndex >= (uint)environment.SlotCount)
+        {
+            return;
+        }
+
+        environment.SetSlotDirect(slotIndex, value);
+    }
+
+    private static JsEnvironment CreateScopeEnvironment(
+        UnifiedBytecodeProgram program,
+        UnifiedBytecodeScopeDescriptor scopeDescriptor,
+        ImmutableArray<int> lexicalSlotIndices,
+        JsEnvironment enclosing,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var scopeEnvironment = JsEnvironment.CreateInstance(
+            enclosing,
+            isFunctionScope: false,
+            isStrict: isStrict || context.CurrentScope.IsStrict,
+            description: "unified-bytecode-scope");
+        scopeEnvironment.InitializeSlots(GetScopeSlotCount(lexicalSlotIndices), scopeDescriptor.ScopeId);
+        SetScopeSlotNames(scopeEnvironment, program, lexicalSlotIndices);
+        scopeEnvironment.SetSlotsLexicalUninitialized(lexicalSlotIndices);
+        return scopeEnvironment;
+    }
+
+    private static int GetScopeSlotCount(ImmutableArray<int> lexicalSlotIndices)
+    {
+        var slotCount = 0;
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            slotCount = Math.Max(slotCount, lexicalSlotIndices[i] + 1);
+        }
+
+        return slotCount;
+    }
+
+    private static void SetScopeSlotNames(
+        JsEnvironment environment,
+        UnifiedBytecodeProgram program,
+        ImmutableArray<int> lexicalSlotIndices)
+    {
+        var slotNames = program.SlotNames;
+        if (slotNames.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<(Symbol Name, int SlotIndex)>(lexicalSlotIndices.Length);
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            var slotIndex = lexicalSlotIndices[i];
+            if ((uint)slotIndex < (uint)slotNames.Length && slotNames[slotIndex] is { } slotName)
+            {
+                builder.Add((Symbol.Intern(slotName), slotIndex));
+            }
+        }
+
+        environment.SetSlotNames(builder.ToImmutable());
+    }
+
+    private static void RestoreSlotEnvironmentOwners(
+        JsEnvironment?[] slotEnvironments,
+        EnvironmentScopeFrame scopeFrame)
+    {
+        var slotIndices = scopeFrame.SlotIndices;
+        var previousSlotEnvironments = scopeFrame.PreviousSlotEnvironments;
+        for (var i = 0; i < slotIndices.Length; i++)
+        {
+            slotEnvironments[slotIndices[i]] = previousSlotEnvironments[i];
+        }
     }
 
     private static JsValue ApplyBinaryOperator(
@@ -461,6 +661,131 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
         };
+    }
+
+    private static int ExecuteIdentifierCall(
+        int argumentCount,
+        Span<JsValue> stack,
+        int stackPointer,
+        EvaluationContext context,
+        JsEnvironment? callingEnvironment)
+    {
+        var calleeIndex = stackPointer - argumentCount - 1;
+        var receiverIndex = calleeIndex - 1;
+        var baseIndex = receiverIndex;
+        var calleeValue = stack[calleeIndex];
+        var thisValue = stack[receiverIndex];
+
+        if (!calleeValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            var calleeDescription = calleeValue.IsUndefined
+                ? "undefined"
+                : calleeValue.IsNull
+                    ? "null"
+                    : JsOps.ToJsString(calleeValue);
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                $"Attempted to call a non-callable value '{calleeDescription}' of type '{calleeValue.Kind}'.",
+                context,
+                context.RealmState));
+            stack[baseIndex] = JsValue.Undefined;
+            return baseIndex + 1;
+        }
+
+        if (callable is TypedAstEvaluator.SyncFunctionInvoker { IsClassConstructor: true } classConstructor)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Class constructor cannot be invoked without 'new'",
+                context,
+                classConstructor.RealmState));
+            stack[baseIndex] = JsValue.Undefined;
+            return baseIndex + 1;
+        }
+
+        if (++context.CallDepth > context.MaxCallDepth)
+        {
+            context.CallDepth--;
+            throw new InvalidOperationException(
+                $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+        }
+
+        JsValue[]? pooledArguments = null;
+        DebugAwareHostFunction? debugFunction = null;
+        JsEnvironment? previousDebugEnvironment = null;
+        EvaluationContext? previousDebugContext = null;
+        JsValue result;
+        try
+        {
+            if (callingEnvironment is not null && callable is DebugAwareHostFunction debugAware)
+            {
+                debugFunction = debugAware;
+                previousDebugEnvironment = debugFunction.CurrentJsEnvironment;
+                previousDebugContext = debugFunction.CurrentContext;
+                debugFunction.CurrentJsEnvironment = callingEnvironment;
+                debugFunction.CurrentContext = context;
+            }
+
+            result = argumentCount switch
+            {
+                0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context, callingEnvironment),
+                1 => TypedAstEvaluator.InvokeCallableSingleArg(
+                    callable,
+                    stack[calleeIndex + 1],
+                    thisValue,
+                    context,
+                    callingEnvironment),
+                2 => TypedAstEvaluator.InvokeCallableTwoArgs(
+                    callable,
+                    stack[calleeIndex + 1],
+                    stack[calleeIndex + 2],
+                    thisValue,
+                    context,
+                    callingEnvironment),
+                _ => TypedAstEvaluator.InvokeCallableJsValue(
+                    callable,
+                    MaterializeCallArguments(argumentCount, stack, calleeIndex + 1, out pooledArguments),
+                    thisValue,
+                    context,
+                    callingEnvironment)
+            };
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            result = signal.ThrownValue;
+        }
+        finally
+        {
+            if (debugFunction is not null)
+            {
+                debugFunction.CurrentJsEnvironment = previousDebugEnvironment;
+                debugFunction.CurrentContext = previousDebugContext;
+            }
+
+            if (pooledArguments is not null)
+            {
+                JsValueCache.ReturnJsValueArray(pooledArguments);
+            }
+
+            context.CallDepth--;
+        }
+
+        stack[baseIndex] = result;
+        return baseIndex + 1;
+    }
+
+    private static IReadOnlyList<JsValue> MaterializeCallArguments(
+        int argumentCount,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        out JsValue[] pooledArguments)
+    {
+        pooledArguments = JsValueCache.RentJsValueArray(argumentCount);
+        for (var argumentIndex = 0; argumentIndex < argumentCount; argumentIndex++)
+        {
+            pooledArguments[argumentIndex] = stack[firstArgumentIndex + argumentIndex];
+        }
+
+        return pooledArguments;
     }
 
     private static string GetTypeofStringValue(in JsValue value)

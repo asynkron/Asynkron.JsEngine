@@ -223,6 +223,26 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `SyncFunctionInvoker`; the semantic risk was preserving primitive
     strict/sloppy receiver coercion while not regressing derived constructor
     initialization.
+24. When dispatching class-constructor simple IR activation fast paths from the
+    generic sync invocation path, gate helper entry by constructor shape before
+    calling the helper predicate. Try the derived helper only for class
+    constructors with `_isDerivedClassConstructor`; try the base helper only for
+    class constructors without `_isDerivedClassConstructor`. Keep the helper
+    predicates from ADR 0225 and ADR 0230 as the semantic eligibility boundary,
+    but do not make ordinary functions, arrows, class methods, or the wrong
+    constructor shape pay impossible helper probes in the hot path. For the
+    simple derived constructor environment, define
+    `Symbol.LexicalThisEnvironment` to the transient function environment that
+    owns uninitialized `this`, so `super(...)` can resolve the
+    this-initialization owner directly while preserving existing fallbacks.
+    Pair retained changes with repeated selected-profile timing, focused
+    class/super semantics, the runner AST-eval seam scan, and `forloop
+    --memory`. WHY: issue `autrun-diu14wtxo3eo-3299efe044` / PR #2456 found
+    that the retained base/derived constructor fast paths made non-class
+    `classdef` tail calls pay impossible class-constructor probes, and that the
+    simple derived constructor path could bind its existing lexical-this owner
+    directly for a 16% focused `classdef` improvement without broadening
+    constructor eligibility.
 
 ## Why
 

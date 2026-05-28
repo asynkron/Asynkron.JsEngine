@@ -69,6 +69,15 @@ Issue `autrun-dithe2vzvzv4-52125cec24` / PR #2370 applied the same contract to
 the accepted slice changed only the data-value setter from `Value = ...` to
 `JsValue = ...` while preserving writable/enumerable/configurable attributes.
 
+Issue `autrun-diu14wv8korc-df99b99081` / PR #2449 applied the same contract to
+object-literal dictionary spread. The `IDictionary<string, object?>` source
+shape remains an intentional interop boundary, but copied dictionary values are
+still JavaScript data descriptor payloads once they are defined on a
+`JsObject`. The first build migrated only the IR runner branch; review caught
+the mirrored legacy/dynamic evaluator branch still using `Value = kvp.Value`,
+so the accepted delivery updated both branches to assign `JsValue` through
+`JsValue.FromObjectUnsafe(...)`.
+
 ## Decision
 
 Keep core `PropertyDescriptor` data values on the `JsValue` setter whenever the
@@ -86,7 +95,9 @@ For descriptor cleanup slices:
    core-runtime data descriptor path;
 4. prove each bounded migration with a before/after search for legacy
    descriptor setters such as `\bValue\s*=` in the selected file set, including
-   helper bodies when the migration changes a helper signature; and
+   helper bodies when the migration changes a helper signature and including
+   mirrored IR/legacy evaluator branches when the selected descriptor behavior
+   exists in both paths; and
 5. defer `[Obsolete(..., true)]` on the compatibility setter unless the selected
    work explicitly owns the full repository-wide and generated-code migration.
 
@@ -109,6 +120,9 @@ For descriptor cleanup slices:
 - Local error-object descriptors such as `CreateSuppressedError` follow this
   same contract when their payloads are already JavaScript values; they are not a
   host-interop exception to the descriptor data-value rule.
+- Object-literal dictionary spread keeps `IDictionary<string, object?>` as the
+  interop input boundary, but both IR and legacy/dynamic evaluator descriptor
+  sinks must assign `JsValue` explicitly or document an intentional divergence.
 
 ## Related
 

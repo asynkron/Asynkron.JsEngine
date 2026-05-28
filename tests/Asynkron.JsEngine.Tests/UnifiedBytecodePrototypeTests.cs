@@ -121,6 +121,92 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_DirectIdentifierCall_ProducesCallTargetPrepBoundary()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function invoke(helper, value) {
+                return helper(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(
+            new[]
+            {
+                UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.CallInvocationBoundary,
+                UnifiedBytecodeOpCode.Return
+            },
+            program.Instructions.Select(instruction => instruction.OpCode).ToArray());
+        var callTarget = Assert.Single(program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.Identifier, callTarget.Kind);
+        Assert.Equal("helper", program.StringConstants[callTarget.NameConstantIndex]);
+        Assert.Equal(1, program.Instructions[2].Operand);
+    }
+
+    [Fact]
+    public void TryCompile_NamedMemberCall_ProducesCallTargetPrepBoundary()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function invoke(box, value) {
+                return box.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(
+            new[]
+            {
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.CallInvocationBoundary,
+                UnifiedBytecodeOpCode.Return
+            },
+            program.Instructions.Select(instruction => instruction.OpCode).ToArray());
+        var callTarget = Assert.Single(program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
+        Assert.Equal("read", program.StringConstants[callTarget.NameConstantIndex]);
+        Assert.Equal(1, program.Instructions[3].Operand);
+    }
+
+    [Fact]
+    public void TryCompile_ComputedMemberCall_ProducesCallTargetPrepBoundary()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function invoke(box, key, value) {
+                return box[key](value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Equal(
+            new[]
+            {
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.CallInvocationBoundary,
+                UnifiedBytecodeOpCode.Return
+            },
+            program.Instructions.Select(instruction => instruction.OpCode).ToArray());
+        var callTarget = Assert.Single(program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.ComputedMember, callTarget.Kind);
+        Assert.Equal(1, program.Instructions[4].Operand);
+    }
+
+    [Fact]
     public void Execute_DirectComputedPropertyRead_ResolvesLiteralKeyAndReadsValue()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

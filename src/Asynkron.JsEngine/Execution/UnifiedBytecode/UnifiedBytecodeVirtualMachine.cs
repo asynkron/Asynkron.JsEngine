@@ -57,6 +57,13 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
+                case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
+                case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                    throw new InvalidOperationException(
+                        $"Opcode '{instruction.OpCode}' is a call-preparation boundary and is not executable yet.");
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
                     programCounter++;

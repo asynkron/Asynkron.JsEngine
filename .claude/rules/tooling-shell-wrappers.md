@@ -7,6 +7,12 @@ Repository shell wrappers must preserve argument boundaries exactly.
 - When copying Bash arrays, use `"${array[@]}"`, not `"${array[@]-}"`, inside
   another array assignment. The `-` form can expand an unset or empty array into
   one empty positional argument and silently change downstream CLI behavior.
+- When invoking `rtk` from agent or docs examples, do not pass an entire
+  compound shell snippet as one quoted executable argument, such as
+  `rtk 'pwd; git status'`. `rtk` treats the first argument as the executable, so
+  this fails as command-not-found and can be misdiagnosed as `rtk` being
+  unavailable. Use separate `rtk <command>` invocations, or deliberately run a
+  shell as the executable with `rtk /bin/sh -c 'pwd; git status'`.
 - Add a focused empty-array proof whenever a wrapper fans out one parsed argument
   list into mode-specific invocations. The proof can be a small Bash snippet or
   an equivalent wrapper dry-run, but it must show that an empty source array
@@ -50,3 +56,12 @@ test262-regexp-property-punctuation` failed in the wrapper with
 durable lesson is to separate wrapper preflight failures from profile validity:
 direct-run the owning runner for evidence, and leave wrapper repair to a scoped
 tooling change with empty-array proofs.
+
+Issue `autrun-diubg9a7o0m0-624225cbc8` hit the agent-command variant during a
+Dreamer evidence-only build pass: the first context read used `rtk` with a whole
+multi-command shell snippet as one quoted argument, produced exit 127, and was
+then reported as "`rtk` is unavailable" even though the wrapper was present. WHY:
+future agents need to distinguish wrapper availability from command construction
+errors, because misdiagnosing the wrapper can hide the repo's required command
+contract and cause later evidence to be gathered through inconsistent shell
+forms.

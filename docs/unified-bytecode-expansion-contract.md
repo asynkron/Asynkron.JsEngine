@@ -145,20 +145,22 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   chain is activation-resolved, and direct computed member calls whose receiver
   chain is activation-resolved. Arguments must be simple literal or slot
   operands; computed member keys must also be simple literal or slot operands.
+  For accepted member receiver chains, the call receiver is the final resolved
+  receiver object, not the root object.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
   helpers with the active `EvaluationContext` and caller `JsEnvironment` when
   the callee needs environment-aware or debug-aware invocation state.
 - Accepted named member-call programs use `PrepareNamedCallTarget` followed by
-  `CallInvocationBoundary`; the VM keeps the receiver on the stack, loads the
-  named callee from that receiver, and invokes through the existing
+  `CallInvocationBoundary`; the VM keeps the final receiver on the stack, loads
+  the named callee from that receiver, and invokes through the existing
   receiver-as-`this` stack contract.
 - Accepted computed member-call programs use `PrepareComputedCallTarget`
-  followed by `CallInvocationBoundary`; the VM keeps the receiver on the stack,
-  consumes the computed key with normal property-key semantics, loads the callee
-  from that receiver, and invokes through the existing receiver-as-`this` stack
-  contract.
+  followed by `CallInvocationBoundary`; the VM keeps the final receiver on the
+  stack, preserves nullish-receiver-before-key-coercion ordering, consumes the
+  computed key with normal property-key semantics, loads the callee from that
+  receiver, and invokes through the existing receiver-as-`this` stack contract.
 - Direct eval, spread calls, construct/super calls, optional calls,
   private/super member targets, arguments-object dependencies, dynamic lookup,
   complex receiver/key shapes, and receiver-binding-sensitive adjacent families

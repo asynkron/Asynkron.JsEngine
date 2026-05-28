@@ -154,6 +154,10 @@ public static partial class TypedAstEvaluator
                                 frame.ProgramCounter = ((PopEnvironmentInstruction)instruction).Next;
                                 break;
 
+                            case InstructionKind.FunctionDeclaration:
+                                frame.ProgramCounter = ((FunctionDeclarationInstruction)instruction).Next;
+                                break;
+
                             case InstructionKind.Return:
                                 {
                                     var returnInstruction = (ReturnInstruction)instruction;
@@ -294,8 +298,18 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case ReturnInstruction { ReturnProgram: null, AwaitedProgram: null }:
+                        case FunctionDeclarationInstruction { Descriptor: null }:
+                        case EvaluateAndDiscardInstruction:
                         case JumpInstruction:
                         case SetCompletionValueInstruction:
+                            break;
+
+                        case FunctionDeclarationInstruction { Descriptor: { } descriptor }:
+                            if (!IsSelfReturnHelperFunction(invoker, descriptor.Function))
+                            {
+                                return false;
+                            }
+
                             break;
 
                         case ReturnInstruction { AwaitedProgram: not null }:
@@ -346,20 +360,33 @@ public static partial class TypedAstEvaluator
                                 return false;
                             }
 
-                            tags[tagIndex++] = ExpressionStackTag.Value;
+                            tags[tagIndex++] = CanReadSelfIdentifier(
+                                invoker,
+                                operation.GetIdentifier(identifierConstants),
+                                activationSlots)
+                                ? ExpressionStackTag.SelfCallee
+                                : ExpressionStackTag.Value;
                             break;
 
                         case ExpressionOpKind.LoadIdentifierCallTarget:
-                            if (!CanReadSelfIdentifier(
+                            var callTargetIdentifier = operation.GetIdentifier(identifierConstants);
+                            if (CanReadSelfIdentifier(invoker, callTargetIdentifier, activationSlots))
+                            {
+                                tags[tagIndex++] = ExpressionStackTag.SelfReceiver;
+                                tags[tagIndex++] = ExpressionStackTag.SelfCallee;
+                                break;
+                            }
+
+                            if (!CanReadSelfReturnHelperIdentifier(
                                     invoker,
-                                    operation.GetIdentifier(identifierConstants),
+                                    callTargetIdentifier,
                                     activationSlots))
                             {
                                 return false;
                             }
 
-                            tags[tagIndex++] = ExpressionStackTag.SelfReceiver;
-                            tags[tagIndex++] = ExpressionStackTag.SelfCallee;
+                            tags[tagIndex++] = ExpressionStackTag.Value;
+                            tags[tagIndex++] = ExpressionStackTag.SelfReturnHelperCallee;
                             break;
 
                         case ExpressionOpKind.Binary:
@@ -396,24 +423,56 @@ public static partial class TypedAstEvaluator
 
                         case ExpressionOpKind.Call:
                             if (operation.SpreadMaskConstantIndex >= 0 ||
-                                !operation.HasExplicitThis ||
-                                tagIndex < operation.ArgumentCount + 2 ||
-                                purpose != ExpressionPurpose.Return ||
-                                pc != program.OperationCount - 1)
+                                purpose != ExpressionPurpose.Return)
                             {
                                 return false;
                             }
 
                             var calleeIndex = tagIndex - operation.ArgumentCount - 1;
-                            var receiverIndex = calleeIndex - 1;
-                            if (tags[receiverIndex] != ExpressionStackTag.SelfReceiver ||
+                            if (pc != program.OperationCount - 1)
+                            {
+                                if (!operation.HasExplicitThis ||
+                                    operation.ArgumentCount != 0 ||
+                                    tagIndex < 2 ||
+                                    tags[calleeIndex] != ExpressionStackTag.SelfReturnHelperCallee)
+                                {
+                                    return false;
+                                }
+
+                                var helperReceiverIndex = calleeIndex - 1;
+                                tagIndex = helperReceiverIndex + 1;
+                                tags[helperReceiverIndex] = ExpressionStackTag.SelfCallee;
+                                break;
+                            }
+
+                            if (operation.HasExplicitThis)
+                            {
+                                if (tagIndex < operation.ArgumentCount + 2)
+                                {
+                                    return false;
+                                }
+
+                                var receiverIndex = calleeIndex - 1;
+                                if (tags[receiverIndex] != ExpressionStackTag.SelfReceiver ||
+                                    tags[calleeIndex] != ExpressionStackTag.SelfCallee)
+                                {
+                                    return false;
+                                }
+
+                                tagIndex = receiverIndex + 1;
+                                tags[receiverIndex] = ExpressionStackTag.Value;
+                                break;
+                            }
+
+                            if (!invoker._isStrict ||
+                                tagIndex < operation.ArgumentCount + 1 ||
                                 tags[calleeIndex] != ExpressionStackTag.SelfCallee)
                             {
                                 return false;
                             }
 
-                            tagIndex = receiverIndex + 1;
-                            tags[receiverIndex] = ExpressionStackTag.Value;
+                            tagIndex = calleeIndex + 1;
+                            tags[calleeIndex] = ExpressionStackTag.Value;
                             break;
 
                         default:
@@ -438,6 +497,75 @@ public static partial class TypedAstEvaluator
                 invoker._function.Name is { } functionName &&
                 !IsParameterSlot(identifier, activationSlots) &&
                 string.Equals(identifier.Name.Name, functionName.Name, StringComparison.Ordinal);
+
+            private static bool CanReadSelfReturnHelperIdentifier(
+                SyncFunctionInvoker invoker,
+                IdentifierOperand identifier,
+                ActivationSlotShape activationSlots) =>
+                !IsParameterSlot(identifier, activationSlots) &&
+                (HasLocalSelfReturnHelperDeclaration(invoker, identifier.Name) ||
+                 TryGetClosureSelfReturnHelper(invoker, identifier.Name, out _));
+
+            private static bool HasLocalSelfReturnHelperDeclaration(
+                SyncFunctionInvoker invoker,
+                Symbol name)
+            {
+                foreach (var statement in invoker._function.Body.Statements)
+                {
+                    if (statement is FunctionDeclaration declaration &&
+                        string.Equals(declaration.Name.Name, name.Name, StringComparison.Ordinal) &&
+                        IsSelfReturnHelperFunction(invoker, declaration.Function))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            private static bool TryGetClosureSelfReturnHelper(
+                SyncFunctionInvoker invoker,
+                Symbol name,
+                out SyncFunctionInvoker helper)
+            {
+                for (var current = invoker._closure; current is not null; current = current.Enclosing)
+                {
+                    if (!current.TryGetSlotIndex(name, out var slotIndex))
+                    {
+                        continue;
+                    }
+
+                    var value = current.GetSlotByIndex(slotIndex).Value;
+                    if (value.TryGetObject<SyncFunctionInvoker>(out var candidate) &&
+                        IsSelfReturnHelperFunction(invoker, candidate._function))
+                    {
+                        helper = candidate;
+                        return true;
+                    }
+
+                    break;
+                }
+
+                helper = null!;
+                return false;
+            }
+
+            private static bool IsSelfReturnHelperFunction(
+                SyncFunctionInvoker invoker,
+                FunctionExpression helper)
+            {
+                if (helper.IsAsync ||
+                    helper.IsGenerator ||
+                    helper.Parameters.Length != 0 ||
+                    invoker._function.Name is not { } functionName ||
+                    helper.Body.Statements.Length != 1 ||
+                    helper.Body.Statements[0] is not ReturnStatement { Expression: IdentifierExpression identifier })
+                {
+                    return false;
+                }
+
+                return string.Equals(identifier.Name.Name, functionName.Name, StringComparison.Ordinal);
+            }
 
             private static bool IsParameterSlot(
                 IdentifierOperand identifier,
@@ -562,7 +690,17 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.LoadIdentifierCallTarget:
                             {
                                 var identifier = operation.GetIdentifier(identifierConstants);
-                                if (!CanReadSelfIdentifier(frame.Invoker!, identifier, frame.ActivationSlots!))
+                                if (CanReadSelfIdentifier(frame.Invoker!, identifier, frame.ActivationSlots!))
+                                {
+                                    stack[frame.ExpressionStackIndex++] = JsValue.Undefined;
+                                    SetExpressionStackFlag(frame, frame.ExpressionStackIndex - 1, false);
+                                    stack[frame.ExpressionStackIndex++] = frame.Invoker!._cachedJsValue;
+                                    SetExpressionStackFlag(frame, frame.ExpressionStackIndex - 1, false);
+                                    frame.ExpressionProgramCounter++;
+                                    break;
+                                }
+
+                                if (!TryResolveSelfReturnHelperIdentifier(frame, identifier))
                                 {
                                     return StepResult.Bail;
                                 }
@@ -653,24 +791,55 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.Call:
                             {
                                 if (operation.SpreadMaskConstantIndex >= 0 ||
-                                    !operation.HasExplicitThis ||
-                                    frame.ExpressionPurpose != ExpressionPurpose.Return ||
-                                    frame.ExpressionProgramCounter != operationCount - 1)
+                                    frame.ExpressionPurpose != ExpressionPurpose.Return)
                                 {
                                     return StepResult.Bail;
                                 }
 
                                 var argumentCount = operation.ArgumentCount;
                                 var calleeIndex = frame.ExpressionStackIndex - argumentCount - 1;
-                                var receiverIndex = calleeIndex - 1;
-                                if (receiverIndex < 0 ||
+                                if (frame.ExpressionProgramCounter != operationCount - 1)
+                                {
+                                    if (!operation.HasExplicitThis ||
+                                        argumentCount != 0 ||
+                                        calleeIndex <= 0 ||
+                                        stack[calleeIndex].ObjectValue is not SyncFunctionInvoker helperResult ||
+                                        !ReferenceEquals(helperResult, frame.Invoker))
+                                    {
+                                        return StepResult.Bail;
+                                    }
+
+                                    var receiverIndex = calleeIndex - 1;
+                                    stack[receiverIndex] = frame.Invoker!._cachedJsValue;
+                                    SetExpressionStackFlag(frame, receiverIndex, false);
+                                    frame.ExpressionStackIndex = receiverIndex + 1;
+                                    frame.ExpressionProgramCounter++;
+                                    break;
+                                }
+
+                                if (calleeIndex < 0 ||
                                     stack[calleeIndex].ObjectValue is not SyncFunctionInvoker callee ||
                                     !ReferenceEquals(callee, frame.Invoker))
                                 {
                                     return StepResult.Bail;
                                 }
 
-                                var restartThisValue = stack[receiverIndex];
+                                var restartThisValue = JsValue.Undefined;
+                                if (operation.HasExplicitThis)
+                                {
+                                    var receiverIndex = calleeIndex - 1;
+                                    if (receiverIndex < 0)
+                                    {
+                                        return StepResult.Bail;
+                                    }
+
+                                    restartThisValue = stack[receiverIndex];
+                                }
+                                else if (!callee._isStrict)
+                                {
+                                    return StepResult.Bail;
+                                }
+
                                 frame.ExpressionProgramCounter++;
                                 InitializeFrame(ref frame, callee, restartThisValue, frame.Plan);
 
@@ -743,6 +912,17 @@ public static partial class TypedAstEvaluator
 
                 value = JsValue.Undefined;
                 return false;
+            }
+
+            private static bool TryResolveSelfReturnHelperIdentifier(
+                SyncIrFrame frame,
+                IdentifierOperand identifier)
+            {
+                var invoker = frame.Invoker!;
+                var activationSlots = frame.ActivationSlots!;
+                return !IsParameterSlot(identifier, activationSlots) &&
+                       (HasLocalSelfReturnHelperDeclaration(invoker, identifier.Name) ||
+                        TryGetClosureSelfReturnHelper(invoker, identifier.Name, out _));
             }
 
             private static bool ReturnFromFrame(
@@ -953,7 +1133,8 @@ public static partial class TypedAstEvaluator
             {
                 Value,
                 SelfReceiver,
-                SelfCallee
+                SelfCallee,
+                SelfReturnHelperCallee
             }
 
             private enum StepResult : byte

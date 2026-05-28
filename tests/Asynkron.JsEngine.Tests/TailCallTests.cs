@@ -362,6 +362,75 @@ public sealed class TailCallTests(ITestOutputHelper output) : InternalTestBase(o
         Assert.Equal(1d, result);
     }
 
+    [Fact(Timeout = 15000)]
+    public async Task StrictSameFunctionTailCall_TaggedTemplateSelfCallDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let finished = false;
+            (function f(_, n) {
+                "use strict";
+                if (n === 0) {
+                    finished = true;
+                    return;
+                }
+
+                return f`${n - 1}`;
+            }(null, 1500));
+            finished;
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task StrictSameFunctionTailCall_IndirectTaggedTemplateSelfCallDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let finished = false;
+            (function f(_, n) {
+                "use strict";
+                if (n === 0) {
+                    finished = true;
+                    return;
+                }
+
+                function getF() { return f; }
+                return getF()`${n - 1}`;
+            }(null, 1500));
+            finished;
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 15000)]
+    public async Task StrictSameFunctionTailCall_ClosureIndirectTaggedTemplateSelfCallDoesNotGrowCallDepth()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function() {
+                let finished = false;
+                function getF() { return f; }
+                function f(_, n) {
+                    "use strict";
+                    if (n === 0) {
+                        finished = true;
+                        return;
+                    }
+
+                    return getF()`${n - 1}`;
+                }
+
+                f(null, 1500);
+                return finished;
+            }());
+            """);
+
+        Assert.Equal(true, result);
+    }
+
     [Fact(Timeout = 5000)]
     public async Task StrictSameFunctionTailCall_IndirectCalleeExpressionDoesNotReuseLeakedCapturedActivation()
     {

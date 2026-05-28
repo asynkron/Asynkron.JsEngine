@@ -1786,7 +1786,8 @@ public static partial class TypedAstEvaluator
                     plan?.GetHashCode() ?? -1);
                 if (plan is not null)
                 {
-                    if (TryInvokeSimpleDerivedClassConstructorFastPath(
+                    if (IsClassConstructor && _isDerivedClassConstructor &&
+                        TryInvokeSimpleDerivedClassConstructorFastPath(
                             arguments,
                             thisValue,
                             callingContext,
@@ -1799,7 +1800,8 @@ public static partial class TypedAstEvaluator
                         return derivedConstructorFastResult;
                     }
 
-                    if (TryInvokeSimpleBaseClassConstructorFastPath(
+                    if (IsClassConstructor && !_isDerivedClassConstructor &&
+                        TryInvokeSimpleBaseClassConstructorFastPath(
                             arguments,
                             thisValue,
                             callingContext,
@@ -3436,6 +3438,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment.SetThisInitializationStatus(false);
             functionEnvironment.DefineJsValue(Symbol.This, JsValue.Uninitialized);
+            functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
+                JsValue.FromObjectUnsafe(functionEnvironment));
             functionEnvironment.DefineJsValue(Symbol.NewTarget, newTarget, true, isLexicalBinding: true,
                 blocksFunctionScopeOverride: true);
             functionEnvironment.DefineJsValue(Symbol.ActiveFunction, _cachedJsValue, true,

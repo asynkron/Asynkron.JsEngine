@@ -74,6 +74,113 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task WithDynamicIdentifierOperations_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(scope) {
+                with (scope) {
+                    value = value + 2;
+                    ++count;
+                    missingType = typeof missing;
+                    deleteResult = delete removable;
+                    removableType = typeof removable;
+                    return value + ":" +
+                        count + ":" +
+                        missingType + ":" +
+                        deleteResult + ":" +
+                        removableType;
+                }
+            }
+
+            run({
+                value: 1,
+                count: 4,
+                removable: 9,
+                missingType: "",
+                deleteResult: false,
+                removableType: ""
+            });
+            """);
+
+        Assert.Equal("3:5:undefined:true:undefined", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task WithDynamicIdentifierCallTarget_UsesWithReceiverOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(scope) {
+                with (scope) {
+                    return finish();
+                }
+            }
+
+            run({
+                marker: 17,
+                finish: function() {
+                    return this.marker;
+                }
+            });
+            """);
+
+        Assert.Equal(17d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task WithDynamicIdentifierLookup_RespectsProxyAndUnscopablesOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            var hidden = 40;
+
+            function run(scope) {
+                with (scope) {
+                    return hidden + visible;
+                }
+            }
+
+            var target = {
+                hidden: 1,
+                visible: 2
+            };
+            target[Symbol.unscopables] = { hidden: true };
+
+            var proxy = new Proxy(target, {
+                has: function(obj, prop) {
+                    log.push("has:" + String(prop));
+                    return prop in obj;
+                },
+                get: function(obj, prop, receiver) {
+                    log.push("get:" + String(prop));
+                    return Reflect.get(obj, prop, receiver);
+                }
+            });
+
+            run(proxy) + ":" +
+                (log.indexOf("has:hidden") >= 0) + ":" +
+                (log.indexOf("has:visible") >= 0) + ":" +
+                (log.indexOf("get:visible") >= 0);
+            """);
+
+        Assert.Equal("42:true:true:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

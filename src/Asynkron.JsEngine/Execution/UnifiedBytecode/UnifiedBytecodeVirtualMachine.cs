@@ -35,6 +35,8 @@ internal static class UnifiedBytecodeVirtualMachine
             : InitializeSlotEnvironments(program, callingEnvironment);
         EnvironmentScopeFrame[]? environmentStack = null;
         var environmentStackCount = 0;
+        AssignmentReference[]? dynamicIdentifierReferences = null;
+        var dynamicIdentifierReferenceCount = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
@@ -52,6 +54,20 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     stack[stackPointer++] = slotValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
+                    var dynamicLoadEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    stack[stackPointer++] = GetDynamicIdentifierValue(
+                        program.StringConstants[instruction.Operand],
+                        dynamicLoadEnvironment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     programCounter++;
                     break;
 
@@ -87,6 +103,22 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     stack[stackPointer++] = JsValue.Undefined;
                     stack[stackPointer++] = callableValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
+                    var dynamicCallEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    PrepareDynamicIdentifierCallTarget(
+                        program.StringConstants[instruction.Operand],
+                        dynamicCallEnvironment,
+                        stack,
+                        ref stackPointer,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     programCounter++;
                     break;
 
@@ -151,6 +183,86 @@ internal static class UnifiedBytecodeVirtualMachine
                     slots[instruction.Operand] = storedValue;
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, storedValue);
 
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
+                    var dynamicStoredValue = stack[stackPointer - 1];
+                    StoreDynamicIdentifierValue(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        dynamicStoredValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
+                    dynamicIdentifierReferences ??= new AssignmentReference[instructions.Length];
+                    dynamicIdentifierReferences[dynamicIdentifierReferenceCount++] =
+                        RequireDynamicEnvironment(currentCallingEnvironment)
+                            .ResolveIdentifierAssignmentReference(
+                                Symbol.Intern(program.StringConstants[instruction.Operand]),
+                                context);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:
+                    if (dynamicIdentifierReferenceCount == 0 || dynamicIdentifierReferences is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Unified bytecode attempted to load a missing dynamic identifier reference.");
+                    }
+
+                    stack[stackPointer++] =
+                        dynamicIdentifierReferences[dynamicIdentifierReferenceCount - 1].GetJsValue();
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.StoreDynamicIdentifierReference:
+                    if (dynamicIdentifierReferenceCount == 0 || dynamicIdentifierReferences is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Unified bytecode attempted to store through a missing dynamic identifier reference.");
+                    }
+
+                    var dynamicReferenceValue = stack[stackPointer - 1];
+                    var dynamicReferenceName = program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)];
+                    if (DecodeDynamicStoreAllowsNameInference(instruction.Operand) &&
+                        dynamicReferenceValue is
+                            { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+                    {
+                        nameTarget.EnsureHasName(dynamicReferenceName);
+                    }
+
+                    dynamicIdentifierReferences[--dynamicIdentifierReferenceCount].SetValue(dynamicReferenceValue);
+                    dynamicIdentifierReferences[dynamicIdentifierReferenceCount] = default;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PopDynamicIdentifierReference:
+                    if (dynamicIdentifierReferenceCount == 0 || dynamicIdentifierReferences is null)
+                    {
+                        throw new InvalidOperationException(
+                            "Unified bytecode attempted to pop a missing dynamic identifier reference.");
+                    }
+
+                    dynamicIdentifierReferences[--dynamicIdentifierReferenceCount] = default;
                     programCounter++;
                     break;
 
@@ -329,6 +441,21 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:
+                    stack[stackPointer++] = UpdateDynamicIdentifierValue(
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.TypeOf:
                     stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
                     programCounter++;
@@ -343,6 +470,30 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     stack[stackPointer++] = new JsValue(GetTypeofStringValue(typeOfValue));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.TypeOfDynamicIdentifier:
+                    stack[stackPointer++] = TypeOfDynamicIdentifier(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteDynamicIdentifier:
+                    stack[stackPointer++] = DeleteDynamicIdentifier(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict)
+                        ? JsValue.True
+                        : JsValue.False;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     programCounter++;
                     break;
 
@@ -538,6 +689,35 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.EnterWith:
+                    var withObjectValue = stack[--stackPointer];
+                    if (TypedAstEvaluator.TryConvertToWithBindingObject(withObjectValue, context, out var withObject))
+                    {
+                        currentCallingEnvironment = JsEnvironment.CreateInstance(
+                            RequireDynamicEnvironment(currentCallingEnvironment),
+                            isFunctionScope: false,
+                            isStrict: context.CurrentScope.IsStrict || isStrict,
+                            description: "unified-bytecode-with",
+                            withObject: withObject);
+                    }
+
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LeaveWith:
+                    if (currentCallingEnvironment is { Enclosing: { } enclosing })
+                    {
+                        currentCallingEnvironment = enclosing;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Return:
                     return stack[stackPointer - 1];
 
@@ -554,6 +734,195 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         throw new InvalidOperationException("Program terminated without Return.");
+    }
+
+    private static JsEnvironment RequireDynamicEnvironment(JsEnvironment? environment)
+    {
+        return environment ??
+               throw new InvalidOperationException("Dynamic unified bytecode operation requires an environment.");
+    }
+
+    private static JsValue GetDynamicIdentifierValue(
+        string name,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var symbol = Symbol.Intern(name);
+        try
+        {
+            return environment.TryGetIdentifierJsValue(symbol, context, out var value)
+                ? value
+                : SetIdentifierNotFound(symbol, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return JsValue.Undefined;
+        }
+    }
+
+    private static void StoreDynamicIdentifierValue(
+        string name,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var symbol = Symbol.Intern(name);
+        if (allowNameInference &&
+            value is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+        {
+            nameTarget.EnsureHasName(name);
+        }
+
+        try
+        {
+            environment.SetIdentifierJsValue(symbol, value, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
+    }
+
+    private static JsValue UpdateDynamicIdentifierValue(
+        string name,
+        bool isIncrement,
+        bool isPrefix,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var symbol = Symbol.Intern(name);
+        var reference = environment.ResolveIdentifierAssignmentReference(symbol, context);
+        JsValue currentValue;
+        try
+        {
+            currentValue = reference.GetJsValue();
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return JsValue.Undefined;
+        }
+
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        GetUpdatedNumericValue(
+            currentValue,
+            isIncrement,
+            context,
+            out var oldNumericValue,
+            out var newValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        try
+        {
+            reference.SetValue(newValue);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return JsValue.Undefined;
+        }
+
+        return isPrefix ? newValue : oldNumericValue;
+    }
+
+    private static JsValue TypeOfDynamicIdentifier(
+        string name,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var symbol = Symbol.Intern(name);
+        var hasBinding = environment.HasBinding(symbol);
+        var value = GetDynamicIdentifierValue(name, environment, context);
+        if (context.IsThrow && !hasBinding)
+        {
+            context.Clear();
+            return new JsValue("undefined");
+        }
+
+        return context.ShouldStopEvaluation
+            ? JsValue.Undefined
+            : new JsValue(GetTypeofStringValue(value));
+    }
+
+    private static bool DeleteDynamicIdentifier(
+        string name,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        if (context.CurrentScope.IsStrict || isStrict)
+        {
+            context.SetThrow(StandardLibrary.CreateSyntaxError(
+                "Delete of an unqualified identifier is not allowed in strict mode.",
+                context,
+                context.RealmState));
+            return false;
+        }
+
+        var outcome = environment.DeleteBinding(Symbol.Intern(name));
+        return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+    }
+
+    private static void PrepareDynamicIdentifierCallTarget(
+        string name,
+        JsEnvironment environment,
+        Span<JsValue> stack,
+        ref int stackPointer,
+        EvaluationContext context)
+    {
+        var symbol = Symbol.Intern(name);
+        if (!context.AllowIdentifierCache &&
+            environment.TryResolveWithBinding(symbol, context, out var withBinding))
+        {
+            stack[stackPointer++] = JsValue.FromObjectUnsafe(withBinding.BindingObject);
+            try
+            {
+                stack[stackPointer++] = JsEnvironment.GetWithBindingValueJsValue(withBinding);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.StartsWith(
+                                                       "ReferenceError:",
+                                                       StringComparison.Ordinal))
+            {
+                context.SetThrow(StandardLibrary.CreateReferenceError(
+                    ex.Message,
+                    context,
+                    context.RealmState));
+                stack[stackPointer++] = JsValue.Undefined;
+            }
+
+            return;
+        }
+
+        stack[stackPointer++] = JsValue.Undefined;
+        try
+        {
+            stack[stackPointer++] = environment.TryGetIdentifierJsValueAfterWithMiss(symbol, context, out var value)
+                ? value
+                : SetIdentifierNotFound(symbol, context);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            stack[stackPointer++] = JsValue.Undefined;
+        }
+    }
+
+    private static JsValue SetIdentifierNotFound(Symbol name, EvaluationContext context)
+    {
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            $"{name.Name} is not defined",
+            context,
+            context.RealmState));
+        return JsValue.Undefined;
     }
 
     private static JsEnvironment?[] InitializeSlotEnvironments(
@@ -1081,6 +1450,11 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     private static int DecodeStringOperand(int operand) => operand >> 2;
+
+    private static int DecodeDynamicStoreNameOperand(int operand) => operand >> 1;
+
+    private static bool DecodeDynamicStoreAllowsNameInference(int operand) =>
+        (operand & 1) != 0;
 
     private static int DecodeDefineObjectPropertyNameOperand(int operand) => operand >> 3;
 

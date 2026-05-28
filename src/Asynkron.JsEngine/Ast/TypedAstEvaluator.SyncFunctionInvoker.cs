@@ -104,6 +104,9 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasHoistableDeclarations;
+        private readonly bool _hasBodyWithStatement;
+        private readonly bool _hasDirectEvalInBodyOrParameters;
+        private readonly bool _hasClosureWithObject;
         private readonly bool _canUseArrayIterationSingleArgumentFastPath;
         private readonly bool _canUseArrayReduceTwoArgumentFastPath;
 
@@ -176,7 +179,12 @@ public static partial class TypedAstEvaluator
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
             // need to check with bindings at runtime)
-            _allowIdentifierCache = AllowsIdentifierCaching(_function) && !closure.HasWithObjectInChain();
+            _hasBodyWithStatement = DynamicScopeDetector.ContainsWithStatement(_function.Body);
+            _hasDirectEvalInBodyOrParameters =
+                DynamicScopeDetector.ContainsDirectEvalInParameters(_function.Parameters) ||
+                DynamicScopeDetector.ContainsDirectEval(_function.Body);
+            _hasClosureWithObject = closure.HasWithObjectInChain();
+            _allowIdentifierCache = AllowsIdentifierCaching(_function) && !_hasClosureWithObject;
             _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
             _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
             _hasCapturedActivationInClosure = HasCapturedActivationInClosure(closure);
@@ -3073,7 +3081,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var instructions = program.Instructions;
             for (var i = 0; i < instructions.Length; i++)
             {
-                if (instructions[i].OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary)
+                if (instructions[i].OpCode is
+                    UnifiedBytecodeOpCode.CallInvocationBoundary or
+                    UnifiedBytecodeOpCode.LoadDynamicIdentifier or
+                    UnifiedBytecodeOpCode.StoreDynamicIdentifier or
+                    UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
+                    UnifiedBytecodeOpCode.LoadDynamicIdentifierReference or
+                    UnifiedBytecodeOpCode.StoreDynamicIdentifierReference or
+                    UnifiedBytecodeOpCode.PopDynamicIdentifierReference or
+                    UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
+                    UnifiedBytecodeOpCode.TypeOfDynamicIdentifier or
+                    UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
+                    UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
+                    UnifiedBytecodeOpCode.EnterWith or
+                    UnifiedBytecodeOpCode.LeaveWith)
                 {
                     return true;
                 }
@@ -3108,6 +3129,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
+            var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             if (!newTarget.IsUndefined ||
                 IsClassConstructor ||
                 IsArrowFunction ||
@@ -3117,8 +3139,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
                 _usesArguments ||
-                _needsArgumentsBinding ||
-                !_allowIdentifierCache ||
+                _needsArgumentsBinding && !canUseDynamicNamePath ||
+                !_allowIdentifierCache && !canUseDynamicNamePath ||
                 _lexicalThisEnvironment is not null ||
                 _homeObject is not null ||
                 PrivateNameScope is not null ||
@@ -3131,18 +3153,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            return CanUseSimpleIrActivationPlanShape(plan);
+            return CanUseProductionUnifiedBytecodePlanShape(plan, canUseDynamicNamePath);
         }
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
         {
+            var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
                 IsGenerator: _function.IsGenerator,
-                HasCapturedOrDynamicActivation: _hasCapturedActivationInClosure || !_allowIdentifierCache,
-                HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding,
-                HasCallDependency: _hasNonParameterCalleeCall,
-                HasDynamicLookupDependency: !_allowIdentifierCache);
+                HasCapturedOrDynamicActivation:
+                    _hasCapturedActivationInClosure || !_allowIdentifierCache && !canUseDynamicNamePath,
+                HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath,
+                HasCallDependency: _hasNonParameterCalleeCall && !canUseDynamicNamePath,
+                HasDynamicLookupDependency: !_allowIdentifierCache && !canUseDynamicNamePath);
         }
 
         private bool HasParameterNamed(Symbol name)
@@ -3184,6 +3208,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             where TArgs : IReadOnlyList<JsValue>
         {
             var parameterSlotIndices = program.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefault)
+            {
+                return;
+            }
+
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 var parameterSlotIndex = parameterSlotIndices[i];
@@ -3450,6 +3479,34 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    activationSlots.ParameterSlotIndices.Length == _parameterNames.Length;
         }
 
+        private bool CanUseProductionUnifiedBytecodeDynamicNameFastPath()
+        {
+            return _hasBodyWithStatement &&
+                   !_hasDirectEvalInBodyOrParameters &&
+                   !_hasClosureWithObject &&
+                   !_hasCapturedActivationInClosure &&
+                   !_usesArguments;
+        }
+
+        private bool CanUseProductionUnifiedBytecodePlanShape(
+            ExecutionPlan plan,
+            bool canUseDynamicNamePath)
+        {
+            if (plan.ActivationSlots is not { } activationSlots ||
+                activationSlots.ScopeId != plan.RootScopeId ||
+                activationSlots.LayoutId != plan.LayoutId)
+            {
+                return false;
+            }
+
+            if (!activationSlots.ParameterSlotIndices.IsDefault)
+            {
+                return activationSlots.ParameterSlotIndices.Length == _parameterNames.Length;
+            }
+
+            return canUseDynamicNamePath;
+        }
+
         private static bool HasCapturedActivationInClosure(JsEnvironment closure)
         {
             var current = closure;
@@ -3634,6 +3691,17 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             where TArgs : IReadOnlyList<JsValue>
         {
             var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefault)
+            {
+                for (var i = 0; i < _parameterNames.Length; i++)
+                {
+                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    executionEnvironment.DefineParameterFast(_parameterNames[i], value);
+                }
+
+                return;
+            }
+
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;

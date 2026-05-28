@@ -96,6 +96,24 @@ internal static class UnifiedBytecodeVirtualMachine
 
         var programCounter = 0;
         var instructions = program.Instructions;
+        bool TryHandleCurrentContextThrow()
+        {
+            if (!HandleContextThrow(
+                context,
+                tryStack,
+                ref programCounter,
+                ref currentCallingEnvironment,
+                slotEnvironments,
+                ref environmentStack,
+                ref environmentStackCount))
+            {
+                return false;
+            }
+
+            stackPointer = 0;
+            return true;
+        }
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -108,6 +126,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (slotValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -123,6 +146,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -156,6 +184,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (callableValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -174,6 +207,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -196,6 +234,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -215,6 +258,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = GetComputedCallTargetValue(computedCallReceiver, computedCallKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -263,6 +311,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -279,6 +332,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -306,6 +364,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         dynamicIdentifierReferences[dynamicIdentifierReferenceCount - 1].GetJsValue();
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -332,6 +395,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     dynamicIdentifierReferences[dynamicIdentifierReferenceCount] = default;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -356,6 +424,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -370,6 +443,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Cannot read properties of null or undefined",
                             context,
                             context.RealmState));
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -380,6 +458,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = ResolvePropertyKey(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -393,6 +476,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -407,6 +495,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -421,6 +514,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -439,6 +537,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.Undefined;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -456,6 +559,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -470,12 +578,22 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedSetName = JsOps.GetRequiredPropertyName(computedSetKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
                     SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context, isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -494,6 +612,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -506,6 +629,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedUpdateName = JsOps.GetRequiredPropertyName(computedUpdateKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -518,6 +646,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         isStrict);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -533,6 +666,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -549,6 +687,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     if (typeOfValue.IsUninitialized)
                     {
                         SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -574,6 +717,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         : JsValue.False;
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return JsValue.Undefined;
                     }
 
@@ -585,6 +733,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -595,6 +748,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -610,6 +768,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -625,6 +788,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -704,6 +872,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     var computedObjectPropertyName = JsOps.GetRequiredPropertyName(computedObjectPropertyKey, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -723,6 +896,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
@@ -943,6 +1121,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     if (context.ShouldStopEvaluation)
                     {
+                        if (TryHandleCurrentContextThrow())
+                        {
+                            break;
+                        }
+
                         return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
@@ -982,6 +1165,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ref nextActiveDriverOrdinal,
                                 out var nextProgramCounter))
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -995,6 +1183,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         CloseIteratorDriverState(descriptor.StateSlot, slots, slotEnvironments, context, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                         }
 
@@ -1033,6 +1226,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         var sourceValue = stack[--stackPointer];
                         if (!TryGetIteratorForArrayDestructuring(sourceValue, context, out var state))
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -1053,6 +1251,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var value))
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -1076,6 +1279,11 @@ internal static class UnifiedBytecodeVirtualMachine
                                 context,
                                 out var restValue))
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
@@ -1091,6 +1299,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         CloseArrayDestructuringState(descriptor.StateSlot, slots, slotEnvironments, context, false);
                         if (context.ShouldStopEvaluation)
                         {
+                            if (TryHandleCurrentContextThrow())
+                            {
+                                break;
+                            }
+
                             return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                         }
 

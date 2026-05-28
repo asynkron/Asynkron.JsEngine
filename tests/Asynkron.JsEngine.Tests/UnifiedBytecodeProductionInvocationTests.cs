@@ -1388,6 +1388,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_GetterThrow_IsCaughtOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function recover(box) {
+                try {
+                    return box.value;
+                } catch (error) {
+                    return "caught:" + error;
+                }
+            }
+
+            recover({
+                get value() {
+                    throw "boom";
+                }
+            });
+            """);
+
+        Assert.Equal("caught:boom", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=recover argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndPrimitiveBoxing()
     {
         await using var engine = CreateEngine();

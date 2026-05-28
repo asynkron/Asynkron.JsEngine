@@ -123,23 +123,10 @@ internal static class UnifiedBytecodeCompiler
         var activationSlots = plan.ActivationSlots!;
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
-        if (flatSlotMappings.Count == 0)
-        {
-            var rootMappings = ImmutableArray.CreateBuilder<(int SlotIndex, int FlatSlotId)>(activationSlots.SlotCount);
-            for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
-            {
-                rootMappings.Add((slotIndex, slotIndex));
-            }
-
-            flatSlotMappings = ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty
-                .Add(
-                    activationSlots.ScopeId,
-                    rootMappings.ToImmutable());
-        }
-
-        var slotCount = plan.FlatSlotCount > 0 ? plan.FlatSlotCount : activationSlots.SlotCount;
+        flatSlotMappings = EnsureActivationSlotMappings(activationSlots, flatSlotMappings);
+        var slotCount = GetSlotCount(plan.FlatSlotCount, flatSlotMappings);
         var names = BuildSlotNames(plan.Instructions, activationSlots, flatSlotMappings, slotCount);
-        var parameterSlotIndices = RemapSlotIndices(
+        var parameterSlotIndices = RemapParameterSlotIndices(
             activationSlots.ScopeId,
             activationSlots.ParameterSlotIndices,
             flatSlotMappings);
@@ -155,6 +142,88 @@ internal static class UnifiedBytecodeCompiler
             parameterSlotIndices,
             lexicalSlotIndices,
             names);
+    }
+
+    private static ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> EnsureActivationSlotMappings(
+        ActivationSlotShape activationSlots,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
+    {
+        if (!flatSlotMappings.TryGetValue(activationSlots.ScopeId, out var mappings))
+        {
+            var rootMappings = ImmutableArray.CreateBuilder<(int SlotIndex, int FlatSlotId)>(activationSlots.SlotCount);
+            for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
+            {
+                rootMappings.Add((slotIndex, slotIndex));
+            }
+
+            return flatSlotMappings.Add(activationSlots.ScopeId, rootMappings.ToImmutable());
+        }
+
+        var mappedSlots = new HashSet<int>();
+        var usedFlatSlots = new HashSet<int>();
+        var nextFlatSlotId = 0;
+        foreach (var mapping in mappings)
+        {
+            mappedSlots.Add(mapping.SlotIndex);
+            usedFlatSlots.Add(mapping.FlatSlotId);
+            nextFlatSlotId = Math.Max(nextFlatSlotId, mapping.FlatSlotId + 1);
+        }
+
+        var hasAllActivationSlots = true;
+        for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
+        {
+            if (!mappedSlots.Contains(slotIndex))
+            {
+                hasAllActivationSlots = false;
+                break;
+            }
+        }
+
+        if (hasAllActivationSlots)
+        {
+            return flatSlotMappings;
+        }
+
+        var builder = mappings.ToBuilder();
+        for (var slotIndex = 0; slotIndex < activationSlots.SlotCount; slotIndex++)
+        {
+            if (mappedSlots.Contains(slotIndex))
+            {
+                continue;
+            }
+
+            var flatSlotId = slotIndex;
+            if (!usedFlatSlots.Add(flatSlotId))
+            {
+                while (usedFlatSlots.Contains(nextFlatSlotId))
+                {
+                    nextFlatSlotId++;
+                }
+
+                flatSlotId = nextFlatSlotId;
+                usedFlatSlots.Add(flatSlotId);
+            }
+
+            builder.Add((slotIndex, flatSlotId));
+        }
+
+        return flatSlotMappings.SetItem(activationSlots.ScopeId, builder.ToImmutable());
+    }
+
+    private static int GetSlotCount(
+        int flatSlotCount,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
+    {
+        var slotCount = Math.Max(flatSlotCount, 0);
+        foreach (var mappings in flatSlotMappings.Values)
+        {
+            foreach (var mapping in mappings)
+            {
+                slotCount = Math.Max(slotCount, mapping.FlatSlotId + 1);
+            }
+        }
+
+        return slotCount;
     }
 
     private static ImmutableArray<string?> BuildSlotNames(
@@ -229,6 +298,32 @@ internal static class UnifiedBytecodeCompiler
             {
                 builder.Add(flatSlotId);
             }
+        }
+
+        return builder.ToImmutable();
+    }
+
+    private static ImmutableArray<int> RemapParameterSlotIndices(
+        int scopeId,
+        ImmutableArray<int> slotIndices,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
+    {
+        if (slotIndices.IsDefault)
+        {
+            return default;
+        }
+
+        if (slotIndices.IsEmpty)
+        {
+            return ImmutableArray<int>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(slotIndices.Length);
+        foreach (var slotIndex in slotIndices)
+        {
+            builder.Add(TryMapSlot(scopeId, slotIndex, flatSlotMappings, out var flatSlotId)
+                ? flatSlotId
+                : -1);
         }
 
         return builder.ToImmutable();
@@ -357,7 +452,7 @@ internal static class UnifiedBytecodeCompiler
                             AwaitedProgram: null,
                             TargetSymbol: { } targetSymbol
                         } assignment:
-                        if (!TryResolveInstructionSlot(targetSymbol, assignment.FlatSlotId, activationSlots, out var assignmentSlot))
+                        if (!TryResolveInstructionSlot(targetSymbol, assignment.FlatSlotId, slotLayout, out var assignmentSlot))
                         {
                             reason = $"Unsupported assignment target '{targetSymbol.Name}'.";
                             return false;
@@ -399,7 +494,7 @@ internal static class UnifiedBytecodeCompiler
                             TargetSymbol: { } targetSymbol
                         } compoundAssignment
                         when IsSupportedBinaryOperator(compoundAssignment.Operator):
-                        if (!TryResolveInstructionSlot(targetSymbol, compoundAssignment.FlatSlotId, activationSlots, out var compoundSlot))
+                        if (!TryResolveInstructionSlot(targetSymbol, compoundAssignment.FlatSlotId, slotLayout, out var compoundSlot))
                         {
                             reason = $"Unsupported compound assignment target '{targetSymbol.Name}'.";
                             return false;
@@ -2474,7 +2569,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryResolveInstructionSlot(
         Symbol symbol,
         int flatSlotId,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         out int slotIndex)
     {
         if (flatSlotId >= 0)
@@ -2483,7 +2578,7 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        return TryResolveActivationSlot(symbol, activationSlots, out slotIndex);
+        return TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex);
     }
 
     private static bool TryResolveDeclarationSlot(
@@ -2495,7 +2590,7 @@ internal static class UnifiedBytecodeCompiler
     {
         if (varKind == VariableKind.Var)
         {
-            return TryResolveActivationSlot(symbol, slotLayout.ActivationSlots, out slotIndex);
+            return TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex);
         }
 
         if (activeScopes.Count > 0)
@@ -2548,6 +2643,22 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
-    private static bool TryResolveActivationSlot(Symbol symbol, ActivationSlotShape activationSlots, out int slotIndex) =>
-        activationSlots.SlotMap.TryGetValue(symbol, out slotIndex);
+    private static bool TryResolveActivationSymbolSlot(
+        Symbol symbol,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int slotIndex)
+    {
+        if (slotLayout.ActivationSlots.SlotMap.TryGetValue(symbol, out var activationSlotIndex) &&
+            TryMapSlot(
+                slotLayout.ActivationSlots.ScopeId,
+                activationSlotIndex,
+                slotLayout.FlatSlotMappings,
+                out slotIndex))
+        {
+            return true;
+        }
+
+        slotIndex = -1;
+        return false;
+    }
 }

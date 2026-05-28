@@ -3159,7 +3159,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var parameterSlotIndices = program.ParameterSlotIndices;
             for (var i = 0; i < _parameterNames.Length; i++)
             {
-                slots[parameterSlotIndices[i]] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                var parameterSlotIndex = parameterSlotIndices[i];
+                if (parameterSlotIndex >= 0)
+                {
+                    slots[parameterSlotIndex] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
             }
         }
 

@@ -227,12 +227,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } &&
-                TryFindDiscardedExpressionDecline(discardedProgram, out declineCode, out declineReason))
-            {
-                return true;
-            }
-
             if (TryGetExpressionProgram(instruction, out var program) &&
                 TryFindExpressionDecline(program, activationSlots, out declineCode, out declineReason))
             {

@@ -108,7 +108,22 @@ optimization.
     PR #2296 showed that this reorder can select a stale binding in direct-eval
     arrow constructor cases and break `super()` initialization semantics. ADR:
     `docs/adrs/0217-keep-derived-constructor-this-init-lookup-local-first.md`.
-6f. For simple numeric self-recursion fast-path widening, treat ADR 0241 and
+6f. Do not retry `IsThisInitializationKnownTrue(...)` or ordinary class-method
+    this-initialization guards as a `classdef` shortcut unless a fresh CPU
+    profile isolates that guard as the owner and repeated selected-profile A/B
+    rows clear the issue threshold. The existing local-first derived-constructor
+    path is the retained win; a context-known true shortcut that avoids
+    scope-chain searches in ordinary class method bodies did not pay for itself.
+    WHY: issue `autrun-diu3oshzfkm0-3ae6751fbf` / PR #2484 tried a guarded
+    early return based on `context.IsThisInitialized` plus absence of local
+    lexical-this and this-initialization bindings. Focused class, super,
+    class-element, and activation tests passed, but repeated `classdef` rows
+    were `947/927/777 ms` against a stable `728/770 ms` baseline range, so the
+    runtime edit was reverted and only
+    `docs/performance/failed-classdef-this-init-guard.md` was retained. Future
+    work should attack generic construction or `super(...)` dispatch only with
+    fresh owner evidence instead of retrying this guard.
+6g. For simple numeric self-recursion fast-path widening, treat ADR 0241 and
     ADR 0245 as the boundary. Admit one source shape at a time, keep the
     strict one-parameter/two-statement base-case detector, preserve the live
     recursive-binding identity check, and keep finite bounded integer input as

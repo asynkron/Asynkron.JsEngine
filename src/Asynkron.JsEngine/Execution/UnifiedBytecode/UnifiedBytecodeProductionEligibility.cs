@@ -893,7 +893,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount is not (2 or 3))
+        if (program.OperationCount < 2)
         {
             return false;
         }
@@ -1007,7 +1007,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        identifierConstants,
                        stringConstants,
                        activationSlots,
-                       namedCallTargetIndex) &&
+                       namedCallTargetIndex,
+                       allowDeepChain: true) &&
                    HasSimpleCallArguments(
                        program,
                        identifierConstants,
@@ -1028,7 +1029,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        identifierConstants,
                        stringConstants,
                        activationSlots,
-                       keyIndex) &&
+                       keyIndex,
+                       allowDeepChain: false) &&
                    IsSimpleComputedPropertyKey(
                        program.GetOperation(keyIndex),
                        identifierConstants,
@@ -1062,9 +1064,10 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
-        int endExclusive)
+        int endExclusive,
+        bool allowDeepChain)
     {
-        if (endExclusive is < 1 or > 3)
+        if (endExclusive < 1 || (!allowDeepChain && endExclusive > 3))
         {
             return false;
         }

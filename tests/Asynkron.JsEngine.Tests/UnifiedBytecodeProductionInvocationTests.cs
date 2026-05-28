@@ -907,6 +907,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DeeperNamedMemberCall_BindsThisToDeepestReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var root = {
+                offset: 1000,
+                child: {
+                    offset: 100,
+                    branch: {
+                        offset: 10,
+                        leaf: {
+                            offset: 1,
+                            read(value) {
+                                return this === root.child.branch.leaf ? value + this.offset : -1;
+                            }
+                        }
+                    }
+                }
+            };
+
+            function invoke(root, value) {
+                return root.child.branch.leaf.read(value);
+            }
+
+            invoke(root, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedMemberCall_PreservesKeyConversionSideEffectsAndThisBinding()
     {
         await using var engine = CreateEngine();
@@ -1831,6 +1866,49 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
             function read(box) {
                 return box.child.value;
+            }
+
+            read(box) + hits;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeeperNamedPropertyRead_UsesUnifiedBytecodeProductionFastPathAndGetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var box = {};
+            Object.defineProperty(box, "child", {
+                get() {
+                    hits = hits + 1;
+                    return {
+                        get branch() {
+                            hits = hits + 1;
+                            return {
+                                get leaf() {
+                                    hits = hits + 1;
+                                    return {
+                                        get value() {
+                                            hits = hits + 1;
+                                            return 38;
+                                        }
+                                    };
+                                }
+                            };
+                        }
+                    };
+                }
+            });
+
+            function read(box) {
+                return box.child.branch.leaf.value;
             }
 
             read(box) + hits;

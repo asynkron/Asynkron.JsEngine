@@ -7,9 +7,10 @@ Accepted
 Superseded in part on 2026-05-28 for the first executable no-spread
 activation-resolved identifier-call slice. The original decline-first decision
 was superseded again on 2026-05-28 for the direct named member-call slice from
-issue #2530 / PR #2534. It still applies to computed member calls, direct eval,
-spread calls, construct/super calls, optional calls, arguments-object
-dependencies, dynamic lookup, and other unproven call-adjacent families.
+issue #2530 / PR #2534 and again for the direct computed member-call slice from
+issue #2531 / PR #2535. It still applies to direct eval, spread calls,
+construct/super calls, optional calls, arguments-object dependencies, dynamic
+lookup, complex computed keys, and other unproven call-adjacent families.
 
 ## Context
 
@@ -49,10 +50,11 @@ boundary until a later slice proves full call invocation.
    family not explicitly admitted by a later executable call slice.
 3. The VM must not satisfy these opcodes by delegating to `ExpressionProgram`,
    `ExecutionPlanRunner`, AST evaluation, or host-call fallback.
-4. Computed member calls, direct eval, spread calls, construct/super calls,
-   optional calls, arguments object dependencies, dynamic lookup, private names,
-   and unproven receiver shapes stay outside the production route until
-   selector, compiler, VM, and public route proof move together.
+4. For the unsuperseded part of this boundary, direct eval, spread calls,
+   construct/super calls, optional calls, arguments object dependencies,
+   dynamic lookup, private names, complex computed keys, and unproven
+   receiver/key shapes stay outside the production route until selector,
+   compiler, VM, and public route proof move together.
 5. Any future slice that makes calls executable must preserve receiver binding
    and direct-eval classification explicitly, then update the expansion
    contract, positive route proof, nearby decline/no-route proof, AST-eval seam
@@ -113,6 +115,22 @@ arguments-dependent calls, dynamic lookup, or unproven receiver shapes
 production-eligible. Those families must still decline before VM execution
 instead of falling back inside the VM.
 
+## 2026-05-28 executable computed member-call update
+
+Issue #2531 / PR #2535 narrows the former computed member-call decline by
+allowing direct computed member calls with activation-resolved receiver chains,
+simple literal/slot computed keys, and simple literal/slot arguments to execute
+in `UnifiedBytecodeVirtualMachine`. `PrepareComputedCallTarget` now consumes the
+computed key, loads the callee from the receiver through the context-aware
+property lookup path, and leaves that receiver on the stack as the call `this`
+value for `CallInvocationBoundary`.
+
+This update does not make direct eval, spread calls, construct/super calls,
+optional calls, private/super member targets, arguments-dependent calls,
+dynamic lookup, complex computed keys, or unproven receiver/key shapes
+production-eligible. Those families must still decline before VM execution
+instead of falling back inside the VM.
+
 ## Evidence
 
 - PR #2479 merged commit
@@ -143,3 +161,5 @@ instead of falling back inside the VM.
 - ADR 0201: `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - ADR 0224: `docs/adrs/0224-keep-unified-bytecode-shape-probes-side-effect-free-before-emission.md`
 - ADR 0246: `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`
+- ADR 0262: `docs/adrs/0262-keep-unified-bytecode-named-member-call-receiver-owned.md`
+- ADR 0263: `docs/adrs/0263-keep-unified-bytecode-computed-member-call-key-and-receiver-owned.md`

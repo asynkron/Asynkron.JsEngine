@@ -280,36 +280,75 @@ internal static class UnifiedBytecodeCompiler
 
         foreach (var instruction in instructions)
         {
-            if (instruction is not PushEnvironmentInstruction push)
+            switch (instruction)
             {
-                continue;
-            }
-
-            if (!push.SlotNames.IsDefaultOrEmpty)
-            {
-                foreach (var (name, slotIndex) in push.SlotNames)
-                {
-                    if (TryMapSlot(push.ScopeId, slotIndex, flatSlotMappings, out var flatSlotId) &&
-                        (uint)flatSlotId < (uint)names.Length)
+                case PushEnvironmentInstruction push:
+                    if (!push.SlotNames.IsDefaultOrEmpty)
                     {
-                        names[flatSlotId] = name.Name;
+                        foreach (var (name, slotIndex) in push.SlotNames)
+                        {
+                            SetMappedSlotName(names, flatSlotMappings, push.ScopeId, slotIndex, name);
+                        }
+
+                        break;
                     }
-                }
 
-                continue;
-            }
+                    foreach (var (name, slotIndex) in push.SlotMap)
+                    {
+                        SetMappedSlotName(names, flatSlotMappings, push.ScopeId, slotIndex, name);
+                    }
 
-            foreach (var (name, slotIndex) in push.SlotMap)
-            {
-                if (TryMapSlot(push.ScopeId, slotIndex, flatSlotMappings, out var flatSlotId) &&
-                    (uint)flatSlotId < (uint)names.Length)
-                {
-                    names[flatSlotId] = name.Name;
-                }
+                    break;
+
+                case EnterCatchInstruction enterCatch:
+                    foreach (var (name, slotIndex) in enterCatch.SlotMap)
+                    {
+                        SetMappedSlotName(names, flatSlotMappings, enterCatch.ScopeId, slotIndex, name);
+                    }
+
+                    if (enterCatch.CatchBindingProgram is IdentifierBindingTargetProgram identifier)
+                    {
+                        if (identifier.FlatSlotId >= 0)
+                        {
+                            SetSlotName(names, identifier.FlatSlotId, identifier.Name);
+                        }
+                        else
+                        {
+                            SetMappedSlotName(
+                                names,
+                                flatSlotMappings,
+                                enterCatch.ScopeId,
+                                identifier.SlotIndex,
+                                identifier.Name);
+                        }
+                    }
+
+                    break;
             }
         }
 
         return names.ToImmutableArray();
+    }
+
+    private static void SetMappedSlotName(
+        string?[] names,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings,
+        int scopeId,
+        int slotIndex,
+        Symbol name)
+    {
+        if (TryMapSlot(scopeId, slotIndex, flatSlotMappings, out var flatSlotId))
+        {
+            SetSlotName(names, flatSlotId, name);
+        }
+    }
+
+    private static void SetSlotName(string?[] names, int flatSlotId, Symbol name)
+    {
+        if ((uint)flatSlotId < (uint)names.Length)
+        {
+            names[flatSlotId] = name.Name;
+        }
     }
 
     private static ImmutableArray<int> RemapSlotIndices(

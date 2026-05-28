@@ -64,4 +64,48 @@ public sealed class WeakCollectionsTests(ITestOutputHelper output) : InternalTes
         Assert.True((bool)deleted!);
         Assert.False((bool)hasValue1AfterDelete!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task WeakCollections_Reject_BigInt_Primitives_As_Weak_Keys()
+    {
+        await using var engine = CreateEngine();
+
+        var weakMapException = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            const wm = new WeakMap();
+            wm.set(1n, "value");
+        """));
+        Assert.Contains("Invalid value used as weak map key", weakMapException.Message, StringComparison.Ordinal);
+
+        var weakSetException = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            const ws = new WeakSet();
+            ws.add(1n);
+        """));
+        Assert.Contains("Invalid value used in weak set", weakSetException.Message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task FinalizationRegistry_Rejects_BigInt_Target_And_UnregisterToken()
+    {
+        await using var engine = CreateEngine();
+
+        var targetException = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            var registry = new FinalizationRegistry(() => {});
+            registry.register(BigInt(1), {});
+        """));
+        Assert.Contains("target must be an object or a symbol", targetException.Message, StringComparison.Ordinal);
+
+        var tokenException = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            var registry = new FinalizationRegistry(() => {});
+            registry.register({}, {}, BigInt(1));
+        """));
+        Assert.Contains("unregisterToken must be an object, a symbol, or undefined",
+            tokenException.Message,
+            StringComparison.Ordinal);
+
+        var unregisterException = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate("""
+            var registry = new FinalizationRegistry(() => {});
+            registry.unregister(BigInt(1));
+        """));
+        Assert.Contains("unregisterToken must be an object or a symbol", unregisterException.Message, StringComparison.Ordinal);
+    }
 }

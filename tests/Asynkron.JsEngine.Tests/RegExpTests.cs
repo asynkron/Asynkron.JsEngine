@@ -90,6 +90,39 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task UnicodePropertyEscape_ScriptMarchenAndMasaramGondi_AstralRows_DoNotCrash()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const marchen = String.fromCodePoint(0x11C70);
+                                                       const masaram = String.fromCodePoint(0x11D00);
+                                                       const latin = "A";
+                                                       [
+                                                         /^\p{Script=Marchen}+$/u.test(marchen),
+                                                         /^\p{Script=Marchen}+$/u.test(latin),
+                                                         /^\P{Script=Marchen}+$/u.test(latin),
+                                                         /^\P{Script=Marchen}+$/u.test(marchen),
+                                                         /^\p{Script=Masaram_Gondi}+$/u.test(masaram),
+                                                         /^\p{Script=Masaram_Gondi}+$/u.test(latin),
+                                                         /^\P{Script=Masaram_Gondi}+$/u.test(latin),
+                                                         /^\P{Script=Masaram_Gondi}+$/u.test(masaram),
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.True(values.Items[0].AsBoolean());
+        Assert.False(values.Items[1].AsBoolean());
+        Assert.True(values.Items[2].AsBoolean());
+        Assert.False(values.Items[3].AsBoolean());
+        Assert.True(values.Items[4].AsBoolean());
+        Assert.False(values.Items[5].AsBoolean());
+        Assert.True(values.Items[6].AsBoolean());
+        Assert.False(values.Items[7].AsBoolean());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task AnchoredUnicodePropertyEscape_ExactSingleCodePoint_MatchesExactlyOne()
     {
         await using var engine = CreateEngine();

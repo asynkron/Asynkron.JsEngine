@@ -4,6 +4,12 @@
 
 Accepted
 
+## Amendments
+
+ADR 0245 accepts one additional constant-term plus self-call shape under the
+same shape, binding, runtime-feature, and numeric guards. This ADR remains the
+base boundary for simple numeric self-recursion fast paths.
+
 ## Context
 
 Issue `autrun-ditlr1g0oyd4-64c0980227` / PR #2439 followed the existing
@@ -99,4 +105,5 @@ focused timings clear the issue threshold.
 - `tests/Asynkron.JsEngine.Tests/FoundationTests.cs`
 - `docs/performance/fib-simple-numeric-self-recursion.md`
 - `docs/performance/recursion-linear-self-recursion.md`
+- `docs/adrs/0245-keep-constant-term-self-recursion-widening-guarded.md`
 - `.claude/rules/performance-profiling-guardrails.md`

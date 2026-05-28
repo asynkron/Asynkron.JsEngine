@@ -803,6 +803,37 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void Execute_NestedForOfBodyReturn_ClosesEnteredIteratorsLifoAndPreservesFirstCloseThrow()
+    {
+        var program = CreateNestedIteratorMoveNextProgram();
+
+        var closeOrder = new List<string>();
+        var outer = CreateSingleValueIterable(
+            JsValue.FromDouble(1),
+            onReturn: () =>
+            {
+                closeOrder.Add("outer");
+                throw new ThrowSignal(new JsValue("outer return boom"));
+            });
+        var inner = CreateSingleValueIterable(
+            JsValue.FromDouble(2),
+            onReturn: () =>
+            {
+                closeOrder.Add("inner");
+                throw new ThrowSignal(new JsValue("inner return boom"));
+            });
+        var slots = new JsValue[Math.Max(program.SlotCount, 4)];
+        SetSlot(program, slots, "outer", JsValue.FromJsObject(outer));
+        SetSlot(program, slots, "inner", JsValue.FromJsObject(inner));
+
+        var (_, context) = ExecuteProgramWithContext(program, slots);
+
+        Assert.True(context.IsThrow);
+        Assert.Equal("inner return boom", context.FlowValue.AsString());
+        Assert.Equal(new[] { "inner", "outer" }, closeOrder);
+    }
+
+    [Fact]
     public void TryCompile_WhileWithNestedBranchBreak_DeclinesWithLoopReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

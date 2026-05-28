@@ -20,6 +20,8 @@ internal static class UnifiedBytecodeVirtualMachine
         ImmutableArray<int> SlotIndices,
         JsEnvironment?[] PreviousSlotEnvironments);
 
+    private readonly record struct ActiveDriverSlot(int SlotIndex, int Ordinal);
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
@@ -37,6 +39,7 @@ internal static class UnifiedBytecodeVirtualMachine
             : InitializeSlotEnvironments(program, callingEnvironment);
         EnvironmentScopeFrame[]? environmentStack = null;
         var environmentStackCount = 0;
+        var nextActiveDriverOrdinal = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
@@ -563,6 +566,7 @@ internal static class UnifiedBytecodeVirtualMachine
                                 slotEnvironments,
                                 currentCallingEnvironment,
                                 context,
+                                ref nextActiveDriverOrdinal,
                                 out var nextProgramCounter))
                         {
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
@@ -591,6 +595,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         var objectValue = stack[--stackPointer];
                         var forInState = ForInDriverStatePool.Rent();
                         forInState.SourceObject = objectValue;
+                        forInState.ActiveDriverOrdinal = ++nextActiveDriverOrdinal;
                         CollectEnumerablePropertyKeys(objectValue, forInState.PropertyKeys);
                         var forInStateValue = forInState.AsJsValue;
                         slots[descriptor.StateSlot] = forInStateValue;
@@ -619,6 +624,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         slots[descriptor.StateSlot] = JsValue.FromObjectUnsafe(state);
+                        state.ActiveDriverOrdinal = ++nextActiveDriverOrdinal;
                         SyncSlotEnvironment(slotEnvironments, descriptor.StateSlot, slots[descriptor.StateSlot]);
                         programCounter++;
                         break;
@@ -862,6 +868,7 @@ internal static class UnifiedBytecodeVirtualMachine
         JsEnvironment?[]? slotEnvironments,
         JsEnvironment? callingEnvironment,
         EvaluationContext context,
+        ref int nextActiveDriverOrdinal,
         out int programCounter)
     {
         if (!TryGetDriverState<IteratorDriverState>(slots, descriptor.StateSlot, out var state))
@@ -885,7 +892,12 @@ internal static class UnifiedBytecodeVirtualMachine
                 return true;
             }
 
-            state.HasEnteredLoop = true;
+            if (!state.HasEnteredLoop)
+            {
+                state.ActiveDriverOrdinal = ++nextActiveDriverOrdinal;
+                state.HasEnteredLoop = true;
+            }
+
             slots[descriptor.ValueSlot] = value;
             SyncSlotEnvironment(slotEnvironments, descriptor.ValueSlot, value);
             programCounter = descriptor.NextTarget;
@@ -1011,6 +1023,7 @@ internal static class UnifiedBytecodeVirtualMachine
         JsEnvironment?[]? slotEnvironments,
         IteratorDriverState state)
     {
+        state.ActiveDriverOrdinal = 0;
         state.MarkIteratorClosed();
         if (state.Enumerator is IDisposable disposable)
         {
@@ -1055,6 +1068,7 @@ internal static class UnifiedBytecodeVirtualMachine
         JsEnvironment?[]? slotEnvironments,
         ForInDriverState state)
     {
+        state.ActiveDriverOrdinal = 0;
         ForInDriverStatePool.Return(state);
         ClearDriverSlot(slotIndex, slots, slotEnvironments);
     }
@@ -1080,26 +1094,78 @@ internal static class UnifiedBytecodeVirtualMachine
         bool preserveExistingThrow)
     {
         var preserveCloseThrow = preserveExistingThrow;
+        List<ActiveDriverSlot>? activeDriverSlots = null;
         for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
         {
-            if (slots[slotIndex].TryGetObject<IteratorDriverState>(out var iteratorState))
+            var slotValue = slots[slotIndex];
+            if (slotValue.TryGetObject<IteratorDriverState>(out var iteratorState) &&
+                iteratorState.ActiveDriverOrdinal > 0)
             {
-                CloseIteratorDriverState(slotIndex, slots, slotEnvironments, context, preserveCloseThrow);
-                preserveCloseThrow |= context.IsThrow;
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, iteratorState.ActiveDriverOrdinal));
                 continue;
             }
 
-            if (slots[slotIndex].TryGetObject<ForInDriverState>(out var forInState))
+            if (slotValue.TryGetObject<ForInDriverState>(out var forInState) &&
+                forInState.ActiveDriverOrdinal > 0)
             {
-                CompleteForInDriverState(slotIndex, slots, slotEnvironments, forInState);
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, forInState.ActiveDriverOrdinal));
                 continue;
             }
 
-            if (slots[slotIndex].TryGetObject<UnifiedArrayDestructuringState>(out _))
+            if (slotValue.TryGetObject<UnifiedArrayDestructuringState>(out var arrayState) &&
+                arrayState.ActiveDriverOrdinal > 0)
             {
-                CloseArrayDestructuringState(slotIndex, slots, slotEnvironments, context, preserveCloseThrow);
-                preserveCloseThrow |= context.IsThrow;
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, arrayState.ActiveDriverOrdinal));
             }
+        }
+
+        if (activeDriverSlots is not null)
+        {
+            activeDriverSlots.Sort(static (left, right) => right.Ordinal.CompareTo(left.Ordinal));
+            foreach (var activeDriverSlot in activeDriverSlots)
+            {
+                CleanupDriverStateSlot(
+                    activeDriverSlot.SlotIndex,
+                    slots,
+                    slotEnvironments,
+                    context,
+                    ref preserveCloseThrow);
+            }
+        }
+
+        for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+        {
+            CleanupDriverStateSlot(slotIndex, slots, slotEnvironments, context, ref preserveCloseThrow);
+        }
+    }
+
+    private static void CleanupDriverStateSlot(
+        int slotIndex,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context,
+        ref bool preserveCloseThrow)
+    {
+        if (slots[slotIndex].TryGetObject<IteratorDriverState>(out _))
+        {
+            CloseIteratorDriverState(slotIndex, slots, slotEnvironments, context, preserveCloseThrow);
+            preserveCloseThrow |= context.IsThrow;
+            return;
+        }
+
+        if (slots[slotIndex].TryGetObject<ForInDriverState>(out var forInState))
+        {
+            CompleteForInDriverState(slotIndex, slots, slotEnvironments, forInState);
+            return;
+        }
+
+        if (slots[slotIndex].TryGetObject<UnifiedArrayDestructuringState>(out _))
+        {
+            CloseArrayDestructuringState(slotIndex, slots, slotEnvironments, context, preserveCloseThrow);
+            preserveCloseThrow |= context.IsThrow;
         }
     }
 
@@ -1266,6 +1332,7 @@ internal static class UnifiedBytecodeVirtualMachine
         public IEnumerator<JsValue>? Enumerator;
         public IJsCallable? NextMethod;
         public bool Done;
+        public int ActiveDriverOrdinal;
         private bool _disposed;
 
         public (JsValue Value, bool Done) Next(EvaluationContext context)
@@ -1336,6 +1403,7 @@ internal static class UnifiedBytecodeVirtualMachine
             }
 
             _disposed = true;
+            ActiveDriverOrdinal = 0;
             Enumerator?.Dispose();
             Enumerator = null;
         }

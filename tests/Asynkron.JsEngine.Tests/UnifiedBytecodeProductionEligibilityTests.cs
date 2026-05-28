@@ -1363,6 +1363,38 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.NotEmpty(result.Program.DriverDescriptors);
     }
 
+    [Theory]
+    [InlineData(
+        """
+        function readDefault(values) {
+            var [first = 1] = values;
+            return first;
+        }
+        """,
+        "readDefault")]
+    [InlineData(
+        """
+        function readComputed(source, key) {
+            var { [key]: value } = source;
+            return value;
+        }
+        """,
+        "readComputed")]
+    public void Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
+        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Evaluate_ForOfPlan_AcceptsIteratorDriverOpcodes()
     {

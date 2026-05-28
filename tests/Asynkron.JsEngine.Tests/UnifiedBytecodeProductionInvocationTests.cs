@@ -369,6 +369,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedMemberCall_NullishReceiverThrowsBeforeKeyCoercion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(box, key) {
+                return box[key]();
+            }
+
+            var key = {
+                count: 0,
+                toString() {
+                    this.count++;
+                    return "read";
+                }
+            };
+
+            try {
+                invoke(null, key);
+                "missing";
+            } catch (error) {
+                [
+                    error instanceof TypeError,
+                    key.count
+                ].join("|");
+            }
+            """);
+
+        Assert.Equal("true|0", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NestedNamedMemberCall_BindsThisToFinalReceiver()
     {
         await using var engine = CreateEngine();

@@ -121,6 +121,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     var computedCallKey = stack[--stackPointer];
                     var computedCallReceiver = stack[stackPointer - 1];
+                    if (computedCallReceiver.IsNullOrUndefined)
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState));
+                        return JsValue.Undefined;
+                    }
+
                     stack[stackPointer++] = JsOps.TryGetPropertyValueJsValue(
                             computedCallReceiver,
                             computedCallKey,

@@ -23,6 +23,13 @@ results directly from `Array.prototype.reduce`, `reduceRight`, and `some`.
 Review confirmed that the legacy `object?` signatures and caller-side
 `FromObjectUnsafe(...)` wrappers were gone for the selected slice.
 
+Issue `autrun-diuf7ylrunc0-b01d02b8e2` / PR #2568 later removed `SomeLike`
+after `Array.prototype.some` and `every` were consolidated behind
+`ArrayPrototype.EvaluateArrayPredicate(...)`. That follow-up does not reopen the
+carrier decision: `some` still returns canonical `JsValue.True`/`JsValue.False`
+from its private predicate path, and future helper extraction must stay
+`JsValue`-native rather than reintroducing an `object?` bridge.
+
 ## Decision
 
 Keep Array prototype result helpers `JsValue`-native when the helper computes a
@@ -46,6 +53,9 @@ iteration helpers:
 - Future Array prototype helper work should treat a private helper returning
   `object?` to a `JsValue` host method as migration debt, not as a compatibility
   boundary by default.
+- Do not recreate `SomeLike` just to match the historical helper name in this
+  ADR. If `some` needs a shared predicate helper, keep the helper local to the
+  Array prototype path and keep its result as `JsValue`.
 - A focused search is the right proof shape for this class:
   `rtk rg -n "object\\? (ReduceLike|SomeLike)|FromObjectUnsafe\\((ReduceLike|SomeLike)" src/Asynkron.JsEngine/StdLib/Array`
   should stay clean after this slice.

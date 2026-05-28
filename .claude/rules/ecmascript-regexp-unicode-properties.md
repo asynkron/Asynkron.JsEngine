@@ -60,6 +60,13 @@ generator and prove the generated resolver behavior through focused tests.
    full-string and unanchored membership shapes with positive and negative
    samples. Do not edit generated Unicode tables, widen runtime matchers, or
    change Test262 harness policy without a current failing row.
+12. Normalize and clamp astral scalar ranges at the surrogate-pair encoder
+    boundary before calculating high and low surrogate classes. Even when
+    Unicode property data is expected to be sorted and scalar, `JsRegExp`
+    runtime pattern construction must not let a malformed, complemented, or
+    narrow script row produce invalid .NET regex ranges. Keep the fix in
+    `BuildSurrogatePairRanges` or its direct caller, and add focused coverage
+    for both positive and negated property escapes before widening.
 
 ## Why
 
@@ -119,3 +126,13 @@ for `Close_Punctuation` and `Connector_Punctuation` were green, so the durable
 artifact was an internal regression covering anchored and unanchored
 punctuation category behavior rather than a Unicode data, `JsRegExp`, or
 harness patch.
+
+Issue #2565 / PR #2572 fixed generated Test262 crash rows for astral-only
+script property escapes `Script=Marchen` and `Script=Masaram_Gondi`. The
+generated Unicode data already resolved the scripts, so the repair stayed in
+`JsRegExp` surrogate-pair range generation: normalize and clamp astral ranges
+before grouping high surrogates by low-surrogate class, with focused internal
+coverage for positive and negated forms plus the issue-listed Release Test262
+rows. Future agents should treat similar astral script-property crashes as a
+runtime encoder boundary first, not as permission to hand-edit generated data
+or widen harness policy.

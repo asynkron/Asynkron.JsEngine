@@ -483,10 +483,13 @@ prototype `ReduceLike`/`SomeLike` result helpers from `object?` to `JsValue` and
 removed caller-side `JsValue.FromObjectUnsafe(...)` rewraps in `reduce`,
 `reduceRight`, and `some`. The old boundary did not preserve host interop or
 compatibility; it only converted JavaScript values and primitive booleans
-through CLR object carriers before returning to `JsValue` host methods. Future
+through CLR object carriers before returning to `JsValue` host methods. Issue
+`autrun-diuf7ylrunc0-b01d02b8e2` / PR #2568 later deleted `SomeLike` entirely
+while keeping the `some` result on a local `JsValue` predicate path. Future
 Array prototype helper migrations should keep the helper result typed once the
-selected callsites all require `JsValue`, and prove cleanup with a focused
-legacy-signature/wrapper search. Related ADR:
+selected callsites all require `JsValue`; do not reintroduce historical helper
+names or object bridges when a local `JsValue` helper already owns the path.
+Prove cleanup with a focused legacy-signature/wrapper search. Related ADR:
 `docs/adrs/0118-keep-array-reduce-some-result-helpers-jsvalue-native.md`.
 
 Issue `autrun-dirquxdu7e2w-b1e0d8c752` / PR #1810 migrated

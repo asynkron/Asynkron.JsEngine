@@ -7290,7 +7290,8 @@ public sealed class JsRegExp
         // downstream regex generation does not crash if a narrow script table row is malformed.
         var normalizedAstral = NormalizeRanges(ranges
             .Select(static r => (Start: Math.Max(r.Start, 0x10000), End: Math.Min(r.End, 0x10FFFF)))
-            .Where(static r => r.Start <= r.End))
+            .Where(static r => r.Start <= r.End)
+            .ToList())
             .ToList();
         if (normalizedAstral.Count == 0)
             return string.Empty;

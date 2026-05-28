@@ -433,6 +433,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2509 hardened the accepted-path proof after review caught two
     guardrail holes: linked-worktree root discovery and a missing VM-source
     `ExpressionProgram` assertion.
+31. Before creating or rewriting follow-on Faktorial plans for unified
+    bytecode, rebase lane order against current local `main`,
+    `docs/unified-bytecode-expansion-contract.md`, relevant ADR/rule
+    boundaries, and recent merged production proof. Do not carry a stale first
+    slice forward just because an earlier plan or ADR named it. If the planned
+    first slice is now current support, name it as baseline/already landed,
+    move the first still-unsupported family to Batch 1, and update the ADR and
+    Faktorial plan body together. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-833518a41c`
+    / PR #2515 found the follow-on plan still started at direct identifier
+    calls even though issue #2495 / PR #2501 had made no-spread
+    activation-resolved identifier calls executable. The accepted correction
+    rewrote ADR 0261 and plan `planmanual1779961785446650000` so named member
+    calls are the first remaining lane, computed member calls are second, and
+    constructor/super, spread/direct eval, dynamic lookup,
+    iterator/destructuring, and label families stay deferred.
 
 ## Why
 

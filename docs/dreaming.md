@@ -226,10 +226,10 @@ Milestone C routing rules for this slice:
 - Host wakeup remains a receiving contract, not a transfer of core evaluator ownership.
 - Seam closure text is directional until focused async-generator proof and canonical quality evidence are attached.
 
-## Capability lifecycle control plane (this run)
+## Capability lifecycle control plane (previous run)
 Primary owner: **Evidence and Governance Fabric**.
 
-This run adds an explicit lifecycle control plane so capability statements
+That run added an explicit lifecycle control plane so capability statements
 cannot jump directly from prototype behavior to production claim language.
 The goal is to make claim state a first-class architecture object with hard
 gates owned by evidence discipline.
@@ -255,6 +255,62 @@ Lifecycle control rules:
 - Node.js-competitive and CommonJS-adjacent wording cannot enter `ProductionClaim` without passing all gates.
 - Async-generator seam closure remains below `ProductionClaim` until Milestone C proof plus quality evidence are attached.
 - Unified-bytecode eligibility expansion must restart at `Prototyped` when opcode/control-flow boundaries change.
+
+## Runtime spine and orthogonal control planes (this run)
+Primary owner: **Execution Fabric** with explicit control-plane owners.
+
+This run adds a bounded realization view that keeps one vertical runtime spine
+for execution ownership and four orthogonal control planes that can evolve
+without collapsing owner boundaries. This makes owner-surface routing explicit
+for recurring slices while preserving evidence-gated claim discipline.
+
+```mermaid
+flowchart TB
+    subgraph Spine["Runtime spine (execution-owned path)"]
+        S1[Language Frontend]
+        S2[Compilation and Plan Fabric]
+        S3[Execution Fabric]
+        S4[Async and Concurrency Fabric]
+        S5[Module and Host Fabric]
+        S6[Standard Library Fabric]
+    end
+
+    subgraph C1[Compatibility control plane]
+        C1A[Test262 + owning focused packs]
+        C1B[Proven-now boundary checks]
+    end
+
+    subgraph C2[Evidence control plane]
+        C2A[Profile and benchmark loops]
+        C2B[Canonical make quality gate]
+    end
+
+    subgraph C3[Host-boundary control plane]
+        C3A[Engine vs host ownership checks]
+        C3B[CommonJS wording guardrails]
+    end
+
+    subgraph C4[Production-routing control plane]
+        C4A[Unified-bytecode eligibility selectors]
+        C4B[Fallback seam inventory]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
+    C1A --> S1
+    C1B --> S5
+    C2A --> S3
+    C2B --> S6
+    C3A --> S5
+    C3B --> S3
+    C4A --> S2
+    C4B --> S3
+```
+
+Runtime-spine control rules:
+- The spine is directional execution flow; control planes are governance lanes and do not transfer module ownership.
+- Module/runtime and CommonJS wording stays directional until compatibility, profile evidence, and canonical quality signals all pass.
+- Async-generator seam closure remains directional under #2342 Milestone C until the known async-step bridge dependency is removed with focused proof.
+- Unified-bytecode production widening remains bounded to accepted selector/opcode families until parity plus profile evidence is attached.
 
 ## #2342 milestone architecture map
 The roadmap milestones are delivery-control points, not labels. Each one maps to explicit modules and seams.
@@ -373,11 +429,11 @@ Before any roadmap or PR text claims a capability expansion, require all of the 
 - Boundary wording remains explicit about what is still host-layer or prototype-only.
 
 ## Signals this run
-- Baseline timestamp: 2026-05-28T10:42:31Z
-- Baseline signal: `docs/dreaming.md` line_count = 353
-- Final timestamp: 2026-05-28T10:43:31Z
-- Final signal: `docs/dreaming.md` line_count = 383
-- Signal delta: +30 lines
+- Baseline timestamp: 2026-05-28T11:47:04Z
+- Baseline signal: `docs/dreaming.md` line_count = 383
+- Final timestamp: 2026-05-28T11:47:25Z
+- Final signal: `docs/dreaming.md` line_count = 439
+- Signal delta: +56 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

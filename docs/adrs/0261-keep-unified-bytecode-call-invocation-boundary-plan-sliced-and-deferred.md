@@ -5,8 +5,9 @@
 Accepted
 
 Superseded in part on 2026-05-28 by the first executable no-spread
-activation-resolved identifier-call slice. The slicing decision still applies
-to named/computed member calls, direct eval, spread calls, construct/super
+activation-resolved identifier-call slice and again by issue #2530 / PR #2534,
+which made direct named member calls executable. The slicing decision still
+applies to computed member calls, direct eval, spread calls, construct/super
 calls, optional calls, arguments-object dependencies, dynamic lookup, and the
 other unproven call-adjacent families.
 
@@ -27,9 +28,9 @@ before VM execution:
 - `UnifiedBytecodeVirtualMachine` treats `CallInvocationBoundary` as
   non-executable.
 
-Main has since landed the first executable identifier-call slice, so this ADR
-records that slice as completed baseline and scopes the remaining call
-invocation widening lanes.
+Main has since landed the first executable identifier-call slice and the direct
+named member-call slice, so this ADR records those slices as completed baselines
+and scopes the remaining call invocation widening lanes.
 
 The remaining unsupported families also still include dynamic lookup, label
 control flow, and iterator/destructuring drivers. Mixing those with call
@@ -43,9 +44,11 @@ split the work into strict slices:
 1. Baseline (already landed): direct identifier calls where the target resolves
    to an activation slot, arguments are simple one-op operands, spread is
    absent, and direct eval is excluded.
-2. First remaining slice: named member calls using existing prepared
-   call-target metadata.
-3. Second remaining slice: computed member calls using existing prepared
+2. Baseline (already landed): direct named member calls whose receiver chain is
+   activation-resolved and whose arguments are simple one-op operands, using
+   existing prepared call-target metadata while preserving the receiver as
+   `this`.
+3. First remaining slice: computed member calls using existing prepared
    call-target metadata.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
@@ -58,8 +61,9 @@ AST fallback.
 
 ## Consequences
 
-- The next implementation lane starts at named member call execution and keeps
-  the already-landed identifier-call baseline explicit.
+- The next implementation lane starts at computed member call execution and
+  keeps the already-landed identifier-call and named member-call baselines
+  explicit.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.
@@ -75,10 +79,10 @@ boundaries before preserving any previous batch list.
 
 If the first planned slice is already current support, record it as baseline,
 promote the next unsupported family to the first remaining lane, and update the
-Faktorial plan body and ADR wording together. For this incident, the corrected
-first remaining lane is named member calls, followed by computed member calls,
-while constructor/super, spread/direct eval, dynamic lookup,
-iterator/destructuring, and labels remain deferred.
+Faktorial plan body and ADR wording together. After issue #2530 / PR #2534, the
+first remaining call-family lane is computed member calls, while
+constructor/super, spread/direct eval, dynamic lookup, iterator/destructuring,
+and labels remain deferred.
 
 ## Proof Guidance
 
@@ -102,3 +106,4 @@ rtk ./tools/profile forloop --memory
 - ADR 0250: `docs/adrs/0250-keep-unified-bytecode-call-target-prep-boundary-non-executable.md`
 - ADR 0251: `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`
 - ADR 0258: `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`
+- ADR 0262: `docs/adrs/0262-keep-unified-bytecode-named-member-call-receiver-owned.md`

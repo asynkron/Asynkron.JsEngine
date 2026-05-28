@@ -294,26 +294,31 @@ all-or-nothing until a separate routing issue proves production readiness.
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
 24. When adding unified-bytecode call-target preparation, keep preparation
-    bytecode-owned but non-executable for member/computed/eval/spread/construct
-    and other unproven call families until a separate invocation slice owns
+    bytecode-owned but non-executable for computed/eval/spread/construct and
+    other unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
-    semantics end to end. The #2495 identifier-call slice is the narrow
-    exception: no-spread activation-resolved identifier calls with simple
-    literal/slot arguments may execute through the VM-owned
-    `CallInvocationBoundary`, but executable identifier calls must still carry
-    the caller `EvaluationContext` and active `JsEnvironment` into existing
-    callable invocation helpers. If an accepted program enters a block lexical
-    scope before invoking the callable, the VM must maintain environment owners
-    for the active slots so environment-aware and debug-aware callables observe
-    the same scope chain as the existing expression-call path. Pair the route
-    proof with regression coverage for parameter-passed and block-scoped
-    debug-aware callables, not only ordinary JavaScript functions. It is valid
-    for the compiler to emit typed
-    `UnifiedBytecodeCallTarget` records and `Prepare*CallTarget` opcodes for
-    no-spread activation-resolved identifier/member calls, but all unproven
-    production call routing must decline at `CallInvocationBoundary` and the VM
-    must not call back into `ExpressionProgram`, `ExecutionPlanRunner`, AST
-    evaluation, or a generic host-call fallback. Update
+    semantics end to end. The #2495 identifier-call slice and #2530 named
+    member-call slice are the narrow exceptions: no-spread activation-resolved
+    identifier calls and direct named member calls with activation-resolved
+    receiver chains and simple literal/slot arguments may execute through the
+    VM-owned `CallInvocationBoundary`. Executable identifier calls must still
+    carry the caller `EvaluationContext` and active `JsEnvironment` into
+    existing callable invocation helpers. Executable named member calls must
+    keep the receiver on the stack, load the named callee from that receiver,
+    and preserve that receiver as `this` for the invocation boundary. If an
+    accepted program enters a block lexical scope before invoking the callable,
+    the VM must maintain environment owners for the active slots so
+    environment-aware and debug-aware callables observe the same scope chain as
+    the existing expression-call path. Pair the route proof with regression
+    coverage for parameter-passed and block-scoped debug-aware callables for
+    identifier calls, and receiver/`this` preservation for named member calls;
+    do not rely only on ordinary JavaScript return values. It is valid for the
+    compiler to emit typed `UnifiedBytecodeCallTarget` records and
+    `Prepare*CallTarget` opcodes for no-spread activation-resolved
+    identifier/member calls, but all unproven production call routing must
+    decline at `CallInvocationBoundary` and the VM must not call back into
+    `ExpressionProgram`, `ExecutionPlanRunner`, AST evaluation, or a generic
+    host-call fallback. Update
     `docs/unified-bytecode-expansion-contract.md` in the same slice for every
     new prep opcode or decline code. WHY: issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-161f73f52d`
@@ -325,7 +330,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     the first identifier-call slice executable; review found the initial VM
     path invoked parameter-passed `__debug` without the caller environment or
     context, so the accepted repair threads the invocation environment into the
-    VM and proves both parameter and block lexical debug-aware calls.
+    VM and proves both parameter and block lexical debug-aware calls. Issue
+    #2530 / PR #2534 then made the direct named member-call slice executable;
+    the durable lesson is that `PrepareNamedCallTarget` may execute only when
+    the VM preserves the receiver/callee stack contract and tests prove
+    receiver-as-`this` behavior while computed, eval, spread, super/private,
+    optional, dynamic, and other unproven call families still decline.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -446,9 +456,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     calls even though issue #2495 / PR #2501 had made no-spread
     activation-resolved identifier calls executable. The accepted correction
     rewrote ADR 0261 and plan `planmanual1779961785446650000` so named member
-    calls are the first remaining lane, computed member calls are second, and
+    calls became the first remaining lane, computed member calls second, and
     constructor/super, spread/direct eval, dynamic lookup,
-    iterator/destructuring, and label families stay deferred.
+    iterator/destructuring, and label families stayed deferred. Issue #2530 /
+    PR #2534 has since landed named member calls, so future plan edits must
+    treat computed member calls as the first remaining call-family lane unless
+    current `main` proves an even newer call slice has landed.
 
 ## Why
 

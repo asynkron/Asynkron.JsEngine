@@ -54,6 +54,12 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   tool is available. Use temporary `.mmd` inputs rather than fragile shell
   extraction forms, and do not treat generic markdownlint output as a source
   blocker unless this repo has configured markdownlint as a required gate.
+- When Mermaid labels contain punctuation that the parser can treat as syntax,
+  such as parentheses in a `subgraph` label, use explicit quoted-label syntax
+  before rendering (for example `subgraph Id["Label (details)"]`). Issue
+  `autrun-diua6bg621y8-c7c0b0965b` / PR #2542 showed that an unquoted
+  parenthesized subgraph label can fail the Mermaid gate after an otherwise
+  clean docs-only Dreamer slice.
 - If canonical quality verification reports a recurring-child docs or rule
   slice as failed but the available log is truncated or lacks a concrete
   file/line diagnostic, treat it as a verification-context gap first. Re-run
@@ -499,6 +505,14 @@ markdownlint-cli output produced style noise even though the repo does not name
 markdownlint as a gate. Future docs-only Mermaid slices should validate the
 diagram syntax directly and keep optional generic markdown style output from
 becoming source churn.
+
+Issue `autrun-diua6bg621y8-c7c0b0965b` / PR #2542 repeated the same Mermaid
+gate on a Dreamer runtime-spine diagram. The initial `subgraph Spine[Runtime
+spine (execution-owned path)]` label failed Mermaid CLI with a parser error on
+the parenthesized label, and the accepted build fix quoted the label before
+rerunning extracted-block Mermaid validation. WHY: without this punctuation
+guard, future docs-only Mermaid slices can pass diff hygiene and still bounce
+at review on deterministic diagram syntax.
 
 Issue #2292 / PR #2300 closed the adjacent first-time setup prerequisite drift:
 `README.md` showed the canonical local quality gate but did not tell operators

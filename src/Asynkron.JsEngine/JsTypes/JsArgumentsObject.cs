@@ -15,11 +15,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private readonly JsObject _backing = new();
     private readonly PropertyDescriptor? _calleeDescriptor;
     private readonly JsEnvironment _environment;
-    private readonly string[] _indexNames;
     private readonly bool _isStrict;
     private readonly bool _mappedEnabled;
     private readonly Symbol?[] _mappedParameters;
-    private readonly Dictionary<string, PropertyDescriptor> _ownDescriptors;
+    private Dictionary<string, PropertyDescriptor>? _ownDescriptors;
+    private bool[]? _deletedIndices;
     private readonly RealmState _realm;
     private readonly JsValue[] _values;
     private bool _suppressObserver;
@@ -38,35 +38,16 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _mappedParameters = mappedParameters;
         _mappedEnabled = mappedEnabled;
         _isStrict = isStrict;
-        var initialDescriptorCapacity = values.Count + 4;
-        _ownDescriptors = new Dictionary<string, PropertyDescriptor>(initialDescriptorCapacity, StringComparer.Ordinal);
-        _backing.EnsureDescriptorCapacity(initialDescriptorCapacity);
+        _backing.EnsureDescriptorCapacity(4);
         _values = new JsValue[values.Count];
         for (var i = 0; i < values.Count; i++)
         {
             _values[i] = values[i];
         }
 
-        _indexNames = new string[_values.Length];
-
         if (realm.ObjectPrototype is not null)
         {
             _backing.SetPrototype(realm.ObjectPrototype);
-        }
-
-        for (var i = 0; i < _values.Length; i++)
-        {
-            var name = i.ToString(CultureInfo.InvariantCulture);
-            _indexNames[i] = name;
-            var descriptor = new PropertyDescriptor
-            {
-                JsValue = _values[i],
-                Writable = true,
-                Enumerable = true,
-                Configurable = true
-            };
-            _backing.DefinePropertyDirect(name, descriptor);
-            TrackDescriptorDirect(name, descriptor);
         }
 
         _backing.DefinePropertyDirect("length",
@@ -147,6 +128,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public void PreventExtensions()
     {
+        EnsureAllInitialIndexDescriptors();
         _backing.PreventExtensions();
     }
 
@@ -155,7 +137,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     public bool IsSealed => _backing.IsSealed;
     public bool IsFrozen => _backing.IsFrozen;
 
-    public IEnumerable<string> Keys => _backing.Keys;
+    public IEnumerable<string> Keys => GetOwnPropertyNames();
 
     public void DefineProperty(string name, PropertyDescriptor descriptor)
     {
@@ -169,18 +151,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public void Seal()
     {
+        EnsureAllInitialIndexDescriptors();
         _backing.Seal();
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
-        if (TryResolveIndex(name, out var index) &&
-            _mappedEnabled &&
-            index < _mappedParameters.Length &&
-            _mappedParameters[index] is { } mappedSymbol)
+        if (TryResolveExistingIndex(name, out var index))
         {
-            value = _environment.GetJsValue(mappedSymbol);
-            return true;
+            return TryGetIndex(index, receiver, out value);
         }
 
         return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
@@ -189,10 +168,17 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public bool TryGetIndex(int index, JsValue receiver, out JsValue value)
     {
-        if ((uint)index >= (uint)_values.Length)
+        if (!HasInitialIndex(index))
         {
-            value = JsValue.Undefined;
-            return false;
+            if ((uint)index >= (uint)_values.Length)
+            {
+                value = JsValue.Undefined;
+                return false;
+            }
+
+            return _backing.TryGetProperty(GetIndexName(index),
+                receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                out value);
         }
 
         if (_mappedEnabled &&
@@ -203,16 +189,22 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return true;
         }
 
-        var name = _indexNames[index];
-        if (_ownDescriptors.TryGetValue(name, out var descriptor) &&
-            !descriptor.IsAccessorDescriptor)
+        var name = GetIndexName(index);
+        if (_ownDescriptors is not null &&
+            _ownDescriptors.TryGetValue(name, out var descriptor))
         {
-            value = descriptor.JsValue;
-            return true;
+            if (!descriptor.IsAccessorDescriptor)
+            {
+                value = descriptor.JsValue;
+                return true;
+            }
+
+            return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
+                out value);
         }
 
-        return _backing.TryGetProperty(name, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver,
-            out value);
+        value = _values[index];
+        return true;
     }
 
     public bool TryGetProperty(string name, out JsValue value)
@@ -227,6 +219,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
+        if (TryResolveExistingIndex(name, out var existingIndex))
+        {
+            EnsureInitialIndexDescriptor(existingIndex);
+        }
+
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
         var hasWritable = descriptor?.HasWritable ?? false;
         var isAccessor = descriptor?.IsAccessorDescriptor == true;
@@ -243,6 +240,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         _backing.SetProperty(name, value, receiver.IsUndefined ? JsValue.FromObjectUnsafe(this) : receiver);
+        if (TryResolveExistingIndex(name, out _) &&
+            _backing.GetOwnPropertyDescriptor(name) is { } updatedDescriptor)
+        {
+            TrackDescriptor(name, updatedDescriptor);
+        }
     }
 
     public PropertyDescriptor? GetOwnPropertyDescriptor(string name)
@@ -268,6 +270,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             }
 
             return CloneDescriptor(backingDescriptor);
+        }
+
+        if (TryResolveExistingIndex(name, out var existingIndex))
+        {
+            return GetInitialIndexDescriptor(name, existingIndex);
         }
 
         var descriptor = _backing.GetOwnPropertyDescriptor(name);
@@ -298,29 +305,54 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public IEnumerable<string> GetOwnPropertyNames()
     {
-        return _backing.GetOwnPropertyNames();
+        foreach (var name in GetInitialIndexPropertyNames(includeNonEnumerable: true))
+        {
+            yield return name;
+        }
+
+        foreach (var name in _backing.GetOwnPropertyNames())
+        {
+            if (!TryResolveExistingIndex(name, out _))
+            {
+                yield return name;
+            }
+        }
     }
 
     public IEnumerable<string> GetEnumerablePropertyNames()
     {
-        return _backing.GetEnumerablePropertyNames();
+        foreach (var name in GetInitialIndexPropertyNames(includeNonEnumerable: false))
+        {
+            yield return name;
+        }
+
+        foreach (var name in _backing.GetEnumerablePropertyNames())
+        {
+            if (!TryResolveExistingIndex(name, out _))
+            {
+                yield return name;
+            }
+        }
     }
 
     public bool Delete(string name)
     {
-        var deleted = _backing.DeleteOwnProperty(name);
-        if (deleted && TryResolveIndex(name, out var index) && index < _mappedParameters.Length)
+        if (TryResolveExistingIndex(name, out var existingIndex) &&
+            _ownDescriptors?.ContainsKey(name) != true)
         {
-            _mappedParameters[index] = null;
-            if (index < _values.Length)
-            {
-                _values[index] = JsValue.Undefined;
-            }
+            MarkInitialIndexDeleted(existingIndex);
+            return true;
+        }
+
+        var deleted = _backing.DeleteOwnProperty(name);
+        if (deleted && TryResolveIndex(name, out var index) && (uint)index < (uint)_values.Length)
+        {
+            MarkInitialIndexDeleted(index);
         }
 
         if (deleted)
         {
-            _ownDescriptors.Remove(name);
+            _ownDescriptors?.Remove(name);
         }
 
         return deleted;
@@ -336,6 +368,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
     {
+        if (TryResolveExistingIndex(name, out var existingIndex))
+        {
+            EnsureInitialIndexDescriptor(existingIndex);
+        }
+
         var existingDescriptor = GetTrackedDescriptor(name);
         var isIndexProperty = TryResolveIndex(name, out var index);
         var normalized = isIndexProperty || string.Equals(name, "callee", StringComparison.Ordinal)
@@ -389,9 +426,15 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         }
 
         _values[index] = jsValue;
+        var name = GetIndexName(index);
+        if (_ownDescriptors?.ContainsKey(name) != true)
+        {
+            return;
+        }
+
         WithSuppressedObserver(() =>
         {
-            var existing = _backing.GetOwnPropertyDescriptor(_indexNames[index]);
+            var existing = _backing.GetOwnPropertyDescriptor(name);
             var descriptor = new PropertyDescriptor
             {
                 JsValue = jsValue,
@@ -399,8 +442,8 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 Enumerable = existing?.Enumerable ?? true,
                 Configurable = existing?.Configurable ?? true
             };
-            _backing.DefineProperty(_indexNames[index], descriptor);
-            TrackDescriptor(_indexNames[index], descriptor);
+            _backing.DefineProperty(name, descriptor);
+            TrackDescriptor(name, descriptor);
         });
     }
 
@@ -425,7 +468,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private PropertyDescriptor? GetTrackedDescriptor(string name)
     {
-        if (_ownDescriptors.TryGetValue(name, out var tracked))
+        if (_ownDescriptors is not null && _ownDescriptors.TryGetValue(name, out var tracked))
         {
             return CloneDescriptor(tracked);
         }
@@ -451,6 +494,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private void TrackDescriptor(string name, PropertyDescriptor descriptor)
     {
+        _ownDescriptors ??= new Dictionary<string, PropertyDescriptor>(StringComparer.Ordinal);
         _ownDescriptors[name] = CloneDescriptor(descriptor);
     }
 
@@ -460,7 +504,103 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     /// </summary>
     private void TrackDescriptorDirect(string name, PropertyDescriptor descriptor)
     {
+        _ownDescriptors ??= new Dictionary<string, PropertyDescriptor>(StringComparer.Ordinal);
         _ownDescriptors[name] = descriptor;
+    }
+
+    private bool HasInitialIndex(int index)
+    {
+        return (uint)index < (uint)_values.Length && (_deletedIndices is null || !_deletedIndices[index]);
+    }
+
+    private static string GetIndexName(int index)
+    {
+        return JsValueCache.GetIndexString(index);
+    }
+
+    private bool TryResolveExistingIndex(string candidate, out int index)
+    {
+        return TryResolveIndex(candidate, out index) && HasInitialIndex(index);
+    }
+
+    private PropertyDescriptor GetInitialIndexDescriptor(string name, int index)
+    {
+        if (_ownDescriptors is not null && _ownDescriptors.TryGetValue(name, out var tracked))
+        {
+            return CloneDescriptor(tracked);
+        }
+
+        var value = _mappedEnabled &&
+                    index < _mappedParameters.Length &&
+                    _mappedParameters[index] is { } mappedSymbol
+            ? _environment.GetJsValue(mappedSymbol)
+            : _values[index];
+
+        return new PropertyDescriptor
+        {
+            JsValue = value,
+            Writable = true,
+            Enumerable = true,
+            Configurable = true
+        };
+    }
+
+    private void EnsureAllInitialIndexDescriptors()
+    {
+        for (var i = 0; i < _values.Length; i++)
+        {
+            if (HasInitialIndex(i))
+            {
+                EnsureInitialIndexDescriptor(i);
+            }
+        }
+    }
+
+    private void EnsureInitialIndexDescriptor(int index)
+    {
+        var name = GetIndexName(index);
+        if (_ownDescriptors?.ContainsKey(name) == true)
+        {
+            return;
+        }
+
+        var descriptor = GetInitialIndexDescriptor(name, index);
+        _backing.DefinePropertyDirect(name, CloneDescriptor(descriptor));
+        TrackDescriptorDirect(name, descriptor);
+    }
+
+    private void MarkInitialIndexDeleted(int index)
+    {
+        _deletedIndices ??= new bool[_values.Length];
+        _deletedIndices[index] = true;
+        if (index < _mappedParameters.Length)
+        {
+            _mappedParameters[index] = null;
+        }
+
+        _values[index] = JsValue.Undefined;
+    }
+
+    private IEnumerable<string> GetInitialIndexPropertyNames(bool includeNonEnumerable)
+    {
+        for (var i = 0; i < _values.Length; i++)
+        {
+            if (!HasInitialIndex(i))
+            {
+                continue;
+            }
+
+            var name = GetIndexName(i);
+            if (!includeNonEnumerable &&
+                _ownDescriptors is not null &&
+                _ownDescriptors.TryGetValue(name, out var descriptor) &&
+                descriptor is { HasEnumerable: true, Enumerable: false })
+            {
+                continue;
+            }
+
+            yield return name;
+        }
     }
 
     private PropertyDescriptor NormalizeDescriptor(string name, PropertyDescriptor descriptor,

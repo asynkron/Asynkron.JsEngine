@@ -420,6 +420,82 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_RemainVisibleToDescriptorsAndEnumeration()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a, b) {
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                return [
+                    Object.keys(arguments).join(","),
+                    Object.getOwnPropertyNames(arguments).slice(0, 3).join(","),
+                    descriptor.value,
+                    descriptor.enumerable,
+                    descriptor.writable,
+                    descriptor.configurable
+                ].join(":");
+            }
+
+            probe(40, 2);
+            """);
+
+        Assert.Equal("0,1:0,1,length:40:true:true:true", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_DefinePropertyAfterPreventExtensionsUsesExistingIndex()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.preventExtensions(arguments);
+                Object.defineProperty(arguments, "0", { value: 42 });
+                return arguments[0] + ":" + Object.getOwnPropertyDescriptor(arguments, "0").value;
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:42", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsMaterializedIndex_DeleteStillFallsBackToPrototype()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.getOwnPropertyDescriptor(arguments, "0");
+                Object.setPrototypeOf(arguments, { 0: 42 });
+                delete arguments[0];
+                return arguments[0] + ":" + Object.keys(arguments).join(",");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsMaterializedIndex_AssignmentUpdatesTrackedDescriptor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                "use strict";
+                Object.getOwnPropertyDescriptor(arguments, "0");
+                arguments[0] = 42;
+                return arguments[0] + ":" + Object.getOwnPropertyDescriptor(arguments, "0").value;
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("42:42", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DefaultParameterDisablesArgumentsMapping()
     {
         await using var engine = CreateEngine();

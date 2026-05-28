@@ -31,6 +31,7 @@ When working inside the core engine, keep JavaScript values represented as
   - `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`
   - `docs/adrs/0232-keep-sync-function-this-binding-jsvalue-native.md`
   - `docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`
+  - `docs/adrs/0244-keep-weak-key-validation-shared-and-primitive-strict.md`
 
 ## Rules
 
@@ -73,13 +74,19 @@ When working inside the core engine, keep JavaScript values represented as
    `object?`; do not route migrated storage through `ToObject`,
    `FromObjectUnsafe`, or side-channel sentinels for `null`/`undefined`.
    For CWT-backed weak collections, keep the weak-key object identity boundary
-   intentional, but do not treat the value side as permission to box JavaScript
-   values. Store `WeakMap` values as `JsValue` inside a private reference
-   wrapper, use `TryGetValue` to separate presence from a stored
-   `JsValue.Undefined`, and treat `WeakSet` CWT values as presence sentinels
-   rather than JavaScript values unless a separate focused slice proves a new
-   storage contract. Related ADR:
-   `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`.
+   intentional, but keep weak-key validation primitive-strict before inspecting
+   object payloads. `JsWeakCollectionHelpers.ExtractWeakKeyObject(...)` is the
+   shared boundary for `WeakMap`, `WeakSet`, and `FinalizationRegistry`: reject
+   `null`, `undefined`, strings, numbers, booleans, registered symbols, and
+   BigInt primitives even though BigInt is backed by a `JsBigInt` object
+   payload; accept only object identities and unregistered symbols. Do not treat
+   the value side as permission to box JavaScript values. Store `WeakMap`
+   values as `JsValue` inside a private reference wrapper, use `TryGetValue` to
+   separate presence from a stored `JsValue.Undefined`, and treat `WeakSet` CWT
+   values as presence sentinels rather than JavaScript values unless a separate
+   focused slice proves a new storage contract. Related ADRs:
+   `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md` and
+   `docs/adrs/0244-keep-weak-key-validation-shared-and-primitive-strict.md`.
 8. When a private helper cluster already has complete `JsValue` coverage and a
    targeted search shows the `object?` overload has no internal callers, delete
    the legacy overload instead of keeping it as a speculative compatibility
@@ -443,6 +450,17 @@ collection object-to-`JsValue` cleanup should preserve that split: object
 identity for weak keys, `JsValue` for JavaScript values, and `TryGetValue`
 presence checks so stored `undefined` is not confused with absence. Related ADR:
 `docs/adrs/0191-keep-weakmap-value-storage-jsvalue-native.md`.
+
+Issue `autrun-diu14wsfwgjc-670bfedf98` / PR #2452 deduplicated
+`FinalizationRegistry` weak-key validation onto
+`JsWeakCollectionHelpers.ExtractWeakKeyObject(...)` and then fixed the shared
+helper to reject BigInt primitives. The recurrence risk was `JsValue.ObjectValue`:
+BigInt is primitive in JavaScript semantics but backed by a `JsBigInt` object
+payload, so helper code that unwraps payloads before checking the `JsValue` tag
+can accidentally accept `1n` as weakly held. Future weak-reference cleanup
+should keep WeakMap, WeakSet, and FinalizationRegistry on the shared helper and
+prove primitive rejection across all three consumers. Related ADR:
+`docs/adrs/0244-keep-weak-key-validation-shared-and-primitive-strict.md`.
 
 Issue `autrun-dirph7vxdbdc-edfa353492` / PR #1798 migrated the internal Array
 prototype `ReduceLike`/`SomeLike` result helpers from `object?` to `JsValue` and

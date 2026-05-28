@@ -125,6 +125,17 @@ internal static class UnifiedBytecodeVirtualMachine
                 switch (instruction.OpCode)
                 {
                 case UnifiedBytecodeOpCode.LoadSlot:
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, instruction.Operand))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
                     var slotValue = slots[instruction.Operand];
                     if (slotValue.IsUninitialized)
                     {
@@ -181,6 +192,17 @@ internal static class UnifiedBytecodeVirtualMachine
                     {
                         throw new InvalidOperationException(
                             "Identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, callTarget.SlotIndex))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, callTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                     }
 
                     var callableValue = slots[callTarget.SlotIndex];
@@ -687,9 +709,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
-                    if (inactiveCatchBindingSlots is not null &&
-                        (uint)instruction.Operand < (uint)inactiveCatchBindingSlots.Length &&
-                        inactiveCatchBindingSlots[instruction.Operand])
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, instruction.Operand))
                     {
                         stack[stackPointer++] = new JsValue("undefined");
                         programCounter++;
@@ -1777,6 +1797,11 @@ internal static class UnifiedBytecodeVirtualMachine
             }
         }
     }
+
+    private static bool IsInactiveCatchBindingSlot(bool[]? inactiveCatchBindingSlots, int slotIndex) =>
+        inactiveCatchBindingSlots is not null &&
+        (uint)slotIndex < (uint)inactiveCatchBindingSlots.Length &&
+        inactiveCatchBindingSlots[slotIndex];
 
     private static JsEnvironment CreateCatchEnvironment(
         UnifiedBytecodeProgram program,
@@ -3108,6 +3133,18 @@ internal static class UnifiedBytecodeVirtualMachine
             ? "Cannot access lexical binding before initialization"
             : $"Cannot access '{slotName}' before initialization";
         context.SetThrow(StandardLibrary.CreateReferenceError(message, context, context.RealmState));
+    }
+
+    private static void SetInactiveCatchBindingReferenceError(
+        UnifiedBytecodeProgram program,
+        int slotIndex,
+        EvaluationContext context)
+    {
+        var slotName = GetSlotName(program, slotIndex) ?? "catch binding";
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            $"{slotName} is not defined",
+            context,
+            context.RealmState));
     }
 
     private static string? GetSlotName(UnifiedBytecodeProgram program, int slotIndex)

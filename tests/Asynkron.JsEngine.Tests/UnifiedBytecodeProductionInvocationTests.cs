@@ -334,6 +334,34 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TryCatch_CatchBindingDirectReadAfterCatchThrowsReferenceErrorOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe() {
+                try {
+                    throw 7;
+                } catch (e) {
+                }
+
+                try {
+                    return e;
+                } catch (error) {
+                    return error.name;
+                }
+            }
+
+            probe();
+            """);
+
+        Assert.Equal("ReferenceError", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TryFinally_ReturnFromFinallyReplacesPriorReturnOnProductionFastPath()
     {
         await using var engine = CreateEngine();

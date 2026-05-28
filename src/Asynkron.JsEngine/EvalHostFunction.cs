@@ -24,8 +24,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
     private const int MaxProgramCacheEntries = 64;
     private readonly JsObject _properties = new();
     private readonly object _programCacheLock = new();
-    private readonly LinkedList<KeyValuePair<EvalProgramCacheKey, ProgramNode>> _programCacheLru = new();
-    private readonly Dictionary<EvalProgramCacheKey, LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>>
+    private readonly LinkedList<KeyValuePair<EvalProgramCacheKey, EvalProgramCacheValue>> _programCacheLru = new();
+    private readonly Dictionary<EvalProgramCacheKey,
+        LinkedListNode<KeyValuePair<EvalProgramCacheKey, EvalProgramCacheValue>>>
         _programCache = new();
     private EvalProgramCacheEntry? _lastProgramCacheEntry;
 
@@ -194,10 +195,10 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         var forceStrict = hasStrictCaller;
 
         // Parse the code and build the typed AST so eval shares the same pipeline
-        ProgramNode program;
+        EvalProgramCacheValue evalProgramCacheValue;
         try
         {
-            program = GetOrParseProgram(code, forceStrict);
+            evalProgramCacheValue = GetOrParseProgram(code, forceStrict, hasStrictCaller);
         }
         catch (ParseException parseException)
         {
@@ -206,19 +207,19 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             throw new ThrowSignal(errorObject);
         }
 
+        var program = evalProgramCacheValue.Program;
+        var cachedAnalysis = evalProgramCacheValue.Analysis;
+
         // Scripts evaluated via eval may not contain module syntax (export/import).
-        foreach (var statement in program.Body)
+        if (cachedAnalysis.ContainsModuleStatement)
         {
-            if (statement is ModuleStatement)
-            {
-                throw StandardLibrary.ThrowSyntaxError(
-                    "Cannot use module declarations within eval code.",
-                    callingContext,
-                    environment.RealmState);
-            }
+            throw StandardLibrary.ThrowSyntaxError(
+                "Cannot use module declarations within eval code.",
+                callingContext,
+                environment.RealmState);
         }
 
-        if (JsEngine.ProgramContainsImportMeta(program))
+        if (cachedAnalysis.ContainsImportMeta)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "'import.meta' is only valid in module code.",
@@ -230,8 +231,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                                           callingContext?.InClassFieldInitializer == true ||
                                           (callingEnvironment?.HasBinding(FieldInitializerEvalFlag) ?? false);
 
-        // Single-pass AST scan to collect all validation flags at once (performance optimization)
-        var validationFlags = ScanForValidationFlags(program.Body);
+        var validationFlags = cachedAnalysis.ValidationFlags;
 
         // Check for super call in initializer (includeFunctionBodies semantics)
         var containsSuperCallInInitializer = (validationFlags &
@@ -377,15 +377,14 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 environment.RealmState);
         }
 
-        var isStrictEval = program.IsStrict || hasStrictCaller;
+        var isStrictEval = cachedAnalysis.IsStrictEval;
         // 18.2.1.1 EvalDeclarationInstantiation: non-strict direct eval must
         // reject var declarations that collide with caller lexicals (including parameters).
-        var varDeclaredNames = new HashSet<Symbol>();
-        CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
-        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
-        var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
-        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, false);
-        if (isStrictEval && ContainsStrictReservedBinding(program.Body))
+        var varDeclaredNames = cachedAnalysis.VarDeclaredNames;
+        var lexicallyDeclaredNames = cachedAnalysis.LexicallyDeclaredNames;
+        var lexicalDeclarations = cachedAnalysis.LexicalDeclarations;
+        var varFunctionDeclarations = cachedAnalysis.VarFunctionDeclarations;
+        if (isStrictEval && cachedAnalysis.ContainsStrictReservedBinding)
         {
             throw StandardLibrary.ThrowSyntaxError(
                 "Unexpected reserved identifier in strict eval.",
@@ -425,7 +424,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             hasStrictCaller &&
             varDeclaredNames.Count == 0 &&
             lexicalDeclarations.Count == 0 &&
-            varFunctionDeclarations.Count == 0;
+            varFunctionDeclarations.Length == 0;
         if (canUseDeclarationFreeStrictDirectEvalNoEnvironmentFastPath)
         {
             if (evalPrivateNameScopes is { IsDefaultOrEmpty: false } && callingContext is not null)
@@ -610,7 +609,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (!isStrictEval && varEnv.IsGlobalFunctionScope)
         {
             var declaredFunctionNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            for (var i = varFunctionDeclarations.Count - 1; i >= 0; i--)
+            for (var i = varFunctionDeclarations.Length - 1; i >= 0; i--)
             {
                 var declaration = varFunctionDeclarations[i];
                 if (declaration.Function.Name is null || !declaredFunctionNames.Add(declaration.Function.Name))
@@ -633,7 +632,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             isStrictEval &&
             varDeclaredNames.Count == 0 &&
             lexicalDeclarations.Count == 0 &&
-            varFunctionDeclarations.Count == 0;
+            varFunctionDeclarations.Length == 0;
 
         var evalEnvironment = canReuseStrictDirectEvalEnvironment
             ? lexicalEnv
@@ -673,7 +672,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         if (!isStrictEval)
         {
             var declaredFunctionNames = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            for (var i = varFunctionDeclarations.Count - 1; i >= 0; i--)
+            for (var i = varFunctionDeclarations.Length - 1; i >= 0; i--)
             {
                 var declaration = varFunctionDeclarations[i];
                 if (declaration.Function.Name is null)
@@ -761,18 +760,21 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         return InvokeSingleArgument(argument, context, environment, isDirectEval: true, inClassFieldInitializer);
     }
 
-    private ProgramNode GetOrParseProgram(string code, bool forceStrict)
+    private EvalProgramCacheValue GetOrParseProgram(string code, bool forceStrict, bool hasStrictCaller)
     {
         if (MayContainTemplateLiteral(code))
         {
-            return Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+            var templateProgram = Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+            return new EvalProgramCacheValue(
+                templateProgram,
+                CreateProgramAnalysis(templateProgram, hasStrictCaller));
         }
 
         var key = new EvalProgramCacheKey(code, forceStrict);
         var lastEntry = Volatile.Read(ref _lastProgramCacheEntry);
         if (lastEntry is not null && lastEntry.Key.Equals(key))
         {
-            return lastEntry.Program;
+            return lastEntry.Value;
         }
 
         lock (_programCacheLock)
@@ -787,6 +789,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
         }
 
         var program = Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+        var cacheValue = new EvalProgramCacheValue(program, CreateProgramAnalysis(program, hasStrictCaller));
         lock (_programCacheLock)
         {
             if (_programCache.TryGetValue(key, out var cachedNode))
@@ -796,10 +799,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
                 return cachedNode.Value.Value;
             }
 
-            var node = new LinkedListNode<KeyValuePair<EvalProgramCacheKey, ProgramNode>>(new(key, program));
+            var node =
+                new LinkedListNode<KeyValuePair<EvalProgramCacheKey, EvalProgramCacheValue>>(new(key, cacheValue));
             _programCacheLru.AddLast(node);
             _programCache.Add(key, node);
-            Volatile.Write(ref _lastProgramCacheEntry, new EvalProgramCacheEntry(key, program));
+            Volatile.Write(ref _lastProgramCacheEntry, new EvalProgramCacheEntry(key, cacheValue));
             if (_programCache.Count > MaxProgramCacheEntries && _programCacheLru.First is { } first)
             {
                 _programCache.Remove(first.Value.Key);
@@ -807,7 +811,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
             }
         }
 
-        return program;
+        return cacheValue;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -815,7 +819,50 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private readonly record struct EvalProgramCacheKey(string Code, bool ForceStrict);
 
-    private sealed record EvalProgramCacheEntry(EvalProgramCacheKey Key, ProgramNode Program);
+    private sealed record EvalProgramAnalysis(
+        bool ContainsModuleStatement,
+        bool ContainsImportMeta,
+        EvalValidationFlags ValidationFlags,
+        bool IsStrictEval,
+        ImmutableHashSet<Symbol> VarDeclaredNames,
+        ImmutableHashSet<Symbol> LexicallyDeclaredNames,
+        ImmutableDictionary<Symbol, bool> LexicalDeclarations,
+        ImmutableArray<FunctionDeclaration> VarFunctionDeclarations,
+        bool ContainsStrictReservedBinding);
+
+    private sealed record EvalProgramCacheValue(ProgramNode Program, EvalProgramAnalysis Analysis);
+
+    private sealed record EvalProgramCacheEntry(EvalProgramCacheKey Key, EvalProgramCacheValue Value);
+
+    private static EvalProgramAnalysis CreateProgramAnalysis(ProgramNode program, bool hasStrictCaller)
+    {
+        var containsModuleStatement = false;
+        foreach (var statement in program.Body)
+        {
+            if (statement is ModuleStatement)
+            {
+                containsModuleStatement = true;
+                break;
+            }
+        }
+
+        var isStrictEval = program.IsStrict || hasStrictCaller;
+        var varDeclaredNames = new HashSet<Symbol>();
+        CollectVarDeclaredNames(program.Body, varDeclaredNames, isStrictEval, false);
+        var lexicallyDeclaredNames = CollectLexicallyDeclaredNames(program.Body);
+        var lexicalDeclarations = CollectLexicalDeclarations(program.Body);
+        var varFunctionDeclarations = CollectVarFunctionDeclarations(program.Body, false);
+        return new EvalProgramAnalysis(
+            containsModuleStatement,
+            JsEngine.ProgramContainsImportMeta(program),
+            ScanForValidationFlags(program.Body),
+            isStrictEval,
+            varDeclaredNames.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance),
+            lexicallyDeclaredNames.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance),
+            lexicalDeclarations.ToImmutableDictionary(ReferenceEqualityComparer<Symbol>.Instance),
+            varFunctionDeclarations.ToImmutableArray(),
+            ContainsStrictReservedBinding(program.Body));
+    }
 
     private static bool IsDirectEvalCallerMethod(JsEnvironment? callingEnvironment)
     {
@@ -3086,7 +3133,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static void InstantiateLexicalDeclarations(
         JsEnvironment lexicalEnvironment,
-        Dictionary<Symbol, bool> declarations)
+        IReadOnlyDictionary<Symbol, bool> declarations)
     {
         foreach (var (name, isConst) in declarations)
         {
@@ -3102,7 +3149,7 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private static void RollbackEvalBindings(
         JsEnvironment varEnvironment,
-        HashSet<Symbol> declaredNames,
+        IEnumerable<Symbol> declaredNames,
         HashSet<Symbol> preexistingBindings)
     {
         foreach (var name in declaredNames)

@@ -171,6 +171,24 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     `activation-arguments-lite` by adding a direct numeric read path, and the
     correctness boundary was preserving descriptor/prototype/mapping semantics
     while avoiding generic property-key conversion.
+20a. When making `JsArgumentsObject` initial index descriptors lazy, treat the
+     synthetic index properties as ordinary own properties at every observable
+     slow path. Resolve only canonical index strings such as `"0"`; `"00"` and
+     other parsed numeric aliases are ordinary properties, not lazy index
+     aliases. Materialize affected indices before descriptor/enumeration,
+     assignment, delete, `defineProperty`, and extensibility operations. For
+     `Object.seal(arguments)` and `Object.freeze(arguments)`, materialize all
+     remaining initial indices before the integrity mutation and refresh tracked
+     descriptors from the backing object afterward so descriptor flags,
+     `Object.isSealed`, and `Object.isFrozen` are current. Pair retained
+     changes with proof-pack coverage for descriptor/enumeration visibility,
+     non-canonical numeric names, `preventExtensions`, seal/freeze, mapped and
+     unmapped values, materialized delete, and prototype fallback. WHY: issue
+     `autrun-diubg9b2tezc-a6f082fc8b` / PR #2546 retained a 16.2%
+     `activation-arguments-lite` win by virtualizing initial index descriptors,
+     but build-back repairs caught both the `"00"` alias bug and stale
+     seal/freeze lazy descriptor flags. Related ADR:
+     `docs/adrs/0265-keep-arguments-lazy-index-descriptors-observable-and-integrity-synced.md`.
 21. When adding or widening base-class-constructor simple IR activation fast
     paths, keep eligibility aligned with the binder and environment contract.
     `BindSimpleIrActivationParameters` is a positional simple-identifier

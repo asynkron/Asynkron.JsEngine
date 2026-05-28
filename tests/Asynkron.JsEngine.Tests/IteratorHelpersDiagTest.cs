@@ -7,6 +7,25 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class IteratorHelpersDiagTest(ITestOutputHelper output) : InternalTestBase(output)
 {
     [Fact(Timeout = 5000)]
+    public async Task IteratorPrototype_ToStringTag_UsesAccessorDescriptor()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            let descriptor = Object.getOwnPropertyDescriptor(Iterator.prototype, Symbol.toStringTag);
+            [
+              typeof descriptor.get,
+              typeof descriptor.set,
+              descriptor.enumerable,
+              descriptor.configurable,
+              descriptor.value === undefined
+            ].join("|");
+        """);
+
+        Assert.Equal("function|function|false|true|true", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Take_ReturnForwardsToUnderlyingIteratorOnce()
     {
         await using var engine = CreateEngine();

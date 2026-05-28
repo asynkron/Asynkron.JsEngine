@@ -253,6 +253,7 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             stringConstants,
             activationSlots);
+        var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -306,6 +307,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (isCallTargetPreparationCandidate)
                     {
                         break;
+                    }
+
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget || hasOptionalChainOperation)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain call-target preparation is outside the first production invocation boundary.";
+                        return true;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
@@ -587,6 +596,21 @@ internal static class UnifiedBytecodeProductionEligibility
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool HasOptionalChainOperation(ExpressionProgram program)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
+                operation.Kind == ExpressionOpKind.JumpIfShortCircuited)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

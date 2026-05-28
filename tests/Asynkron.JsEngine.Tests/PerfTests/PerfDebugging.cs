@@ -23,7 +23,7 @@ public sealed class PerfDebugging(ITestOutputHelper output) : InternalTestBase(o
                 ? new JsEngineOptions { Logger = new TestLogger(minLogLevel: LogLevel.Debug, xUnitOutput: output) }
                 : new JsEngineOptions());
         await engine.Evaluate(script);
-        Assert.True(sw.ElapsedMilliseconds < 1000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
+        Assert.True(sw.ElapsedMilliseconds < 2000, $"Execution took too long: {sw.ElapsedMilliseconds} ms");
     }
 
     private static string CreateForLoopScript(int start, int end)

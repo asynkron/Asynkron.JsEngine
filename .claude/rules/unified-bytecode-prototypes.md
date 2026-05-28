@@ -498,6 +498,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     treat constructor/super, spread/direct eval, dynamic lookup,
     iterator/destructuring, and label families as remaining lanes unless
     current `main` proves an even newer call slice has landed.
+32. When preserving or widening with-backed dynamic names on the production
+    unified bytecode route, keep the accepted program activation-hoist aligned
+    and receiver-owned. The sync bridge must define function-scoped var bindings
+    in the fast activation environment before VM execution so nested callees
+    called from inside an outer `with` still see their own hoisted var names as
+    `undefined` before any initializer runs. VM
+    `PrepareDynamicIdentifierCallTarget` must resolve active with bindings
+    regardless of identifier-cache state and must push the with binding object
+    as the receiver when the identifier comes from that object. Keep direct
+    eval source execution, captured dynamic activation, arguments objects,
+    async/generator functions, and unresolved non-with dynamic lookup as
+    pre-VM declines. Pair retained changes with the focused
+    `Statements_with` Test262 row and public production invocation tests for
+    both hoisted-var shadowing and with-object receiver binding. WHY: issue
+    #2564 / PR #2571 fixed `S12.10_A1.11_T5` after the with-backed production
+    route failed to create a nested function's hoisted local `value` binding
+    before dynamic lookup and dynamic identifier call preparation still depended
+    on the identifier-cache path.
 
 ## Why
 

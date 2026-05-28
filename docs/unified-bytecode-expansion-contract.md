@@ -54,6 +54,10 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Jump`
 - `JumpIfFalse`
 - `Return`
+- `PrepareIdentifierCallTarget`
+- `PrepareNamedCallTarget`
+- `PrepareComputedCallTarget`
+- `CallInvocationBoundary`
 
 ### Production Decline Families (current)
 - `None`
@@ -81,6 +85,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `PrototypeOnlyJumpOpcode`
 - `PrototypeOnlyJumpIfFalseOpcode`
 - `UnsupportedPlanShape`
+- `CallInvocationBoundary`
 
 ### Statement Diagnostics Supported Kinds (current)
 - `Jump`, `Break`, `Continue`, `SetCompletionValue`, `BreakableExit`

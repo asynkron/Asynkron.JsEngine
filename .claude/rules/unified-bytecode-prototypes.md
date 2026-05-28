@@ -244,6 +244,12 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2474 repeated the same risk for primitive opcodes (`TypeOf`,
     `TypeOfIdentifier`, unary operators, `ToString`, and `Pop`), confirming the
     contract inventory is a delivery gate for every VM-executed opcode lane.
+    Issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-651d15496c`
+    / PR #2508 closed the Batch 5 documentation surface by synchronizing the
+    expansion contract, roadmap, ADR 0256, and this rule around explicit next
+    unsupported buckets. The durable lesson is that shared boundary wording and
+    unsupported-bucket guidance are delivery-slice artifacts, not later cleanup.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with

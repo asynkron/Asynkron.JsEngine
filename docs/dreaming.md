@@ -229,7 +229,7 @@ Milestone C routing rules for this slice:
 ## Capability lifecycle control plane (previous run)
 Primary owner: **Evidence and Governance Fabric**.
 
-This run adds an explicit lifecycle control plane so capability statements
+That run added an explicit lifecycle control plane so capability statements
 cannot jump directly from prototype behavior to production claim language.
 The goal is to make claim state a first-class architecture object with hard
 gates owned by evidence discipline.

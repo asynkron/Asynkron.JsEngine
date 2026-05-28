@@ -36,7 +36,8 @@ public static partial class TypedAstEvaluator
             SimpleNumericSelfRecursionBase Base,
             SimpleNumericSelfRecursionOperation Operation,
             int LeftDelta,
-            int RightDelta)
+            int RightDelta,
+            int ConstantTerm)
         {
             public const int MaxFastInput = 64;
         }
@@ -49,7 +50,8 @@ public static partial class TypedAstEvaluator
         {
             AddSelfCalls,
             AddParameterAndSelfCall,
-            MultiplyParameterAndSelfCall
+            MultiplyParameterAndSelfCall,
+            AddConstantAndSelfCall
         }
 
         /// <summary>
@@ -1245,6 +1247,7 @@ public static partial class TypedAstEvaluator
                         fastPath.BaseThreshold, fastPath.Base),
                 SimpleNumericSelfRecursionOperation.AddParameterAndSelfCall => input + left,
                 SimpleNumericSelfRecursionOperation.MultiplyParameterAndSelfCall => input * left,
+                SimpleNumericSelfRecursionOperation.AddConstantAndSelfCall => fastPath.ConstantTerm + left,
                 _ => input
             };
         }
@@ -1340,7 +1343,8 @@ public static partial class TypedAstEvaluator
                     recursionBase,
                     SimpleNumericSelfRecursionOperation.AddSelfCalls,
                     leftDelta,
-                    rightDelta);
+                    rightDelta,
+                    0);
                 return true;
             }
 
@@ -1359,7 +1363,27 @@ public static partial class TypedAstEvaluator
                         ? SimpleNumericSelfRecursionOperation.AddParameterAndSelfCall
                         : SimpleNumericSelfRecursionOperation.MultiplyParameterAndSelfCall,
                     delta,
+                    0,
                     0);
+                return true;
+            }
+
+            if (returnExpression.Operator == BinaryOperator.Add &&
+                TryGetConstantSelfRecursionTerms(
+                    returnExpression,
+                    parameterName,
+                    out functionName,
+                    out delta,
+                    out var constant))
+            {
+                fastPath = new SimpleNumericSelfRecursionFastPath(
+                    functionName,
+                    baseThreshold,
+                    recursionBase,
+                    SimpleNumericSelfRecursionOperation.AddConstantAndSelfCall,
+                    delta,
+                    0,
+                    constant);
                 return true;
             }
 
@@ -1413,6 +1437,35 @@ public static partial class TypedAstEvaluator
 
             functionName = Symbol.Undefined;
             delta = 0;
+            return false;
+        }
+
+        private static bool TryGetConstantSelfRecursionTerms(
+            BinaryExpression expression,
+            Symbol parameterName,
+            out Symbol functionName,
+            out int delta,
+            out int constant)
+        {
+            if (expression.Left is LiteralExpression { Value.IsNumber: true } leftLiteral &&
+                TryGetSmallInteger(leftLiteral.Value, out constant) &&
+                TryGetSelfCallSubtractDelta(expression.Right, parameterName, out functionName, out delta) &&
+                !ReferenceEquals(functionName, parameterName))
+            {
+                return true;
+            }
+
+            if (expression.Right is LiteralExpression { Value.IsNumber: true } rightLiteral &&
+                TryGetSmallInteger(rightLiteral.Value, out constant) &&
+                TryGetSelfCallSubtractDelta(expression.Left, parameterName, out functionName, out delta) &&
+                !ReferenceEquals(functionName, parameterName))
+            {
+                return true;
+            }
+
+            functionName = Symbol.Undefined;
+            delta = 0;
+            constant = 0;
             return false;
         }
 

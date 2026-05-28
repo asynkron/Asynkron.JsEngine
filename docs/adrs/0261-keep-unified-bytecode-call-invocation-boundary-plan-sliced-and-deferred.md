@@ -28,8 +28,8 @@ before VM execution:
   non-executable.
 
 Main has since landed the first executable identifier-call slice, so this ADR
-now records the selected boundary and the still-deferred call families rather
-than claiming every call invocation remains non-executable.
+records that slice as completed baseline and scopes the remaining call
+invocation widening lanes.
 
 The remaining unsupported families also still include dynamic lookup, label
 control flow, and iterator/destructuring drivers. Mixing those with call
@@ -40,13 +40,13 @@ execution would enlarge semantic risk and blur ownership.
 Select executable call invocation as the next unified-bytecode boundary, and
 split the work into strict slices:
 
-1. First slice: direct identifier calls only, where the target resolves to an
-   activation slot, arguments are simple one-op operands, spread is absent, and
-   direct eval is excluded.
-2. Second slice: named member calls using existing prepared call-target
-   metadata.
-3. Third slice: computed member calls using existing prepared call-target
-   metadata.
+1. Baseline (already landed): direct identifier calls where the target resolves
+   to an activation slot, arguments are simple one-op operands, spread is
+   absent, and direct eval is excluded.
+2. First remaining slice: named member calls using existing prepared
+   call-target metadata.
+3. Second remaining slice: computed member calls using existing prepared
+   call-target metadata.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
 6. Deferred lane: iterator/destructuring drivers, label control flow, and
@@ -58,8 +58,8 @@ AST fallback.
 
 ## Consequences
 
-- The next implementation lane has a clear "who/what/why" shape anchored to
-  existing call-target preparation ownership.
+- The next implementation lane starts at named member call execution and keeps
+  the already-landed identifier-call baseline explicit.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.

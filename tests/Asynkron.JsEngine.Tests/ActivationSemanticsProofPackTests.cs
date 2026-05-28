@@ -385,6 +385,27 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsLengthRead_RespectsMutationAndPrototypeFallback()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                "use strict";
+                const before = arguments.length;
+                arguments.length = 0;
+                const afterSet = arguments.length;
+                delete arguments.length;
+                Object.setPrototypeOf(arguments, { length: 9 });
+                return [before, afterSet, arguments.length, arguments[0]].join(":");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("1:0:9:41", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArgumentsNumericIndexRead_RespectsAccessorDescriptor()
     {
         await using var engine = CreateEngine();

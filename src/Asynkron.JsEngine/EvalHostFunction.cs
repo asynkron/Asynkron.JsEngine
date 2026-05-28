@@ -763,6 +763,11 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
     private ProgramNode GetOrParseProgram(string code, bool forceStrict)
     {
+        if (MayContainTemplateLiteral(code))
+        {
+            return Engine.ParseProgram(code, forceStrict, validatePrivateNames: false);
+        }
+
         var key = new EvalProgramCacheKey(code, forceStrict);
         var lastEntry = Volatile.Read(ref _lastProgramCacheEntry);
         if (lastEntry is not null && lastEntry.Key.Equals(key))
@@ -804,6 +809,9 @@ public sealed class EvalHostFunction : IJsEnvironmentAwareCallable, IEvaluationC
 
         return program;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool MayContainTemplateLiteral(string code) => code.IndexOf('`') >= 0;
 
     private readonly record struct EvalProgramCacheKey(string Code, bool ForceStrict);
 

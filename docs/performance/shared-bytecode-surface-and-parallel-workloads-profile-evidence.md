@@ -12,7 +12,7 @@ rtk ./tools/profile simplearithmetic --cpu --calltree-depth 25 --calltree-width 
 rtk ./tools/profile propertyaccess --memory
 rtk ./tools/profile simplearithmetic --memory
 rtk ./tools/profile objectcreation --memory
-rtk ./tools/profile activation-arguments --memory
+rtk ./tools/profile activation-arguments-lite --memory
 rtk ./tools/profile forloop --memory
 ```
 
@@ -37,8 +37,10 @@ forofiteration                     411       201763.2      270    157782.9  Jint
 
 ## Baseline accounting
 
-- `propertyaccess`: comparable checked-in baseline exists in `docs/performance/propertyaccess-unified-bytecode-production-profile-evidence.md` (2026-05-27).
-- `simplearithmetic`, `objectcreation`, `arrayops`, `activation-noargs-lite`, `activation-params-lite`, `activation-arguments-lite`, `activation-closures-lite`, `activation-evalscope-lite`, `forloop`, `whileloop`, `ir-arithmetic`, `forofiteration`: no single checked-in baseline table was located for this exact combined workload command; this note treats current rows as baseline-establishing evidence for this batch.
+- `propertyaccess`: comparable checked-in allocation baseline exists in `docs/performance/propertyaccess-unified-bytecode-production-profile-evidence.md` (`asynkron_kb=302.6`, `jint_kb=87285.7`).
+- `activation-arguments-lite`: comparable checked-in allocation baseline exists in `docs/performance/activation-arguments-index-read-fast-path.md` (`asynkron_kb=1019549.5`, `jint_kb=275794.2`).
+- `arrayops`: comparable checked-in allocation baseline exists in `docs/performance/arrayops-dense-iteration-callback-args.md` (`asynkron_kb=925094.5`).
+- `simplearithmetic`, `objectcreation`, `activation-noargs-lite`, `activation-params-lite`, `activation-closures-lite`, `activation-evalscope-lite`, `forloop`, `whileloop`, `ir-arithmetic`, `forofiteration`: no directly comparable checked-in allocation rows were located during this pass; current rows remain baseline-establishing evidence for this batch.
 
 Propertyaccess baseline vs current (allocation row only):
 
@@ -68,11 +70,17 @@ Allocation trace parse failed: Failed to read VarUInt32 at stream offset 0x12228
 No results to display
 ```
 
-### activation-arguments (memory)
+### activation-arguments-lite (memory)
 
 ```text
-Allocation trace parse failed: Failed to read VarUInt32 at stream offset 0x12228
-No results to display
+Metric          Value
+Total allocated 953.14 MB
+
+Allocation By Type (Sampled)
+Type                 Count      Total
+JsSlot[]             1,410  143.35 MB
+String               1,329  135.13 MB
+PropertyDescriptor     813   82.65 MB
 ```
 
 ### forloop (memory)

@@ -36,6 +36,12 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `SetComputedProperty`
 - `UpdateNamedProperty`
 - `UpdateComputedProperty`
+- `CreateArray`
+- `ArrayPush`
+- `ArrayPushHole`
+- `CreateObject`
+- `DefineObjectProperty`
+- `DefineComputedObjectProperty`
 - `Jump`
 - `JumpIfFalse`
 - `Return`

@@ -361,6 +361,104 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
     }
 
+    [Fact]
+    public void Evaluate_ArrayLiteralCandidate_AcceptsLiteralConstructionOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function create(value) {
+                return [1, , [value]];
+            }
+            """,
+            "create");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayPushHole);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectLiteralCandidate_AcceptsStaticAndComputedDataProperties()
+    {
+        var plan = GetFunctionPlan("""
+            function create(key, value) {
+                var nested = { child: value };
+                return { a: 1, [key]: nested };
+            }
+            """,
+            "create");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CreateObject);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function spreadArray(source) {
+            return [1, ...source];
+        }
+        """,
+        "spreadArray")]
+    [InlineData(
+        """
+        function spreadObject(source) {
+            return { ...source };
+        }
+        """,
+        "spreadObject")]
+    [InlineData(
+        """
+        function methodObject() {
+            return { value() { return 1; } };
+        }
+        """,
+        "methodObject")]
+    [InlineData(
+        """
+        function accessorObject() {
+            return { get value() { return 1; } };
+        }
+        """,
+        "accessorObject")]
+    [InlineData(
+        """
+        function anonymousFunctionValue() {
+            return { value: function() {} };
+        }
+        """,
+        "anonymousFunctionValue")]
+    public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.NotEmpty(result.Reason);
+    }
+
     [Theory]
     [MemberData(nameof(AcceptedPropertyWriteAndUpdatePrograms))]
     public void Evaluate_AcceptedPropertyWriteAndUpdatePrograms_StayWithinOwnedOpcodeSubset(
@@ -493,7 +591,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readComputedObjectLiteralKey",
-        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
         function readComputedSpreadKey(box, source) {

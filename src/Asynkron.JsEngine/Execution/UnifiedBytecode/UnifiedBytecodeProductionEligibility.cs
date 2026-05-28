@@ -393,17 +393,53 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Optional-chain short-circuiting is outside the first production property-read boundary.";
                     return true;
 
-                case ExpressionOpKind.CreateObject:
-                case ExpressionOpKind.DefineObjectProperty:
-                case ExpressionOpKind.DefineComputedObjectProperty:
+                case ExpressionOpKind.LoadFunctionLiteral:
+                case ExpressionOpKind.LoadClassLiteral:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                    declineReason =
+                        "Function/class literal values are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.ArraySpread:
                 case ExpressionOpKind.DefineObjectMethod:
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
                 case ExpressionOpKind.DefineComputedObjectAccessor:
                 case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                    declineReason = "Object literal/spread expressions are not eligible for production unified bytecode routing.";
+                    declineReason =
+                        "Literal spread, object methods, and object accessors are not eligible for production unified bytecode routing.";
                     return true;
+
+                case ExpressionOpKind.DefineObjectProperty:
+                    if (operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
+                        declineReason =
+                            "Private-field expressions are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (operation.AllowNameInference)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Object literal name inference is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Computed object literal name inference is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
 
                 case ExpressionOpKind.PrivateFieldIn:
                     declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
@@ -795,6 +831,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.SetComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                case UnifiedBytecodeOpCode.CreateArray:
+                case UnifiedBytecodeOpCode.ArrayPush:
+                case UnifiedBytecodeOpCode.ArrayPushHole:
+                case UnifiedBytecodeOpCode.CreateObject:
+                case UnifiedBytecodeOpCode.DefineObjectProperty:
+                case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
                 case UnifiedBytecodeOpCode.Return:
                     break;
 

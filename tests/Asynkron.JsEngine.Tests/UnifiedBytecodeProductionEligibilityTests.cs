@@ -108,7 +108,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_CallExpressionPlan_DeclinesWithCallDependency()
+    public void Evaluate_CallExpressionPlan_DeclinesAtInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
             function invoke(fn, x) {
@@ -122,8 +122,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
-        Assert.Contains("Call/construct", result.Reason, StringComparison.Ordinal);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary, result.Code);
+        Assert.Contains("Call-target preparation compiled", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -371,6 +371,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeMember",
+        (int)UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary)]
+    [InlineData(
+        """
+        function invokeComputedMember(box, key) {
+            return box[key]();
+        }
+        """,
+        "invokeComputedMember",
+        (int)UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary)]
+    [InlineData(
+        """
+        function invokeSpread(helper, values) {
+            return helper(...values);
+        }
+        """,
+        "invokeSpread",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function invokeEval(source) {
+            return eval(source);
+        }
+        """,
+        "invokeEval",
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """

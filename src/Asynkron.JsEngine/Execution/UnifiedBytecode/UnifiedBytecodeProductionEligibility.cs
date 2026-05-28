@@ -30,7 +30,8 @@ internal enum UnifiedBytecodeProductionDeclineCode
     PrototypeOnlyBinaryOpcode,
     PrototypeOnlyJumpOpcode,
     PrototypeOnlyJumpIfFalseOpcode,
-    UnsupportedPlanShape
+    UnsupportedPlanShape,
+    CallInvocationBoundary
 }
 
 internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
@@ -62,7 +63,8 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
             ImmutableArray<UnifiedBytecodeInstruction>.Empty,
             0,
             ImmutableArray<JsTypes.JsValue>.Empty,
-            ImmutableArray<string>.Empty);
+            ImmutableArray<string>.Empty,
+            ImmutableArray<UnifiedBytecodeCallTarget>.Empty);
 }
 
 internal static class UnifiedBytecodeProductionEligibility
@@ -229,6 +231,10 @@ internal static class UnifiedBytecodeProductionEligibility
         var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
+        var isCallTargetPreparationCandidate = TryIsFirstBoundaryCallTargetPreparationCandidate(
+            program,
+            identifierConstants,
+            activationSlots);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -251,13 +257,86 @@ internal static class UnifiedBytecodeProductionEligibility
                     declineReason = "new.target expression access is not eligible for production unified bytecode routing.";
                     return true;
 
-                case ExpressionOpKind.Call:
-                case ExpressionOpKind.Construct:
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    if (operation.IsArguments)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                        declineReason =
+                            "arguments call targets are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    var callIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (callIdentifier.Name.Name == "eval")
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                        declineReason =
+                            "Direct eval invocation semantics are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (!TryResolveActivationSlot(callIdentifier, activationSlots))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                        declineReason =
+                            $"Identifier call target '{callIdentifier.Name.Name}' requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    declineReason =
+                        "Identifier call-target preparation is outside the first production invocation boundary.";
+                    return true;
+
                 case ExpressionOpKind.LoadNamedCallTarget:
                 case ExpressionOpKind.LoadComputedCallTarget:
-                case ExpressionOpKind.LoadIdentifierCallTarget:
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
-                    declineReason = "Call/construct expression shape is not eligible for production unified bytecode routing.";
+                    declineReason =
+                        "Member call-target preparation is outside the first production invocation boundary.";
+                    return true;
+
+                case ExpressionOpKind.Call:
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    if (operation.SpreadMaskConstantIndex >= 0)
+                    {
+                        declineReason =
+                            "Spread call arguments are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (operation.IsDirectEval)
+                    {
+                        declineReason =
+                            "Direct eval invocation semantics are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    declineReason =
+                        "Call invocation is not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.Construct:
+                case ExpressionOpKind.SuperConstruct:
+                case ExpressionOpKind.LoadNamedSuperCallTarget:
+                case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    declineReason =
+                        "Construct and super call semantics are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.LoadIdentifier:
@@ -448,7 +527,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        if (operation.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadIdentifierCallTarget) ||
+            operation.IsArguments)
         {
             return false;
         }
@@ -531,6 +611,130 @@ internal static class UnifiedBytecodeProductionEligibility
         var getComputedProperty = program.GetOperation(4);
         return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedProperty.ShortCircuitOnNullishTarget;
+    }
+
+    private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 2)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var firstOperation = program.GetOperation(0);
+        if (firstOperation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
+        {
+            return !firstOperation.IsArguments &&
+                   TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots) &&
+                   HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex > 0)
+        {
+            var callTarget = program.GetOperation(namedCallTargetIndex);
+            return !callTarget.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
+                   MatchesNamedReceiverOperations(program, identifierConstants, activationSlots, namedCallTargetIndex) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       namedCallTargetIndex + 1,
+                       call);
+        }
+
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex >= 2)
+        {
+            var keyIndex = computedCallTargetIndex - 1;
+            return MatchesNamedReceiverOperations(program, identifierConstants, activationSlots, keyIndex) &&
+                   IsSimpleOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       computedCallTargetIndex + 1,
+                       call);
+        }
+
+        return false;
+    }
+
+    private static bool MatchesNamedReceiverOperations(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        int endExclusive)
+    {
+        if (endExclusive is < 1 or > 3 ||
+            !TryGetActivationResolvedIdentifier(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
+        {
+            var propertyRead = program.GetOperation(operationIndex);
+            if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
+                propertyRead.GetString(stringConstants).IsPrivateName() ||
+                propertyRead.IsOptional ||
+                propertyRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool HasSimpleCallArguments(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        int argsStartIndex,
+        PackedExpressionOp call)
+    {
+        var callIndex = program.OperationCount - 1;
+        if (callIndex - argsStartIndex != call.ArgumentCount)
+        {
+            return false;
+        }
+
+        for (var operationIndex = argsStartIndex; operationIndex < callIndex; operationIndex++)
+        {
+            if (!IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            if (program.GetOperation(operationIndex).Kind == kind)
+            {
+                return operationIndex;
+            }
+        }
+
+        return -1;
     }
 
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
@@ -785,6 +989,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case UnifiedBytecodeOpCode.LoadSlot:
                 case UnifiedBytecodeOpCode.LoadLiteral:
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
+                case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
                 case UnifiedBytecodeOpCode.RequireObjectCoercible:
                 case UnifiedBytecodeOpCode.ResolvePropertyKey:
@@ -798,6 +1005,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
                 case UnifiedBytecodeOpCode.Return:
                     break;
+
+                case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                    declineCode = UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary;
+                    declineReason =
+                        "Call-target preparation compiled, but actual call invocation remains outside production unified bytecode routing.";
+                    return true;
 
                 default:
                     declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

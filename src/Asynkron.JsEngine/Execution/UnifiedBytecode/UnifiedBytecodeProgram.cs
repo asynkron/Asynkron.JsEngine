@@ -20,15 +20,32 @@ internal enum UnifiedBytecodeOpCode : byte
     UpdateComputedProperty,
     Jump,
     JumpIfFalse,
-    Return
+    Return,
+    PrepareIdentifierCallTarget,
+    PrepareNamedCallTarget,
+    PrepareComputedCallTarget,
+    CallInvocationBoundary
 }
 
 internal readonly record struct UnifiedBytecodeInstruction(
     UnifiedBytecodeOpCode OpCode,
     int Operand = 0);
 
+internal enum UnifiedBytecodeCallTargetKind : byte
+{
+    Identifier,
+    NamedMember,
+    ComputedMember
+}
+
+internal readonly record struct UnifiedBytecodeCallTarget(
+    UnifiedBytecodeCallTargetKind Kind,
+    int SlotIndex = -1,
+    int NameConstantIndex = -1);
+
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,
     int MaxStackDepth,
     ImmutableArray<JsTypes.JsValue> LiteralConstants,
-    ImmutableArray<string> StringConstants);
+    ImmutableArray<string> StringConstants,
+    ImmutableArray<UnifiedBytecodeCallTarget> CallTargetConstants);

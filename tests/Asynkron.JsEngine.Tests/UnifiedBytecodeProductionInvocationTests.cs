@@ -141,6 +141,81 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectIdentifierCall_DeclinesUnifiedBytecodeAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function helper(value) {
+                return value + 1;
+            }
+
+            function invoke(helper, value) {
+                return helper(value);
+            }
+
+            invoke(helper, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedMemberCall_DeclinesUnifiedBytecodeAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return value + this.offset;
+                }
+            };
+
+            function invoke(box, value) {
+                return box.read(value);
+            }
+
+            invoke(box, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedMemberCall_DeclinesUnifiedBytecodeAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return value + this.offset;
+                }
+            };
+
+            function invoke(box, key, value) {
+                return box[key](value);
+            }
+
+            invoke(box, "read", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

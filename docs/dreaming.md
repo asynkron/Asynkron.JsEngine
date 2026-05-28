@@ -388,7 +388,7 @@ This dream is aspirational and does not claim current full parity. These constra
 - **Milestone B (host interop boundary):** host callable/global integration is explicit, but Node-style host behavior remains an integration-layer concern.
 - **Milestone C (async seam closure):** async-generator runtime still has known seam risk and remains active follow-through work.
 - Unified bytecode direction is strong, but production routing remains bounded by explicit eligibility and opcode/control-flow constraints.
-- Current accepted unified-bytecode property-access boundary remains intentionally strict: direct named/computed reads and writes (including two-hop named reads, compound writes, and updates) only, with out-of-boundary shapes declining before VM execution.
+- Current accepted unified-bytecode property-access boundary remains intentionally strict: direct named/computed reads and writes (including optional-free named read chains, compound writes, and updates) only, with out-of-boundary shapes declining before VM execution.
 - Compact statement-bytecode storage is a direction; it is not the current universal execution contract.
 - Dynamic/eval-sensitive paths remain correctness-first and cannot be erased by architecture preference.
 

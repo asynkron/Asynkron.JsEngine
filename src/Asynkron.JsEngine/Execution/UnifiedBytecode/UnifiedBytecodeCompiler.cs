@@ -425,6 +425,29 @@ internal static class UnifiedBytecodeCompiler
                         reason = string.Empty;
                         return true;
 
+                    case ReturnInstruction { ReturnProgram: null, AwaitedProgram: null }:
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined));
+                        reason = string.Empty;
+                        return true;
+
+                    case ThrowInstruction { ThrowProgram: { } throwProgram, AwaitedProgram: null }:
+                        if (!TryAppendExpressionProgramOps(
+                                throwProgram,
+                                activationSlots,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Throw));
+                        maxStackDepth = Math.Max(maxStackDepth, throwProgram.MaxStackDepth);
+                        reason = string.Empty;
+                        return true;
+
                     case EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } discard:
                         if (!TryAppendExpressionProgramOps(
                                 discardedProgram,

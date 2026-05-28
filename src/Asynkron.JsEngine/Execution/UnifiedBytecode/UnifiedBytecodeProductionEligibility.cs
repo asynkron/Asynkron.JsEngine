@@ -197,43 +197,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is EvaluateAndDiscardInstruction { ExpressionProgram: { } discardedProgram } &&
-                TryFindDiscardedExpressionDecline(discardedProgram, out declineCode, out declineReason))
-            {
-                return true;
-            }
-
             if (TryGetExpressionProgram(instruction, out var program) &&
                 TryFindExpressionDecline(program, activationSlots, out declineCode, out declineReason))
             {
                 return true;
             }
-        }
-
-        declineCode = UnifiedBytecodeProductionDeclineCode.None;
-        declineReason = string.Empty;
-        return false;
-    }
-
-    private static bool TryFindDiscardedExpressionDecline(
-        ExpressionProgram program,
-        out UnifiedBytecodeProductionDeclineCode declineCode,
-        out string declineReason)
-    {
-        if (ContainsPropertyWriteOperation(program))
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
-            declineReason =
-                "Discarded property writes are outside the first production property-write boundary.";
-            return true;
-        }
-
-        if (ContainsPropertyUpdateOperation(program))
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;
-            declineReason =
-                "Discarded property updates are outside the first production property-update boundary.";
-            return true;
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
@@ -986,19 +954,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool ContainsPropertyUpdateOperation(ExpressionProgram program)
-    {
-        foreach (var operation in program.EnumerateOperations())
-        {
-            if (operation.Kind is ExpressionOpKind.UpdateNamedProperty or ExpressionOpKind.UpdateComputedProperty)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool TryGetExpressionProgram(
         ExecutionInstruction instruction,
         out ExpressionProgram program)
@@ -1106,6 +1061,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
                 case UnifiedBytecodeOpCode.Return:
+                case UnifiedBytecodeOpCode.ReturnUndefined:
+                case UnifiedBytecodeOpCode.Throw:
                     break;
 
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:

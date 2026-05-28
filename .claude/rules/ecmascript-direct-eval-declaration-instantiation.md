@@ -55,6 +55,19 @@ and keep `arguments` handling path-specific.
    must not mutate caller activation state. Prove this with repeated current
    activation binding observations plus the focused activation/class-element
    eval proof.
+9. When extending direct-eval program cache follow-through, cache only
+   immutable program-shaped static analysis beside non-template cached
+   `ProgramNode` values. Allowed facts include module/import-meta presence,
+   `EvalValidationFlags`, declaration/name collections, var-function
+   declarations, strict-reserved binding presence, and declaration-free
+   classification when the cache key includes the relevant strictness input.
+   Keep private-name validation outcomes, `super` / `new.target` eligibility,
+   class-field-initializer state, declaration-instantiation effects,
+   execution results, and caller environment decisions outside the cache.
+   Eval sources that may contain template literals remain governed by
+   `.claude/rules/ecmascript-template-object-cache.md` and must not reuse a
+   cached `ProgramNode` without a separately proven eval-instantiation
+   identity.
 
 ## Why
 
@@ -101,8 +114,16 @@ the same as generic strict eval: it must be caller-strict, declaration-free, and
 post-validation, and it must not mark the caller environment as an eval
 declaration environment.
 
+Issue #2595 / PR #2600 removed repeated non-template direct-eval static scans
+on cache hits by storing immutable program-shaped analysis next to the parsed
+program. The durable lesson is the same caller-context boundary in a smaller
+form: analysis facts may follow the parsed program only when they are stable for
+the eval cache key and cannot mutate across calls; caller-context validation and
+declaration instantiation still run per invocation.
+
 Related ADRs:
 
+- `docs/adrs/0185-keep-direct-eval-program-cache-strictness-and-caller-context-owned.md`
 - `docs/adrs/0132-keep-direct-eval-var-arguments-collision-checks-narrow.md`
 - `docs/adrs/0206-keep-strict-direct-eval-declaration-free-environment-reuse.md`
 - `docs/adrs/0213-keep-strict-direct-eval-no-environment-fast-path-caller-strict.md`

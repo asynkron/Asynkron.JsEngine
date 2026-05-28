@@ -63,6 +63,11 @@ boundary-explicit.
     wakeup/callback receiving boundary. Do not call the async seam closed until
     focused async-generator proof, canonical quality evidence, and required
     profile evidence are attached.
+13. When a recurring Dreamer slice adds a new `this run` section or signal
+    block in `docs/dreaming.md`, reclassify older run-scoped headings and
+    sentences as `previous run` or historical evidence. Leave only the active
+    delivery's section and signal labels as `this run`; stale current-run
+    wording makes owner and proof status ambiguous.
 
 ## Why
 
@@ -135,6 +140,14 @@ host callbacks, and evidence gates in one sentence. Without this rule, future
 Dreamer or roadmap slices can accidentally turn an Execution -> Async -> Host
 handoff contract into a broad async-seam-closure claim before focused
 async-generator proof and canonical quality evidence exist.
+
+Faktorial issue `autrun-diu8sjtzmb34-e2a933a687` / PR #2528 closed a
+review-requested Dreamer ambiguity after a new "Capability lifecycle control
+plane (this run)" section left the older Milestone C slice also labeled as
+"this run". WHY: multiple current-run labels made it unclear which architecture
+slice represented the active delivery and which was carried historical
+evidence. Future Dreamer slices should demote older run-scoped headings and
+sentences while preserving the current delivery's traceability signals.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

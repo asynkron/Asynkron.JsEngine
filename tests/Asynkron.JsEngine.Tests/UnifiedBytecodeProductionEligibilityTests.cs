@@ -130,6 +130,54 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, value) {
+                return box.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, key, value) {
+                return box[key](value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.ComputedMember, callTarget.Kind);
+    }
+
+    [Fact]
     public void Evaluate_BlockScopedIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
@@ -771,22 +819,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
-        function invokeMember(box) {
-            return box.value();
-        }
-        """,
-        "invokeMember",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
-        function invokeComputedMember(box, key) {
-            return box[key]();
-        }
-        """,
-        "invokeComputedMember",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
         function invokeSpread(helper, values) {
             return helper(...values);
         }
@@ -801,6 +833,22 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "invokeEval",
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function invokeComputedExpressionKey(box, left, right) {
+            return box[left + right]();
+        }
+        """,
+        "invokeComputedExpressionKey",
+        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function invokeDeepReceiver(box) {
+            return box.a.b.c.d();
+        }
+        """,
+        "invokeDeepReceiver",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
         function construct(ctor, value) {

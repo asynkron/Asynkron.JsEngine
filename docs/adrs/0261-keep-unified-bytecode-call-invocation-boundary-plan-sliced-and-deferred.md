@@ -4,11 +4,11 @@
 
 Accepted
 
-Superseded in part on 2026-05-28 by the first executable no-spread
-activation-resolved identifier-call slice. The slicing decision still applies
-to named/computed member calls, direct eval, spread calls, construct/super
-calls, optional calls, arguments-object dependencies, dynamic lookup, and the
-other unproven call-adjacent families.
+Superseded in part on 2026-05-28 by the executable no-spread
+activation-resolved identifier-call slice, then by the direct named/computed
+member-call slices. The slicing decision still applies to direct eval, spread
+calls, construct/super calls, optional calls, arguments-object dependencies,
+dynamic lookup, and the other unproven call-adjacent families.
 
 ## Context
 
@@ -43,10 +43,10 @@ split the work into strict slices:
 1. Baseline (already landed): direct identifier calls where the target resolves
    to an activation slot, arguments are simple one-op operands, spread is
    absent, and direct eval is excluded.
-2. First remaining slice: named member calls using existing prepared
-   call-target metadata.
-3. Second remaining slice: computed member calls using existing prepared
-   call-target metadata.
+2. Completed slice: named member calls using existing prepared call-target
+   metadata.
+3. Completed slice: computed member calls using existing prepared call-target
+   metadata.
 4. Deferred lane: constructor/super constructor execution remains separate.
 5. Deferred lane: spread arguments and direct eval remain separate.
 6. Deferred lane: iterator/destructuring drivers, label control flow, and
@@ -58,8 +58,9 @@ AST fallback.
 
 ## Consequences
 
-- The next implementation lane starts at named member call execution and keeps
-  the already-landed identifier-call baseline explicit.
+- The named/computed member-call lanes are completed as direct no-spread
+  receiver-preserving production boundaries, and the already-landed
+  identifier-call baseline remains explicit.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.

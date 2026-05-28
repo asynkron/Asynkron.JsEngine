@@ -263,6 +263,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DeeperNamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(root, value) {
+                return root.child.branch.leaf.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(
+            3,
+            result.Program.Instructions.Count(instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Equal(new[] { "child", "branch", "leaf", "read" }, result.Program.StringConstants);
+    }
+
+    [Fact]
     public void Evaluate_ComputedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
@@ -328,6 +355,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             result.Program.Instructions.Count(instruction =>
                 instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
         Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_DeeperNamedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box) {
+                return box.child.branch.leaf.value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(
+            4,
+            result.Program.Instructions.Count(instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+        Assert.Equal(new[] { "child", "branch", "leaf", "value" }, result.Program.StringConstants);
     }
 
     [Fact]
@@ -984,6 +1034,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "invokeComputedExpressionKey",
         (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(
+        """
+        function invokeDeepComputedCallee(root, key, value) {
+            return root.child.branch.leaf[key](value);
+        }
+        """,
+        "invokeDeepComputedCallee",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
         function construct(ctor, value) {

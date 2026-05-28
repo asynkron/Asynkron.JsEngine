@@ -3011,6 +3011,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 stringConstants,
                 callTargetIndexInProgram,
+                allowDeepChain: true,
                 out reason))
         {
             return false;
@@ -3074,6 +3075,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 stringConstants,
                 keyIndex,
+                allowDeepChain: false,
                 out reason))
         {
             return false;
@@ -3112,9 +3114,10 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<string>.Builder stringConstants,
         int endExclusive,
+        bool allowDeepChain,
         out string reason)
     {
-        if (endExclusive is < 1 or > 3)
+        if (endExclusive < 1 || (!allowDeepChain && endExclusive > 3))
         {
             reason = "Member call receiver is outside the direct named-chain boundary.";
             return false;
@@ -3632,7 +3635,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount is not (2 or 3))
+        if (expressionProgram.OperationCount < 2)
         {
             reason = string.Empty;
             return false;

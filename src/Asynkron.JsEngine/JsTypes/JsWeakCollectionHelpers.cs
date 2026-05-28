@@ -10,7 +10,8 @@ internal static class JsWeakCollectionHelpers
 {
     public static object? ExtractWeakKeyObject(JsValue value)
     {
-        if (value.IsNull || value.IsUndefined || value.IsString || value.IsNumber || value.IsBoolean)
+        if (value.IsNull || value.IsUndefined || value.IsString || value.IsNumber || value.IsBoolean
+            || value.IsBigInt)
         {
             return null;
         }

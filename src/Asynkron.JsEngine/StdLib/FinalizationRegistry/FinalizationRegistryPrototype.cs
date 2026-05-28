@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
@@ -18,7 +19,7 @@ public sealed partial class FinalizationRegistryPrototype : JsPrototype
         var state = RequireInternalSlot(thisValue, "register");
 
         var target = args.GetArgument(0);
-        if (!CanBeHeldWeakly(target))
+        if (JsWeakCollectionHelpers.ExtractWeakKeyObject(target) is null)
         {
             throw ThrowTypeError("FinalizationRegistry.prototype.register: target must be an object or a symbol",
                 realm: Realm);
@@ -33,7 +34,7 @@ public sealed partial class FinalizationRegistryPrototype : JsPrototype
         }
 
         var unregisterToken = args.GetArgument(2);
-        if (!unregisterToken.IsUndefined && !CanBeHeldWeakly(unregisterToken))
+        if (!unregisterToken.IsUndefined && JsWeakCollectionHelpers.ExtractWeakKeyObject(unregisterToken) is null)
         {
             throw ThrowTypeError(
                 "FinalizationRegistry.prototype.register: unregisterToken must be an object, a symbol, or undefined",
@@ -56,7 +57,7 @@ public sealed partial class FinalizationRegistryPrototype : JsPrototype
         var state = RequireInternalSlot(thisValue, "unregister");
 
         var unregisterToken = args.GetArgument(0);
-        if (!CanBeHeldWeakly(unregisterToken))
+        if (JsWeakCollectionHelpers.ExtractWeakKeyObject(unregisterToken) is null)
         {
             throw ThrowTypeError(
                 "FinalizationRegistry.prototype.unregister: unregisterToken must be an object or a symbol",
@@ -103,20 +104,5 @@ public sealed partial class FinalizationRegistryPrototype : JsPrototype
         throw ThrowTypeError(
             $"FinalizationRegistry.prototype.{methodName} called on incompatible receiver",
             realm: Realm);
-    }
-
-    private static bool CanBeHeldWeakly(JsValue value)
-    {
-        if (value.IsObject)
-        {
-            return true;
-        }
-
-        if (value.TryUnwrap<JsSymbol>(out var sym))
-        {
-            return JsSymbol.KeyFor(sym) is null;
-        }
-
-        return false;
     }
 }

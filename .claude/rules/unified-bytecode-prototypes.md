@@ -313,6 +313,28 @@ all-or-nothing until a separate routing issue proves production readiness.
     driver-state model yet. The delivery added explicit decline codes/tests and
     documented the model-first boundary instead of widening opcodes or VM paths
     opportunistically.
+26. When admitting completion and expression-statement behavior into production
+    unified bytecode, keep completion effects VM-owned and decline-first.
+    Empty or implicit returns should compile to `ReturnUndefined`; non-awaited
+    `ThrowInstruction` payloads should compile to owned expression operations
+    followed by `Throw`; and VM `Throw` must set `EvaluationContext` throw
+    state so caller-side JavaScript `try`/`catch` remains observable. For
+    `EvaluateAndDiscard`, compile only supported owned expression operations
+    first and then append `Pop`; do not skip side effects, swallow abrupt
+    completions, add an eval/fallback opcode, or route through
+    `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation. Removing a
+    discarded-expression decline is valid only when the underlying operation
+    family is already production-owned by selector, compiler, VM, and route
+    proof. Keep adjacent call, dynamic lookup, optional-chain, `super`, delete,
+    destructuring, for-in driver, and unowned computed-key families as pre-VM
+    declines until a separate slice owns them end to end. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-eb801dff13`
+    / PR #2488 admitted `ReturnUndefined`, `Throw`, and discarded property
+    write/update side effects through production unified bytecode. The useful
+    conflict-resolution lesson was to preserve sibling explicit for-in and
+    destructuring model-first declines while removing only the redundant
+    discarded property write/update veto that current owned VM semantics had
+    superseded.
 
 ## Why
 
@@ -550,3 +572,4 @@ Related ADRs:
 - `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`
 - `docs/adrs/0247-keep-unified-bytecode-activation-value-loads-call-time-owned.md`
 - `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`
+- `docs/adrs/0252-keep-unified-bytecode-completion-lane-vm-owned.md`

@@ -70,6 +70,26 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                    var callTarget = program.CallTargetConstants[instruction.Operand];
+                    if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    var callableValue = slots[callTarget.SlotIndex];
+                    if (callableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
+                        return JsValue.Undefined;
+                    }
+
+                    stack[stackPointer++] = JsValue.Undefined;
+                    stack[stackPointer++] = callableValue;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                     var namedCallTarget = program.CallTargetConstants[instruction.Operand];
                     if (namedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember ||
@@ -79,9 +99,9 @@ internal static class UnifiedBytecodeVirtualMachine
                             "Named member call-target preparation requires a named member call target constant.");
                     }
 
-                    var receiver = stack[stackPointer - 1];
-                    var namedCallable = GetNamedPropertyValue(
-                        receiver,
+                    var namedReceiver = stack[stackPointer - 1];
+                    stack[stackPointer++] = GetNamedPropertyValue(
+                        namedReceiver,
                         program.StringConstants[namedCallTarget.NameConstantIndex],
                         context);
                     if (context.ShouldStopEvaluation)
@@ -89,7 +109,6 @@ internal static class UnifiedBytecodeVirtualMachine
                         return JsValue.Undefined;
                     }
 
-                    stack[stackPointer++] = namedCallable;
                     programCounter++;
                     break;
 
@@ -112,28 +131,8 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
-                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
-                    var callTarget = program.CallTargetConstants[instruction.Operand];
-                    if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
-                    {
-                        throw new InvalidOperationException(
-                            "Identifier call-target preparation requires an identifier call target constant.");
-                    }
-
-                    var callableValue = slots[callTarget.SlotIndex];
-                    if (callableValue.IsUninitialized)
-                    {
-                        SetUninitializedSlotReferenceError(program, callTarget.SlotIndex, context);
-                        return JsValue.Undefined;
-                    }
-
-                    stack[stackPointer++] = JsValue.Undefined;
-                    stack[stackPointer++] = callableValue;
-                    programCounter++;
-                    break;
-
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
-                    stackPointer = ExecuteIdentifierCall(
+                    stackPointer = ExecutePreparedCall(
                         instruction.Operand,
                         stack,
                         stackPointer,
@@ -700,7 +699,7 @@ internal static class UnifiedBytecodeVirtualMachine
         };
     }
 
-    private static int ExecuteIdentifierCall(
+    private static int ExecutePreparedCall(
         int argumentCount,
         Span<JsValue> stack,
         int stackPointer,

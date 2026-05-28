@@ -4,10 +4,11 @@
 
 Accepted
 
-Superseded in part on 2026-05-28 by the first executable no-spread
-activation-resolved identifier-call slice, by issue #2530 / PR #2534 for direct
-named member calls, and by issue #2531 / PR #2535 for direct computed member
-calls. The slicing decision still applies to direct eval, spread calls,
+Superseded in part on 2026-05-28 by the executable no-spread
+activation-resolved identifier-call slice, issue #2530 / PR #2534's direct
+named member-call slice, issue #2531 / PR #2535's direct computed member-call
+slice, and the direct receiver-aware named/computed member-call slice. The
+slicing decision still applies to direct eval, spread calls,
 construct/super calls, optional calls, arguments-object dependencies, dynamic
 lookup, and the other unproven call-adjacent families.
 
@@ -64,9 +65,9 @@ AST fallback.
 
 ## Consequences
 
-- The named/computed member-call lanes are completed as direct no-spread
-  receiver-preserving production boundaries, and the already-landed
-  identifier-call baseline remains explicit.
+- The completed implementation lane keeps the already-landed identifier-call
+  baseline explicit while adding direct no-spread receiver-preserving
+  named/computed member-call boundaries.
 - High-risk semantics stay isolated in explicit deferred lanes.
 - Parallel follow-on items can be created without collapsing call invocation,
   constructor semantics, and dynamic/runtime lookup into one change.
@@ -82,9 +83,9 @@ boundaries before preserving any previous batch list.
 
 If the first planned slice is already current support, record it as baseline,
 promote the next unsupported family to the first remaining lane, and update the
-Faktorial plan body and ADR wording together. After issue #2531 / PR #2535,
-constructor/super, spread/direct eval, dynamic lookup, iterator/destructuring,
-and labels remain deferred.
+Faktorial plan body and ADR wording together. After the receiver-aware member
+call slice, constructor/super, spread/direct eval, optional calls, dynamic
+lookup, iterator/destructuring, and labels remain deferred.
 
 ## Proof Guidance
 

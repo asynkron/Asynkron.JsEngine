@@ -5,12 +5,13 @@
 Accepted
 
 Superseded in part on 2026-05-28 for the first executable no-spread
-activation-resolved identifier-call slice. The original decline-first decision
-was superseded again on 2026-05-28 for the direct named member-call slice from
-issue #2530 / PR #2534 and again for the direct computed member-call slice from
-issue #2531 / PR #2535. It still applies to direct eval, spread calls,
-construct/super calls, optional calls, arguments-object dependencies, dynamic
-lookup, complex computed keys, and other unproven call-adjacent families.
+activation-resolved identifier-call slice, the direct named member-call slice
+from issue #2530 / PR #2534, the direct computed member-call slice from issue
+#2531 / PR #2535, and the direct receiver-aware named/computed member-call
+slice. The original decline-first decision still applies to direct eval, spread
+calls, construct/super calls, optional calls, arguments-object dependencies,
+dynamic lookup, private/super member targets, complex computed keys, and other
+unproven call-adjacent families.
 
 ## Context
 
@@ -52,8 +53,8 @@ boundary until a later slice proves full call invocation.
    `ExecutionPlanRunner`, AST evaluation, or host-call fallback.
 4. For the unsuperseded part of this boundary, direct eval, spread calls,
    construct/super calls, optional calls, arguments object dependencies,
-   dynamic lookup, private names, complex computed keys, and unproven
-   receiver/key shapes stay outside the production route until selector,
+   dynamic lookup, private/super member targets, complex computed keys, and
+   unproven receiver/key shapes stay outside the production route until selector,
    compiler, VM, and public route proof move together.
 5. Any future slice that makes calls executable must preserve receiver binding
    and direct-eval classification explicitly, then update the expansion
@@ -89,10 +90,12 @@ accepted bytecode enters a block lexical scope before the call, the VM tracks
 slot environment ownership so debug-aware callees observe the active lexical
 scope chain.
 
-This update does not make member, computed, eval, spread, construct/super,
+This update did not make member, computed, eval, spread, construct/super,
 optional, arguments-dependent, or dynamic lookup calls production-eligible.
-Those families must still decline before VM execution instead of falling back
-inside the VM.
+The later receiver-aware member-call slice admits direct named/computed member
+calls only; eval, spread, construct/super, optional, arguments-dependent,
+dynamic lookup, and broader call-adjacent families must still decline before VM
+execution instead of falling back inside the VM.
 
 The friction point that made this explicit was the PR #2501 review: the first
 implementation passed ordinary identifier-call tests but failed a
@@ -100,20 +103,23 @@ parameter-passed `__debug` probe with missing environment/context. The repair
 kept the no-mixed-execution rule intact while adding regression proof for
 parameter-passed and block-scoped debug-aware calls.
 
-## 2026-05-28 executable named member-call update
+## 2026-05-28 executable member-call update
 
 Issue #2530 / PR #2534 narrows the former member-call decline by allowing direct
 named member calls with activation-resolved receiver chains and simple
 literal/slot arguments to execute in `UnifiedBytecodeVirtualMachine`.
-`PrepareNamedCallTarget` now loads the callee from the receiver while leaving
-that receiver on the stack as the call `this` value for
-`CallInvocationBoundary`.
+The later receiver-aware member-call slice extends that boundary to direct
+computed member calls with activation-resolved receiver chains and simple
+literal/slot arguments.
 
-This update does not make computed member calls, direct eval, spread calls,
-construct/super calls, optional calls, private/super member targets,
-arguments-dependent calls, dynamic lookup, or unproven receiver shapes
-production-eligible. Those families must still decline before VM execution
-instead of falling back inside the VM.
+`PrepareNamedCallTarget` and `PrepareComputedCallTarget` now load the callee
+from the receiver while leaving that receiver on the stack as the call `this`
+value for `CallInvocationBoundary`.
+
+This update does not make direct eval, spread calls, construct/super calls,
+optional calls, private/super member targets, arguments-dependent calls,
+dynamic lookup, or unproven receiver shapes production-eligible. Those families
+must still decline before VM execution instead of falling back inside the VM.
 
 ## 2026-05-28 executable computed member-call update
 

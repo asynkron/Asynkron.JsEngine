@@ -253,6 +253,7 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             stringConstants,
             activationSlots);
+        var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -306,6 +307,14 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (isCallTargetPreparationCandidate)
                     {
                         break;
+                    }
+
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget || hasOptionalChainOperation)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain call-target preparation is outside the first production invocation boundary.";
+                        return true;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
@@ -392,6 +401,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         declineReason =
                             "Optional-chain property reads are outside the first production property-read boundary.";
                         return true;
+                    }
+
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
                     }
 
                     if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
@@ -585,6 +599,21 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool HasOptionalChainOperation(ExpressionProgram program)
+    {
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
+                operation.Kind == ExpressionOpKind.JumpIfShortCircuited)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool IsSupportedPushEnvironment(
         PushEnvironmentInstruction instruction,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
@@ -766,9 +795,13 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
-        if (namedCallTargetIndex >= 0)
+        if (namedCallTargetIndex > 0)
         {
-            return TryIsFirstBoundaryNamedReceiver(
+            var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+            return !namedCallTarget.IsOptional &&
+                   !namedCallTarget.ShortCircuitOnNullishTarget &&
+                   !namedCallTarget.GetString(stringConstants).IsPrivateName() &&
+                   IsSupportedNamedReceiverChain(
                        program,
                        identifierConstants,
                        stringConstants,
@@ -783,11 +816,13 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
-        if (computedCallTargetIndex >= 0)
+        if (computedCallTargetIndex >= 2)
         {
+            var computedCallTarget = program.GetOperation(computedCallTargetIndex);
             var keyIndex = computedCallTargetIndex - 1;
-            return keyIndex >= 1 &&
-                   TryIsFirstBoundaryNamedReceiver(
+            return !computedCallTarget.IsOptional &&
+                   !computedCallTarget.ShortCircuitOnNullishTarget &&
+                   IsSupportedNamedReceiverChain(
                        program,
                        identifierConstants,
                        stringConstants,
@@ -821,26 +856,31 @@ internal static class UnifiedBytecodeProductionEligibility
         return -1;
     }
 
-    private static bool TryIsFirstBoundaryNamedReceiver(
+    private static bool IsSupportedNamedReceiverChain(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
         int endExclusive)
     {
-        if (endExclusive < 1 ||
-            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (endExclusive is < 1 or > 3)
+        {
+            return false;
+        }
+
+        var firstOperation = program.GetOperation(0);
+        if (!TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots))
         {
             return false;
         }
 
         for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
         {
-            var operation = program.GetOperation(operationIndex);
-            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
-                operation.GetString(stringConstants).IsPrivateName() ||
-                operation.IsOptional ||
-                operation.ShortCircuitOnNullishTarget)
+            var receiverOperation = program.GetOperation(operationIndex);
+            if (receiverOperation.Kind != ExpressionOpKind.GetNamedProperty ||
+                receiverOperation.IsOptional ||
+                receiverOperation.ShortCircuitOnNullishTarget ||
+                receiverOperation.GetString(stringConstants).IsPrivateName())
             {
                 return false;
             }

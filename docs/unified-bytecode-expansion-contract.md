@@ -191,8 +191,9 @@ support today.
 ## Next Unsupported Buckets (current boundary)
 - Wider call invocation remains outside the admitted boundary. Direct eval,
   spread calls, construct/super calls, optional calls, arguments-object
-  dependencies, dynamic lookup, complex receiver/key shapes, and
-  receiver-binding-sensitive adjacent families must still decline before VM
+  dependencies, dynamic lookup, private/super member targets, complex
+  receiver/key shapes, and receiver-binding-sensitive adjacent families beyond
+  the direct activation-resolved member-call boundary must still decline before VM
   execution.
 - Iterator-driver state remains outside the admitted boundary
   (`ForInDriverStateDependency`), including `for-in` driver instructions.

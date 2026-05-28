@@ -130,54 +130,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_NamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
-    {
-        var plan = GetFunctionPlan("""
-            function invoke(box, value) {
-                return box.read(value);
-            }
-            """,
-            "invoke");
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
-        var callTarget = Assert.Single(result.Program.CallTargetConstants);
-        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
-    }
-
-    [Fact]
-    public void Evaluate_ComputedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
-    {
-        var plan = GetFunctionPlan("""
-            function invoke(box, key, value) {
-                return box[key](value);
-            }
-            """,
-            "invoke");
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.True(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
-        var callTarget = Assert.Single(result.Program.CallTargetConstants);
-        Assert.Equal(UnifiedBytecodeCallTargetKind.ComputedMember, callTarget.Kind);
-    }
-
-    [Fact]
     public void Evaluate_BlockScopedIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
@@ -206,6 +158,80 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
         var callTarget = Assert.Single(result.Program.CallTargetConstants);
         Assert.Equal("fn", result.Program.SlotNames[callTarget.SlotIndex]);
+    }
+
+    [Fact]
+    public void Evaluate_NamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, value) {
+                return box.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
+        Assert.Equal("read", result.Program.StringConstants[callTarget.NameConstantIndex]);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(root, value) {
+                return root.child.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Equal(new[] { "child", "read" }, result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, key, value) {
+                return box[key](value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.ComputedMember, callTarget.Kind);
     }
 
     [Fact]
@@ -875,6 +901,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
     [InlineData(
         """
+        function invokeOptionalReceiver(box) {
+            return box?.read();
+        }
+        """,
+        "invokeOptionalReceiver",
+        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+    [InlineData(
+        """
+        function invokeOptionalCallee(box) {
+            return box.read?.();
+        }
+        """,
+        "invokeOptionalCallee",
+        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+    [InlineData(
+        """
+        function invokeOptionalComputedCallee(box, key) {
+            return box[key]?.();
+        }
+        """,
+        "invokeOptionalComputedCallee",
+        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+    [InlineData(
+        """
         function readLiteral(box) {
             return { ...box }.value;
         }
@@ -1012,6 +1062,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
         Assert.Contains("super", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_SuperCall_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(value) {
+                    super(value);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("super call", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -1818,6 +1895,18 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetClassConstructorPlan(string source, string className)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<ClassDeclaration>(
+            pipeline.Analyzed.Body.Single(node =>
+                node is ClassDeclaration classDeclaration &&
+                classDeclaration.Name.Name == className));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Definition.Constructor).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

@@ -1,5 +1,5 @@
-using Asynkron.JsEngine.Ast;
 using System.IO;
+using Asynkron.JsEngine.Ast;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -318,7 +318,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesReceiver()
+    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -343,7 +343,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ComputedMemberCall_UsesUnifiedBytecodeProductionFastPath()
+    public async Task ComputedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -358,13 +358,77 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 return box[key](value);
             }
 
-            invoke(box, "read", 41);
+            invoke(box, { toString() { return "read"; } }, 41);
             """);
 
         Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedMemberCall_NullishReceiverThrowsBeforeKeyCoercion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(box, key) {
+                return box[key]();
+            }
+
+            var key = {
+                count: 0,
+                toString() {
+                    this.count++;
+                    return "read";
+                }
+            };
+
+            try {
+                invoke(null, key);
+                "missing";
+            } catch (error) {
+                [
+                    error instanceof TypeError,
+                    key.count
+                ].join("|");
+            }
+            """);
+
+        Assert.Equal("true|0", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedMemberCall_BindsThisToFinalReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var root = {
+                offset: 100,
+                child: {
+                    offset: 1,
+                    read(value) {
+                        return value + this.offset;
+                    }
+                }
+            };
+
+            function invoke(root, value) {
+                return root.child.read(value);
+            }
+
+            invoke(root, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));
     }
 

@@ -58,7 +58,7 @@ maintenance pass, keep the slice repo-local and reviewable:
    slice. Do not add or change recurrence infrastructure; Faktorial owns the
    recurrence schedule.
 3. Capture a cheap baseline signal before editing. Prefer evidence such as
-   `rtk make -n quality`, a targeted `rg` check, `git diff --check`, or another
+   `rtk make -n quality`, a targeted `rtk rg` check, `rtk git diff --check`, or another
    narrow command tied directly to the chosen slice.
    For recurring-child context reads and Faktorial precedence/fallback order,
    follow `.claude/rules/agent-context-issues.md` and
@@ -98,7 +98,7 @@ before/after quickly:
 - `Final signal:` the same command after editing with a short output excerpt.
 - `Sibling check:` issue numbers and one-line note of which active sibling
   slices were intentionally avoided (or `none` when not applicable).
-- `Slice check:` `git diff --check` result and changed file list for the slice.
+- `Slice check:` `rtk git diff --check` result and changed file list for the slice.
 - `Scope note:` one line confirming no recurrence infrastructure, Makefile
   contract, or unrelated files were changed.
 
@@ -112,7 +112,7 @@ Preferred issue update template for recurring child runs:
 - Final signal: `<same command>`
   - Output: <short excerpt>
 - Sibling check: <issue numbers reviewed + avoided slice note, or `none`>
-- Slice check: `git diff --check` and changed files: <paths>
+- Slice check: `rtk git diff --check` and changed files: <paths>
 - Scope note: No recurrence infrastructure or unrelated surfaces changed.
 ```
 

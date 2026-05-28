@@ -21,6 +21,13 @@ optimization.
     `StringPrototype.Split` consumer materialization were separate owners, so
     the delivery changed only the string split consumer and left JSON as a
     JsonHelper-specific residual.
+2b. Treat `tools/profile-output/` as generated profiler diagnostics. Exclude it
+    from broad docs/search audits unless trace artifacts are explicitly in
+    scope, do not hand-edit generated profiler contents, and rerun the owning
+    profile command when fresh evidence is needed. WHY: issue #2446 / PR #2459
+    caught a stale generated-output path and missing audit-exclusion guidance
+    during review; future agents should not let generated trace files pollute a
+    documentation-maintenance search or reintroduce `tools/profile/generated/`.
 3. Preserve `PERF_PROFILES` override behavior when changing aggregate profiler
    defaults. Default guardrails may expand, but operators must still be able to
    run a narrowed profile set.
@@ -579,6 +586,13 @@ activation profiles and full LanguageTests throughput were captured, but the
 handoff's comparable activation baseline directory was not present in the
 worktree, so the report could only make a no-focused-regression/current-hotspot
 claim rather than a strong activation-overhead reduction claim.
+
+Issue #2446 / PR #2459 turned profiler-output handling into explicit agent
+guidance after a docs-only maintenance slice first named the wrong generated
+artifact directory and missed the required broad-audit exclusion. The durable
+lesson is that `tools/profile-output/` is evidence output, not maintained
+documentation: broad docs/search passes should skip it unless the task is
+specifically about trace artifacts.
 
 Issue `autrun-dis78sutx3qw-ee0780e761` had a bounded optimizer build pass that
 tried class-construction and expression-bytecode experiments after capturing

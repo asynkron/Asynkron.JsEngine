@@ -218,12 +218,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     support from reserved/planned lanes, keep the no-mixed-execution rule
     explicit, and keep the drift guard in `ExpressionProgramCoverageMapTests`
     covering required headings plus current `UnifiedBytecodeOpCode` and
-    `UnifiedBytecodeProductionDeclineCode` names. WHY: issue
+    `UnifiedBytecodeProductionDeclineCode` names. Treat newly VM-executed
+    literal-construction opcodes such as `CreateArray`, `ArrayPush`,
+    `CreateObject`, and `DefineObjectProperty` as current contract inventory in
+    the same delivery slice; do not defer them to a learn-stage docs pass. WHY:
+    issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
     / PR #2466 established the shared contract before parallel lane work so
     future agents do not re-discover owner surfaces, imply planned-lane runtime
     support, or land selector/compiler/VM changes without matching proof
-    commands.
+    commands. Issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9f49fefe3d`
+    / PR #2476 then failed the quality gate after a literal-construction lane
+    added current unified opcodes without the matching contract inventory; the
+    build-back repair added the missing opcode names before the delivery PR was
+    merged.
 22. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with

@@ -186,12 +186,28 @@ When working inside the core engine, keep JavaScript values represented as
     legacy branch must still call the typed helper, make its
     `JsValue.FromObjectUnsafe(...)` conversion explicit at that branch and keep
     the branch as a remaining migration target.
+    When a helper receives both an extracted object/accessor payload and the
+    original JavaScript receiver value, such as
+    `TryInvokeSymbolMethod(this IJsPropertyAccessor target, JsValue thisArg,
+    ...)`, use the original `JsValue` receiver for `JsOps` property lookup.
+    The extracted payload may prove shape or dispatch interface behavior, but
+    do not reconstruct a lookup receiver from it with
+    `JsValue.FromObjectUnsafe(target)`. Preserve existing symbol key fallback
+    order and callable invocation `this` binding when cleaning up
+    Get/GetMethod-style helpers.
     WHY: issue `autrun-ditlbq6xugc0-9d0cb22469` / PR #2432 removed the private
     `TryGetPropertyValueObject(object? target, ...)` bridge from
     `Runtime/JsOps.cs` after the helper was only reconstructing the original
     JavaScript receiver with `JsValue.FromObjectUnsafe(target)`. Reintroducing
     a private object-carrier property-read helper would undo that Unboxer slice
     and risk losing accessor/prototype receiver identity.
+    WHY: issue #2451 / PR #2464 found the same object-carrier seam one hop
+    away from `Runtime/JsOps.cs`: `TryInvokeSymbolMethod` already had the
+    original iterable `JsValue` as `thisArg`, but still rebuilt the lookup
+    receiver from the extracted `IJsPropertyAccessor` target. Future adjacent
+    property-lookup cleanup must keep the caller-owned receiver value as the
+    lookup receiver instead of treating the extracted payload as a compatibility
+    boundary.
     Related ADR:
     `docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`.
 17. When obsolete `object?` convenience overloads on a core runtime type no

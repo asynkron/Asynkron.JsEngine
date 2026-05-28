@@ -21,6 +21,13 @@ already had the original JavaScript value, and property lookup receiver identity
 is observable through accessors, proxies, primitive prototype methods, and
 JavaScript throw propagation through the active `EvaluationContext`.
 
+Issue #2451 / PR #2464 found the same seam in the adjacent iterator protocol
+helper `TryInvokeSymbolMethod`. The helper extracted an
+`IJsPropertyAccessor` target to prove object-like shape, but then used
+`JsValue.FromObjectUnsafe(target)` as the `JsOps.TryGetPropertyValueJsValue`
+lookup receiver even though the callers already passed the original iterable
+`JsValue` as `thisArg`.
+
 ## Decision
 
 Keep private `JsOps` property-value lookup helpers `JsValue`-native when the
@@ -38,6 +45,11 @@ work:
 5. keep any unavoidable `JsValue.FromObjectUnsafe(...)` conversion explicit at
    a remaining legacy boundary rather than hiding it inside a private helper
    that already has a `JsValue`.
+6. when a helper has both an extracted accessor/object payload and the original
+   JavaScript receiver value, perform Get/GetMethod-style property lookup
+   through the original `JsValue` receiver. The extracted payload may prove
+   shape or dispatch interface behavior, but it must not replace the receiver
+   merely because it is the extension target.
 
 Do not reintroduce a private `object?` property-read helper just because the
 runtime payload has been extracted for dispatch.
@@ -48,6 +60,10 @@ runtime payload has been extracted for dispatch.
   object payload and reconstructs it before accessor/prototype lookup.
 - Future Unboxer slices can still pattern-match on concrete runtime payloads,
   but the JavaScript receiver remains the original `JsValue`.
+- Adjacent iterator protocol and symbol-method lookup helpers follow the same
+  rule: keep lookup receiver identity on the original `JsValue` while
+  preserving existing symbol key fallback order and callable invocation
+  `this` binding.
 - Public `object?` facades, debugger/inspection projections, and host interop
   boundaries remain outside this decision.
 - The older property-read performance boundary remains in ADR 0188; this ADR
@@ -72,6 +88,22 @@ runtime payload has been extracted for dispatch.
 - Learn-stage recheck found no
   `TryGetPropertyValueObject|FromObjectUnsafe(target)` hits in
   `src/Asynkron.JsEngine/Runtime/JsOps.cs`.
+- Issue #2451 / PR #2464 extended the same decision to
+  `src/Asynkron.JsEngine/Ast/IJsPropertyAccessorExtensions.cs`.
+- Build-stage delivery commit
+  `07767a39 Use JsValue receiver for symbol-method property lookup` replaced
+  the `TryInvokeSymbolMethod` lookup receiver
+  `JsValue.FromObjectUnsafe(target)` with the caller-provided `thisArg`.
+- Delivery PR #2464 was squash-merged as commit
+  `7df61f04 Use JsValue receiver for symbol-method property lookup (#2464)`.
+- Build-stage signal for
+  `FromObjectUnsafe(target)` in `IJsPropertyAccessorExtensions.cs` changed from
+  1 hit to 0 hits.
+- Focused build-stage verification passed:
+  `dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c Release --filter "FullyQualifiedName~JsOpsTests|FullyQualifiedName~DestructuringIteratorTests|FullyQualifiedName~PropertyAccessFastPathTests"`
+  with 48 tests passing.
+- Canonical verification for PR #2464 passed `make quality` with 4439 tests
+  passing and 2 skipped.
 
 ## Related
 

@@ -307,31 +307,6 @@ public static partial class StandardLibrary
         return accumulator;
     }
 
-    internal static JsValue SomeLike(JsValue thisValue, IReadOnlyList<JsValue> args, RealmState? realm,
-        string methodName)
-    {
-        var (accessor, length, callback, thisArg) =
-            PrepareArrayIteration(thisValue, args, realm, methodName);
-        // Cache accessor JsValue once before loop - FromObjectUnsafe uses IAsJsValue.AsJsValue if available
-        var accessorJsValue = JsValue.FromObjectUnsafe(accessor);
-
-        for (long k = 0; k < length; k++)
-        {
-            if (!TryGetExistingElement(accessor, k, out var value))
-            {
-                continue;
-            }
-
-            var result = callback.Invoke([value, new JsValue((double)k), accessorJsValue], thisArg);
-            if (result.IsTruthy)
-            {
-                return JsValue.True;
-            }
-        }
-
-        return JsValue.False;
-    }
-
     internal static bool SameValueZero(JsValue x, JsValue y)
     {
         if (x.IsNumber && y.IsNumber && double.IsNaN(x.AsDouble()) && double.IsNaN(y.AsDouble()))

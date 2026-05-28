@@ -27,6 +27,12 @@ unless the issue explicitly asks for a major migration.
 - Do not fold major-version migrations into a routine dependency sweep just
   because `latest` reports one. Major upgrades need their own issue, migration
   notes, and behavior-specific proof.
+- A previously deferred .NET test-tooling major may be taken only as its own
+  bounded compatibility slice when investigation proves a single owner project.
+  Preserve test-only package metadata such as `PrivateAssets` and
+  `IncludeAssets`, avoid shared props or runtime manifests unless multiple
+  owners exist, and prove the result with the canonical internal quality gate
+  plus a current package-state signal.
 - A recurring dependency run may take a previously deferred npm major only when
   investigation deliberately scopes that one package as the bounded
   compatibility slice, records the old safe-line/deferred-major signal, keeps
@@ -152,6 +158,15 @@ test-infrastructure sweeps should check sibling test project files for the same
 package before declaring a dependency slice complete, while still keeping the
 slice to the compatible package and avoiding unrelated Test262 or collector
 migrations.
+
+Issue #2517 / PR #2520 completed the deferred `coverlet.collector` major as its
+own bounded .NET test-tooling compatibility pass. The package had exactly one
+owner in `tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj`, so the
+accepted slice was the single version change `6.0.4 -> 10.0.1`, preserving
+`PrivateAssets` and `IncludeAssets` instead of centralizing or widening into
+shared props. The proof boundary was the canonical `make quality` gate plus
+`dotnet list tests/Asynkron.JsEngine.Tests package --outdated`, which reported
+no remaining updates for the changed project.
 
 Issue #1755 / PR #1763 refreshed only the NodeHostDemo README dependency drift
 signal for 2026-05-25: Express 4 remained current on `latest-4`, Express 5

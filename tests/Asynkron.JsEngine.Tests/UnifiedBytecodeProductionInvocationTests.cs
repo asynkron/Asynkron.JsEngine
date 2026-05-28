@@ -318,14 +318,13 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NamedMemberCall_DeclinesUnifiedBytecodeAndFallsBack()
+    public async Task NamedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesReceiver()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             var box = {
-                offset: 1,
                 read(value) {
-                    return value + this.offset;
+                    return this === box ? value + 1 : -1;
                 }
             };
 
@@ -337,9 +336,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=invoke",
+                "unified-bytecode-production-fast-path func=invoke argc=2",
                 StringComparison.Ordinal));
     }
 
@@ -1815,16 +1814,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Theory(Timeout = 5000)]
-    [InlineData(
-        """
-        function callMember(box) {
-            return box.read();
-        }
-
-        callMember({ read() { return 3; } });
-        """,
-        "callMember",
-        3d)]
     [InlineData(
         """
         function deleteMember(box) {

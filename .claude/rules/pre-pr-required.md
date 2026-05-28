@@ -79,6 +79,12 @@ Keep Makefile command tools configurable through variables such as
 another local agent wrapper inside repository Make targets; wrap the shell
 invocation externally when the current agent environment requires it.
 
+When adding or changing Makefile variables that affect the quality, build, or
+test entrypoints, keep the non-failing `make help` output aligned with those
+overrides. Document the variable name, default, and purpose in the help
+inventory instead of making future agents infer supported knobs from target
+recipes.
+
 Why: issue #753 / PR #888 repaired a build-back failure where the gate was
 SIGTERMed during `test-internal` after debug builds had already completed.
 Collapsing `quality` back to a single build-and-test command can reintroduce the
@@ -89,6 +95,13 @@ Issue #755 / PR #905 later repaired review feedback where the Makefile
 preserved the correct quality sequence but still embedded the local `rtk`
 wrapper. Repository targets must remain runnable outside the agent runtime while
 agent sessions can still invoke them as `rtk make quality`.
+
+Issue #2447 / PR #2462 found that the Makefile already exposed useful
+quality/build/test knobs (`CONFIGURATION`, `DOTNET`, `GIT`, build/test args, and
+`XUNIT_ARGS`), but `make help` listed only targets. The durable lesson is that
+Makefile behavior and Makefile discovery are one contract: new or changed
+operator-facing variables must be discoverable through `make help` without
+probing invalid invocations or rereading recipes.
 
 Issue #1830 / PR #1850 repaired a later quality-gate failure where MSBuild child
 node "2" exited prematurely during `tests/Asynkron.JsEngine.Tests.csproj`.

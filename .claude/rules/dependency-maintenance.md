@@ -16,6 +16,12 @@ unless the issue explicitly asks for a major migration.
   can stay small and the resolved package version does not change. Do not turn
   that cleanup into full Central Package Management or a broad package
   modernization inside a routine recurring child.
+- For `Microsoft.NET.Test.Sdk`, keep the internal test project and Test262
+  project on the shared `$(MicrosoftNetTestSdkVersion)` property in
+  `Directory.Build.props`. Future Test SDK updates should edit that property
+  once and prove both owner projects; do not reintroduce project-local literals
+  or pair the dependency slice with unrelated test timeout, assertion, or
+  performance-threshold changes.
 - For Jint comparison tooling, treat `tools/ProfileRunner/ProfileRunner.csproj`
   and the benchmark project at
   `benchmarks/Asynkron.JsEngine.Benchmarks/Asynkron.JsEngine.Benchmarks.csproj`
@@ -167,6 +173,18 @@ accepted slice was the single version change `6.0.4 -> 10.0.1`, preserving
 shared props. The proof boundary was the canonical `make quality` gate plus
 `dotnet list tests/Asynkron.JsEngine.Tests package --outdated`, which reported
 no remaining updates for the changed project.
+
+Issue #2552 / PR #2555 found `Microsoft.NET.Test.Sdk` `18.6.0` hard-coded in
+both the internal test project and Test262 project. The safe recurring
+dependency-maintenance slice did not change the resolved package version; it
+moved the version to `Directory.Build.props` as
+`MicrosoftNetTestSdkVersion` and kept both projects on that property. Review
+rejected an attempted `PerfDebugging` threshold relaxation that was made after
+the quality gate exposed a test-timeout-shaped failure; the accepted delivery
+reverted that drift and kept only the dependency metadata centralization.
+Future Test SDK dependency sweeps should route deterministic perf-test or
+quality-gate repairs to their own issue instead of absorbing them into the
+dependency slice.
 
 Issue #1755 / PR #1763 refreshed only the NodeHostDemo README dependency drift
 signal for 2026-05-25: Express 4 remained current on `latest-4`, Express 5

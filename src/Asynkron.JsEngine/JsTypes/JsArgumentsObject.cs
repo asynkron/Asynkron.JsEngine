@@ -153,6 +153,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     {
         EnsureAllInitialIndexDescriptors();
         _backing.Seal();
+        RefreshInitialIndexDescriptorsFromBacking();
     }
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
@@ -504,16 +505,6 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         _ownDescriptors[name] = CloneDescriptor(descriptor);
     }
 
-    /// <summary>
-    /// Tracks a descriptor by taking direct ownership without cloning.
-    /// Used in constructor where we create fresh descriptors.
-    /// </summary>
-    private void TrackDescriptorDirect(string name, PropertyDescriptor descriptor)
-    {
-        _ownDescriptors ??= new Dictionary<string, PropertyDescriptor>(StringComparer.Ordinal);
-        _ownDescriptors[name] = descriptor;
-    }
-
     private bool HasInitialIndex(int index)
     {
         return (uint)index < (uint)_values.Length && (_deletedIndices is null || !_deletedIndices[index]);
@@ -572,7 +563,30 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
         var descriptor = GetInitialIndexDescriptor(name, index);
         _backing.DefinePropertyDirect(name, CloneDescriptor(descriptor));
-        TrackDescriptorDirect(name, descriptor);
+        TrackDescriptor(name, descriptor);
+    }
+
+    private void RefreshInitialIndexDescriptorsFromBacking()
+    {
+        if (_ownDescriptors is null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < _values.Length; i++)
+        {
+            if (!HasInitialIndex(i))
+            {
+                continue;
+            }
+
+            var name = GetIndexName(i);
+            if (_ownDescriptors.ContainsKey(name) &&
+                _backing.GetOwnPropertyDescriptor(name) is { } descriptor)
+            {
+                TrackDescriptor(name, descriptor);
+            }
+        }
     }
 
     private void MarkInitialIndexDeleted(int index)

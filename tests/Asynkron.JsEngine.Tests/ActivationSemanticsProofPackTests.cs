@@ -490,6 +490,55 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_SealUpdatesTrackedIndexDescriptors()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.seal(arguments);
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                return [
+                    Object.isSealed(arguments),
+                    descriptor.configurable,
+                    descriptor.writable,
+                    descriptor.value
+                ].join(":");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("true:false:true:41", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArgumentsLazyIndices_FreezeUpdatesTrackedIndexDescriptors()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(a) {
+                Object.freeze(arguments);
+                const descriptor = Object.getOwnPropertyDescriptor(arguments, "0");
+                const before = arguments[0];
+                arguments[0] = 42;
+                a = 99;
+                return [
+                    Object.isFrozen(arguments),
+                    descriptor.configurable,
+                    descriptor.writable,
+                    before,
+                    arguments[0],
+                    a
+                ].join(":");
+            }
+
+            probe(41);
+            """);
+
+        Assert.Equal("true:false:false:41:41:99", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArgumentsMaterializedIndex_DeleteStillFallsBackToPrototype()
     {
         await using var engine = CreateEngine();

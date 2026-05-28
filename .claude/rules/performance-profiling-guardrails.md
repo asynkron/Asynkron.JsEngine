@@ -138,6 +138,24 @@ optimization.
     that follow-through into a generic recurrence solver or claim
     `recursion-lite` wins from unrelated already-covered shapes. Related ADR:
     `docs/adrs/0245-keep-constant-term-self-recursion-widening-guarded.md`.
+6h. For shared or multi-workload performance evidence notes, make the evidence
+    command-complete and scope-limited. Every profiling or benchmark command
+    listed in a "commands run" block must have a corresponding outcome in the
+    evidence body: table excerpt, profile excerpt, empty/no-results output,
+    parse/conversion failure, or tool-unavailable result. Match acceptance
+    criteria workload families to the exact profile key being evidenced, such
+    as using an `activation-*-lite` profile for an activation-lite requirement.
+    Keep baseline accounting per workload: cite a comparable checked-in row
+    when one exists, otherwise state that no directly comparable baseline was
+    found and treat the current row as baseline-establishing evidence. Do not
+    interpret profiler trace conversion or allocation-parse failures as runtime
+    regressions without separate proof. WHY: Faktorial issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-4232277e24`
+    / PR #2510 needed two doc-only review-backs because the first evidence note
+    used non-lite `activation-arguments` for an activation-lite requirement and
+    the second listed `propertyaccess --memory` / `simplearithmetic --memory`
+    without recording their parse-failure outcomes. Related ADR:
+    `docs/adrs/0260-keep-shared-workload-profile-evidence-command-complete.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

@@ -63,6 +63,20 @@ Speedscope conversion failed: System.FormatException: Failed to read byte[655360
 No results to display
 ```
 
+### propertyaccess (memory)
+
+```text
+Allocation trace parse failed: Failed to read byte[184] at stream offset 0x19a4
+No results to display
+```
+
+### simplearithmetic (memory)
+
+```text
+Allocation trace parse failed: Failed to read byte[184] at stream offset 0x19a4
+No results to display
+```
+
 ### objectcreation (memory)
 
 ```text
@@ -98,4 +112,4 @@ Dictionary<String,PropertyDescriptor>     4 414.41 KB
 
 ## Scope-limited conclusion
 
-This note captures the exact workload rows and profile command outcomes for this batch. It does not claim broad runtime wins. For the profile surface, `forloop --memory` produced usable output in this worktree, while the other requested profile runs failed at trace conversion/parsing and are recorded as tooling constraints rather than interpreted as runtime regressions.
+This note captures the exact workload rows and profile command outcomes for this batch. It does not claim broad runtime wins. For the profile surface, `activation-arguments-lite --memory` and `forloop --memory` produced usable allocation output in this worktree, while `propertyaccess --cpu`, `simplearithmetic --cpu`, `propertyaccess --memory`, `simplearithmetic --memory`, and `objectcreation --memory` failed at trace conversion/parsing and are recorded as tooling constraints rather than interpreted as runtime regressions.

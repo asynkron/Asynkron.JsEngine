@@ -11,6 +11,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
 - [CPU and allocation profiling workflow](agents/how-to-profile.md)
 - [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
+- Recurring maintenance child runs: use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [.claude/rules/recurring-maintenance-child-runs.md](.claude/rules/recurring-maintenance-child-runs.md).
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)

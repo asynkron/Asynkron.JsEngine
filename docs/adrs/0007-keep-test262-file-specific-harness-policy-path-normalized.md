@@ -48,6 +48,13 @@ validation, not an `Intl.Locale` BCP-47 semantic failure. The delivery therefore
 added only an exact 90 second timeout override plus helper regressions for both
 bare and `test/`-prefixed path shapes.
 
+Issue #2562 / PR #2567 reused this policy for
+`built-ins/decodeURI/S15.1.3.1_A2.5_T1.js`. The URI decoder remained the right
+owner surface to inspect, but the current focused Release rows passed under the
+already accepted exact extended timeout. The delivery therefore kept runtime and
+harness behavior unchanged and added the missing helper regression coverage for
+both bare and `test/`-prefixed path shapes.
+
 ## Consequences
 
 - Future Test262 harness fixes should not assume one canonical path shape when
@@ -65,3 +72,7 @@ bare and `test/`-prefixed path shapes.
   `built-ins/Function/prototype/toString/built-in-function-object.js` fixture.
 - Issue #1745 / PR #1769 extends the same decision for the exact
   `intl402/Locale/invalid-tag-throws.js` fixture.
+- Issue #2562 / PR #2567 extends the same decision for the exact
+  `built-ins/decodeURI/S15.1.3.1_A2.5_T1.js` fixture and records that missing
+  helper regression coverage should be closed without reopening URI runtime
+  semantics when the focused rows already pass.

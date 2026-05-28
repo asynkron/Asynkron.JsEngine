@@ -457,12 +457,44 @@ Realization rules:
 - If receiving-owner contract checks fail, claim wording stays at proven-now scope.
 - Non-goals remain explicit in claim updates: no full Node.js parity, no broad CommonJS parity, no async-generator seam-closure claim, and no unbounded unified-bytecode widening claim.
 
+## Capability ledger realization slice (this run)
+Primary owner: **Execution Fabric** with governance gating by **Evidence and Governance Fabric**.
+
+This run adds a capability-ledger lane so each architecture claim is tied to one runtime owner,
+one receiving contract, and one proof state before claim text can widen. The intent is to keep
+#2342 milestone language concrete while preserving current "proven now" boundaries.
+
+```mermaid
+flowchart TB
+    C[Capability candidate] --> O[Primary owner module]
+    O --> L[Owner ledger entry]
+
+    subgraph Gates["Claim gate sequence"]
+        G1[Owning semantics proof]
+        G2[Receiving contract check]
+        G3[Profile or benchmark proof]
+        G4[Canonical quality gate]
+    end
+
+    L --> G1 --> G2 --> G3 --> G4 --> P[Production-claim wording]
+
+    P --> B1[Bounded unified-bytecode production eligibility]
+    P --> B2[Milestone C async seam still directional until closure proof]
+    P --> B3[No full Node.js parity claim]
+    P --> B4[No broad CommonJS core-engine parity claim]
+```
+
+Ledger rules:
+- Each claim maps to one owner module and one explicit receiving contract.
+- If any gate fails, claim wording reverts to proven-now scope.
+- Widening unified-bytecode and async seam language requires new focused proof, not inference from adjacent slices.
+
 ## Signals this run
-- Baseline timestamp: 2026-05-28T19:11:00Z
-- Baseline signal: `docs/dreaming.md` line_count = 439
-- Final timestamp: 2026-05-28T19:12:06Z
-- Final signal: `docs/dreaming.md` line_count = 468
-- Signal delta: +29 lines
+- Baseline timestamp: 2026-05-29T06:14:34Z
+- Baseline signal: `docs/dreaming.md` line_count = 468
+- Final timestamp: 2026-05-29T06:16:35Z
+- Final signal: `docs/dreaming.md` line_count = 500
+- Signal delta: +32 lines
 
 ## Operating principle
 Preserve semantics first, optimize through explicit owner boundaries, and require evidence for every fast-path expansion.

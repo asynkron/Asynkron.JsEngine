@@ -211,6 +211,19 @@ all-or-nothing until a separate routing issue proves production readiness.
     not enough; accepted mutation shapes also needed explicit owned-opcode
     whitelist proof, while unsupported neighbors still needed public no-route
     proof.
+21. Before widening parallel unified-bytecode lanes, start from
+    `docs/unified-bytecode-expansion-contract.md` and keep it current in the
+    same slice that changes opcode, compiler, VM, selector, statement
+    diagnostics, or proof-command surfaces. The contract must separate current
+    support from reserved/planned lanes, keep the no-mixed-execution rule
+    explicit, and keep the drift guard in `ExpressionProgramCoverageMapTests`
+    covering required headings plus current `UnifiedBytecodeOpCode` and
+    `UnifiedBytecodeProductionDeclineCode` names. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-25de646b9f`
+    / PR #2466 established the shared contract before parallel lane work so
+    future agents do not re-discover owner surfaces, imply planned-lane runtime
+    support, or land selector/compiler/VM changes without matching proof
+    commands.
 
 ## Why
 
@@ -445,3 +458,4 @@ Related ADRs:
 - `docs/adrs/0231-keep-unified-bytecode-property-write-private-names-guarded.md`
 - `docs/adrs/0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md`
 - `docs/adrs/0238-keep-unified-bytecode-compound-property-writes-get-for-set-owned.md`
+- `docs/adrs/0246-keep-unified-bytecode-expansion-contract-source-of-truth-and-drift-guarded.md`

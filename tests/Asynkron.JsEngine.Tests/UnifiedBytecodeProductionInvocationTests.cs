@@ -256,6 +256,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BlockScopedDebugAwareIdentifierCall_PreservesActiveLexicalEnvironment()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn) {
+                var result = 0;
+                {
+                    let x = 1;
+                    result = x;
+                    fn();
+                }
+
+                return result;
+            }
+
+            invoke(__debug);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=1",
+                StringComparison.Ordinal));
+
+        var debugMessage = await engine.DebugMessages().ReadAsync();
+        Assert.Contains("fn", debugMessage.Variables.Keys);
+        Assert.Contains("x", debugMessage.Variables.Keys);
+        Assert.Equal(1d, debugMessage.Variables["x"]);
+        Assert.Contains(debugMessage.EnvironmentChain,
+            static environment => string.Equals(
+                environment.Description,
+                "unified-bytecode-scope",
+                StringComparison.Ordinal) &&
+                environment.HasSlots);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NonCallableIdentifierCall_PropagatesTypeErrorThroughUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

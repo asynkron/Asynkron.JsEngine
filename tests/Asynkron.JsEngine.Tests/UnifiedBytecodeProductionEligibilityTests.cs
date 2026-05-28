@@ -130,6 +130,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_BlockScopedIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(fn) {
+                var result = 0;
+                {
+                    let x = 1;
+                    result = x;
+                    fn();
+                }
+
+                return result;
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PushEnvironment);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal("fn", result.Program.SlotNames[callTarget.SlotIndex]);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyReadCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""

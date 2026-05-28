@@ -162,11 +162,18 @@ internal static class UnifiedBytecodeCompiler
         var mappedSlots = new HashSet<int>();
         var usedFlatSlots = new HashSet<int>();
         var nextFlatSlotId = 0;
+        foreach (var scopeMappings in flatSlotMappings.Values)
+        {
+            foreach (var mapping in scopeMappings)
+            {
+                usedFlatSlots.Add(mapping.FlatSlotId);
+                nextFlatSlotId = Math.Max(nextFlatSlotId, mapping.FlatSlotId + 1);
+            }
+        }
+
         foreach (var mapping in mappings)
         {
             mappedSlots.Add(mapping.SlotIndex);
-            usedFlatSlots.Add(mapping.FlatSlotId);
-            nextFlatSlotId = Math.Max(nextFlatSlotId, mapping.FlatSlotId + 1);
         }
 
         var hasAllActivationSlots = true;
@@ -545,7 +552,9 @@ internal static class UnifiedBytecodeCompiler
                             pushEnvironment.LexicalSlotIndices,
                             slotLayout.FlatSlotMappings);
                         var scopeDescriptorIndex = scopeDescriptors.Count;
-                        scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(lexicalSlotIndices));
+                        scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(
+                            pushEnvironment.ScopeId,
+                            lexicalSlotIndices));
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.PushEnvironment,
                             scopeDescriptorIndex));

@@ -65,6 +65,7 @@ internal readonly record struct UnifiedBytecodeCallTarget(
     int NameConstantIndex = -1);
 
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
+    int ScopeId,
     ImmutableArray<int> LexicalSlotIndices);
 
 internal sealed record UnifiedBytecodeProgram(

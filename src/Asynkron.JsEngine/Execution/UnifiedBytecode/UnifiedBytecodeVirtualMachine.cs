@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -12,6 +13,11 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
 
+    private readonly record struct EnvironmentScopeFrame(
+        JsEnvironment Environment,
+        ImmutableArray<int> SlotIndices,
+        JsEnvironment?[] PreviousSlotEnvironments);
+
     public static JsValue Execute(
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
@@ -23,6 +29,12 @@ internal static class UnifiedBytecodeVirtualMachine
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
         var stackPointer = 0;
+        var currentCallingEnvironment = callingEnvironment;
+        var slotEnvironments = callingEnvironment is null
+            ? null
+            : InitializeSlotEnvironments(program, callingEnvironment);
+        EnvironmentScopeFrame[]? environmentStack = null;
+        var environmentStackCount = 0;
 
         var programCounter = 0;
         var instructions = program.Instructions;
@@ -89,7 +101,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         stack,
                         stackPointer,
                         context,
-                        callingEnvironment);
+                        currentCallingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
                         return JsValue.Undefined;
@@ -101,11 +113,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.StoreSlot:
                     var storedValue = stack[--stackPointer];
                     slots[instruction.Operand] = storedValue;
-                    if (callingEnvironment is not null &&
-                        (uint)instruction.Operand < (uint)callingEnvironment.SlotCount)
-                    {
-                        callingEnvironment.SetSlotDirect(instruction.Operand, storedValue);
-                    }
+                    SyncSlotEnvironment(slotEnvironments, instruction.Operand, storedValue);
 
                     programCounter++;
                     break;
@@ -455,10 +463,42 @@ internal static class UnifiedBytecodeVirtualMachine
                         slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
                     }
 
+                    if (currentCallingEnvironment is not null && slotEnvironments is not null)
+                    {
+                        var scopeEnvironment = CreateScopeEnvironment(
+                            program,
+                            scopeDescriptor,
+                            lexicalSlotIndices,
+                            currentCallingEnvironment,
+                            context,
+                            isStrict);
+                        var previousSlotEnvironments = new JsEnvironment?[lexicalSlotIndices.Length];
+                        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+                        {
+                            var slotIndex = lexicalSlotIndices[i];
+                            previousSlotEnvironments[i] = slotEnvironments[slotIndex];
+                            slotEnvironments[slotIndex] = scopeEnvironment;
+                        }
+
+                        environmentStack ??= new EnvironmentScopeFrame[instructions.Length];
+                        environmentStack[environmentStackCount++] = new EnvironmentScopeFrame(
+                            scopeEnvironment,
+                            lexicalSlotIndices,
+                            previousSlotEnvironments);
+                        currentCallingEnvironment = scopeEnvironment;
+                    }
+
                     programCounter++;
                     break;
 
                 case UnifiedBytecodeOpCode.PopEnvironment:
+                    if (environmentStackCount > 0 && slotEnvironments is not null)
+                    {
+                        var scopeFrame = environmentStack![--environmentStackCount];
+                        RestoreSlotEnvironmentOwners(slotEnvironments, scopeFrame);
+                        currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
+                    }
+
                     programCounter++;
                     break;
 
@@ -478,6 +518,125 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         throw new InvalidOperationException("Program terminated without Return.");
+    }
+
+    private static JsEnvironment?[] InitializeSlotEnvironments(
+        UnifiedBytecodeProgram program,
+        JsEnvironment callingEnvironment)
+    {
+        var slotCount = program.SlotCount;
+        var slotEnvironments = new JsEnvironment?[slotCount];
+        var rootSlotCount = Math.Min(slotCount, callingEnvironment.SlotCount);
+        for (var i = 0; i < rootSlotCount; i++)
+        {
+            if (SlotNameMatchesEnvironment(program, callingEnvironment, i))
+            {
+                slotEnvironments[i] = callingEnvironment;
+            }
+        }
+
+        return slotEnvironments;
+    }
+
+    private static bool SlotNameMatchesEnvironment(
+        UnifiedBytecodeProgram program,
+        JsEnvironment environment,
+        int slotIndex)
+    {
+        var slotNames = program.SlotNames;
+        if (slotNames.IsDefaultOrEmpty ||
+            (uint)slotIndex >= (uint)slotNames.Length ||
+            slotNames[slotIndex] is not { } expectedName)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            environment.GetSlotByIndex(slotIndex).Name?.Name,
+            expectedName,
+            StringComparison.Ordinal);
+    }
+
+    private static void SyncSlotEnvironment(
+        JsEnvironment?[]? slotEnvironments,
+        int slotIndex,
+        JsValue value)
+    {
+        if (slotEnvironments is null ||
+            (uint)slotIndex >= (uint)slotEnvironments.Length ||
+            slotEnvironments[slotIndex] is not { } environment ||
+            (uint)slotIndex >= (uint)environment.SlotCount)
+        {
+            return;
+        }
+
+        environment.SetSlotDirect(slotIndex, value);
+    }
+
+    private static JsEnvironment CreateScopeEnvironment(
+        UnifiedBytecodeProgram program,
+        UnifiedBytecodeScopeDescriptor scopeDescriptor,
+        ImmutableArray<int> lexicalSlotIndices,
+        JsEnvironment enclosing,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var scopeEnvironment = JsEnvironment.CreateInstance(
+            enclosing,
+            isFunctionScope: false,
+            isStrict: isStrict || context.CurrentScope.IsStrict,
+            description: "unified-bytecode-scope");
+        scopeEnvironment.InitializeSlots(GetScopeSlotCount(lexicalSlotIndices), scopeDescriptor.ScopeId);
+        SetScopeSlotNames(scopeEnvironment, program, lexicalSlotIndices);
+        scopeEnvironment.SetSlotsLexicalUninitialized(lexicalSlotIndices);
+        return scopeEnvironment;
+    }
+
+    private static int GetScopeSlotCount(ImmutableArray<int> lexicalSlotIndices)
+    {
+        var slotCount = 0;
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            slotCount = Math.Max(slotCount, lexicalSlotIndices[i] + 1);
+        }
+
+        return slotCount;
+    }
+
+    private static void SetScopeSlotNames(
+        JsEnvironment environment,
+        UnifiedBytecodeProgram program,
+        ImmutableArray<int> lexicalSlotIndices)
+    {
+        var slotNames = program.SlotNames;
+        if (slotNames.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<(Symbol Name, int SlotIndex)>(lexicalSlotIndices.Length);
+        for (var i = 0; i < lexicalSlotIndices.Length; i++)
+        {
+            var slotIndex = lexicalSlotIndices[i];
+            if ((uint)slotIndex < (uint)slotNames.Length && slotNames[slotIndex] is { } slotName)
+            {
+                builder.Add((Symbol.Intern(slotName), slotIndex));
+            }
+        }
+
+        environment.SetSlotNames(builder.ToImmutable());
+    }
+
+    private static void RestoreSlotEnvironmentOwners(
+        JsEnvironment?[] slotEnvironments,
+        EnvironmentScopeFrame scopeFrame)
+    {
+        var slotIndices = scopeFrame.SlotIndices;
+        var previousSlotEnvironments = scopeFrame.PreviousSlotEnvironments;
+        for (var i = 0; i < slotIndices.Length; i++)
+        {
+            slotEnvironments[slotIndices[i]] = previousSlotEnvironments[i];
+        }
     }
 
     private static JsValue ApplyBinaryOperator(

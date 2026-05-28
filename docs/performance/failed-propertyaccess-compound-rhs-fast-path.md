@@ -168,7 +168,7 @@ Final timestamp: 2026-05-28T08:55:59Z
 Signal delta:
 
 ```text
-Baseline signal: propertyaccess Asynkron focused row = 906 ms
+Baseline signal: propertyaccess Asynkron full-table baseline row = 906 ms
 Final signal: propertyaccess Asynkron retained-runtime row = 906 ms
 Signal delta: 0 ms, no retained runtime improvement
 ```

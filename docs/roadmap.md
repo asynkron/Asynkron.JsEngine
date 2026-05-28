@@ -3,7 +3,7 @@
 ## Purpose
 This roadmap aligns near-term implementation work with the long-term goal of building a strong Node.js competitor on .NET, while staying explicit about what is currently proven versus what is still directional.
 
-## Current State (2026-05-27)
+## Current State (2026-05-28)
 
 ### What Works Well
 - The engine has a clear fast-path direction: typed AST parse/analyze, lowered statement IR, and expression payloads compiled into `ExpressionProgram` bytecode.
@@ -60,6 +60,9 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Unified bytecode prototype control-flow now proves branch shapes plus one canonical condition-first loop back-edge IR shape with explicit unsupported-loop-control-flow declines, while still keeping production routing unchanged (`docs/adrs/0192-keep-unified-bytecode-acyclic-control-flow-compiler-owned.md`).
 - Unified bytecode production routing boundary is now captured under ADR 0210 with explicit compiler-shape ownership, operator-owned Binary subset semantics, and no-mixed-execution constraints for accepted production programs (`docs/adrs/0210-keep-unified-bytecode-control-flow-production-routing-operator-and-shape-owned.md`, `src/Asynkron.JsEngine/Ast/TypedAstEvaluator.SyncFunctionInvoker.cs`, `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeProductionEligibility.cs`).
 - Unified bytecode property access now executes through the current accepted production boundary: direct named/computed reads, exact two-hop named reads, direct named/computed writes, direct named/computed compound writes, and named/computed prefix/postfix updates. Accepted programs stay inside owned unified opcodes (`LoadSlot`, `LoadLiteral`, `StoreSlot`, `Binary`, `RequireObjectCoercible`, `ResolvePropertyKey`, `GetNamedProperty`, `GetComputedProperty`, `GetNamedPropertyForCompoundSet`, `GetComputedPropertyForCompoundSet`, `SetNamedProperty`, `SetComputedProperty`, `UpdateNamedProperty`, `UpdateComputedProperty`, `Jump`, `JumpIfFalse`, `Return`) with string-constant/operand-table ownership in `UnifiedBytecodeProgram`, and no bridge back to `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation (`docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`, `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`, `docs/adrs/0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md`, `docs/adrs/0238-keep-unified-bytecode-compound-property-writes-get-for-set-owned.md`, `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs`, `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeVirtualMachine.cs`, `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionEligibilityTests.cs`, `tests/Asynkron.JsEngine.Tests/UnifiedBytecodeProductionInvocationTests.cs`).
+- Noncapturing `for`-`let` loop-scope elision now has a plan-proven/runtime-consumed boundary under ADR 0239, so activation follow-through can target the remaining measurable loop-scope seams without reopening already-proven noncapturing behavior (`docs/adrs/0239-keep-noncapturing-for-let-loop-scope-elision-plan-proven.md`, `docs/performance/failed-activation-arguments-loop-scope-template.md`).
+- JsOps property lookup now has a durable receiver-preservation boundary under ADR 0240: private lookup helpers keep the original `JsValue` receiver instead of reconstructing it from object payloads, which narrows future cleanup slices to adjacent compatibility seams only (`docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`, `src/Asynkron.JsEngine/Runtime/JsOps.cs`).
+- Recursion linear self-recursion follow-through is now explicitly evidence-backed and guardrailed under ADR 0241, extending strict simple numeric self-recursion coverage while preserving shape/binding safety constraints (`docs/performance/recursion-linear-self-recursion.md`, `docs/adrs/0241-keep-simple-numeric-self-recursion-fast-paths-shape-and-binding-guarded.md`).
 - Class-method simple IR activation is now explicitly super-guarded so methods with `super` dependencies do not take the shortcut (`docs/adrs/0193-keep-class-method-simple-ir-activation-super-guarded.md`, `docs/performance/classdef-homeobject-simple-ir-activation.md`).
 - Runner breakable-frame stack capacity is now explicitly profile-owned under ADR 0195, with evidence showing improved `activation-arguments-lite` startup cost while leaving lexical/environment setup as a bounded follow-up seam (`docs/adrs/0195-keep-runner-breakable-stack-capacity-profile-owned.md`, `docs/performance/activation-arguments-breakable-stack-presizing.md`, [#2201](https://github.com/asynkron/Asynkron.JsEngine/issues/2201)).
 - Intl receiver brand validation is now explicitly JsValue-native under ADR 0196, with remaining private object-carrier helper cleanup constrained as a narrow standard-library follow-up (`docs/adrs/0196-keep-intl-receiver-brand-validation-jsvalue-native.md`, `src/Asynkron.JsEngine/StdLib/Intl/IntlBrandExtensions.cs`, [#2202](https://github.com/asynkron/Asynkron.JsEngine/issues/2202)).
@@ -126,6 +129,8 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 37. Continue typed module evaluation follow-through by shrinking `ModuleEntry.LastValue` object-shaped compatibility seams and keeping module execution helpers JsValue-native under ADR 0212 boundaries (tracked in [#2374](https://github.com/asynkron/Asynkron.JsEngine/issues/2374)).
 38. Continue host/stdlib follow-through by reducing nearby overhead around Math host fast dispatch and splice-family delete-count ownership without weakening ADR 0227/0228 semantics constraints (tracked in [#2375](https://github.com/asynkron/Asynkron.JsEngine/issues/2375)).
 39. Continue activation-arguments follow-through with one narrow semantic-safe slice that targets non-capturing loop-scope environment overhead on `activation-arguments-lite`, using selected-profile evidence and focused activation proofs before any acceptance claim (tracked in [#2402](https://github.com/asynkron/Asynkron.JsEngine/issues/2402)).
+40. Continue recursion follow-through after ADR 0241 with one narrow profile-backed slice that widens strict simple numeric self-recursion only where shape/binding guards remain compiler/runtime-proven (tracked in [#2450](https://github.com/asynkron/Asynkron.JsEngine/issues/2450)).
+41. Continue JsOps/property cleanup after ADR 0240 by removing one bounded adjacent object-carrier compatibility seam while preserving receiver identity and accessor/prototype observability (tracked in [#2451](https://github.com/asynkron/Asynkron.JsEngine/issues/2451)).
 
 ## Node.js-Competitor Architecture Alignment Milestones (#2342)
 
@@ -184,6 +189,10 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
 - Current migration direction and runtime/storage boundary: `docs/expression-bytecode-migration-report-2026-05-23.md`
 - Expression bytecode capability and failure taxonomy: `docs/expression-bytecode-coverage.md`
 - Activation loop-scope failed-trial evidence and current directional seam: `docs/performance/failed-activation-arguments-loop-scope-template.md`
+- Recent loop-scope / receiver / recursion guardrail ADRs:
+  - `docs/adrs/0239-keep-noncapturing-for-let-loop-scope-elision-plan-proven.md`
+  - `docs/adrs/0240-keep-jsops-property-lookup-receivers-jsvalue-native.md`
+  - `docs/adrs/0241-keep-simple-numeric-self-recursion-fast-paths-shape-and-binding-guarded.md`
 - Accepted sync function `this`-binding boundary and module-task/value boundary context: `docs/adrs/0232-keep-sync-function-this-binding-jsvalue-native.md`, `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`
 - Recent expression-bytecode optimization evidence:
   - `docs/performance/ir-arithmetic-simple-numeric-expression-fast-path.md`
@@ -202,6 +211,7 @@ This roadmap aligns near-term implementation work with the long-term goal of bui
   - `docs/performance/classdef-arrow-simple-ir-activation.md`
   - `docs/performance/destructuring-dense-array-fast-path.md`
   - `docs/performance/fib-simple-numeric-self-recursion.md`
+  - `docs/performance/recursion-linear-self-recursion.md`
   - `docs/performance/activation-noargs-literal-return-fast-path.md`
   - `docs/performance/json-default-data-properties-and-quote-fast-path.md`
   - `docs/performance/activation-params-trampoline-frame-capacity.md`

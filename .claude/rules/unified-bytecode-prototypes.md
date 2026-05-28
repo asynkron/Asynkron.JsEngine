@@ -376,6 +376,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     that partial root remapping plus non-root flat mappings broke unrelated
     parameter-population paths. The accepted repair made slot layout
     program-wide and positional instead of activation-only or name-based.
+29. After parallel unified-bytecode lanes have individually widened production
+    support, prove they compose as one accepted production boundary before
+    treating the batch as coherent. The integrated selector proof should combine
+    only already-owned families, assert `None` decline code, assert required
+    owned opcodes, and assert absence of non-executable call-target preparation
+    or invocation-boundary opcodes. The matching public invocation proof should
+    assert `unified-bytecode-production-fast-path` on the same function and
+    expected JavaScript result. Keep direct specialized simple-return binary and
+    binary-chain shortcuts ahead of unified bytecode and assert that those
+    functions do not log the unified route. Do not add VM fallback or broaden
+    adjacent unowned families to make an integrated test pass. WHY: issue
+    `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-fc03ae9db9`
+    / PR #2503 closed the production-routing integration slice with a guard-only
+    proof pack. The durable lesson was that per-lane acceptance is not enough:
+    completed lanes must compose inside one VM-owned program while route
+    priority still protects older specialized fast paths.
 
 ## Why
 
@@ -593,6 +609,19 @@ preserve the once-resolved key for the eventual set. A generic duplicate/swap
 surface or VM callback would have widened production unified bytecode beyond
 the proven selector, compiler, VM, and route-proof boundary.
 
+Faktorial issue
+`planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-fc03ae9db9`
+and PR #2503 closed the parallel-lane production-routing integration batch with
+tests rather than runtime widening. The lesson is that the accepted surface must
+be proven both lane-by-lane and as an ordinary mixed program: literals, property
+reads/writes/updates, block lexical scopes, loop control, and primitive
+operations should compose as one `UnifiedBytecodeProgram` without non-executable
+call-boundary opcodes or fallback. The same slice also proved binary-chain
+simple returns still use their specialized fast path. WHY: without an
+integrated guard, future agents can have complete-looking per-lane coverage
+while an ordinary sync function either drifts into mixed execution or shadows a
+faster established route.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -616,3 +645,4 @@ Related ADRs:
 - `docs/adrs/0252-keep-unified-bytecode-completion-lane-vm-owned.md`
 - `docs/adrs/0253-keep-unified-bytecode-loop-control-targets-compiler-owned.md`
 - `docs/adrs/0255-keep-unified-bytecode-block-lexical-scopes-program-slot-owned.md`
+- `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`

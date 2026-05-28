@@ -144,6 +144,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
   for guidance that already has an owned home.
+- Treat `local:adr-rule-compaction` as the explicit marker for this class of
+  recurring-child slice; keep the overlap proof and final handoff evidence
+  anchored to this semantic-home compaction boundary.
 - When overlap spans a cross-cutting rule and accepted helper-specific ADRs,
   keep the detailed decisions in the ADRs and add a short ownership note to the
   rule instead of copying every helper boundary into the rule body.

@@ -111,6 +111,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task WithFunctionVarInitializer_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(scope) {
+                var add = 2;
+                with (scope) {
+                    return value + add;
+                }
+            }
+
+            run({ value: 40 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task WithVarInitializer_PreResolvesBindingBeforeInitializerOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var scope = new Proxy(
+                { value: 1, hide: 0 },
+                {
+                    has(target, key) {
+                        return key === "value" ? target.hide === 0 : key in target;
+                    }
+                });
+
+            function run(scope) {
+                with (scope) {
+                    var value = (++hide, 42);
+                    return value;
+                }
+            }
+
+            run(scope) + ":" + scope.value + ":" + scope.hide;
+            """);
+
+        Assert.Equal("undefined:42:1", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithThenOutsideDynamicIdentifier_DeclinesProductionFastPath()
     {
         await using var engine = CreateEngine();

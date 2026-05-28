@@ -3083,6 +3083,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 if (instructions[i].OpCode is
                     UnifiedBytecodeOpCode.CallInvocationBoundary or
+                    UnifiedBytecodeOpCode.DeclareDynamicVar or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifier or
                     UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or

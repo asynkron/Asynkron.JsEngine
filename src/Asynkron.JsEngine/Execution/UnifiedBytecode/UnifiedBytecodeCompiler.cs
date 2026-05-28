@@ -434,8 +434,35 @@ internal static class UnifiedBytecodeCompiler
                         } declaration:
                         if (!TryResolveDeclarationSlot(targetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
                         {
-                            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
-                            return false;
+                            if (!TryAppendDynamicVarDeclaration(
+                                    declaration,
+                                    initializerProgram,
+                                    allowsDynamicIdentifiers,
+                                    slotLayout,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    out reason))
+                            {
+                                return false;
+                            }
+
+                            maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                            if (TryAppendJumpToCompiledTarget(
+                                    instructionIndex,
+                                    declaration.Next,
+                                    instructions,
+                                    instructionPcMap,
+                                    activeInstructions,
+                                    unified,
+                                    out reason))
+                            {
+                                return true;
+                            }
+
+                            instructionIndex = declaration.Next;
+                            continue;
                         }
 
                         if (!TryAppendExpressionProgramOps(
@@ -2877,6 +2904,50 @@ internal static class UnifiedBytecodeCompiler
     {
         var flags = allowNameInference ? DynamicStoreAllowNameInferenceFlag : 0;
         return (stringConstantIndex << 1) | flags;
+    }
+
+    private static bool TryAppendDynamicVarDeclaration(
+        SimpleVariableDeclarationInstruction declaration,
+        ExpressionProgram initializerProgram,
+        bool allowsDynamicIdentifiers,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (declaration.VarKind != VariableKind.Var ||
+            declaration.TargetSymbol is not { } targetSymbol ||
+            !slotLayout.ActivationSlots.MaterializedBindingNames.Contains(targetSymbol))
+        {
+            reason = $"Unsupported declaration target '{declaration.TargetSymbol?.Name}'.";
+            return false;
+        }
+
+        var targetNameIndex = stringConstants.Count;
+        stringConstants.Add(targetSymbol.Name);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeclareDynamicVar, targetNameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference, targetNameIndex));
+        if (!TryAppendExpressionProgramOps(
+                initializerProgram,
+                slotLayout,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+            EncodeDynamicStoreOperand(targetNameIndex, declaration.AllowNameInference)));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        reason = string.Empty;
+        return true;
     }
 
     private static void AppendDynamicStoreInstruction(

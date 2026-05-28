@@ -26,6 +26,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
+- `DeclareDynamicVar`
 - `StoreDynamicIdentifier`
 - `ResolveDynamicIdentifierReference`
 - `LoadDynamicIdentifierReference`

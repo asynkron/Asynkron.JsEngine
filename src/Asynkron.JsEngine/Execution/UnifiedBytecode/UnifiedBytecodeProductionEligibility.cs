@@ -1339,6 +1339,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                 case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:

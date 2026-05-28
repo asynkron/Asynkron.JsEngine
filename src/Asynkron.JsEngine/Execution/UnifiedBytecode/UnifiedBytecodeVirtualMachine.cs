@@ -186,6 +186,19 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DeclareDynamicVar:
+                    DeclareDynamicVar(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                     var dynamicStoredValue = stack[stackPointer - 1];
                     StoreDynamicIdentifierValue(
@@ -783,6 +796,15 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             context.SetThrow(signal.ThrownValue);
         }
+    }
+
+    private static void DeclareDynamicVar(
+        string name,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        environment.DefineFunctionScoped(Symbol.Intern(name), JsValue.Undefined, hasInitializer: false,
+            context: context);
     }
 
     private static JsValue UpdateDynamicIdentifierValue(

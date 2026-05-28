@@ -81,6 +81,7 @@ coordination surface for parallel unified-bytecode expansion.
   `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-9f49fefe3d`
 - PR #2466
 - PR #2476
+- ADR 0256: `docs/adrs/0256-keep-unified-bytecode-coverage-matrix-and-boundary-docs-synchronized.md`
 - `docs/unified-bytecode-expansion-contract.md`
 - `tests/Asynkron.JsEngine.Tests/ExpressionProgramCoverageMapTests.cs`
 - `.claude/rules/unified-bytecode-prototypes.md`

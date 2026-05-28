@@ -142,7 +142,7 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release \
 
 List available tests to find exact names:
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --list-tests 2>&1 | grep -i "SomePattern"
+rtk dotnet test tests/Asynkron.JsEngine.Tests.Test262 -c Release --list-tests 2>&1 | rtk rg -i "SomePattern"
 ```
 
 **Filter syntax:**

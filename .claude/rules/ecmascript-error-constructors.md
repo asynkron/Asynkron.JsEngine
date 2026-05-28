@@ -1,7 +1,8 @@
 # ECMAScript Error Constructors
 
-When changing `StdLib/Error` constructors, keep shared Error-object
-initialization separate from constructor-specific argument mapping.
+When changing `StdLib/Error` constructors or `StandardLibrary.cs` native error
+factory helpers, keep shared Error-object mechanics separate from
+constructor-specific and error-family-specific observable behavior.
 
 ## Rules
 
@@ -23,6 +24,14 @@ initialization separate from constructor-specific argument mapping.
    mapping, prove ordinary Error-family constructors plus shifted-argument
    constructors such as `AggregateError` and `SuppressedError` with focused
    filters before widening.
+6. For `StandardLibrary.cs` native error factory helpers, share only realm
+   resolution, constructor lookup/invocation, and fallback mechanics. Keep each
+   family-specific fallback policy explicit: `TypeError`, `ReferenceError`, and
+   `SyntaxError` use specific fallback prototypes; `RangeError` and `URIError`
+   use generic error fallback; `ReferenceError` falls back on both `undefined`
+   and `null` constructor results; and `ThrowReferenceError` keeps its
+   constructor-property repair outside the shared helper. Prove the boundary
+   with focused realm/error tests such as `FunctionRealmTests|JsOpsTests`.
 
 ## Why
 
@@ -42,6 +51,16 @@ follow-up rule, future cleanup can either reintroduce duplicated `_errorData`,
 `message`, and `cause` setup or overgeneralize the helper until it hides the
 constructor-specific `(error, suppressed, message, options)` grammar.
 
+Issue `autrun-diulo4a3l52o-d05a9ba04d` / PR #2603 removed duplicated native
+error factory plumbing from `StandardLibrary.cs` by introducing
+`CreateNativeError(...)`. The useful lesson was not "merge all native error
+families"; it was to share only realm resolution, constructor invocation, and
+fallback plumbing while preserving the per-family fallback prototype choices,
+`ReferenceError` null-result fallback, and `ThrowReferenceError`
+constructor-property repair. Without this boundary, future code-reduction work
+can accidentally normalize observable realm/prototype behavior while chasing a
+line-count reduction.
+
 Focused proof from the incident:
 
 ```bash
@@ -57,3 +76,4 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj --f
 Related ADR:
 
 - `docs/adrs/0151-keep-error-constructor-shared-initialization-argument-mapped.md`
+- `docs/adrs/0270-keep-native-error-factory-fallback-semantics-explicit.md`

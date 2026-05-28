@@ -35,6 +35,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   `trigger=automation recurrence`, or `trigger=persistent recurrence` as
   classification for one runnable bounded child delivery, not as a request to
   design persistent setup or scheduler behavior in this repository.
+- Treat named compaction markers such as `local:adr-rule-compaction` as the
+  same bounded child-run classification signal for this rule's semantic-home
+  update path, not as a request for new recurrence infrastructure.
 - Treat recurrence-normalization wording in issue handoffs as the same bounded
   child-run classification signal: normalize the evidence shape for this run,
   but do not convert that wording into persistent setup, scheduler, or
@@ -912,9 +915,12 @@ issue context included automation markers such as `Part of automation template`,
 `trigger=automation recurrence`, and `trigger=persistent recurrence`. Those
 markers classify a single runnable bounded child delivery; they are not a
 request to design persistent setup, scheduler behavior, or recurrence
-infrastructure inside this repository. Future agents should keep that
-distinction in the existing recurring-child rule instead of creating another
-ADR or one-off rule for the same classification boundary.
+infrastructure inside this repository. The same boundary applies when issue
+criteria names `local:adr-rule-compaction`: treat it as a bounded semantic-home
+classification marker for this owned rule, not as a prompt to add scheduler or
+recurrence setup. Future agents should keep that distinction in the existing
+recurring-child rule instead of creating another ADR or one-off rule for the
+same classification boundary.
 
 Issue #2221 / PR #2230 continued that boundary for recurrence-normalization
 phrasing in persistent ADR/rule compaction handoffs: normalize the

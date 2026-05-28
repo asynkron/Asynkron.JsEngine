@@ -170,6 +170,44 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ThisPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readThis() {
+                return this.value;
+            }
+
+            readThis.call({ value: 7 });
+            """);
+
+        Assert.Equal(7d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readThis argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NewTargetInOrdinaryCall_UsesUnifiedBytecodeProductionFastPathAndReturnsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readNewTarget() {
+                return new.target;
+            }
+
+            readNewTarget();
+            """);
+
+        Assert.Equal(Symbol.Undefined, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readNewTarget argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task StrictEqualityBranchFunction_DeclinesUnifiedBytecodeAndFallsBack()
     {
         await using var engine = CreateEngine();
@@ -1094,16 +1132,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readViaSuperBoundary",
         2d)]
-    [InlineData(
-        """
-        function readThis() {
-            return this.value;
-        }
-
-        readThis.call({ value: 7 });
-        """,
-        "readThis",
-        7d)]
     [InlineData(
         """
         function readOptional(box) {

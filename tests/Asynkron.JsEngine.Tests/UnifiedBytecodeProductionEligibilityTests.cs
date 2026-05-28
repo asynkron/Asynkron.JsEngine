@@ -171,6 +171,46 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ThisPropertyReadCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function readThis() {
+                return this.value;
+            }
+            """,
+            "readThis");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NewTargetReadCandidate_AcceptsLoadNewTarget()
+    {
+        var plan = GetFunctionPlan("""
+            function readNewTarget() {
+                return new.target;
+            }
+            """,
+            "readNewTarget");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadNewTarget);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""
@@ -406,14 +446,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "remove",
         (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
-    [InlineData(
-        """
-        function readThis() {
-            return this.value;
-        }
-        """,
-        "readThis",
-        (int)UnifiedBytecodeProductionDeclineCode.ThisDependency)]
     [InlineData(
         """
         function readOptional(box) {

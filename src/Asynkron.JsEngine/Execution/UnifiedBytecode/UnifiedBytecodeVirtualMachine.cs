@@ -12,6 +12,8 @@ internal static class UnifiedBytecodeVirtualMachine
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         EvaluationContext context,
+        JsValue thisValue = default,
+        JsValue newTarget = default,
         bool isStrict = false)
     {
         var stack = new JsValue[Math.Max(program.MaxStackDepth, 2)];
@@ -26,6 +28,16 @@ internal static class UnifiedBytecodeVirtualMachine
             {
                 case UnifiedBytecodeOpCode.LoadSlot:
                     stack[stackPointer++] = slots[instruction.Operand];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadThis:
+                    stack[stackPointer++] = thisValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadNewTarget:
+                    stack[stackPointer++] = newTarget;
                     programCounter++;
                     break;
 

@@ -857,6 +857,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
                     break;
 
+                case ExpressionOpKind.LoadThis:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                    break;
+
+                case ExpressionOpKind.LoadNewTarget:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
+                    break;
+
                 case ExpressionOpKind.LoadLiteral:
                     var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
                     var literalIndex = literalConstants.Count;
@@ -937,7 +945,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1014,7 +1022,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1083,7 +1091,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1137,7 +1145,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1200,7 +1208,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1239,7 +1247,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1303,7 +1311,7 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        if (!TryAppendActivationIdentifierLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
         {
             return false;
         }
@@ -1362,7 +1370,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -1401,7 +1409,7 @@ internal static class UnifiedBytecodeCompiler
         switch (operation.Kind)
         {
             case ExpressionOpKind.LoadIdentifier:
-                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+                return TryAppendActivationValueLoad(operation, expressionProgram, activationSlots, unified, out reason);
 
             case ExpressionOpKind.LoadLiteral:
                 var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
@@ -1428,7 +1436,7 @@ internal static class UnifiedBytecodeCompiler
         switch (operation.Kind)
         {
             case ExpressionOpKind.LoadIdentifier:
-                return TryAppendActivationIdentifierLoad(operation, expressionProgram, activationSlots, unified, out reason);
+                return TryAppendActivationValueLoad(operation, expressionProgram, activationSlots, unified, out reason);
 
             case ExpressionOpKind.LoadLiteral:
                 var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
@@ -1453,13 +1461,26 @@ internal static class UnifiedBytecodeCompiler
         return update.IsPrefix ? flags | UpdatePrefixFlag : flags;
     }
 
-    private static bool TryAppendActivationIdentifierLoad(
+    private static bool TryAppendActivationValueLoad(
         PackedExpressionOp operation,
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         out string reason)
     {
+        switch (operation.Kind)
+        {
+            case ExpressionOpKind.LoadThis:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadNewTarget:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
+                reason = string.Empty;
+                return true;
+        }
+
         if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
         {
             reason = $"Unsupported property-read base op '{operation.Kind}'.";

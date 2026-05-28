@@ -38,6 +38,11 @@ boundary-explicit.
    boundary instead of using broad capability labels. Documentation run signals
    such as line counts, timestamps, or diff stats are traceability only; they
    are not runtime proof.
+9. When `docs/dreaming.md` adds or revises a proven-now vs directional-next
+   contract or ownership-routing section, treat that section as the durable
+   boundary map for future Dreamer wording. Update the central contract first
+   when capability status changes, and do not scatter equivalent boundary prose
+   into unrelated architecture text.
 
 ## Why
 
@@ -78,3 +83,12 @@ host-layer or prototype-only, and what still needs focused proof. That run
 also recorded documentation baseline/final signals; future agents should keep
 those as audit signals rather than treating them as semantic or performance
 evidence.
+
+Faktorial issue `autrun-diu2eun13bqo-5bf42db896` / PR #2472 tightened
+`docs/dreaming.md` into a routing guide by adding an explicit proven-now vs
+directional-next contract and ownership routing by concern. WHY: prior Dreamer
+iterations had accumulated useful caveats, but future agents still had to infer
+capability status and owner surfaces from broader architecture prose. Keeping
+the status table and routing section as the central contract prevents the same
+drift from reappearing as scattered Node.js/CommonJS, async, or unified-bytecode
+claims.

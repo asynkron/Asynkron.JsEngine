@@ -76,6 +76,67 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("Generator", result.Reason, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EvaluateResumable_SimpleGeneratorYieldSend_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(input) {
+                var x = yield input;
+                return x + 1;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreResumeValue);
+    }
+
+    [Fact]
+    public void EvaluateResumable_YieldStar_DeclinesBeforeExecution()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(values) {
+                yield* values;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.NotEmpty(result.Reason);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncLikeActivation_DeclinesBeforeExecution()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen() {
+                yield 1;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
+        Assert.Contains("Async-like", result.Reason, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
     [InlineData(false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]

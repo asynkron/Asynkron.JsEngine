@@ -76,7 +76,12 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,
-    CallInvocationBoundary
+    CallInvocationBoundary,
+    Yield,
+    StoreResumeValue,
+    AwaitAndDiscard,
+    AwaitedReturn,
+    YieldStar
 }
 
 internal readonly record struct UnifiedBytecodeInstruction(
@@ -120,6 +125,95 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int BreakTarget = -1,
     int NextTarget = -1,
     IteratorDriverKind IteratorKind = IteratorDriverKind.Sync);
+
+internal enum UnifiedBytecodeResumeMode : byte
+{
+    Next,
+    Throw,
+    Return
+}
+
+internal enum UnifiedBytecodeResumePayloadKind : byte
+{
+    None,
+    Value,
+    Throw,
+    Return
+}
+
+internal enum UnifiedBytecodeStepKind : byte
+{
+    Completed,
+    Yield,
+    PendingAwait,
+    Throw
+}
+
+internal enum UnifiedBytecodeAbruptCompletionKind : byte
+{
+    None,
+    Return,
+    Throw,
+    Break,
+    Continue
+}
+
+internal readonly record struct UnifiedBytecodePendingAbruptCompletion(
+    UnifiedBytecodeAbruptCompletionKind Kind,
+    JsTypes.JsValue Value,
+    int Target,
+    int ResumeTarget,
+    bool OriginatedInFinally)
+{
+    public static UnifiedBytecodePendingAbruptCompletion None { get; } =
+        new(
+            UnifiedBytecodeAbruptCompletionKind.None,
+            JsTypes.JsValue.Undefined,
+            -1,
+            -1,
+            false);
+}
+
+internal readonly record struct UnifiedBytecodeStepResult(
+    UnifiedBytecodeStepKind Kind,
+    JsTypes.JsValue Value,
+    bool Done,
+    JsTypes.JsValue PendingPromise)
+{
+    public static UnifiedBytecodeStepResult Completed(JsTypes.JsValue value) =>
+        new(UnifiedBytecodeStepKind.Completed, value, true, JsTypes.JsValue.Undefined);
+
+    public static UnifiedBytecodeStepResult Yield(JsTypes.JsValue value) =>
+        new(UnifiedBytecodeStepKind.Yield, value, false, JsTypes.JsValue.Undefined);
+
+    public static UnifiedBytecodeStepResult PendingAwait(JsTypes.JsValue promise) =>
+        new(UnifiedBytecodeStepKind.PendingAwait, JsTypes.JsValue.Undefined, false, promise);
+
+    public static UnifiedBytecodeStepResult Throw(JsTypes.JsValue value) =>
+        new(UnifiedBytecodeStepKind.Throw, value, true, JsTypes.JsValue.Undefined);
+}
+
+internal sealed class UnifiedBytecodeResumeState
+{
+    public UnifiedBytecodeResumeState(UnifiedBytecodeProgram program, JsTypes.JsValue[] slots)
+    {
+        Program = program;
+        Slots = slots;
+        OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
+    }
+
+    public UnifiedBytecodeProgram Program { get; }
+    public JsTypes.JsValue[] Slots { get; }
+    public JsTypes.JsValue[] OperandStack { get; }
+    public int ProgramCounter { get; set; }
+    public int StackPointer { get; set; }
+    public bool IsCompleted { get; set; }
+    public UnifiedBytecodeResumePayloadKind ResumePayloadKind { get; set; }
+    public JsTypes.JsValue ResumePayload { get; set; } = JsTypes.JsValue.Undefined;
+    public UnifiedBytecodePendingAbruptCompletion PendingAbruptCompletion { get; set; } =
+        UnifiedBytecodePendingAbruptCompletion.None;
+    public JsTypes.JsValue PendingAwaitPromise { get; set; } = JsTypes.JsValue.Undefined;
+}
 
 internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeInstruction> Instructions,

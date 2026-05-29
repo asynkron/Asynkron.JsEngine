@@ -1852,6 +1852,192 @@ internal static class UnifiedBytecodeVirtualMachine
         }
     }
 
+    public static UnifiedBytecodeStepResult ExecuteResumable(
+        UnifiedBytecodeResumeState state,
+        UnifiedBytecodeResumeMode mode,
+        JsValue resumeValue,
+        EvaluationContext context)
+    {
+        if (state.IsCompleted)
+        {
+            return CompleteAlreadyFinishedResumable(mode, resumeValue);
+        }
+
+        if (state.ProgramCounter == 0 &&
+            mode is UnifiedBytecodeResumeMode.Throw or UnifiedBytecodeResumeMode.Return)
+        {
+            state.IsCompleted = true;
+            return CompleteAlreadyFinishedResumable(mode, resumeValue);
+        }
+
+        state.ResumePayloadKind = mode switch
+        {
+            UnifiedBytecodeResumeMode.Throw => UnifiedBytecodeResumePayloadKind.Throw,
+            UnifiedBytecodeResumeMode.Return => UnifiedBytecodeResumePayloadKind.Return,
+            _ => UnifiedBytecodeResumePayloadKind.Value
+        };
+        state.ResumePayload = resumeValue;
+
+        var program = state.Program;
+        var instructions = program.Instructions;
+        var stack = state.OperandStack;
+        var slots = state.Slots;
+        var stackPointer = state.StackPointer;
+        var programCounter = state.ProgramCounter;
+
+        while ((uint)programCounter < (uint)instructions.Length)
+        {
+            var instruction = instructions[programCounter];
+            switch (instruction.OpCode)
+            {
+                case UnifiedBytecodeOpCode.LoadSlot:
+                    var slotValue = slots[instruction.Operand];
+                    if (slotValue.IsUninitialized)
+                    {
+                        context.SetThrow(StandardLibrary.CreateReferenceError(
+                            $"ReferenceError: Cannot access '{GetSlotName(program, instruction.Operand)}' before initialization",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    stack[stackPointer++] = slotValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadLiteral:
+                    stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.StoreSlot:
+                    slots[instruction.Operand] = stack[--stackPointer];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Binary:
+                    var op = (BinaryOperator)instruction.Operand;
+                    var right = stack[--stackPointer];
+                    var left = stack[--stackPointer];
+                    stack[stackPointer++] = ApplyBinaryOperator(op, left, right, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Pop:
+                    stackPointer--;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.Jump:
+                    programCounter = instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfFalse:
+                    programCounter = stack[--stackPointer].IsTruthy
+                        ? programCounter + 1
+                        : instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.Yield:
+                    var yieldedValue = stackPointer > 0 ? stack[--stackPointer] : JsValue.Undefined;
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                    state.ResumePayload = JsValue.Undefined;
+                    return UnifiedBytecodeStepResult.Yield(yieldedValue);
+
+                case UnifiedBytecodeOpCode.StoreResumeValue:
+                    var resumeKind = state.ResumePayloadKind;
+                    var payload = resumeKind == UnifiedBytecodeResumePayloadKind.None
+                        ? JsValue.Undefined
+                        : state.ResumePayload;
+                    state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                    state.ResumePayload = JsValue.Undefined;
+                    switch (resumeKind)
+                    {
+                        case UnifiedBytecodeResumePayloadKind.Throw:
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(payload);
+                        case UnifiedBytecodeResumePayloadKind.Return:
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Completed(payload);
+                        default:
+                            if (instruction.Operand >= 0)
+                            {
+                                slots[instruction.Operand] = payload;
+                            }
+
+                            programCounter++;
+                            break;
+                    }
+
+                    break;
+
+                case UnifiedBytecodeOpCode.Return:
+                    state.IsCompleted = true;
+                    var returnValue = stack[--stackPointer];
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    return UnifiedBytecodeStepResult.Completed(returnValue);
+
+                case UnifiedBytecodeOpCode.ReturnUndefined:
+                    state.IsCompleted = true;
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    return UnifiedBytecodeStepResult.Completed(JsValue.Undefined);
+
+                case UnifiedBytecodeOpCode.Throw:
+                    state.IsCompleted = true;
+                    var throwValue = stack[--stackPointer];
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    return UnifiedBytecodeStepResult.Throw(throwValue);
+
+                case UnifiedBytecodeOpCode.AwaitAndDiscard:
+                case UnifiedBytecodeOpCode.AwaitedReturn:
+                case UnifiedBytecodeOpCode.YieldStar:
+                    throw new NotSupportedException(
+                        $"Unified bytecode resumable opcode '{instruction.OpCode}' is reserved but not enabled by production eligibility.");
+
+                default:
+                    throw new NotSupportedException(
+                        $"Unified bytecode opcode '{instruction.OpCode}' is not supported by the resumable execution path.");
+            }
+        }
+
+        state.IsCompleted = true;
+        state.ProgramCounter = programCounter;
+        state.StackPointer = stackPointer;
+        return UnifiedBytecodeStepResult.Completed(JsValue.Undefined);
+    }
+
+    public static JsObject CreateIteratorResult(JsValue value, bool done)
+    {
+        var result = new JsObject();
+        result.SetProperty("value", value);
+        result.SetProperty("done", done ? JsValue.True : JsValue.False);
+        return result;
+    }
+
+    private static UnifiedBytecodeStepResult CompleteAlreadyFinishedResumable(
+        UnifiedBytecodeResumeMode mode,
+        JsValue resumeValue)
+    {
+        return mode switch
+        {
+            UnifiedBytecodeResumeMode.Throw => UnifiedBytecodeStepResult.Throw(resumeValue),
+            UnifiedBytecodeResumeMode.Return => UnifiedBytecodeStepResult.Completed(resumeValue),
+            _ => UnifiedBytecodeStepResult.Completed(JsValue.Undefined)
+        };
+    }
+
     private static void MarkCatchBindingSlots(
         ref bool[]? inactiveCatchBindingSlots,
         int slotCount,

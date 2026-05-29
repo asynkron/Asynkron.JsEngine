@@ -54,6 +54,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleGeneratorYieldSend_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* gen(input) {
+                var x = yield input;
+                return x + 1;
+            }
+
+            var iterator = gen(10);
+            var first = iterator.next();
+            var second = iterator.next(41);
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(10d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(42d, steps.Items[2].AsDouble());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=gen argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task MissingArgument_InitializesParameterSlotToUndefined()
     {
         await using var engine = CreateEngine();

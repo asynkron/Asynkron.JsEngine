@@ -106,6 +106,62 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void ExecuteResumable_YieldAndResumeValue_PreservesProgramCounterStackAndSlots()
+    {
+        var program = CreateResumableYieldReturnProgram();
+        var slots = new[] { JsValue.Undefined };
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var state = new UnifiedBytecodeResumeState(program, slots);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
+        Assert.Equal(10d, first.Value.AsDouble());
+        Assert.False(first.Done);
+        Assert.Equal(2, state.ProgramCounter);
+        Assert.Equal(0, state.StackPointer);
+        Assert.False(state.IsCompleted);
+        Assert.True(slots[0].IsUndefined);
+
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.FromDouble(41),
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.Equal(42d, second.Value.AsDouble());
+        Assert.True(second.Done);
+        Assert.True(state.IsCompleted);
+        Assert.Equal(41d, slots[0].AsDouble());
+    }
+
+    [Fact]
+    public void TryCompile_SimpleGeneratorYieldSend_ProducesResumableOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function* gen(input) {
+                var x = yield input;
+                return x + 1;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+        Assert.Contains(
+            program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreResumeValue);
+    }
+
+    [Fact]
     public void Execute_ContinueThroughFinally_RunsFinallyBeforeTarget()
     {
         var program = CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode.Continue);
@@ -1120,7 +1176,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_GeneratorSimpleReturn_Declines()
+    public void TryCompile_GeneratorSimpleReturn_ProducesReturnOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function* addViaLocal(a, b) {
@@ -1130,9 +1186,9 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "addViaLocal");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("not eligible", reason, StringComparison.Ordinal);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Return);
     }
 
     private static (ExecutionPlan Plan, bool IsAsync, bool IsGenerator) GetFunctionPlan(string source, string functionName)
@@ -1240,6 +1296,31 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
                     ValueSlot: 6,
                     BreakTarget: 8,
                     NextTarget: 6)));
+    }
+
+    private static UnifiedBytecodeProgram CreateResumableYieldReturnProgram()
+    {
+        return new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreResumeValue, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)BinaryOperator.Add),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 2,
+            SlotCount: 1,
+            LiteralConstants: ImmutableArray.Create(JsValue.FromDouble(10), JsValue.FromDouble(1)),
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray.Create<string?>("x"),
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
     }
 
     private static UnifiedBytecodeProgram CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode abruptOpCode)

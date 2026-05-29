@@ -2144,6 +2144,10 @@ internal static class UnifiedBytecodeVirtualMachine
                             yieldStarState,
                             context,
                             callingEnvironment: null,
+                            delegatedResumePayload,
+                            hasSendValue: !delegatedResumePayload.IsUndefined ||
+                                          delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Value,
+                            readDoneValue: true,
                             out var delegatedValue,
                             out var delegatedDone))
                     {
@@ -2707,7 +2711,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
         try
         {
-            if (!TryReadIteratorNextValue(state, context, callingEnvironment, out var value, out var done))
+            if (!TryReadIteratorNextValue(
+                    state,
+                    context,
+                    callingEnvironment,
+                    sendValue: JsValue.Undefined,
+                    hasSendValue: false,
+                    readDoneValue: false,
+                    out var value,
+                    out var done))
             {
                 programCounter = descriptor.BreakTarget;
                 return true;
@@ -2743,6 +2755,9 @@ internal static class UnifiedBytecodeVirtualMachine
         IteratorDriverState state,
         EvaluationContext context,
         JsEnvironment? callingEnvironment,
+        JsValue sendValue,
+        bool hasSendValue,
+        bool readDoneValue,
         out JsValue value,
         out bool done)
     {
@@ -2751,6 +2766,8 @@ internal static class UnifiedBytecodeVirtualMachine
             state.NextMethod ??= iterator.GetIteratorNextCallable(context);
             var nextResult = iterator.InvokeIteratorNext(
                 state.NextMethod,
+                sendValue,
+                hasSendValue,
                 context: context,
                 callingEnvironment: callingEnvironment);
             if (!nextResult.TryGetObject<IJsPropertyAccessor>(out var resultObject))
@@ -2765,7 +2782,9 @@ internal static class UnifiedBytecodeVirtualMachine
                    JsOps.ToBoolean(doneValue);
             if (done)
             {
-                value = JsValue.Undefined;
+                value = readDoneValue && resultObject.TryGetProperty("value", out var completedValue)
+                    ? completedValue
+                    : JsValue.Undefined;
             }
             else
             {

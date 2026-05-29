@@ -377,6 +377,61 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void ExecuteResumable_YieldStar_ForwardsResumePayloadToDelegateNext()
+    {
+        var program = new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.YieldStar, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 1,
+            SlotCount: 3,
+            LiteralConstants: ImmutableArray<JsValue>.Empty,
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray.Create<string?>("values", "state", "result"),
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray.Create(new UnifiedBytecodeDriverDescriptor(
+                StateSlot: 1,
+                ValueSlot: 2)));
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var received = new List<JsValue>();
+        var slots = new[]
+        {
+            JsValue.FromJsObject(CreateSendRecordingIterable(JsValue.FromDouble(9), received)),
+            JsValue.Undefined,
+            JsValue.Undefined
+        };
+        var state = new UnifiedBytecodeResumeState(program, slots);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.FromDouble(42),
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
+        Assert.Equal(9d, first.Value.AsDouble());
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.Equal(42d, second.Value.AsDouble());
+        Assert.Equal(42d, slots[2].AsDouble());
+        Assert.Equal(2, received.Count);
+        Assert.True(received[0].IsUndefined);
+        Assert.Equal(42d, received[1].AsDouble());
+    }
+
+    [Fact]
     public void Execute_ContinueThroughFinally_RunsFinallyBeforeTarget()
     {
         var program = CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode.Continue);
@@ -1591,6 +1646,29 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             {
                 onReturn();
                 return JsValue.FromJsObject(new JsObject());
+            });
+        iterable.SetHostedProperty(SymbolKeys.Iterator, (_, _) => JsValue.FromJsObject(iterator));
+        return iterable;
+    }
+
+    private static JsObject CreateSendRecordingIterable(JsValue firstValue, List<JsValue> received)
+    {
+        var iterable = new JsObject();
+        var iterator = new JsObject();
+        var moved = false;
+        iterator.SetHostedProperty(
+            "next",
+            (_, args) =>
+            {
+                var sent = args.Count == 0 ? JsValue.Undefined : args[0];
+                received.Add(sent);
+                if (moved)
+                {
+                    return JsValue.FromJsObject(CreateIteratorResult(sent, done: true));
+                }
+
+                moved = true;
+                return JsValue.FromJsObject(CreateIteratorResult(firstValue, done: false));
             });
         iterable.SetHostedProperty(SymbolKeys.Iterator, (_, _) => JsValue.FromJsObject(iterator));
         return iterable;

@@ -129,6 +129,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleGeneratorYieldStar_ForwardsResumePayloadInUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* outer(delegated) {
+                return yield* delegated;
+            }
+
+            var calls = [];
+            var delegated = {
+                [Symbol.iterator]() {
+                    var count = 0;
+                    return {
+                        next(value) {
+                            calls.push(value);
+                            if (count++ === 0) {
+                                return { value: 1, done: false };
+                            }
+
+                            return { value, done: true };
+                        }
+                    };
+                }
+            };
+
+            var iterator = outer(delegated);
+            var first = iterator.next();
+            var second = iterator.next(42);
+            var third = iterator.next();
+            [first.value, first.done, calls[0] === undefined, calls[1], second.value, second.done, third.value, third.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.True(steps.Items[2].AsBoolean());
+        Assert.Equal(42d, steps.Items[3].AsDouble());
+        Assert.Equal(42d, steps.Items[4].AsDouble());
+        Assert.True(steps.Items[5].AsBoolean());
+        Assert.Equal(Symbol.Undefined, steps.Items[6]);
+        Assert.True(steps.Items[7].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=outer argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task MissingArgument_InitializesParameterSlotToUndefined()
     {
         await using var engine = CreateEngine();

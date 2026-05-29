@@ -115,6 +115,7 @@ flowchart LR
     UBC[Unified bytecode compilation\nUnifiedBytecodeProgram]
     ELC[Eligibility classifier\nroutes: unified / expression / fallback]
     SLT[Slot and layout assignment\nplan-owned]
+    OPT[OPT Optimizer\nconstant folding / inline hints — directional]
 
     SRC --> LEX --> PAR --> ANA
     ANA --> SIR
@@ -124,11 +125,14 @@ flowchart LR
     ELW --> ELC
     UBC --> ELC
 
-    ELC -->|accepted unified shapes| UBP[UnifiedBytecodeProgram artifact]
-    ELC -->|accepted expression shapes| EXP[ExpressionProgram artifact]
+    SLT --> OPT
+    ELC -->|accepted shapes| OPT
+    OPT -->|unified artifact| UBP[UnifiedBytecodeProgram artifact]
+    OPT -->|expression artifact| EXP[ExpressionProgram artifact]
     ELC -->|unsupported shapes| FBK[Fallback marker — no artifact]
 
     style FBK fill:#c00,color:#fff
+    style OPT fill:#555,color:#fff
 ```
 
 Pipeline invariants:
@@ -425,6 +429,154 @@ Goal: keep every correctness and performance claim provable, repeatable, and tra
 - Subcomponents: narrow proof packs, recurring profile loops (baseline + final signal), seam-scan queries, architecture traceability checks.
 - Key invariant: Evidence governs all other modules. No claim advances past `ProvenScoped` without focused pack coverage.
 
+### 7. Optimizer Stage (directional)
+
+Goal: apply artifact-level rewrites to proven shapes before artifact emission; the runtime hot path never sees unoptimized IR.
+
+```mermaid
+flowchart LR
+    subgraph OPT["Optimizer Stage — directional"]
+        CF[Constant folding\nliteral arithmetic / boolean collapse]
+        IH[Inline heuristics\nmonomorphic call-site promotion]
+        EA[Escape analysis\nshort-lived value stack elision]
+        PGO[Profile-guided optimization\nshape-specialization from profiler]
+    end
+
+    ELC[Eligibility classifier] -->|accepted shapes| CF
+    CF --> IH --> EA
+    EA --> PGO
+    PGO -->|optimized unified artifact| UBP[UnifiedBytecodeProgram]
+    PGO -->|optimized expression artifact| EXP[ExpressionProgram]
+```
+
+Optimizer invariants:
+- The optimizer receives post-eligibility artifacts; it never inspects raw AST nodes.
+- Each optimization pass is independently gated; a failing pass falls through without affecting correctness.
+- Profile-guided optimization requires a profiler feedback loop that does not exist yet — this entire section is directional.
+- No optimization pass may alter the observable semantics guaranteed by the Standard Library and Completion Protocol.
+
+### 8. Tiered Execution Model (directional)
+
+Goal: move hot shapes from interpreted fallback to compiled bytecode tiers; deoptimize safely on shape mismatch.
+
+```mermaid
+flowchart TB
+    subgraph TierModel["Tiered Execution Model — directional next"]
+        T0["Tier 0: AST Interpreter\nFallback Bridge — residual seam\nall shapes accepted, no eligibility gate"]
+        PC["Profile Collector\ncall-site shape sampling\ntype feedback accumulation"]
+        T1["Tier 1: Unified Bytecode VM\nExplicitExecutionPlan + ExpressionProgram\neligibility-classified shapes only — proven now"]
+        T2["Tier 2: Optimizing VM — directional\nspeculative compilation\nshape-specialized fast paths"]
+        DE["Deoptimization back-edge\nguard failure → revert to Tier 1\nno observable semantic change"]
+    end
+
+    T0 -->|eligibility passes| T1
+    T1 --> PC
+    PC -->|profile threshold met — directional| T2
+    T2 -->|guard failure| DE
+    DE -->|revert| T1
+
+    style T0 fill:#c00,color:#fff
+    style T2 fill:#555,color:#fff
+    style DE fill:#933,color:#fff
+```
+
+Tiered execution invariants:
+- Tier 0 (fallback bridge) is the only tier that accepts all shapes; it is residual seam, not a design tier.
+- Tier 1 (unified bytecode) is the proven execution tier; eligibility classification is the admission gate.
+- Tier 2 and profile-guided promotion are entirely directional; no profiler or speculative compiler exists yet.
+- Deoptimization must revert without observable semantic change; any speculative tier must honor this invariant before claiming production status.
+
+### 9. GC / Memory Pressure Model
+
+Goal: make .NET GC ownership explicit; define allocation site categories and rope flattening ownership.
+
+```mermaid
+flowchart TB
+    subgraph GCModel["GC / Memory Pressure Model"]
+        NET[".NET GC root\nall JS object memory owned here\nno custom allocator"]
+
+        subgraph Short["Short-lived allocation sites"]
+            STK[Value stack frames\nper-call, collected at frame exit]
+            TMP[Temporary expression results\nexpression VM value stack]
+            BFR[Inline expression buffers\nExpressionOp operand storage]
+        end
+
+        subgraph Long["Long-lived allocation sites"]
+            GLB[Global object graph\nrealm-owned root]
+            CLZ[Closure environments\nlexical slot arrays]
+            MOD[Module namespace objects\nregistry-pinned]
+            STR[Rope / interned string store\nconsumer-driven flattening]
+        end
+
+        FIN[Finalizer discipline\nJS wrapper → .NET resource release\ndirectional]
+        WRF[Weak reference lifetime\nWeakRef / FinalizationRegistry\ndirectional]
+    end
+
+    NET --> Short
+    NET --> Long
+    STR -->|consumer drives flatten\nno eager flatten| TMP
+    Long --> FIN
+    Long --> WRF
+```
+
+GC invariants:
+- All JavaScript object memory is owned by the .NET GC; no custom allocator or arena allocator exists.
+- Short-lived value stack frames are expected to be collected in Gen 0; allocations that escape to long-lived partitions are tracked technical debt.
+- Rope string flattening is consumer-driven: the runtime does not eagerly flatten; the consumer that needs a contiguous buffer requests flattening.
+- Finalizer discipline for JS wrapper objects and GC-aware pool allocation are directional; no finalizer contract exists today.
+
+### 10. Developer Tooling / Inspector Protocol (directional)
+
+Goal: expose bytecode-level source attribution and a standard debug protocol surface; keep tooling concerns out of the hot execution path.
+
+```mermaid
+flowchart LR
+    subgraph DevTools["Developer Tooling — directional"]
+        STKT[Stack trace attribution\nevaluator-level frame capture\nproven now at error sites]
+        SRCM[Source map generation\nbytecode offset → source position\ndirectional]
+        DBG[Debugger step/pause API\nbreakpoint table + single-step mode\ndirectional]
+        V8I[V8 Inspector Protocol bridge\nCDP over WebSocket\ndirectional]
+        REPL[REPL / interactive shell\nincremental parse + evaluate\ndirectional]
+    end
+
+    STKT --> SRCM
+    SRCM --> V8I
+    DBG --> V8I
+    REPL --> STKT
+```
+
+Dev tooling invariants:
+- Stack trace attribution at error sites is the only proven tooling surface; all other components are directional.
+- Source map generation requires a stable bytecode offset → source position mapping; this mapping is not yet emitted by the compiler.
+- The V8 Inspector Protocol (CDP) is the target bridge; no alternative debug wire protocol should be designed in parallel.
+- Tooling hooks must be zero-cost when disabled; they must not add branches to the bytecode dispatch loop.
+
+### 11. Security / Realm Isolation
+
+Goal: realm boundary isolates per-script globals; capability grants control host-surface access; sandbox escape is blocked at the host bridge.
+
+```mermaid
+flowchart TB
+    subgraph Security["Security / Realm Isolation"]
+        REALM[Realm boundary\nper-realm globals + prototype chains\nisolates script execution contexts]
+        CAP[Capability grants\nhost-controlled permission surface\nwhat the script may call]
+        SBX[Sandbox escape guardrail\nhost-callable bridge validation\nblocks unapproved host access]
+        EVAL[Eval observability boundary\neval / Function constructor tracking\nno silent dynamic code execution]
+        QUOTA[Resource quota — directional\nexecution budget + memory ceiling\nper-realm enforcement]
+    end
+
+    REALM -->|scopes| CAP
+    CAP -->|gates| SBX
+    SBX -->|validates| EVAL
+    REALM --> QUOTA
+```
+
+Security invariants:
+- Realm isolation keeps per-realm globals and prototype chains strictly separate; cross-realm object sharing requires explicit capability grant.
+- The host-callable bridge is the only sanctioned surface for host access; any bypass of the bridge is a sandbox escape.
+- Eval observability boundaries are explicit and tested; dynamic code construction paths (`eval`, `Function()`, `new Function()`) are tracked.
+- Permission model, capability gating, and resource quota enforcement are directional; no quota enforcer exists today.
+
 ## Cross-module routing map
 
 When a recurring slice starts, use this map to find the primary owner and avoid blurring boundaries.
@@ -465,6 +617,11 @@ Boundary contract rules:
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit | Dedicated async-generator IR executor (Milestone C) |
 | Module runtime | ESM lifecycle, registry, dynamic import phases, top-level await proven | Node.js-competitive CommonJS ergonomics (host-layer work) |
 | Host interop | Host callable/global bridge boundaries explicit | Broader Node.js-style host behavior (integration-layer work) |
+| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
+| Tiered execution | Unified bytecode VM is an explicit tier-1 with bounded eligibility; interpreted runner is tier-0. | Tier-2 optimizing execution (JIT or AOT shape) remains directional; profile-guided tier promotion requires separate proof. |
+| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. |
+| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
+| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
 
 ## Architecture constraints (current reality)
 
@@ -493,6 +650,7 @@ flowchart LR
     E -. fail .-> B
     F -. fail .-> B
 ```
+
 
 Delivery invariants:
 - One slice, one primary owner module. Cross-module edits require an explicit boundary contract.

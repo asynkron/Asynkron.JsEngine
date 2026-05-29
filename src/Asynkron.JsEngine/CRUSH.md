@@ -4,21 +4,24 @@ Project type
 - .NET SDK-style C# library targeting net10.0. Nullable enabled, implicit usings on, unsafe allowed. Roslyn source generators referenced via Analyzer.
 
 Build / restore / pack
-- Restore: dotnet restore
-- Build (Debug): dotnet build -c Debug
-- Build (Release): dotnet build -c Release
-- Pack (Release NuGet): dotnet pack -c Release
+- Prerequisite: install a .NET 10 SDK (repo targets `net10.0`).
+- Canonical command index: `rtk make help`.
+- Default local quality gate: `rtk make quality`.
+- Restore: rtk dotnet restore
+- Build (Debug): rtk dotnet build -c Debug
+- Build (Release): rtk dotnet build -c Release
+- Pack (Release NuGet): rtk dotnet pack -c Release
 
 Test & single-test
-- Run all tests: dotnet test -c Debug
-- Filter by class: dotnet test -c Debug --filter FullyQualifiedName~Namespace.ClassName
-- Filter by single test: dotnet test -c Debug --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
-- Repeat until failure: dotnet test -c Debug -- --blame-crash
+- Run all tests: rtk dotnet test -c Debug
+- Filter by class: rtk dotnet test -c Debug --filter FullyQualifiedName~Namespace.ClassName
+- Filter by single test: rtk dotnet test -c Debug --filter "FullyQualifiedName=Namespace.ClassName.MethodName"
+- Repeat until failure: rtk dotnet test -c Debug -- --blame-crash
 
 Lint / analyzers / formatting
 - Analyzers: EnableNETAnalyzers is disabled in csproj; rely on IDE or add .editorconfig/StyleCop if needed.
-- Format C#: dotnet format
-- Code cleanup before commits: dotnet format whitespace; dotnet format style; dotnet format analyzers
+- Format C#: rtk dotnet format
+- Code cleanup before commits: rtk dotnet format whitespace; rtk dotnet format style; rtk dotnet format analyzers
 
 Debug & run samples
 - This project is a library; to run code, add or use an existing test project or a console host in the solution root.

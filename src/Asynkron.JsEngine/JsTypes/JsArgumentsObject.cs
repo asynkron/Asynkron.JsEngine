@@ -22,6 +22,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
     private bool[]? _deletedIndices;
     private readonly RealmState _realm;
     private readonly JsValue[] _values;
+    private bool _useInitialLengthValue = true;
     private bool _suppressObserver;
 
     public JsArgumentsObject(
@@ -158,6 +159,12 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public bool TryGetProperty(string name, JsValue receiver, out JsValue value)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal) &&
+            TryGetInitialLength(out value))
+        {
+            return true;
+        }
+
         if (TryResolveExistingIndex(name, out var index))
         {
             return TryGetIndex(index, receiver, out value);
@@ -190,9 +197,14 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return true;
         }
 
+        if (_ownDescriptors is null)
+        {
+            value = _values[index];
+            return true;
+        }
+
         var name = GetIndexName(index);
-        if (_ownDescriptors is not null &&
-            _ownDescriptors.TryGetValue(name, out var descriptor))
+        if (_ownDescriptors.TryGetValue(name, out var descriptor))
         {
             if (!descriptor.IsAccessorDescriptor)
             {
@@ -208,6 +220,18 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         return true;
     }
 
+    public bool TryGetInitialLength(out JsValue value)
+    {
+        if (_useInitialLengthValue)
+        {
+            value = (double)_values.Length;
+            return true;
+        }
+
+        value = JsValue.Undefined;
+        return false;
+    }
+
     public bool TryGetProperty(string name, out JsValue value)
     {
         return TryGetProperty(name, JsValue.FromObjectUnsafe(this), out value);
@@ -220,6 +244,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     public void SetProperty(string name, JsValue value, JsValue receiver)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            _useInitialLengthValue = false;
+        }
+
         if (TryResolveExistingIndex(name, out var existingIndex))
         {
             EnsureInitialIndexDescriptor(existingIndex);
@@ -345,6 +374,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
             return true;
         }
 
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            _useInitialLengthValue = false;
+        }
+
         var deleted = _backing.DeleteOwnProperty(name);
         if (deleted && TryResolveCanonicalIndex(name, out var index) && (uint)index < (uint)_values.Length)
         {
@@ -369,6 +403,11 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private bool DefinePropertyInternal(string name, PropertyDescriptor descriptor, bool throwOnError)
     {
+        if (string.Equals(name, "length", StringComparison.Ordinal))
+        {
+            _useInitialLengthValue = false;
+        }
+
         if (TryResolveExistingIndex(name, out var existingIndex))
         {
             EnsureInitialIndexDescriptor(existingIndex);

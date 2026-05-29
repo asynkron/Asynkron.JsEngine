@@ -276,6 +276,25 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
     simple derived constructor path could bind its existing lexical-this owner
     directly for a 16% focused `classdef` improvement without broadening
     constructor eligibility.
+25. When evaluating simple IR activation fast-path eligibility in
+    `CanUseSimpleIrActivationFastPath`, use the IR observability flags
+    (`_usesArguments`, `_needsArgumentsBinding`) to gate arguments-related
+    cases — do NOT add `_argumentsObjectNeeded` as a fast-path eligibility
+    guard. These answer different questions: `_argumentsObjectNeeded` is the
+    spec-level compiler flag for whether an arguments object must be created
+    (true for virtually all non-arrow functions); the IR observability flags
+    reflect whether the compiled IR plan actually accesses the arguments binding.
+    When both IR observability flags are false, the plan contains no argument
+    access and the arguments object may be skipped entirely on the fast path,
+    regardless of the spec flag. Rule 11's dual-guard requirement applies to
+    **lazy materialization on the slow invocation path** (where the object may
+    still be needed); it does not apply to fast-path eligibility (where the
+    object is bypassed entirely). WHY: issue `autrun-diuvwweuwsrs-e67e789465` /
+    PR #2646 found that `_argumentsObjectNeeded = true` was blocking closures
+    from the fast path even when they never used `arguments`, causing
+    `CastHelpers.Box` to consume 85.7% of `InvokeWithContextSlow` time
+    (6.77x speedup after removal). Related ADR:
+    `docs/adrs/0280-keep-simple-ir-fast-path-eligibility-ir-observability-guarded.md`.
 
 ## Why
 
@@ -553,3 +572,21 @@ plan-owned metadata boundary and prove generator paths separately.
 
 Related ADR:
 `docs/adrs/0199-keep-activation-tdz-slot-indices-plan-owned-and-generator-state-gated.md`.
+
+Issue `autrun-diuvwweuwsrs-e67e789465` / PR #2646 found the spec-vs-IR fast-path
+eligibility trap: `_argumentsObjectNeeded` was blocking closures from
+`CanUseSimpleIrActivationFastPath` because it is true for all non-arrow
+functions, even those whose IR plan never accesses `arguments`. The CPU profiler
+showed `CastHelpers.Box` consuming 85.7% of `InvokeWithContextSlow` time —
+every closure call boxed a `SingleValueArgs` struct to `IReadOnlyList<JsValue>`
+when falling through to `ExecutionPlanRunner`. The fix was a 1-line removal:
+`_argumentsObjectNeeded` is the spec creation flag, not an IR observability
+guard; `_usesArguments` and `_needsArgumentsBinding` already own all observable
+cases. Removing it yielded a 6.77x speedup for `activation-closures-lite` and
+improvements across `activation-arguments-lite` and `activation-evalscope-lite`.
+The durable lesson is that `_argumentsObjectNeeded` must not be used as a
+conservative fast-path eligibility guard when the IR observability flags are
+already in place.
+
+Related ADR:
+`docs/adrs/0280-keep-simple-ir-fast-path-eligibility-ir-observability-guarded.md`.

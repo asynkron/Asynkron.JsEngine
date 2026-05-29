@@ -285,6 +285,18 @@ When working inside the core engine, keep JavaScript values represented as
     Related ADRs:
     `docs/adrs/0168-keep-executeprogram-jsvalue-native.md`,
     `docs/adrs/0212-keep-typed-module-execution-helper-jsvalue-native.md`.
+
+    Issue `autrun-diuvt2ksxyuw-47f4dafb7f` / PR #2635 extended this principle by
+    removing the `ConvertJsValueToLegacyObject` bridge helper in `JsEngine.cs` and
+    migrating `EvaluateInline`, `EvaluateSyncInternal`, `EnsureModuleEvaluatedAsync`,
+    `CompleteEvaluationAfterSynchronousExecution`, and
+    `DrainPendingEventLoopAndCompleteAsync` from `object?` to `JsValue`. The bridge
+    helper had no legitimate object-carrier callers; it converted `JsValue` results to
+    `object?` only for private pipeline steps that immediately needed `JsValue` again.
+    Deleting the bridge and typing the pipeline end to end is correct; preserve only
+    intentional host/generated-code bridge overloads such as `SetGlobal(string, object?)`
+    that cannot be removed without changing code generation. Related ADR:
+    `docs/adrs/0281-keep-jsengine-evaluation-pipeline-helpers-jsvalue-native.md`.
 21. When a private module namespace or property-key enumeration helper feeds
     JavaScript reflection/object APIs, keep the key sequence typed as
     `JsValue`. Preserve both string keys and symbol keys at the owner boundary;

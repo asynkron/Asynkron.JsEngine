@@ -794,6 +794,22 @@ entry points. WHY: otherwise a guard can look complete while either failing in
 linked worktrees or allowing an expression-bytecode bridge back into the
 production unified VM.
 
+Faktorial issue
+`planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-6700005263`
+and PR #2613 added the first production resumable unified-bytecode route for
+simple async functions and sync generators. Future resumable widening must keep
+this route separate, decline-first, and VM-state-owned: accepted programs must
+preserve program counter, operand stack, slots, pending await promise, pending
+resume payload, and completion state in `UnifiedBytecodeVirtualMachine`, with
+positive route-log proof and adjacent no-route/fallback proof. Do not treat
+`YieldStar` opcode presence as production support. `yield*` must continue to
+decline before resumable VM execution until delegated `.return()` and
+`.throw()` resume behavior is modeled and proven in the VM; observable
+delegated abrupt-resume behavior stays on the existing IR generator path until
+then. WHY: the build-stage repair for PR #2613 had to decline `yield*` from the
+new resumable fast path after the first slice exposed that delegated abrupt
+resume is a separate protocol boundary from simple `yield` and awaited return.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -819,3 +835,4 @@ Related ADRs:
 - `docs/adrs/0255-keep-unified-bytecode-block-lexical-scopes-program-slot-owned.md`
 - `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`
 - `docs/adrs/0271-keep-unified-bytecode-exception-regions-vm-owned-and-driver-cleanup-topology-guarded.md`
+- `docs/adrs/0277-keep-resumable-unified-bytecode-state-bounded-and-yield-star-declined.md`

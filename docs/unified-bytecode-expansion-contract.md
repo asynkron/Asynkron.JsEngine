@@ -11,6 +11,7 @@ Scope: Shared contract for parallel unified-bytecode lane work.
 - Statement diagnostics support surface: `src/Asynkron.JsEngine/Execution/StatementInstructionDiagnosticsCodec.cs` (`IsSupportedKind`)
 - Expression bytecode capability map: `docs/expression-bytecode-coverage.md`
 - Current production routing evidence: `docs/performance/unified-bytecode-branch-production-routing.md`
+- Primary sync route coverage: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 
 ## No-Mixed-Execution Rule
 Production-eligible unified programs are all-or-nothing VM execution. Accepted
@@ -30,6 +31,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   programs attempt `UnifiedBytecodeVirtualMachine` before generic IR fallback.
   This is a selector coverage estimate, not a full ECMAScript function-surface
   claim; unsupported buckets below remain pre-VM declines.
+
+- Coverage evidence: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 
 ## Current Support Matrix
 

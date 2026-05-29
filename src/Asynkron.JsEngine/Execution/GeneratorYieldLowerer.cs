@@ -917,7 +917,7 @@ internal static class GeneratorYieldLowerer
             rewrittenExpression = callExpression;
 
             if (callExpression.IsOptional ||
-                CallArgumentsContainAwait(callExpression.Arguments) == false ||
+                !CallArgumentsContainAwait(callExpression.Arguments) ||
                 !IsSimpleCallAwaitCallee(callExpression.Callee))
             {
                 return false;
@@ -1301,7 +1301,7 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                case CallExpression callExpression when CallArgumentsContainAwait(callExpression.Arguments) == false:
+                case CallExpression callExpression when !CallArgumentsContainAwait(callExpression.Arguments):
                     {
                         if (TryExtractLeadingAwait(callExpression.Callee, replacement, out awaitedExpression,
                                 out var rewrittenCallee))
@@ -1313,7 +1313,7 @@ internal static class GeneratorYieldLowerer
                         return false;
                     }
 
-                case NewExpression newExpression when CallArgumentsContainAwait(newExpression.Arguments) == false:
+                case NewExpression newExpression when !CallArgumentsContainAwait(newExpression.Arguments):
                     {
                         if (TryExtractLeadingAwait(newExpression.Constructor, replacement, out awaitedExpression,
                                 out var rewrittenConstructor))

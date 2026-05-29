@@ -109,7 +109,7 @@ public sealed partial class IntlDurationFormatConstructor(IJsObjectLike prototyp
     {
         // Step 1: Read the unit style option
         var styleValue = IntlOptionHelpers.GetStringOption(options, unit, Realm, "DurationFormat",
-            stylesList, null!);
+            stylesList, null);
         var style = string.IsNullOrEmpty(styleValue) ? null : styleValue;
 
         // Step 2-3: Determine defaults

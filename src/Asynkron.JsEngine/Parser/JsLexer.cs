@@ -1323,20 +1323,12 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         }
 
         var peeked = source.AsSpan(_current);
-        if (Rune.DecodeFromUtf16(peeked, out rune, out scalarLength) != OperationStatus.Done || scalarLength <= 0)
-        {
-            return false;
-        }
-
-        return true;
+        return Rune.DecodeFromUtf16(peeked, out rune, out scalarLength) == OperationStatus.Done && scalarLength > 0;
     }
 
     private void AdvanceIdentifierScalarAndAppend(StringBuilder? builder, Rune rune, int scalarLength)
     {
-        if (builder is not null)
-        {
-            builder.Append(rune.ToString());
-        }
+        builder?.Append(rune.ToString());
 
         _current += scalarLength;
         _column += scalarLength;

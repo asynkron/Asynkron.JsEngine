@@ -228,10 +228,7 @@ public sealed class JsSet : IJsObjectLike, IPropertyDefinitionHost, IExtensibili
     public JsArray Values()
     {
         var values = new List<JsValue>(_insertionOrder.Count);
-        foreach (var value in _insertionOrder)
-        {
-            values.Add(value);
-        }
+        values.AddRange(_insertionOrder);
 
         return new JsArray(values);
     }

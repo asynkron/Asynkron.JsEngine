@@ -76,8 +76,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     do not create a `JsEnvironment`, call `ExecutionPlanRunner`, or add VM
     fallback for accepted programs. Prove selected routing, faster-route
     preservation, and nearby declines through public invocation tests plus the
-    activation proof pack. If a future slice changes priority again, make that
-    explicit and prove the older route remains covered.
+    activation proof pack. Also keep the ordinary-sync route order itself
+    source-gated inside `TryInvokeIrFast<TArgs>(...)`: specialized binary
+    routes first, accepted production unified bytecode before
+    `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner` last. WHY: issue
+    `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-8f4d6fd0f4`
+    / PR #2623 found the production code already had the intended order, but
+    route logs alone did not guard the whole fallback chain from drifting back
+    toward older ADR 0204/0208 wording. If a future slice changes priority
+    again, make that explicit and prove the older route remains covered.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

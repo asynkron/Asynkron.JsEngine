@@ -504,7 +504,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             typedProgram = typedProgram with { IsStrict = true };
         }
-        
+
         if (validatePrivateNames)
         {
             var invalidPrivateName = PrivateNameValidator.FindInvalidPrivateName(
@@ -932,7 +932,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     ///     Evaluates a program with lazy event loop initialization.
     ///     Runs synchronously first, then only starts the event loop if async work is pending.
     /// </summary>
-    private Task<object?> Evaluate(
+    private async Task<object?> Evaluate(
         ProgramNode program,
         CancellationToken cancellationToken = default,
         string? sourcePath = null,
@@ -943,11 +943,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Already running on the event loop thread; execute synchronously to avoid deadlocks
             try
             {
-                return Task.FromResult(EvaluateInline(program, cancellationToken, sourcePath, forceModule));
+                return await Task.FromResult(EvaluateInline(program, cancellationToken, sourcePath, forceModule));
             }
             catch (Exception ex)
             {
-                return CreateExceptionTask(ex);
+                return await CreateExceptionTask(ex);
             }
         }
 
@@ -965,7 +965,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 EnsureModuleInstantiated(entry);
                 if (entry.IsAsync || entry.HasAsyncDependency)
                 {
-                    return EvaluateAsyncModuleAndCompleteAsync(entry, combinedToken, timeoutCts);
+                    return await EvaluateAsyncModuleAndCompleteAsync(entry, combinedToken, timeoutCts);
                 }
 
                 _isExecutingSynchronousEvaluation = true;
@@ -978,7 +978,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                     _isExecutingSynchronousEvaluation = false;
                 }
 
-                return CompleteEvaluationAfterSynchronousExecution(
+                return await CompleteEvaluationAfterSynchronousExecution(
                     ConvertJsValueToLegacyObject(entry.LastValue),
                     combinedToken,
                     timeoutCts);
@@ -994,11 +994,11 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 _isExecutingSynchronousEvaluation = false;
             }
 
-            return CompleteEvaluationAfterSynchronousExecution(result, combinedToken, timeoutCts);
+            return await CompleteEvaluationAfterSynchronousExecution(result, combinedToken, timeoutCts);
         }
         catch (Exception ex)
         {
-            return CompleteFaultedSynchronousEvaluation(ex, timeoutCts);
+            return await CompleteFaultedSynchronousEvaluation(ex, timeoutCts);
         }
     }
 
@@ -1022,7 +1022,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private Task<object?> CompleteEvaluationAfterSynchronousExecution(
+    private async Task<object?> CompleteEvaluationAfterSynchronousExecution(
         object? result,
         CancellationToken combinedToken,
         CancellationTokenSource? timeoutCts)
@@ -1037,7 +1037,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Step 2: Check if any async work was scheduled (timers, promises, etc.)
             if (!IsEventLoopDrained())
             {
-                return DrainPendingEventLoopAndCompleteAsync(result, combinedToken, timeoutCts);
+                return await DrainPendingEventLoopAndCompleteAsync(result, combinedToken, timeoutCts);
             }
 
             var unwrapped = UnwrapResult(result);
@@ -1046,14 +1046,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             if (_eventQueue is null)
             {
                 timeoutCts?.Dispose();
-                return Task.FromResult(unwrapped);
+                return await Task.FromResult(unwrapped);
             }
 
-            return StopEventLoopAndReturnAsync(unwrapped, timeoutCts);
+            return await StopEventLoopAndReturnAsync(unwrapped, timeoutCts);
         }
         catch (Exception ex)
         {
-            return CompleteFaultedEvaluationAsync(ex, timeoutCts);
+            return await CompleteFaultedEvaluationAsync(ex, timeoutCts);
         }
     }
 
@@ -4864,9 +4864,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
     private sealed class AsyncModuleBodyRunner
     {
-        private sealed class StopIterationSignal : Exception
-        {
-        }
+        private sealed class StopIterationSignal : Exception;
 
         private static bool TryIteratorStep(IJsObjectLike iterator, RealmState realm, string operation,
             out JsValue value)

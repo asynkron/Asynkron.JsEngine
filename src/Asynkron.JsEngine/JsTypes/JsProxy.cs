@@ -29,7 +29,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         _cachedJsValue = new JsValue(JsValueKind.Object, 0.0, this);
         Target = target ?? throw new ArgumentNullException(nameof(target));
-        _handler = handler ?? throw new ArgumentNullException(nameof(handler));
+        Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         _targetJsValue = ToJsObjectValue(Target);
         _realm = realm;
         _privateStorage.RealmState = realm;
@@ -49,16 +49,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public IJsObjectLike Target { get; }
-
-    private IJsObjectLike? _handler;
-    public IJsObjectLike? Handler
-    {
-        get => _handler;
-        set
-        {
-            _handler = value;
-        }
-    }
+    public IJsObjectLike? Handler { get; set; }
 
     /// <inheritdoc />
     public ref readonly JsValue AsJsValue => ref _cachedJsValue;
@@ -305,7 +296,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         foreach (var key in targetKeys)
         {
             var desc = Target.GetOwnPropertyDescriptor(key);
-            if (desc is not null && !desc.Configurable)
+            if (desc?.Configurable == false)
             {
                 targetNonconfigurableKeys.Add(key);
             }
@@ -472,7 +463,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
             // Invariant checks per ES spec 10.5.8 step 13
             var targetDesc = Target.GetOwnPropertyDescriptor(name);
-            if (targetDesc is not null && !targetDesc.Configurable)
+            if (targetDesc?.Configurable == false)
             {
                 if (targetDesc.IsDataDescriptor && !targetDesc.Writable)
                 {
@@ -547,7 +538,7 @@ public sealed class JsProxy : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
 
             var targetDesc = Target.GetOwnPropertyDescriptor(name);
-            if (targetDesc is not null && !targetDesc.Configurable)
+            if (targetDesc?.Configurable == false)
             {
                 if (targetDesc.IsDataDescriptor && !targetDesc.Writable)
                 {

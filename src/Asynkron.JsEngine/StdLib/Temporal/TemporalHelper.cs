@@ -282,12 +282,10 @@ public static class TemporalHelper
     /// </summary>
     private static bool HasTimeZoneBracket(string str)
     {
-        var idx = 0;
-        while ((idx = str.IndexOf('[', idx)) >= 0)
+        for (var idx = 0; (idx = str.IndexOf('[', idx)) >= 0; idx++)
         {
             if (!str.AsSpan(idx).StartsWith("[u-ca="))
                 return true;
-            idx++;
         }
         return false;
     }
@@ -387,12 +385,16 @@ public static class TemporalHelper
 
                 if (!int.TryParse(parts[0], System.Globalization.NumberStyles.Integer,
                     System.Globalization.CultureInfo.InvariantCulture, out var hours))
+                {
                     return null;
+                }
 
                 var minutes = 0;
                 if (parts.Length > 1 && !int.TryParse(parts[1], System.Globalization.NumberStyles.Integer,
                     System.Globalization.CultureInfo.InvariantCulture, out minutes))
+                {
                     return null;
+                }
 
                 var seconds = 0;
                 if (parts.Length > 2)
@@ -403,7 +405,9 @@ public static class TemporalHelper
                     if (dotIdx >= 0) secStr = secStr[..dotIdx];
                     if (!int.TryParse(secStr, System.Globalization.NumberStyles.Integer,
                         System.Globalization.CultureInfo.InvariantCulture, out seconds))
+                    {
                         return null;
+                    }
                 }
 
                 return new TimeSpan(sign * hours, sign * minutes, sign * seconds);
@@ -1287,7 +1291,9 @@ public static class TemporalHelper
             // computation may throw RangeError (e.g., ZDT at max instant + day balancing).
             if (IsZeroDuration(duration) &&
                 !(zonedDateTimeRelativeTo != null && UnitRank(resolvedLargestUnit) >= TemporalUnit.Day))
+            {
                 return WrapDuration(duration, realm, prototype);
+            }
 
             // Per spec: validate PlainDate relativeTo is within ISODateWithinLimits range
             if (plainDateRelativeTo != null)
@@ -2468,8 +2474,10 @@ public static class TemporalHelper
                     {
                         // Spring-forward gap: local time doesn't exist
                         if (string.Equals(disambiguation, "reject", StringComparison.Ordinal))
+                        {
                             throw StandardLibrary.ThrowRangeError(
                                 "datetime is in a DST gap and disambiguation is 'reject'", realm: realm);
+                        }
 
                         // GetUtcOffset returns the pre-transition (standard) offset for invalid times
                         var preOffset = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(tz, localDateTime);
@@ -2495,8 +2503,10 @@ public static class TemporalHelper
                     {
                         // Fall-back overlap: local time maps to two instants
                         if (string.Equals(disambiguation, "reject", StringComparison.Ordinal))
+                        {
                             throw StandardLibrary.ThrowRangeError(
                                 "datetime is ambiguous and disambiguation is 'reject'", realm: realm);
+                        }
 
                         var offsets = tz.GetAmbiguousTimeOffsets(localDateTime);
                         var largerOffset = offsets[0] > offsets[1] ? offsets[0] : offsets[1];
@@ -4316,8 +4326,7 @@ public static class TemporalHelper
                 // Reject sub-minute precision
                 RejectSubMinuteOffset(offset, realm);
                 // Normalize to +HH:MM format
-                offset = NormalizeUtcOffset(offset);
-                return offset;
+                return NormalizeUtcOffset(offset);
             }
         }
 
@@ -4534,6 +4543,9 @@ public static class TemporalHelper
         return beforeOffset != afterOffset;
     }
 
+    /// <summary>
+    ///
+    /// </summary>
     ///     Normalizes a UTC offset string to a colon-separated Temporal form.
     ///     Handles +HH, +HHMM, +HHMMSS, and already-colonized offsets.
     /// </summary>
@@ -4865,12 +4877,7 @@ public static class TemporalHelper
             return codeMonth;
         }
 
-        if (month is not null)
-        {
-            return month.Value;
-        }
-
-        return ResolveBclMonthFromMonthCode(defaultMonthCode, calendar, calendarYear, realm);
+        return month ?? ResolveBclMonthFromMonthCode(defaultMonthCode, calendar, calendarYear, realm);
     }
 
     private static (int Year, int Month, string MonthCode) GetPlainYearMonthCalendarFields(
@@ -5302,12 +5309,7 @@ public static class TemporalHelper
             nanosecondsBig;
 
         // Per spec: abs(normalized nanoseconds) must not exceed max time duration.
-        if (BigInteger.Abs(totalNanoseconds) > MaxTimeDuration)
-        {
-            return false;
-        }
-
-        return true;
+        return BigInteger.Abs(totalNanoseconds) <= MaxTimeDuration;
     }
 
     private static bool TryCreateDurationInteger(double value, out BigInteger integer)
@@ -6103,7 +6105,9 @@ public static class TemporalHelper
         if (rawLargestUnit != null)
         {
             if (string.Equals(rawLargestUnit, "auto", StringComparison.Ordinal))
+            {
                 largestUnit = defaultLargestUnit;
+            }
             else
             {
                 largestUnit = NormalizeTemporalUnit(rawLargestUnit);
@@ -6114,9 +6118,11 @@ public static class TemporalHelper
 
         // Validate largestUnit >= smallestUnit
         if (UnitRank(largestUnit) < UnitRank(smallestUnit))
+        {
             throw StandardLibrary.ThrowRangeError(
                 $"{methodName}: largestUnit {largestUnit} cannot be smaller than smallestUnit {smallestUnit}",
                 realm: realm);
+        }
 
         // Negate rounding mode for "since"
         if (string.Equals(operation, "since", StringComparison.Ordinal))
@@ -6128,9 +6134,11 @@ public static class TemporalHelper
         {
             if (roundingIncrement >= maxIncrement.Value ||
                 maxIncrement.Value % roundingIncrement != 0)
+            {
                 throw StandardLibrary.ThrowRangeError(
                     $"roundingIncrement {roundingIncrement} is not valid for unit {smallestUnit}",
                     realm: realm);
+            }
         }
 
         return new DifferenceSettings(largestUnit, smallestUnit, roundingIncrement, roundingMode);
@@ -6763,8 +6771,10 @@ public static class TemporalHelper
                 CanonicalizeCalendarIdForComparison(date.Calendar),
                 CanonicalizeCalendarIdForComparison(other.Calendar),
                 StringComparison.Ordinal))
+        {
             throw StandardLibrary.ThrowRangeError(
                 $"Cannot compute difference between dates with different calendars: '{date.Calendar}' and '{other.Calendar}'", realm: realm);
+        }
 
         var settings = GetDifferenceSettings(operation, options, realm,
             $"Temporal.PlainDate.prototype.{operation}",
@@ -6808,8 +6818,10 @@ public static class TemporalHelper
                 CanonicalizeCalendarIdForComparison(dt.Calendar),
                 CanonicalizeCalendarIdForComparison(other.Calendar),
                 StringComparison.Ordinal))
+        {
             throw StandardLibrary.ThrowRangeError(
                 $"Cannot compute difference between date-times with different calendars: '{dt.Calendar}' and '{other.Calendar}'", realm: realm);
+        }
 
         var settings = GetDifferenceSettings(operation, options, realm,
             $"Temporal.PlainDateTime.prototype.{operation}",
@@ -7112,8 +7124,10 @@ public static class TemporalHelper
         var other = ToTemporalPlainYearMonth(otherArg, realm);
 
         if (!string.Equals(ym.Calendar, other.Calendar, StringComparison.Ordinal))
+        {
             throw StandardLibrary.ThrowRangeError(
                 "PlainYearMonth.since/until requires same calendar", realm: realm);
+        }
 
         var settings = GetDifferenceSettings(operation, options, realm,
             $"Temporal.PlainYearMonth.prototype.{operation}",
@@ -7624,8 +7638,10 @@ public static class TemporalHelper
             if (timeZone.IsInvalidTime(localDateTime))
             {
                 if (string.Equals(disambiguation, "reject", StringComparison.Ordinal))
+                {
                     throw StandardLibrary.ThrowRangeError(
                         "datetime is in a DST gap and disambiguation is 'reject'", realm: realm);
+                }
 
                 var beforeGap = TemporalHistoricalTimeZoneOffsets.GetUtcOffset(
                     timeZoneId, timeZone, localDateTime.AddHours(-3));
@@ -7638,8 +7654,10 @@ public static class TemporalHelper
             else if (timeZone.IsAmbiguousTime(localDateTime))
             {
                 if (string.Equals(disambiguation, "reject", StringComparison.Ordinal))
+                {
                     throw StandardLibrary.ThrowRangeError(
                         "datetime is ambiguous and disambiguation is 'reject'", realm: realm);
+                }
 
                 var offsets = timeZone.GetAmbiguousTimeOffsets(localDateTime);
                 var largerOffset = offsets[0] > offsets[1] ? offsets[0] : offsets[1];
@@ -7814,11 +7832,15 @@ public static class TemporalHelper
         {
             if (obj.TryGetProperty(TemporalInstantSlot, out var slot) &&
                 slot.TryGetObject<JsTemporalInstant>(out var instant))
+            {
                 return instant;
+            }
 
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
                 zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
                 return zdt.ToInstant();
+            }
         }
 
         // 4. All remaining objects (JsObject, HostFunction, etc.) → convert to string via ToString, then parse
@@ -7850,7 +7872,9 @@ public static class TemporalHelper
         // Validate range
         if (parsed.EpochNanoseconds < InstantMinEpochNanoseconds ||
             parsed.EpochNanoseconds > InstantMaxEpochNanoseconds)
+        {
             throw StandardLibrary.ThrowRangeError($"Instant out of representable range: {str}", realm: realm);
+        }
 
         return parsed;
     }
@@ -7986,7 +8010,9 @@ public static class TemporalHelper
                 if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
             else
             {
@@ -8002,7 +8028,9 @@ public static class TemporalHelper
                 if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
 
                 if (datePart[(secondLastDash + 1)..lastDash].Length != 2) return null;
                 if (datePart[(lastDash + 1)..].Length != 2) return null;
@@ -8037,7 +8065,9 @@ public static class TemporalHelper
                 if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
             else if (datePart.Length == 8 && AllDigits(datePart, 0, 8))
             {
@@ -8045,7 +8075,9 @@ public static class TemporalHelper
                 if (!int.TryParse(datePart.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(datePart.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     return null;
+                }
             }
             else
             {
@@ -8375,8 +8407,10 @@ public static class TemporalHelper
                     var baseStr = bracketPos >= 0 ? str[..bracketPos] : str;
                     var wallClockDays = JsTemporalZonedDateTime.ParseWallClockEpochDays(baseStr);
                     if (wallClockDays.HasValue && Math.Abs(wallClockDays.Value) > 100_000_000)
+                    {
                         throw StandardLibrary.ThrowRangeError(
                             "relativeTo is outside the representable range", realm: realm);
+                    }
 
                     var zdt = ParseRelativeToZonedDateTimeString(str, realm);
                     return (null, zdt);
@@ -8398,8 +8432,10 @@ public static class TemporalHelper
             // No time zone annotation — check for Z designator (UTC without IANA is ambiguous → throw)
             var tPos = str.IndexOf('T');
             if (tPos >= 0 && str.IndexOf('Z', tPos) >= 0)
+            {
                 throw StandardLibrary.ThrowRangeError(
                     "relativeTo with UTC designator 'Z' requires a time zone annotation", realm: realm);
+            }
 
             // Otherwise, parse as PlainDate (ignore time components if present)
             try
@@ -8422,15 +8458,21 @@ public static class TemporalHelper
         {
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
                 zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
                 return (null, zdt);
+            }
 
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) &&
                 pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+            {
                 return (pd, null);
+            }
 
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) &&
                 pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+            {
                 return (pdt.ToPlainDate(), null);
+            }
         }
 
         // Property bag: single-pass reading with immediate conversions per spec order.
@@ -8645,7 +8687,9 @@ public static class TemporalHelper
 
             if (!TryMatchTimeZoneOffsetForString(baseStr, stringOffsetNanos, timeZoneId, tz, fixedOff, approxLocal,
                     out var tzOffset))
+            {
                 throw StandardLibrary.ThrowRangeError("Offset does not match the time zone", realm: realm);
+            }
 
             var wallTimeInstant =
                 JsTemporalInstant.FromEpochNanoseconds(parsed.EpochNanoseconds + stringOffsetNanos - tzOffset.Ticks * 100L);
@@ -9442,7 +9486,9 @@ public static class TemporalHelper
         if (!IsValidDuration(years, months, weeks, days,
                 timeDuration.Hours, timeDuration.Minutes, timeDuration.Seconds,
                 timeDuration.Milliseconds, timeDuration.Microseconds, timeDuration.Nanoseconds))
+        {
             throw StandardLibrary.ThrowRangeError("Resulting duration is out of range", realm: realm);
+        }
 
         return new JsTemporalDuration(years, months, weeks, days,
             timeDuration.Hours, timeDuration.Minutes, timeDuration.Seconds,
@@ -10238,7 +10284,9 @@ public static class TemporalHelper
                     fraction = fraction[..6];
                 if (!int.TryParse(fraction[..3], CultureInfo.InvariantCulture, out millisecond) ||
                     !int.TryParse(fraction[3..6], CultureInfo.InvariantCulture, out microsecond))
+                {
                     return false;
+                }
             }
             else if (!int.TryParse(secondsPart, CultureInfo.InvariantCulture, out second))
             {
@@ -10346,15 +10394,21 @@ public static class TemporalHelper
         {
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var slot) &&
                 slot.TryGetObject<JsTemporalPlainDate>(out var date))
+            {
                 return date;
+            }
 
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
                 zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
                 return zdt.ToPlainDate();
+            }
 
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) &&
                 pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+            {
                 return pdt.ToPlainDate();
+            }
         }
 
         // 4. Property bag path for all objects
@@ -10625,8 +10679,10 @@ public static class TemporalHelper
         catch (ArgumentOutOfRangeException)
         {
             if (overflow == "reject")
+            {
                 throw StandardLibrary.ThrowRangeError(
                     $"Date year={year} month={month} day={day} is out of range for calendar '{calendar}'", realm: realm);
+            }
 
             // Constrain failed — use epoch day 1 as fallback
             return new JsTemporalPlainDate(1970, 1, 1, calendar);
@@ -10826,8 +10882,10 @@ public static class TemporalHelper
                 catch (ArgumentOutOfRangeException)
                 {
                     if (overflow == "reject")
+                    {
                         throw StandardLibrary.ThrowRangeError(
                             $"YearMonth year={year} month={month} is out of range for calendar '{calendar}'", realm: realm);
+                    }
                 }
             }
         }
@@ -10846,8 +10904,7 @@ public static class TemporalHelper
         RejectISOYearMonthRange(year, month, realm);
         var referenceMonthCode = monthCode;
         if (string.Equals(overflow, "constrain", StringComparison.Ordinal) &&
-            referenceMonthCode is not null &&
-            referenceMonthCode.Length == 4 &&
+            referenceMonthCode?.Length == 4 &&
             referenceMonthCode[3] == 'L' &&
             !IsValidLeapMonthCodeForYear(calendar, year, referenceMonthCode))
         {
@@ -12092,7 +12149,9 @@ public static class TemporalHelper
                 if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
+                }
             }
             else
             {
@@ -12111,7 +12170,9 @@ public static class TemporalHelper
                 if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out yearAbs) ||
                     !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
+                }
 
                 if (datePart[(secondLastDash + 1)..lastDash].Length != 2 || datePart[(lastDash + 1)..].Length != 2)
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
@@ -12135,14 +12196,18 @@ public static class TemporalHelper
                 if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
+                }
             }
             else if (datePart.Length == 8 && AllDigits(datePart, 0, 8))
             {
                 if (!int.TryParse(datePart.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(datePart.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainDate string: {str}", realm: realm);
+                }
             }
             else
             {
@@ -12219,7 +12284,9 @@ public static class TemporalHelper
         // Standard date: YYYY-MM-DD or YYYY-MM-DDTHH...
         if (str.Length >= 10 && char.IsDigit(str[0]) && char.IsDigit(str[1]) &&
             char.IsDigit(str[2]) && char.IsDigit(str[3]) && str[4] == '-')
+        {
             return true;
+        }
 
         // Year-month: YYYY-MM (7 chars)
         if (str.Length >= 7 && char.IsDigit(str[0]) && str[4] == '-' && char.IsDigit(str[5]))
@@ -12228,7 +12295,9 @@ public static class TemporalHelper
         // Month-day: MM-DD (5 chars)
         if (str.Length >= 5 && char.IsDigit(str[0]) && char.IsDigit(str[1]) &&
             str[2] == '-' && char.IsDigit(str[3]) && char.IsDigit(str[4]))
+        {
             return true;
+        }
 
         return false;
     }
@@ -12436,7 +12505,9 @@ public static class TemporalHelper
         // Determine expected date string length
         int expectedLen;
         if (startIdx > 0)
+        {
             expectedLen = 1 + 6 + 1 + 2 + 1 + 2; // ±YYYYYY-MM-DD = 14
+        }
         else
         {
             // YYYY-MM-DD (10) or YYYYMMDD (8)
@@ -12465,15 +12536,21 @@ public static class TemporalHelper
         {
             if (obj.TryGetProperty(TemporalPlainTimeSlot, out var slot) &&
                 slot.TryGetObject<JsTemporalPlainTime>(out var time))
+            {
                 return time;
+            }
 
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) &&
                 zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
+            {
                 return zdt.ToPlainTime();
+            }
 
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) &&
                 pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+            {
                 return pdt.ToPlainTime();
+            }
         }
 
         // 4. Per spec: ALL objects go through property bag path (not ToString)
@@ -12515,7 +12592,9 @@ public static class TemporalHelper
                 millisecond < 0 || millisecond > 999 ||
                 microsecond < 0 || microsecond > 999 ||
                 nanosecond < 0 || nanosecond > 999)
+            {
                 throw StandardLibrary.ThrowRangeError("PlainTime field out of range with overflow: reject", realm: realm);
+            }
         }
         else
         {
@@ -12569,7 +12648,9 @@ public static class TemporalHelper
                 millisecond < 0 || millisecond > 999 ||
                 microsecond < 0 || microsecond > 999 ||
                 nanosecond < 0 || nanosecond > 999)
+            {
                 throw StandardLibrary.ThrowRangeError("PlainTime field out of range with overflow: reject", realm: realm);
+            }
         }
         else
         {
@@ -12691,7 +12772,9 @@ public static class TemporalHelper
         {
             if (int.TryParse(str.AsSpan(5, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
                 month >= 1 && month <= 12)
+            {
                 return true;
+            }
         }
 
         // MMDD: 4 digits, e.g., "1214"
@@ -12700,7 +12783,9 @@ public static class TemporalHelper
             if (int.TryParse(str.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
                 int.TryParse(str.AsSpan(2, 2), System.Globalization.CultureInfo.InvariantCulture, out var day) &&
                 month >= 1 && month <= 12 && day >= 1 && day <= MaxDayForAmbiguityCheck(month))
+            {
                 return true;
+            }
         }
 
         // MM-DD: 5 chars with dash at 2, e.g., "12-14"
@@ -12708,7 +12793,9 @@ public static class TemporalHelper
         {
             if (int.TryParse(str.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
                 month >= 1 && month <= 12)
+            {
                 return true;
+            }
         }
 
         // YYYYMM: 6 digits, e.g., "202112"
@@ -12716,7 +12803,9 @@ public static class TemporalHelper
         {
             if (int.TryParse(str.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out var month) &&
                 month >= 1 && month <= 12)
+            {
                 return true;
+            }
         }
 
         return false;
@@ -12845,13 +12934,18 @@ public static class TemporalHelper
             {
                 if (!int.TryParse(timePart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
                     !int.TryParse(timePart[2..], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                }
             }
             else if (timePart.Length >= 6)
             {
                 if (!int.TryParse(timePart[..2], System.Globalization.CultureInfo.InvariantCulture, out hour) ||
                     !int.TryParse(timePart[2..4], System.Globalization.CultureInfo.InvariantCulture, out minute))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid PlainTime: {timePart}", realm: realm);
+                }
+
                 var secPart = timePart[4..];
                 var dotIdx = FindDecimalSeparator(secPart);
                 if (dotIdx >= 0)
@@ -13233,8 +13327,10 @@ public static class TemporalHelper
         catch (ArgumentOutOfRangeException)
         {
             if (overflow == "reject")
+            {
                 throw StandardLibrary.ThrowRangeError(
                     $"Date year={year} month={month} day={day} is out of range for calendar '{calendar}'", realm: realm);
+            }
 
             return (1970, 1, 1, new JsTemporalPlainDate(1970, 1, 1, calendar));
         }
@@ -13387,7 +13483,9 @@ public static class TemporalHelper
             if (!int.TryParse(frac.AsSpan(0, 3), System.Globalization.CultureInfo.InvariantCulture, out millisecond) ||
                 !int.TryParse(frac.AsSpan(3, 3), System.Globalization.CultureInfo.InvariantCulture, out microsecond) ||
                 !int.TryParse(frac.AsSpan(6, 3), System.Globalization.CultureInfo.InvariantCulture, out nanosecond))
+            {
                 throw StandardLibrary.ThrowRangeError("Invalid fractional seconds", realm: realm);
+            }
         }
         else
         {
@@ -13491,7 +13589,10 @@ public static class TemporalHelper
                 if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
+
                 year = sign * yearAbs;
                 if (sign == -1 && yearAbs == 0)
                     throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
@@ -13511,7 +13612,10 @@ public static class TemporalHelper
                 if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                     !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
+
                 if (datePart[(secondLastDash + 1)..lastDash].Length != 2 || datePart[(lastDash + 1)..].Length != 2)
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
                 year = sign * yearAbs;
@@ -13530,14 +13634,18 @@ public static class TemporalHelper
                 if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
             }
             else if (dateStr.Length == 8 && AllDigits(dateStr, 0, 8))
             {
                 if (!int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dateStr.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dateStr.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
             }
             else
             {
@@ -13573,7 +13681,10 @@ public static class TemporalHelper
                 if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                     !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
+
                 year = sign * yearAbs;
                 if (sign == -1 && yearAbs == 0)
                     throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
@@ -13592,7 +13703,10 @@ public static class TemporalHelper
                 if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
                     !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
+
                 if (datePart[(secondLastDash + 1)..lastDash].Length != 2 || datePart[(lastDash + 1)..].Length != 2)
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
                 year = sign * yearAbs;
@@ -13610,14 +13724,18 @@ public static class TemporalHelper
                 if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
             }
             else if (dateStr.Length == 8 && AllDigits(dateStr, 0, 8))
             {
                 if (!int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
                     !int.TryParse(dateStr.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
                     !int.TryParse(dateStr.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
+                {
                     throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
+                }
             }
             else
             {
@@ -13933,7 +14051,9 @@ public static class TemporalHelper
         if (value.TryGetObject<JsObject>(out var obj2) &&
             obj2.TryGetProperty(TemporalZonedDateTimeSlot, out var slot2) &&
             slot2.TryGetObject<JsTemporalZonedDateTime>(out var existing))
+        {
             return existing;
+        }
 
         // 1. String: parse with validation
         if (value.IsString)
@@ -14110,11 +14230,16 @@ public static class TemporalHelper
                 if (accessor.GetOwnPropertyDescriptor("era") is not null &&
                     accessor.TryGetProperty("era", out var eraVal) &&
                     !eraVal.IsUndefined)
+                {
                     JsOps.ToJsString(eraVal);
+                }
+
                 if (accessor.GetOwnPropertyDescriptor("eraYear") is not null &&
                     accessor.TryGetProperty("eraYear", out var eraYearVal) &&
                     !eraYearVal.IsUndefined)
+                {
                     ToIntegerWithTruncation(eraYearVal, realm);
+                }
             }
 
             var hour = GetOptionalIntProperty(accessor, "hour", realm);
@@ -14290,8 +14415,10 @@ public static class TemporalHelper
                 // Per spec: year-month-only strings must use ISO calendar.
                 // Non-ISO calendar annotations on YYYY-MM format are rejected.
                 if (!string.Equals(calendar, "iso8601", StringComparison.Ordinal))
+                {
                     throw StandardLibrary.ThrowRangeError(
                         $"Non-ISO calendar '{calendar}' is not valid for year-month-only strings", realm: realm);
+                }
 
                 RejectISOYearMonthRange(ymResult.Value.year, ymResult.Value.month, realm);
                 return new JsTemporalPlainYearMonth(
@@ -14302,8 +14429,10 @@ public static class TemporalHelper
             // Full date (YYYY-MM-DD) without time: reject UTC offsets.
             // Offsets are only valid when a time component is present.
             if (!hasTimePart && DateOnlyStringHasOffset(baseStr))
+            {
                 throw StandardLibrary.ThrowRangeError(
                     "UTC offset not valid without time component in PlainYearMonth string", realm: realm);
+            }
 
             // Full date (YYYY-MM-DD) — extract year+month, discard day per spec
             // Use ParseDatePartNoRangeCheck: day is discarded, only year+month range matters
@@ -14323,11 +14452,17 @@ public static class TemporalHelper
             if (obj.TryGetProperty(TemporalPlainYearMonthSlot, out var slot) && slot.TryGetObject<JsTemporalPlainYearMonth>(out var yearMonth))
                 return yearMonth;
             if (obj.TryGetProperty(TemporalPlainDateSlot, out var pdSlot) && pdSlot.TryGetObject<JsTemporalPlainDate>(out var pd))
+            {
                 return new JsTemporalPlainYearMonth(pd.Year, pd.Month, CanonicalizeCalendarId(pd.Calendar),
                     GetTemporalReferenceISODay(CanonicalizeCalendarId(pd.Calendar), pd.Year, pd.Month, pd.Day, null, realm));
+            }
+
             if (obj.TryGetProperty(TemporalPlainDateTimeSlot, out var pdtSlot) && pdtSlot.TryGetObject<JsTemporalPlainDateTime>(out var pdt))
+            {
                 return new JsTemporalPlainYearMonth(pdt.Year, pdt.Month, CanonicalizeCalendarId(pdt.Calendar),
                     GetTemporalReferenceISODay(CanonicalizeCalendarId(pdt.Calendar), pdt.Year, pdt.Month, pdt.Day, null, realm));
+            }
+
             if (obj.TryGetProperty(TemporalZonedDateTimeSlot, out var zdtSlot) && zdtSlot.TryGetObject<JsTemporalZonedDateTime>(out var zdt))
             {
                 var plainDate = zdt.ToPlainDate();
@@ -14404,14 +14539,18 @@ public static class TemporalHelper
                     // --MM-DD (dash-separated)
                     if (!int.TryParse(mmdd.AsSpan(0, dashIdx), System.Globalization.CultureInfo.InvariantCulture, out mm) ||
                         !int.TryParse(mmdd.AsSpan(dashIdx + 1), System.Globalization.CultureInfo.InvariantCulture, out dd))
+                    {
                         throw StandardLibrary.ThrowRangeError($"Invalid PlainMonthDay string: {str}", realm: realm);
+                    }
                 }
                 else if (mmdd.Length == 4 && AllDigits(mmdd, 0, 4))
                 {
                     // --MMDD (compact)
                     if (!int.TryParse(mmdd.AsSpan(0, 2), System.Globalization.CultureInfo.InvariantCulture, out mm) ||
                         !int.TryParse(mmdd.AsSpan(2, 2), System.Globalization.CultureInfo.InvariantCulture, out dd))
+                    {
                         throw StandardLibrary.ThrowRangeError($"Invalid PlainMonthDay string: {str}", realm: realm);
+                    }
                 }
                 else
                 {

@@ -739,12 +739,7 @@ internal static class ExpressionProgramCompiler
 
             if (argument.IsSpread)
             {
-                if (spreadMaskBuilder is null)
-                {
-                    spreadMaskBuilder = new List<int>();
-                }
-
-                spreadMaskBuilder.Add(argumentIndex);
+                (spreadMaskBuilder ??= new List<int>()).Add(argumentIndex);
             }
         }
 
@@ -982,12 +977,7 @@ internal static class ExpressionProgramCompiler
 
             if (argument.IsSpread)
             {
-                if (spreadMaskBuilder is null)
-                {
-                    spreadMaskBuilder = new List<int>();
-                }
-
-                spreadMaskBuilder.Add(argumentIndex);
+                (spreadMaskBuilder ??= new List<int>()).Add(argumentIndex);
             }
         }
 
@@ -2654,7 +2644,7 @@ internal static class ExpressionProgramCompiler
                 JsValueKind.BigInt => HashCode.Combine(value.Kind, value.ObjectValue),
                 JsValueKind.Symbol or JsValueKind.Object => HashCode.Combine(
                     value.Kind,
-                    RuntimeHelpers.GetHashCode(value.ObjectValue!)),
+                    RuntimeHelpers.GetHashCode(value.ObjectValue)),
                 _ => HashCode.Combine(value.Kind)
             };
         }

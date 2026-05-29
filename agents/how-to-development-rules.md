@@ -27,6 +27,7 @@ src/
   Asynkron.JsEngine.Generators/
 tests/
   Asynkron.JsEngine.Tests/
+  Asynkron.JsEngine.Tests.Helpers/
   Asynkron.JsEngine.Tests.Test262/
 examples/
 docs/

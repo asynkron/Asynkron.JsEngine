@@ -113,10 +113,7 @@ public sealed partial class IntlSegmenterPrototype
             new PropertyDescriptor { Value = containingFn, Writable = true, Enumerable = false, Configurable = true });
 
         // [Symbol.iterator]() method
-        var iteratorFn = new HostFunction((_, _) =>
-        {
-            return new JsValue(CreateSegmentIterator(input, granularity, realm));
-        }, realm, false);
+        var iteratorFn = new HostFunction((_, _) => new JsValue(CreateSegmentIterator(input, granularity, realm)), realm, false);
 
         iteratorFn.DefineProperty("length",
             new PropertyDescriptor { Value = 0d, Writable = false, Enumerable = false, Configurable = true });

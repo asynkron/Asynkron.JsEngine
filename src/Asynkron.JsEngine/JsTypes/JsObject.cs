@@ -2321,10 +2321,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
 
         internal void TrackKnownNewPropertyInsertion(string name)
         {
-            if (_propertyInsertionKeys is not null)
-            {
-                _propertyInsertionKeys.Add(name);
-            }
+            _propertyInsertionKeys?.Add(name);
 
             PropertyInsertionOrder.Add(name);
             if (_propertyInsertionKeys is null && PropertyInsertionOrder.Count > PropertyInsertionKeySetThreshold)

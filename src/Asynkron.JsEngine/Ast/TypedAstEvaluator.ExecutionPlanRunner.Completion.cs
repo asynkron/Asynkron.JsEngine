@@ -606,14 +606,8 @@ public static partial class TypedAstEvaluator
             List<(IActiveIteratorState, IJsObjectLike)> results)
         {
             var isFirstEnv = true;
-            while (true)
+            while (isFirstEnv || !env.IsFunctionScope)
             {
-                // Stop at the caller's function scope boundary before scanning it.
-                // The first environment might be the completing function scope and must be scanned.
-                if (!isFirstEnv && env.IsFunctionScope)
-                {
-                    break;
-                }
 
                 // Scan symbol bindings in this environment (using safe method to skip uninitialized TDZ bindings)
                 foreach (var symbol in env.GetBindingSymbols())

@@ -293,9 +293,9 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
                 return new PropertyDescriptor
                 {
                     JsValue = calleeValue.IsNullOrUndefined ? _calleeDescriptor.JsValue : calleeValue,
-                    Writable = backingDescriptor.HasWritable ? backingDescriptor.Writable : true,
-                    Enumerable = backingDescriptor.HasEnumerable ? backingDescriptor.Enumerable : false,
-                    Configurable = backingDescriptor.HasConfigurable ? backingDescriptor.Configurable : true
+                    Writable = !backingDescriptor.HasWritable || backingDescriptor.Writable,
+                    Enumerable = backingDescriptor.HasEnumerable && backingDescriptor.Enumerable,
+                    Configurable = !backingDescriptor.HasConfigurable || backingDescriptor.Configurable
                 };
             }
 
@@ -546,7 +546,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
 
     private bool HasInitialIndex(int index)
     {
-        return (uint)index < (uint)_values.Length && (_deletedIndices is null || !_deletedIndices[index]);
+        return (uint)index < (uint)_values.Length && (_deletedIndices?[index] != true);
     }
 
     private static string GetIndexName(int index)
@@ -710,7 +710,7 @@ internal sealed class JsArgumentsObject : IJsObjectLike, IPropertyDefinitionHost
         var existingIsData = existing is { IsDataDescriptor: true };
         normalized.Writable = descriptor.HasWritable
             ? descriptor.Writable
-            : existingIsData && existing!.HasWritable ? existing.Writable : false;
+            : existingIsData && existing!.HasWritable && existing.Writable;
         normalized.Enumerable = descriptor.HasEnumerable
             ? descriptor.Enumerable
             : existing?.Enumerable ?? false;

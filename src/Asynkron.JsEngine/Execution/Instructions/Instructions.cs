@@ -433,10 +433,10 @@ internal sealed record EndFinallyInstruction(int Next)
 ///     Initializes the iterator for a <c>for...of</c> or <c>for await...of</c> loop.
 /// </summary>
 /// <param name="IteratorKind">Whether this is a sync or async iterator.</param>
-/// <param name="IterableProgram">Bytecode representation of the iterable expression.</param>
 /// <param name="IteratorSlot">Symbol for the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization.</param>
+/// <param name="IterableProgram">Bytecode representation of the iterable expression.</param>
 /// <param name="TdzBindings">
 ///     Symbols that need TDZ bindings during iterable evaluation (for let/const declarations).
 ///     When non-empty, a TDZ environment is created before evaluating the iterable expression.
@@ -491,9 +491,9 @@ internal sealed record JumpInstruction(int TargetIndex)
 /// <summary>
 ///     Represents a conditional branch.
 /// </summary>
-/// <param name="ConditionProgram">Lowered bytecode representation of the condition expression.</param>
 /// <param name="ConsequentIndex">Jump target when condition is true.</param>
 /// <param name="AlternateIndex">Jump target when condition is false.</param>
+/// <param name="ConditionProgram">Lowered bytecode representation of the condition expression.</param>
 internal sealed record BranchInstruction(
     int ConsequentIndex,
     int AlternateIndex,
@@ -547,9 +547,9 @@ internal sealed record ReturnInstruction(
 ///     Marks the beginning of a <c>with</c> statement. Evaluates the object expression
 ///     and pushes a with-environment onto the scope chain.
 /// </summary>
-/// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 /// <param name="WithScopeSlot">Symbol for storing the with scope.</param>
 /// <param name="Next">Next instruction index.</param>
+/// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 internal sealed record EnterWithInstruction(
     Symbol WithScopeSlot,
     int Next,
@@ -576,12 +576,12 @@ internal sealed record SetCompletionValueInstruction(int Next)
 ///     Initializes the for-in loop by evaluating the object expression and collecting
 ///     enumerable property keys.
 /// </summary>
-/// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 /// <param name="StateSlot">Symbol for the for-in state.</param>
 /// <param name="StateSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
 /// <param name="ValueSlot">Symbol for the current property key value.</param>
 /// <param name="ValueSlotIndex">Pre-resolved slot index for fast value access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization.</param>
+/// <param name="ObjectProgram">Lowered bytecode representation of the object expression.</param>
 /// <param name="TdzBindings">
 ///     Symbols that need TDZ bindings during object evaluation (for let/const declarations).
 ///     This ensures `for (const x in {[x]: 1})` throws ReferenceError for accessing x before initialization.
@@ -627,10 +627,10 @@ internal sealed record ForInMoveNextInstruction(
 ///     Initializes array destructuring by evaluating the source expression and
 ///     getting an iterator from it. Stores the iterator state in a slot.
 /// </summary>
-/// <param name="SourceProgram">Lowered bytecode representation of the source expression.</param>
 /// <param name="IteratorSlot">Symbol for storing the iterator state.</param>
 /// <param name="IteratorSlotIndex">Pre-resolved slot index for fast iterator state access (-1 if not resolved).</param>
 /// <param name="Next">Jump target after initialization (first element instruction).</param>
+/// <param name="SourceProgram">Lowered bytecode representation of the source expression.</param>
 internal sealed record ArrayDestructuringInitInstruction(
     Symbol IteratorSlot,
     int IteratorSlotIndex,

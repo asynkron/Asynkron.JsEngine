@@ -1213,7 +1213,7 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         }
 
         // Step 2: Let n be ToNumber(argument).
-        if (!double.TryParse(candidate, NumberStyles.Float | NumberStyles.AllowLeadingSign,
+        if (!double.TryParse(candidate, NumberStyles.Float,
                 CultureInfo.InvariantCulture, out numericIndex))
         {
             return false;

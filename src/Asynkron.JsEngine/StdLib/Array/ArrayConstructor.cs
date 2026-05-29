@@ -165,10 +165,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     private void AttachFrom(HostFunction constructor)
     {
         HostFunction arrayFrom = null!;
-        arrayFrom = new HostFunction((thisValue, args) =>
-        {
-            return ArrayFrom(arrayFrom, thisValue, args, Realm);
-        }, Realm, false);
+        arrayFrom = new HostFunction((thisValue, args) => ArrayFrom(arrayFrom, thisValue, args, Realm), Realm, false);
         AttachBuiltinMetadata(arrayFrom, "from", 1d);
         arrayFrom.Delete("prototype");
         constructor.DefineProperty("from",
@@ -182,10 +179,7 @@ public sealed partial class ArrayConstructor(IJsObjectLike prototype, RealmState
     private void AttachFromAsync(HostFunction constructor)
     {
         HostFunction arrayFromAsync = null!;
-        arrayFromAsync = new HostFunction((thisValue, args) =>
-        {
-            return ArrayFromAsync(arrayFromAsync, thisValue, args, Realm);
-        }, Realm, false);
+        arrayFromAsync = new HostFunction((thisValue, args) => ArrayFromAsync(arrayFromAsync, thisValue, args, Realm), Realm, false);
         AttachBuiltinMetadata(arrayFromAsync, "fromAsync", 1d);
         arrayFromAsync.Delete("prototype");
         constructor.DefineProperty("fromAsync",

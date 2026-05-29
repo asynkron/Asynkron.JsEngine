@@ -184,7 +184,7 @@ public static partial class TypedAstEvaluator
 
         private ref struct ExpressionFlagStack(Span<ulong> words)
         {
-            private Span<ulong> _words = words;
+            private readonly Span<ulong> _words = words;
 
             [MethodImpl(JsEngineConstants.Inlining)]
             public bool Get(int index)

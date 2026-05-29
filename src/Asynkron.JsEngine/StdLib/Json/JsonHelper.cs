@@ -132,7 +132,7 @@ public static class JsonHelper
                         rawText = element.GetRawText();
                     }
 
-                    var result = new JsValue(rawText is not null && rawText.Length > 0 && rawText[0] == '-'
+                    var result = new JsValue(rawText?.Length > 0 && rawText[0] == '-'
                         ? -0.0d
                         : number);
                     if (tracker is not null && parentHolder is not null && parentKey is not null)
@@ -311,24 +311,15 @@ public static class JsonHelper
 
         if (val.TryGetObject<JsProxy>(out var proxy))
         {
-            foreach (var key in proxy.GetOwnPropertyKeysInOrder(includeSymbols: false, includeNonEnumerable: false))
-            {
-                keys.Add(key);
-            }
+            keys.AddRange(proxy.GetOwnPropertyKeysInOrder(includeSymbols: false, includeNonEnumerable: false));
         }
         else if (val.TryGetObject<JsObject>(out var jsObj))
         {
-            foreach (var key in jsObj.GetOwnEnumerablePropertyKeysInOrder(false))
-            {
-                keys.Add(key);
-            }
+            keys.AddRange(jsObj.GetOwnEnumerablePropertyKeysInOrder(false));
         }
         else if (val.TryGetObject<IJsObjectLike>(out var objLike))
         {
-            foreach (var key in objLike.Keys)
-            {
-                keys.Add(key);
-            }
+            keys.AddRange(objLike.Keys);
         }
 
         return keys;
@@ -616,25 +607,16 @@ public static class JsonHelper
             keys = [];
             if (obj is JsProxy proxy)
             {
-                foreach (var k in proxy.GetOwnPropertyKeysInOrder(includeSymbols: false,
-                             includeNonEnumerable: false))
-                {
-                    keys.Add(k);
-                }
+                keys.AddRange(proxy.GetOwnPropertyKeysInOrder(includeSymbols: false,
+                             includeNonEnumerable: false));
             }
             else if (obj is JsObject jsObj)
             {
-                foreach (var k in jsObj.GetOwnEnumerablePropertyKeysInOrder(false))
-                {
-                    keys.Add(k);
-                }
+                keys.AddRange(jsObj.GetOwnEnumerablePropertyKeysInOrder(false));
             }
             else if (obj is IJsObjectLike objLike)
             {
-                foreach (var k in objLike.Keys)
-                {
-                    keys.Add(k);
-                }
+                keys.AddRange(objLike.Keys);
             }
         }
 
@@ -765,7 +747,7 @@ public static class JsonHelper
     {
         if (!RequiresJsonStringEscaping(value))
         {
-            return string.Concat("\"", value, "\"");
+            return $"\"{value}\"";
         }
 
         var sb = new System.Text.StringBuilder(value.Length + 2);

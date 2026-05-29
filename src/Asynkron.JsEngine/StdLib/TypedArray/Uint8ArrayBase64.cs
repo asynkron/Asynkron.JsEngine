@@ -205,8 +205,10 @@ internal static class Uint8ArrayBase64
                 throw ThrowTypeError("alphabet option must be a string", realm: realm);
             alphabet = alphaVal.AsString();
             if (alphabet is not ("base64" or "base64url"))
+            {
                 throw ThrowTypeError(
                     $"Invalid alphabet: '{alphabet}'. Must be 'base64' or 'base64url'", realm: realm);
+            }
         }
 
         if (obj.TryGetProperty("lastChunkHandling", out var lchVal) && !lchVal.IsUndefined)
@@ -215,8 +217,10 @@ internal static class Uint8ArrayBase64
                 throw ThrowTypeError("lastChunkHandling option must be a string", realm: realm);
             lastChunkHandling = lchVal.AsString();
             if (lastChunkHandling is not ("loose" or "strict" or "stop-before-partial"))
+            {
                 throw ThrowTypeError(
                     $"Invalid lastChunkHandling: '{lastChunkHandling}'", realm: realm);
+            }
         }
 
         return (alphabet, lastChunkHandling);
@@ -240,8 +244,10 @@ internal static class Uint8ArrayBase64
                 throw ThrowTypeError("alphabet option must be a string", realm: realm);
             alphabet = alphaVal.AsString();
             if (alphabet is not ("base64" or "base64url"))
+            {
                 throw ThrowTypeError(
                     $"Invalid alphabet: '{alphabet}'. Must be 'base64' or 'base64url'", realm: realm);
+            }
         }
 
         if (obj.TryGetProperty("omitPadding", out var omitVal) && !omitVal.IsUndefined)

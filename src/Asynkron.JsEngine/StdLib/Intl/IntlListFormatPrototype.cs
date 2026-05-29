@@ -224,11 +224,9 @@ public sealed partial class IntlListFormatPrototype
                 templates.Middle, list[i], result);
         }
 
-        result = string.Format(
+        return string.Format(
             System.Globalization.CultureInfo.InvariantCulture,
             templates.Start, list[0], result);
-
-        return result;
     }
 
     internal static List<(string Type, string Value)> FormatListToParts(

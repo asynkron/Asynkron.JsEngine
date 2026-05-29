@@ -12,7 +12,7 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
 - [CPU and allocation profiling workflow](agents/how-to-profile.md)
 - [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
-- Recurring maintenance child runs: use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [.claude/rules/recurring-maintenance-child-runs.md](.claude/rules/recurring-maintenance-child-runs.md).
+- Recurring maintenance child runs: check active sibling summaries first and report the stable evidence fields `Baseline signal`, `Final signal`, `Sibling check`, `Slice check`, and `Scope note`; use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [.claude/rules/recurring-maintenance-child-runs.md](.claude/rules/recurring-maintenance-child-runs.md).
 
 ## Engineering Rules & Workflow
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)

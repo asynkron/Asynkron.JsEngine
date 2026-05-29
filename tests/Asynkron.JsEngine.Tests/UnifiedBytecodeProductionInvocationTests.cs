@@ -81,6 +81,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleAsyncAwaitReturn_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(input) {
+                await input;
+                return await 41;
+            }
+
+            run(1).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(41d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleGeneratorYieldStar_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* relay(values) {
+                yield* values;
+            }
+
+            var iterator = relay([3]);
+            var first = iterator.next();
+            var second = iterator.next();
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(3d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(Symbol.Undefined, steps.Items[2]);
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=relay argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task MissingArgument_InitializesParameterSlotToUndefined()
     {
         await using var engine = CreateEngine();

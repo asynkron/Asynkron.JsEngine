@@ -169,18 +169,11 @@ internal static class UnifiedBytecodeProductionEligibility
         ExecutionPlan plan,
         in UnifiedBytecodeProductionActivationDescriptor activation)
     {
-        if (activation.IsAsyncLike)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction,
-                "Async-like functions are not yet eligible for resumable unified bytecode routing.");
-        }
-
-        if (!activation.IsGenerator)
+        if (!activation.IsAsyncLike && !activation.IsGenerator)
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
-                "Only generator functions are currently eligible for resumable unified bytecode routing.");
+                "Only async-like or generator functions are currently eligible for resumable unified bytecode routing.");
         }
 
         if (activation.HasCapturedOrDynamicActivation)
@@ -237,7 +230,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return UnifiedBytecodeProductionEligibilityResult.Decline(declineCode, declineReason);
         }
 
-        if (!UnifiedBytecodeCompiler.TryCompile(plan, isAsync: false, isGenerator: true, out var program, out var compileReason))
+        if (!UnifiedBytecodeCompiler.TryCompile(
+                plan,
+                activation.IsAsyncLike,
+                activation.IsGenerator,
+                out var program,
+                out var compileReason))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
@@ -446,18 +444,14 @@ internal static class UnifiedBytecodeProductionEligibility
             case ReturnInstruction { AwaitedProgram: null }:
             case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } }:
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } or null }:
+            case AwaitAndDiscardInstruction:
+            case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
                 declineReason = string.Empty;
                 return true;
             case YieldStarInstruction:
-                declineReason = "yield* requires delegated iterator state and is not yet eligible for resumable unified bytecode routing.";
-                return false;
-            case AwaitAndDiscardInstruction:
-                declineReason = "await-and-discard requires async promise scheduling and is not yet eligible for resumable unified bytecode routing.";
-                return false;
-            case ReturnInstruction { AwaitedProgram: not null }:
-                declineReason = "awaited return requires async promise scheduling and is not yet eligible for resumable unified bytecode routing.";
-                return false;
+                declineReason = string.Empty;
+                return true;
             default:
                 declineReason =
                     $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";
@@ -473,6 +467,15 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } yieldProgram }:
                 program = yieldProgram;
+                return true;
+            case AwaitAndDiscardInstruction awaitAndDiscard:
+                program = awaitAndDiscard.AwaitedProgram;
+                return true;
+            case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
+                program = awaitedReturnProgram;
+                return true;
+            case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram }:
+                program = iterableProgram;
                 return true;
             default:
                 return TryGetExpressionProgram(instruction, out program);
@@ -498,7 +501,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or
                 UnifiedBytecodeOpCode.Yield or
-                UnifiedBytecodeOpCode.StoreResumeValue)
+                UnifiedBytecodeOpCode.StoreResumeValue or
+                UnifiedBytecodeOpCode.AwaitAndDiscard or
+                UnifiedBytecodeOpCode.AwaitedReturn or
+                UnifiedBytecodeOpCode.YieldStar)
             {
                 continue;
             }
@@ -1599,8 +1605,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return activationSlots.SlotMap.ContainsKey(identifier.Name);
+        return activationSlots.SlotMap.ContainsKey(identifier.Name) ||
+               IsYieldStarSyntheticResult(identifier.Name);
     }
+
+    private static bool IsYieldStarSyntheticResult(Symbol symbol) =>
+        symbol.Name.StartsWith("__yield_lower_resume", StringComparison.Ordinal);
 
     private static bool TryResolveActivationSymbolSlot(
         Symbol symbol,

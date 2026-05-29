@@ -1889,6 +1889,11 @@ internal static class UnifiedBytecodeVirtualMachine
             return CompleteAlreadyFinishedResumable(mode, resumeValue);
         }
 
+        if (state.PendingAbruptCompletion.Kind is not UnifiedBytecodeAbruptCompletionKind.None)
+        {
+            return CompletePendingAbruptCompletion(state);
+        }
+
         state.ResumePayloadKind = mode switch
         {
             UnifiedBytecodeResumeMode.Throw => UnifiedBytecodeResumePayloadKind.Throw,
@@ -1994,9 +1999,21 @@ internal static class UnifiedBytecodeVirtualMachine
                     switch (resumeKind)
                     {
                         case UnifiedBytecodeResumePayloadKind.Throw:
+                            state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Throw,
+                                payload,
+                                Target: -1,
+                                ResumeTarget: programCounter + 1,
+                                OriginatedInFinally: false);
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(payload);
                         case UnifiedBytecodeResumePayloadKind.Return:
+                            state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                                UnifiedBytecodeAbruptCompletionKind.Return,
+                                payload,
+                                Target: -1,
+                                ResumeTarget: programCounter + 1,
+                                OriginatedInFinally: false);
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Completed(payload);
                         default:
@@ -2010,6 +2027,146 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     break;
+
+                case UnifiedBytecodeOpCode.AwaitAndDiscard:
+                    if (TryConsumePendingAwaitResume(state, out var awaitedDiscard, out var awaitedDiscardThrow))
+                    {
+                        if (awaitedDiscardThrow)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(awaitedDiscard);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                    var awaitDiscardCandidate = stack[--stackPointer];
+                    var awaitDiscardPendingPromise = state.PendingAwaitPromise;
+                    if (!AwaitScheduler.TryResolvePromiseOrYield(
+                            awaitDiscardCandidate,
+                            asyncStepMode: true,
+                            ref awaitDiscardPendingPromise,
+                            context,
+                            out _))
+                    {
+                        state.PendingAwaitPromise = awaitDiscardPendingPromise;
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                        state.ResumePayload = JsValue.Undefined;
+                        return UnifiedBytecodeStepResult.PendingAwait(state.PendingAwaitPromise);
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.AwaitedReturn:
+                    if (TryConsumePendingAwaitResume(state, out var awaitedReturn, out var awaitedReturnThrow))
+                    {
+                        state.IsCompleted = true;
+                        state.ProgramCounter = programCounter + 1;
+                        state.StackPointer = stackPointer;
+                        return awaitedReturnThrow
+                            ? UnifiedBytecodeStepResult.Throw(awaitedReturn)
+                            : UnifiedBytecodeStepResult.Completed(awaitedReturn);
+                    }
+
+                    var awaitReturnCandidate = stack[--stackPointer];
+                    var awaitReturnPendingPromise = state.PendingAwaitPromise;
+                    if (!AwaitScheduler.TryResolvePromiseOrYield(
+                            awaitReturnCandidate,
+                            asyncStepMode: true,
+                            ref awaitReturnPendingPromise,
+                            context,
+                            out var resolvedReturn))
+                    {
+                        state.PendingAwaitPromise = awaitReturnPendingPromise;
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                        state.ResumePayload = JsValue.Undefined;
+                        return UnifiedBytecodeStepResult.PendingAwait(state.PendingAwaitPromise);
+                    }
+
+                    state.IsCompleted = true;
+                    state.ProgramCounter = programCounter + 1;
+                    state.StackPointer = stackPointer;
+                    return context.IsThrow
+                        ? UnifiedBytecodeStepResult.Throw(context.FlowValue)
+                        : UnifiedBytecodeStepResult.Completed(resolvedReturn);
+
+                case UnifiedBytecodeOpCode.YieldStar:
+                    var yieldStarDescriptor = program.DriverDescriptors[instruction.Operand];
+                    if (!TryGetDriverState<IteratorDriverState>(slots, yieldStarDescriptor.StateSlot, out var yieldStarState))
+                    {
+                        var iterable = stack[--stackPointer];
+                        yieldStarState = CreateIteratorDriverState(iterable, IteratorDriverKind.Sync, context);
+                        slots[yieldStarDescriptor.StateSlot] = JsValue.FromObjectUnsafe(yieldStarState);
+                    }
+
+                    var delegatedResumeKind = state.ResumePayloadKind;
+                    var delegatedResumePayload = state.ResumePayload;
+                    state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                    state.ResumePayload = JsValue.Undefined;
+                    if (delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Throw)
+                    {
+                        state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Throw,
+                            delegatedResumePayload,
+                            Target: -1,
+                            ResumeTarget: programCounter,
+                            OriginatedInFinally: false);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(delegatedResumePayload);
+                    }
+
+                    if (delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Return)
+                    {
+                        CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                        state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
+                            UnifiedBytecodeAbruptCompletionKind.Return,
+                            delegatedResumePayload,
+                            Target: -1,
+                            ResumeTarget: programCounter,
+                            OriginatedInFinally: false);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Completed(delegatedResumePayload);
+                    }
+
+                    if (!TryReadIteratorNextValue(
+                            yieldStarState,
+                            context,
+                            callingEnvironment: null,
+                            out var delegatedValue,
+                            out var delegatedDone))
+                    {
+                        CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    if (delegatedDone)
+                    {
+                        CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                        if (yieldStarDescriptor.ValueSlot >= 0)
+                        {
+                            slots[yieldStarDescriptor.ValueSlot] = delegatedValue;
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                    state.ProgramCounter = programCounter;
+                    state.StackPointer = stackPointer;
+                    return UnifiedBytecodeStepResult.Yield(delegatedValue);
 
                 case UnifiedBytecodeOpCode.Return:
                     state.IsCompleted = true;
@@ -2031,12 +2188,6 @@ internal static class UnifiedBytecodeVirtualMachine
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Throw(throwValue);
 
-                case UnifiedBytecodeOpCode.AwaitAndDiscard:
-                case UnifiedBytecodeOpCode.AwaitedReturn:
-                case UnifiedBytecodeOpCode.YieldStar:
-                    throw new NotSupportedException(
-                        $"Unified bytecode resumable opcode '{instruction.OpCode}' is reserved but not enabled by production eligibility.");
-
                 default:
                     throw new NotSupportedException(
                         $"Unified bytecode opcode '{instruction.OpCode}' is not supported by the resumable execution path.");
@@ -2047,6 +2198,43 @@ internal static class UnifiedBytecodeVirtualMachine
         state.ProgramCounter = programCounter;
         state.StackPointer = stackPointer;
         return UnifiedBytecodeStepResult.Completed(JsValue.Undefined);
+    }
+
+    private static bool TryConsumePendingAwaitResume(
+        UnifiedBytecodeResumeState state,
+        out JsValue value,
+        out bool isThrow)
+    {
+        if (state.PendingAwaitPromise.IsUndefined)
+        {
+            value = JsValue.Undefined;
+            isThrow = false;
+            return false;
+        }
+
+        var resumeKind = state.ResumePayloadKind;
+        value = resumeKind == UnifiedBytecodeResumePayloadKind.None
+            ? JsValue.Undefined
+            : state.ResumePayload;
+        isThrow = resumeKind == UnifiedBytecodeResumePayloadKind.Throw;
+        state.PendingAwaitPromise = JsValue.Undefined;
+        state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+        state.ResumePayload = JsValue.Undefined;
+        return true;
+    }
+
+    private static UnifiedBytecodeStepResult CompletePendingAbruptCompletion(UnifiedBytecodeResumeState state)
+    {
+        var pending = state.PendingAbruptCompletion;
+        state.PendingAbruptCompletion = UnifiedBytecodePendingAbruptCompletion.None;
+        state.IsCompleted = true;
+        state.ProgramCounter = pending.ResumeTarget >= 0 ? pending.ResumeTarget : state.ProgramCounter;
+        return pending.Kind switch
+        {
+            UnifiedBytecodeAbruptCompletionKind.Throw => UnifiedBytecodeStepResult.Throw(pending.Value),
+            UnifiedBytecodeAbruptCompletionKind.Return => UnifiedBytecodeStepResult.Completed(pending.Value),
+            _ => UnifiedBytecodeStepResult.Completed(JsValue.Undefined)
+        };
     }
 
     public static JsObject CreateIteratorResult(JsValue value, bool done)

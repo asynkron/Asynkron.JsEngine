@@ -142,6 +142,138 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void ExecuteResumable_AwaitedReturn_PreservesPendingAwaitAndCompletesWithResumeValue()
+    {
+        var program = new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitedReturn)),
+            MaxStackDepth: 1,
+            SlotCount: 0,
+            LiteralConstants: ImmutableArray.Create(JsValue.FromDouble(10)),
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray<string?>.Empty,
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var state = new UnifiedBytecodeResumeState(program, []);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.PendingAwait, first.Kind);
+        Assert.False(state.PendingAwaitPromise.IsUndefined);
+        Assert.Equal(1, state.ProgramCounter);
+
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.FromDouble(42),
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.Equal(42d, second.Value.AsDouble());
+        Assert.True(state.IsCompleted);
+    }
+
+    [Fact]
+    public void ExecuteResumable_AwaitAndDiscard_ResumesAfterPendingAwait()
+    {
+        var program = new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitAndDiscard),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 1,
+            SlotCount: 0,
+            LiteralConstants: ImmutableArray.Create(JsValue.FromDouble(10), JsValue.FromDouble(7)),
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray<string?>.Empty,
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var state = new UnifiedBytecodeResumeState(program, []);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.FromDouble(41),
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.PendingAwait, first.Kind);
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.Equal(7d, second.Value.AsDouble());
+    }
+
+    [Fact]
+    public void ExecuteResumable_PendingAbruptCompletion_SurvivesSuspensionAndResume()
+    {
+        var program = new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined)),
+            MaxStackDepth: 1,
+            SlotCount: 0,
+            LiteralConstants: ImmutableArray.Create(JsValue.FromDouble(10)),
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray<string?>.Empty,
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var state = new UnifiedBytecodeResumeState(program, []);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+        state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
+            UnifiedBytecodeAbruptCompletionKind.Return,
+            JsValue.FromDouble(42),
+            Target: -1,
+            ResumeTarget: 2,
+            OriginatedInFinally: true);
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.Equal(42d, second.Value.AsDouble());
+        Assert.Equal(UnifiedBytecodeAbruptCompletionKind.None, state.PendingAbruptCompletion.Kind);
+    }
+
+    [Fact]
     public void TryCompile_SimpleGeneratorYieldSend_ProducesResumableOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
@@ -159,6 +291,89 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         Assert.Contains(
             program.Instructions,
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreResumeValue);
+    }
+
+    [Fact]
+    public void TryCompile_AsyncAwaitedReturnAndAwaitDiscard_ProducesResumableAwaitOps()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            async function run(input) {
+                await input;
+                return await 41;
+            }
+            """,
+            "run");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(
+            program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitAndDiscard);
+        Assert.Contains(
+            program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitedReturn);
+    }
+
+    [Fact]
+    public void TryCompile_SyncGeneratorYieldStar_ProducesResumableYieldStarOp()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function* relay(values) {
+                yield* values;
+            }
+            """,
+            "relay");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(
+            program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
+        Assert.NotEmpty(program.DriverDescriptors);
+    }
+
+    [Fact]
+    public void ExecuteResumable_YieldStar_DelegatesSyncIterable()
+    {
+        var program = new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.YieldStar, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined)),
+            MaxStackDepth: 1,
+            SlotCount: 2,
+            LiteralConstants: ImmutableArray<JsValue>.Empty,
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray.Create<string?>("values", "state"),
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray.Create(new UnifiedBytecodeDriverDescriptor(StateSlot: 1)));
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new[] { JsValue.FromJsObject(CreateSingleValueIterable(JsValue.FromDouble(9), () => { })), JsValue.Undefined };
+        var state = new UnifiedBytecodeResumeState(program, slots);
+
+        var first = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+        var second = UnifiedBytecodeVirtualMachine.ExecuteResumable(
+            state,
+            UnifiedBytecodeResumeMode.Next,
+            JsValue.Undefined,
+            context);
+
+        Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
+        Assert.Equal(9d, first.Value.AsDouble());
+        Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
+        Assert.True(second.Value.IsUndefined);
     }
 
     [Fact]
@@ -1161,7 +1376,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_AsyncSimpleReturn_Declines()
+    public void TryCompile_AsyncSimpleReturn_ProducesReturnOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             async function add(x, y) {
@@ -1170,9 +1385,9 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "add");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("not eligible", reason, StringComparison.Ordinal);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Return);
     }
 
     [Fact]

@@ -2347,7 +2347,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var plan = GetClassMethodPlan("""
             class Counter {
                 inc() {
-                    this.count = this.count + 1;
+                    this.count = 1;
                 }
             }
             """,

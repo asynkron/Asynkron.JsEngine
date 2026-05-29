@@ -63,10 +63,13 @@ Remove the blanket `_homeObject is not null` pre-gate from
 
 ## Consequences
 
-- Ordinary sync class instance methods and object literal methods that read or
-  write `this.prop` now route through the production unified-bytecode VM
-  instead of falling back to `SyncIrCallTrampoline` or generic
-  `ExecutionPlanRunner`.
+- Ordinary sync class instance methods and object literal methods that read
+  `this.prop`, or write `this.prop` within the existing property-write
+  boundary (simple assignments such as `this.prop = slot/constant`), now route
+  through the production unified-bytecode VM instead of falling back to
+  `SyncIrCallTrampoline` or generic `ExecutionPlanRunner`. Compound reads-then-
+  writes such as `this.prop = this.prop + n` are still declined by the existing
+  `PropertyWriteDependency` boundary.
 - Strict and sloppy `this` semantics are preserved: `TryInvokeProductionUnifiedBytecode`
   computes `boundThis` via `CoerceThisValueForNonStrict` before VM entry, and
   `LoadThis` in the program loads the pre-coerced value. Sloppy-mode primitive
@@ -82,7 +85,8 @@ Remove the blanket `_homeObject is not null` pre-gate from
 - Focused proof pack covers strict `this` read, sloppy `this` coercion
   (primitive `this` boxed by `CoerceThisValueForNonStrict`), class instance
   method `this.prop` read using the unified bytecode fast path, plain
-  object-method `this.prop` mutation, negative super-property class method
+  object-method simple `this.prop` write (`this.prop = constant`) within the
+  existing property-write boundary, negative super-property class method
   (still declines via `SuperPropertyDependency`), and negative arrow function
   captured `this` (still declines via `IsArrowFunction` pre-gate).
 

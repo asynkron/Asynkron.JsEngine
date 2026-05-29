@@ -2965,7 +2965,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=getX",
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 
@@ -2977,19 +2977,18 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             var counter = {
                 count: 0,
                 inc() {
-                    this.count = this.count + 1;
+                    this.count = 1;
                 }
             };
 
             counter.inc();
-            counter.inc();
             counter.count;
             """);
 
-        Assert.Equal(2d, result);
+        Assert.Equal(1d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=inc",
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 

@@ -189,6 +189,21 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Activ
      but build-back repairs caught both the `"00"` alias bug and stale
      seal/freeze lazy descriptor flags. Related ADR:
      `docs/adrs/0265-keep-arguments-lazy-index-descriptors-observable-and-integrity-synced.md`.
+20b. When optimizing direct `arguments.length` reads, keep the shortcut owned
+     by `JsArgumentsObject` and valid only while the initial length property is
+     untouched. Assignment, delete, and `defineProperty` on `length` must
+     disable the direct value before falling back to ordinary backing-object
+     behavior, so later reads observe data-property mutation, deletion,
+     descriptor effects, and prototype fallback. A generic property helper may
+     ask a concrete arguments object for the untouched length value, but it must
+     not own the mutation state or treat every property named `length` as a
+     direct read. Pair retained changes with proof-pack coverage for untouched
+     length, mutation, deletion, prototype fallback, and still-direct numeric
+     index reads. WHY: issue `autrun-diupj7a8kdqg-135f5b6bd4` / PR #2612
+     retained an 11.7% `activation-arguments-lite` median win by bypassing
+     generic lookup for untouched `arguments.length`, while preserving
+     mutation/prototype semantics through fallback. Related ADR:
+     `docs/adrs/0276-keep-arguments-length-direct-read-untouched-and-descriptor-aware.md`.
 21. When adding or widening base-class-constructor simple IR activation fast
     paths, keep eligibility aligned with the binder and environment contract.
     `BindSimpleIrActivationParameters` is a positional simple-identifier

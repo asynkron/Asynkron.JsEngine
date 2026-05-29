@@ -103,7 +103,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleGeneratorYieldStar_UsesResumableUnifiedBytecodeFastPath()
+    public async Task SimpleGeneratorYieldStar_DeclinesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -122,14 +122,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.False(steps.Items[1].AsBoolean());
         Assert.Equal(Symbol.Undefined, steps.Items[2]);
         Assert.True(steps.Items[3].AsBoolean());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-resumable-generator-fast-path func=relay argc=1",
+                "unified-bytecode-resumable-generator-fast-path func=relay",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleGeneratorYieldStar_ForwardsResumePayloadInUnifiedBytecodeFastPath()
+    public async Task SimpleGeneratorYieldStar_ReturnDelegatesThroughIrAfterResumableDecline()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -140,15 +140,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             var calls = [];
             var delegated = {
                 [Symbol.iterator]() {
-                    var count = 0;
                     return {
-                        next(value) {
-                            calls.push(value);
-                            if (count++ === 0) {
-                                return { value: 1, done: false };
-                            }
-
-                            return { value, done: true };
+                        next() {
+                            calls.push("next");
+                            return { value: "first", done: false };
+                        },
+                        return(value) {
+                            calls.push("return:" + value);
+                            return { value: "closed:" + value, done: true };
                         }
                     };
                 }
@@ -156,23 +155,62 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
             var iterator = outer(delegated);
             var first = iterator.next();
-            var second = iterator.next(42);
-            var third = iterator.next();
-            [first.value, first.done, calls[0] === undefined, calls[1], second.value, second.done, third.value, third.done];
+            var second = iterator.return("stop");
+            [first.value, first.done, second.value, second.done, calls.join(",")];
             """);
 
         var steps = Assert.IsType<JsTypes.JsArray>(result);
-        Assert.Equal(1d, steps.Items[0].AsDouble());
+        Assert.Equal("first", steps.Items[0].AsString());
         Assert.False(steps.Items[1].AsBoolean());
-        Assert.True(steps.Items[2].AsBoolean());
-        Assert.Equal(42d, steps.Items[3].AsDouble());
-        Assert.Equal(42d, steps.Items[4].AsDouble());
-        Assert.True(steps.Items[5].AsBoolean());
-        Assert.Equal(Symbol.Undefined, steps.Items[6]);
-        Assert.True(steps.Items[7].AsBoolean());
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.Equal("closed:stop", steps.Items[2].AsString());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Equal("next,return:stop", steps.Items[4].AsString());
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-resumable-generator-fast-path func=outer argc=1",
+                "unified-bytecode-resumable-generator-fast-path func=outer",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleGeneratorYieldStar_ThrowDelegatesThroughIrAfterResumableDecline()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* outer(delegated) {
+                return yield* delegated;
+            }
+
+            var calls = [];
+            var delegated = {
+                [Symbol.iterator]() {
+                    return {
+                        next() {
+                            calls.push("next");
+                            return { value: "first", done: false };
+                        },
+                        throw(value) {
+                            calls.push("throw:" + value);
+                            return { value: "handled:" + value, done: true };
+                        }
+                    };
+                }
+            };
+
+            var iterator = outer(delegated);
+            var first = iterator.next();
+            var second = iterator.throw("boom");
+            [first.value, first.done, second.value, second.done, calls.join(",")];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("first", steps.Items[0].AsString());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal("handled:boom", steps.Items[2].AsString());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Equal("next,throw:boom", steps.Items[4].AsString());
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=outer",
                 StringComparison.Ordinal));
     }
 

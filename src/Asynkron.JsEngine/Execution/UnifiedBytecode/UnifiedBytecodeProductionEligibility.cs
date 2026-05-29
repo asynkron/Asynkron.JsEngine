@@ -457,8 +457,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 declineReason = string.Empty;
                 return true;
             case YieldStarInstruction:
-                declineReason = string.Empty;
-                return true;
+                declineReason =
+                    "YieldStar is not eligible for resumable unified bytecode routing until delegated return/throw is modeled.";
+                return false;
             default:
                 declineReason =
                     $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";

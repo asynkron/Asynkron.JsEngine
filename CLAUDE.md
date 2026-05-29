@@ -12,9 +12,10 @@ Use these task-specific guides while working in the repo. MUST READ AND UNDERSTA
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
 - [CPU and allocation profiling workflow](agents/how-to-profile.md)
 - [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
-- Recurring maintenance child runs: check active sibling summaries first and report the stable evidence fields `Baseline signal`, `Final signal`, `Sibling check`, `Slice check`, and `Scope note`; use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [.claude/rules/recurring-maintenance-child-runs.md](.claude/rules/recurring-maintenance-child-runs.md).
+- Recurring maintenance child runs: check active sibling summaries first and report the stable evidence fields `Baseline signal`, `Final signal`, `Sibling check`, `Slice check`, and `Scope note`; use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [docs/rules/recurring-maintenance-child-runs.md](docs/rules/recurring-maintenance-child-runs.md).
 
 ## Engineering Rules & Workflow
+- Durable preventive rules live in [`docs/rules/`](docs/rules/README.md), **not** `.claude/rules/` (Claude Code auto-loads that folder in full and it overflows agent prompts). Scan [`docs/rules/README.md`](docs/rules/README.md) and read only the rule files whose scope matches your task.
 - [Development rules (thread safety, compliance, timeouts)](agents/how-to-development-rules.md)
 - [Workflow and GitHub issue logging](agents/how-to-workflow-and-issues.md) — GitHub issues are the persistent working memory; use Faktorial Source Context/API when supplied, otherwise use the `gh` CLI patterns there to view/create/comment/patch and log progress.
 - [Git worktree workflow](agents/how-to-worktrees.md)

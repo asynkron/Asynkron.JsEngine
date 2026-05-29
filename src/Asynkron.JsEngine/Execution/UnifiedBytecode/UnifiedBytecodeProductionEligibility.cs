@@ -169,6 +169,13 @@ internal static class UnifiedBytecodeProductionEligibility
         ExecutionPlan plan,
         in UnifiedBytecodeProductionActivationDescriptor activation)
     {
+        if (activation.IsAsyncLike && activation.IsGenerator)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction,
+                "Async-like generator activation is not eligible for resumable unified bytecode routing.");
+        }
+
         if (!activation.IsAsyncLike && !activation.IsGenerator)
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(

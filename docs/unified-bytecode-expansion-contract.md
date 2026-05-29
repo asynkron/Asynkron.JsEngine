@@ -118,7 +118,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `ThisDependency`
+- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync)*
 - `NewTargetDependency`
 - `CallDependency`
 - `DynamicLookupDependency`
@@ -155,6 +155,29 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Unary, binary, and conversion operations
 - Control flow, stack mechanics, and invocation
 - Stateful iterator, for-in, and array destructuring driver operations
+
+## Production This-Binding Boundary
+- Ordinary sync functions that reference `this` are admitted to the production
+  unified-bytecode path. The `_homeObject is not null` blanket rejection was
+  removed from `CanUseProductionUnifiedBytecodeFastPath` in PR #2633 (ADR 0279).
+- `_homeObject` is set for all class methods and object-literal methods defined
+  with method-definition syntax. A class method is admitted when its plan body
+  contains no super-property opcodes.
+- The plan-level `SuperPropertyDependency` decline in
+  `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
+  net for class methods that use `super`. Super-property reads, writes, and
+  updates (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
+  `SetNamedSuperProperty`, `SetComputedSuperProperty`,
+  `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`,
+  `EnsureSuperReference`) still decline before VM execution.
+- Sloppy-mode `this` coercion is handled before VM entry: `boundThis` is
+  computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
+  so the VM's `LoadThis` opcode always receives the correctly coerced value.
+- Arrow functions still decline via the `IsArrowFunction` and
+  `_lexicalThisEnvironment is not null` pre-gates.
+- `HasThisDependency` in `UnifiedBytecodeProductionActivationDescriptor` is
+  never set for ordinary sync functions (defaults to `false`). It is kept as an
+  explicit gate for future shapes where `this` must be declined.
 
 ## Production Loop-Control Boundary
 - Current production control-flow support is compiler-owned, not

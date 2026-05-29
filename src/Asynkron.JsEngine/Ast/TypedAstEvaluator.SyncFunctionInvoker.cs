@@ -3146,7 +3146,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !canUseDynamicNamePath ||
                 !_allowIdentifierCache && !canUseDynamicNamePath ||
                 _lexicalThisEnvironment is not null ||
-                _homeObject is not null ||
                 PrivateNameScope is not null ||
                 !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
                 _superConstructor is not null ||

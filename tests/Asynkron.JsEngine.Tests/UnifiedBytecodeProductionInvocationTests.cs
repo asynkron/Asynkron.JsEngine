@@ -2944,6 +2944,140 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         throw new DirectoryNotFoundException("Could not locate repository root for unified-bytecode source gate.");
     }
 
+    // This-binding widening proof pack (issue #2633 / ADR 0279)
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassInstanceMethod_ThisPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Point {
+                getX() {
+                    return this.x;
+                }
+            }
+
+            var p = new Point();
+            p.x = 42;
+            p.getX();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=getX",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PlainObjectMethod_ThisPropertyMutation_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var counter = {
+                count: 0,
+                inc() {
+                    this.count = this.count + 1;
+                }
+            };
+
+            counter.inc();
+            counter.inc();
+            counter.count;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inc",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task StrictFunction_ThisPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            "use strict";
+
+            function readOwn(obj) {
+                return obj.value;
+            }
+
+            readOwn({ value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOwn",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SloppyFunction_PrimitiveThis_IsCoercedBeforeVmEntry()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function getLength() {
+                return this.length;
+            }
+
+            getLength.call("hello");
+            """);
+
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=getLength",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodWithSuperProperty_DeclinesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() { return 42; }
+            }
+
+            class Child extends Base {
+                readSuper() {
+                    return super.value;
+                }
+            }
+
+            new Child().readSuper();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readSuper",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeGetter(obj) {
+                var get = () => obj.value;
+                return get();
+            }
+
+            makeGetter({ value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=get",
+                StringComparison.Ordinal));
+    }
+
     public static TheoryData<string, string, double, string> UnsupportedControlFlowFunctions =>
         new()
         {

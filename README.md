@@ -85,6 +85,31 @@ rtk dotnet run --project examples/NodeHostDemo
 
 Runs the Node-shaped host sample that exposes a small `require(...)` module surface and can execute progressively larger CommonJS apps (including real npm frameworks) via the scripts documented in `examples/NodeHostDemo/README.md`.
 
+### Avalonia SVG Browser Demo
+
+A JsEngine-powered presentation viewer. Avalonia hosts the window and SVG
+surface; JsEngine runs `scripts/presentation.js`, which controls navigation,
+slide transitions, and SVG overlays through a small native bridge.
+
+```bash
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo
+```
+
+Start on a specific slide:
+
+```bash
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation 12
+```
+
+Smoke-test JS navigation without opening a window:
+
+```bash
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo -- --presentation-smoke
+```
+
+See `examples/AvaloniaSvgBrowserDemo/README.md` for the full bridge API,
+per-slide sidecar hooks, and additional smoke-test flags.
+
 ---
 
 ## Building and Testing

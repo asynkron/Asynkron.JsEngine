@@ -881,13 +881,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
     {
         var program = ParseProgramOrThrowSyntaxError(source);
-        return EvaluateSyncInternal(program, cancellationToken);
+        return EvaluateSyncInternal(program, cancellationToken).ToObject();
     }
 
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
-    private object? EvaluateSyncInternal(
+    private JsValue EvaluateSyncInternal(
         ProgramNode program,
         CancellationToken cancellationToken = default,
         string? sourcePath = null,
@@ -900,7 +900,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             EnsureImportMetaAllowed(program, isModule);
             if (!isModule)
             {
-                return UnwrapResult(ExecuteProgram(program, GlobalEnvironment, combinedToken));
+                return ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
 
             var entry = GetOrCreateModuleEntry(program, sourcePath);
@@ -913,7 +913,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
 
             EnsureModuleEvaluated(entry);
-#pragma warning disable CS0618 // Public API boundary: must return object? for external callers
+            return entry.LastValue;
             return entry.LastValue.ToObject();
 #pragma warning restore CS0618
         }
@@ -2033,9 +2033,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    ///     Registers a value in the global scope.
+    ///     Registers a value in the global scope (object overload for internal use).
     /// </summary>
     private void SetGlobal(string name, object? value, bool isGlobalConstant = false, bool registerBinding = false)
+    {
+        SetGlobal(name, JsValue.FromObjectUnsafe(value), isGlobalConstant, registerBinding);
+    }
+
+    /// <summary>
+    ///     Registers a value in the global scope.
+    /// </summary>
+    private void SetGlobal(string name, JsValue value, bool isGlobalConstant = false, bool registerBinding = false)
     {
         var symbol = Symbol.Intern(name);
         if (registerBinding)
@@ -2043,13 +2051,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Only register a binding when explicitly requested (e.g., host-added globals).
             // Built-ins defined during engine initialization are exposed as global object
             // properties so they don't block later lexical declarations (let/const).
-            GlobalEnvironment.DefineJsValue(symbol, JsValue.FromObjectUnsafe(value), isGlobalConstant: isGlobalConstant,
+            GlobalEnvironment.DefineJsValue(symbol, value, isGlobalConstant: isGlobalConstant,
                 isLexicalBinding: false);
         }
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
-        if (value is HostFunction hostFunction)
+        var obj = value.ToObject();
+        if (obj is HostFunction hostFunction)
         {
             if (hostFunction.Realm is null)
             {
@@ -2068,7 +2077,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }
         }
-        else if (value is JsObject { RealmState: null } jsObject)
+        else if (obj is JsObject { RealmState: null } jsObject)
         {
             jsObject.RealmState = RealmState;
         }
@@ -2135,7 +2144,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     /// </summary>
     public void SetGlobalValue(string name, object? value)
     {
-        SetGlobal(name, value, registerBinding: true);
+        SetGlobal(name, JsValue.FromObjectUnsafe(value), registerBinding: true);
     }
 
     /// <summary>

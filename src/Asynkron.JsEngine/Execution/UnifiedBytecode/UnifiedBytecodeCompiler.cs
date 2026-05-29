@@ -503,7 +503,7 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.LoadLiteral,
                             emptyDeclarationLiteralIndex));
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, emptyDeclarationSlot));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, emptyDeclarationSlot));
                         maxStackDepth = Math.Max(maxStackDepth, 1);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
@@ -572,7 +572,7 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,

@@ -325,9 +325,28 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
+                    if (slots[instruction.Operand].IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
                     var storedValue = stack[--stackPointer];
                     slots[instruction.Operand] = storedValue;
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, storedValue);
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.InitializeSlot:
+                    var initializedValue = stack[--stackPointer];
+                    slots[instruction.Operand] = initializedValue;
+                    SyncSlotEnvironment(slotEnvironments, instruction.Operand, initializedValue);
 
                     programCounter++;
                     break;
@@ -1912,6 +1931,18 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
+                    if (slots[instruction.Operand].IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    slots[instruction.Operand] = stack[--stackPointer];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.InitializeSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
                     programCounter++;
                     break;

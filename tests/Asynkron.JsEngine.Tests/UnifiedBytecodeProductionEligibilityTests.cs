@@ -34,6 +34,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                     UnifiedBytecodeOpCode.LoadSlot,
                     UnifiedBytecodeOpCode.LoadLiteral,
                     UnifiedBytecodeOpCode.StoreSlot,
+                    UnifiedBytecodeOpCode.InitializeSlot,
                     UnifiedBytecodeOpCode.Return
                 }));
     }

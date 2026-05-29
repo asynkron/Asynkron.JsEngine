@@ -489,6 +489,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
+                UnifiedBytecodeOpCode.InitializeSlot or
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.Pop or
                 UnifiedBytecodeOpCode.Jump or
@@ -1665,6 +1666,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                 case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:

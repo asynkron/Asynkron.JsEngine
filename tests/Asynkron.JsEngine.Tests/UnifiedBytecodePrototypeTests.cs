@@ -428,7 +428,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[0].OpCode);
         Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[1].OpCode);
         Assert.Equal(UnifiedBytecodeOpCode.Binary, program.Instructions[2].OpCode);
-        Assert.Equal(UnifiedBytecodeOpCode.StoreSlot, program.Instructions[3].OpCode);
+        Assert.Equal(UnifiedBytecodeOpCode.InitializeSlot, program.Instructions[3].OpCode);
         Assert.Equal(UnifiedBytecodeOpCode.LoadSlot, program.Instructions[4].OpCode);
         Assert.Equal(UnifiedBytecodeOpCode.Return, program.Instructions[5].OpCode);
 

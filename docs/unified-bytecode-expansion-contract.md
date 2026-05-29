@@ -26,6 +26,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
+- `InitializeSlot`
 - `DeclareDynamicVar`
 - `StoreDynamicIdentifier`
 - `ResolveDynamicIdentifierReference`
@@ -91,6 +92,11 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
 - `CallInvocationBoundary`
+- `Yield`
+- `StoreResumeValue`
+- `AwaitAndDiscard`
+- `AwaitedReturn`
+- `YieldStar`
 
 ### Production Decline Families (current)
 - `None`

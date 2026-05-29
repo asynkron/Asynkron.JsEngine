@@ -256,6 +256,24 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   dynamic-name shapes, and targets that cannot resolve to unified slots still
   decline before VM execution.
 
+## Production Resumable Boundary
+- Current production resumable support is a separate async/generator route with
+  VM-owned suspension state. Accepted programs preserve program counter,
+  operand stack, slots, pending await promise, pending resume payload, and
+  completion state inside the unified runtime.
+- Accepted resumable generator shapes include simple `yield` / resume-value
+  storage bodies that compile through `Yield` and `StoreResumeValue`.
+- Accepted resumable async shapes include simple awaited discard and awaited
+  return bodies that compile through `AwaitAndDiscard` and `AwaitedReturn`.
+- Captured/dynamic activation, arguments objects, `this`, `new.target`, calls,
+  dynamic lookup, labels, iterator/destructuring drivers, unsupported
+  expression payloads, and unmodeled statement families still decline before
+  VM execution.
+- `YieldStar` remains outside production resumable routing until delegated
+  `.return()` and `.throw()` resume behavior is modeled by the VM. Observable
+  delegated abrupt-resume behavior continues through the existing IR generator
+  path until that widening lands.
+
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes
 - VM-owned property and assignment semantics lanes

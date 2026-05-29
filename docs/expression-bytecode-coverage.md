@@ -5,6 +5,10 @@ This map tracks how concrete `ExpressionNode` types relate to current expression
 ## Scope And Baseline Note
 - This is baseline documentation and evidence only.
 - It does not claim runtime behavior changes, new bytecode support, or performance wins.
+- Ordinary sync production routing is tracked in
+  `docs/unified-bytecode-expansion-contract.md`; accepted production unified
+  programs now have a route-order source gate proving the VM attempt occurs
+  before `SyncIrCallTrampoline` and generic IR fallback.
 
 ## Source-Of-Truth Surfaces
 - Compiler dispatch/support: `src/Asynkron.JsEngine/Execution/Instructions/ExpressionProgramCompiler.cs`

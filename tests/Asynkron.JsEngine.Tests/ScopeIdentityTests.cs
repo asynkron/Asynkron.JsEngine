@@ -39,6 +39,7 @@ public sealed partial class ScopeIdentityTests
         const string script = """
             async function run() {
                 let x = 1;
+                arguments.length;
                 return x;
             }
             run();

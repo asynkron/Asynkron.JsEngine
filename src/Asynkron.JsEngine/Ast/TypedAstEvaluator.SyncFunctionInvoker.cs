@@ -103,6 +103,8 @@ public static partial class TypedAstEvaluator
         private readonly ImmutableArray<Symbol> _legacyTailRestartResetVarNames;
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
+        private readonly bool _hasFunctionDeclarations;
+        private readonly bool _hasParameterVarDeclarationWithoutInitializer;
         private readonly bool _hasHoistableDeclarations;
         private readonly bool _hasBodyWithStatement;
         private readonly bool _hasDirectEvalInBodyOrParameters;
@@ -175,6 +177,7 @@ public static partial class TypedAstEvaluator
                 .HasHoistableDeclarations;
             _hasHoistableDeclarations = hasHoistableDeclarations;
             var hasFunctionDeclarations = hoistPlan.HasFunctionDeclarations;
+            _hasFunctionDeclarations = hasFunctionDeclarations;
             _hasParameterExpressions = _function.HasParameterExpressions();
             // Allow identifier caching only if the function body has no with/eval AND
             // the closure chain has no with environments (functions defined inside with blocks
@@ -241,6 +244,8 @@ public static partial class TypedAstEvaluator
                 };
                 _hasFunctionDeclarationParameterConflict =
                     ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
+                _hasParameterVarDeclarationWithoutInitializer =
+                    ContainsParameterVarDeclarationWithoutInitializer(function, parameterNames);
                 _hasNonParameterCalleeCall =
                     ContainsNonParameterCalleeIdentifier(function, new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
             }
@@ -255,6 +260,8 @@ public static partial class TypedAstEvaluator
                 parameterNameSet.Add(Symbol.Arguments);
                 _hasFunctionDeclarationParameterConflict =
                     ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
+                _hasParameterVarDeclarationWithoutInitializer =
+                    ContainsParameterVarDeclarationWithoutInitializer(function, parameterNames);
                 _hasNonParameterCalleeCall = ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
             }
 
@@ -3141,6 +3148,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !_hasOnlySimpleIdentifierParameters ||
                 _usesArguments ||
                 _needsArgumentsBinding && !canUseDynamicNamePath ||
+                (_hasFunctionDeclarations || _hasParameterVarDeclarationWithoutInitializer) &&
+                !canUseDynamicNamePath ||
                 !_allowIdentifierCache && !canUseDynamicNamePath ||
                 _lexicalThisEnvironment is not null ||
                 _homeObject is not null ||
@@ -4191,6 +4200,107 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private static bool ContainsVarDeclaration(FunctionExpression function, Symbol name)
         {
             return VarDeclarationDetector.ContainsVarDeclaration(function.Body, name);
+        }
+
+        private static bool ContainsParameterVarDeclarationWithoutInitializer(
+            FunctionExpression function,
+            ImmutableArray<Symbol> parameterNames)
+        {
+            var statements = new Stack<StatementNode>();
+            statements.Push(function.Body);
+
+            while (statements.Count > 0)
+            {
+                var statement = statements.Pop();
+                switch (statement)
+                {
+                    case VariableDeclaration { Kind: VariableKind.Var } declaration:
+                        foreach (var declarator in declaration.Declarators)
+                        {
+                            if (declarator.Initializer is null &&
+                                declarator.Target is IdentifierBinding identifier &&
+                                IsParameterOrArguments(identifier.Name, parameterNames))
+                            {
+                                return true;
+                            }
+                        }
+
+                        break;
+                    case BlockStatement block:
+                        foreach (var inner in block.Statements)
+                        {
+                            statements.Push(inner);
+                        }
+
+                        break;
+                    case IfStatement ifStatement:
+                        statements.Push(ifStatement.Then);
+                        if (ifStatement.Else is { } elseBranch)
+                        {
+                            statements.Push(elseBranch);
+                        }
+
+                        break;
+                    case WhileStatement whileStatement:
+                        statements.Push(whileStatement.Body);
+                        break;
+                    case DoWhileStatement doWhileStatement:
+                        statements.Push(doWhileStatement.Body);
+                        break;
+                    case WithStatement withStatement:
+                        statements.Push(withStatement.Body);
+                        break;
+                    case ForStatement forStatement:
+                        statements.Push(forStatement.Body);
+                        break;
+                    case ForEachStatement forEachStatement:
+                        statements.Push(forEachStatement.Body);
+                        break;
+                    case LabeledStatement labeledStatement:
+                        statements.Push(labeledStatement.Statement);
+                        break;
+                    case TryStatement tryStatement:
+                        statements.Push(tryStatement.TryBlock);
+                        if (tryStatement.Catch?.Body is { } catchBody)
+                        {
+                            statements.Push(catchBody);
+                        }
+
+                        if (tryStatement.Finally is { } finallyBlock)
+                        {
+                            statements.Push(finallyBlock);
+                        }
+
+                        break;
+                    case SwitchStatement switchStatement:
+                        foreach (var switchCase in switchStatement.Cases)
+                        {
+                            statements.Push(switchCase.Body);
+                        }
+
+                        break;
+                }
+            }
+
+            return false;
+
+            static bool IsParameterOrArguments(Symbol name, ImmutableArray<Symbol> parameterNames)
+            {
+                if (string.Equals(name.Name, Symbol.Arguments.Name, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
+                for (var i = 0; i < parameterNames.Length; i++)
+                {
+                    if (string.Equals(name.Name, parameterNames[i].Name, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
         /// <summary>

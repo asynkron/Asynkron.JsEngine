@@ -34,13 +34,6 @@ internal static class UnifiedBytecodeCompiler
         out UnifiedBytecodeProgram program,
         out string reason)
     {
-        if (isAsync || isGenerator)
-        {
-            program = EmptyProgram();
-            reason = "Async and generator functions are not eligible for unified bytecode compilation.";
-            return false;
-        }
-
         if ((uint)plan.EntryPoint >= (uint)plan.Instructions.Length)
         {
             program = EmptyProgram();
@@ -482,6 +475,46 @@ internal static class UnifiedBytecodeCompiler
                 {
                     case SimpleVariableDeclarationInstruction
                         {
+                            InitializerProgram: null,
+                            AwaitedProgram: null,
+                            TargetSymbol: { } declarationTargetSymbol
+                        } declaration:
+                        if (!TryResolveDeclarationSlot(
+                                declarationTargetSymbol,
+                                declaration.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var emptyDeclarationSlot))
+                        {
+                            reason =
+                                $"Declaration target '{declarationTargetSymbol.Name}' is not eligible for unified bytecode storage.";
+                            return false;
+                        }
+
+                        var emptyDeclarationLiteralIndex = literalConstants.Count;
+                        literalConstants.Add(JsValue.Undefined);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.LoadLiteral,
+                            emptyDeclarationLiteralIndex));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, emptyDeclarationSlot));
+                        maxStackDepth = Math.Max(maxStackDepth, 1);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                declaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = declaration.Next;
+                        continue;
+
+                    case SimpleVariableDeclarationInstruction
+                        {
                             InitializerProgram: { } initializerProgram,
                             AwaitedProgram: null,
                             TargetSymbol: { } declarationTargetSymbol
@@ -532,7 +565,7 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlot));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
@@ -1530,6 +1563,196 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined));
                         reason = string.Empty;
                         return true;
+
+                    case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedReturnProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitedReturn));
+                        maxStackDepth = Math.Max(maxStackDepth, awaitedReturnProgram.MaxStackDepth);
+                        reason = string.Empty;
+                        return true;
+
+                    case AwaitAndDiscardInstruction awaitAndDiscard:
+                        if (!TryAppendExpressionProgramOps(
+                                awaitAndDiscard.AwaitedProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitAndDiscard));
+                        maxStackDepth = Math.Max(maxStackDepth, awaitAndDiscard.AwaitedProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                awaitAndDiscard.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = awaitAndDiscard.Next;
+                        continue;
+
+                    case YieldInstruction { AwaitedProgram: null, YieldProgram: { } yieldProgram } yield:
+                        if (!TryAppendExpressionProgramOps(
+                                yieldProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield));
+                        maxStackDepth = Math.Max(maxStackDepth, yieldProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                yield.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = yield.Next;
+                        continue;
+
+                    case YieldInstruction { AwaitedProgram: null, YieldProgram: null } yield:
+                        var undefinedLiteralIndex = literalConstants.Count;
+                        literalConstants.Add(JsValue.Undefined);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.LoadLiteral,
+                            undefinedLiteralIndex));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield));
+                        maxStackDepth = Math.Max(maxStackDepth, 1);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                yield.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = yield.Next;
+                        continue;
+
+                    case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram } yieldStar:
+                        if (yieldStar.StateSlotSymbol is null)
+                        {
+                            reason = "yield* requires a state slot for resumable unified bytecode routing.";
+                            return false;
+                        }
+
+                        if (!TryResolveYieldStarStateSlot(
+                                yieldStar.StateSlotSymbol,
+                                iterableProgram,
+                                slotLayout,
+                                activeScopes,
+                                out var yieldStarStateSlot))
+                        {
+                            reason = $"yield* state slot '{yieldStar.StateSlotSymbol.Name}' is not in the activation slot layout.";
+                            return false;
+                        }
+
+                        var yieldStarResultSlot = -1;
+                        if (yieldStar.ResultSlotSymbol is { } resultSymbol &&
+                            !TryResolveVisibleSymbolSlot(resultSymbol, slotLayout, activeScopes, out yieldStarResultSlot))
+                        {
+                            yieldStarResultSlot = yieldStarStateSlot;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                iterableProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        var yieldStarDescriptorIndex = driverDescriptors.Count;
+                        driverDescriptors.Add(new UnifiedBytecodeDriverDescriptor(
+                            StateSlot: yieldStarStateSlot,
+                            ValueSlot: yieldStarResultSlot));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.YieldStar,
+                            yieldStarDescriptorIndex));
+                        maxStackDepth = Math.Max(maxStackDepth, iterableProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                yieldStar.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = yieldStar.Next;
+                        continue;
+
+                    case StoreResumeValueInstruction storeResume:
+                        var resumeSlot = -1;
+                        if (storeResume.TargetSymbol is { } resumeSymbol &&
+                            !TryResolveActivationSymbolSlot(resumeSymbol, slotLayout, out resumeSlot))
+                        {
+                            reason = $"Resume target '{resumeSymbol.Name}' is not in the activation slot layout.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreResumeValue, resumeSlot));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                storeResume.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = storeResume.Next;
+                        continue;
 
                     case ThrowInstruction { ThrowProgram: { } throwProgram, AwaitedProgram: null }:
                         if (!TryAppendExpressionProgramOps(
@@ -4038,6 +4261,58 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
+    private static bool TryResolveVisibleSymbolSlot(
+        Symbol symbol,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        out int slotIndex)
+    {
+        foreach (var scope in activeScopes)
+        {
+            if (!scope.SlotMap.TryGetValue(symbol, out var scopedSlotIndex))
+            {
+                continue;
+            }
+
+            foreach (var (candidateSlotIndex, flatSlotId) in scope.FlatSlotMappings)
+            {
+                if (candidateSlotIndex == scopedSlotIndex)
+                {
+                    slotIndex = flatSlotId;
+                    return true;
+                }
+            }
+        }
+
+        return TryResolveActivationSymbolSlot(symbol, slotLayout, out slotIndex);
+    }
+
+    private static bool TryResolveYieldStarStateSlot(
+        Symbol symbol,
+        ExpressionProgram iterableProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        out int slotIndex)
+    {
+        if (TryResolveVisibleSymbolSlot(symbol, slotLayout, activeScopes, out slotIndex))
+        {
+            return true;
+        }
+
+        if (iterableProgram.OperationCount == 1)
+        {
+            var operation = iterableProgram.GetOperation(0);
+            if (operation.Kind == ExpressionOpKind.LoadIdentifier && !operation.IsArguments)
+            {
+                var identifier = operation.GetIdentifier(iterableProgram.IdentifierConstants.AsSpan());
+                return TryResolveActivationSlot(identifier, slotLayout.ActivationSlots, out slotIndex);
+            }
+        }
+
+        slotIndex = -1;
+        return false;
+    }
+
     private static bool TryResolveDeclarationSlot(
         Symbol symbol,
         VariableKind varKind,
@@ -4156,9 +4431,20 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (IsYieldStarSyntheticResult(identifier.Name) &&
+            slotLayout.ParameterSlotIndices is { IsDefaultOrEmpty: false } parameterSlots &&
+            parameterSlots[0] >= 0)
+        {
+            slotIndex = parameterSlots[0];
+            return true;
+        }
+
         slotIndex = -1;
         return false;
     }
+
+    private static bool IsYieldStarSyntheticResult(Symbol symbol) =>
+        symbol.Name.StartsWith("__yield_lower_resume", StringComparison.Ordinal);
 
     private static bool SlotNameMatches(UnifiedBytecodeSlotLayout slotLayout, int slotIndex, Symbol name) =>
         (uint)slotIndex < (uint)slotLayout.SlotNames.Length &&

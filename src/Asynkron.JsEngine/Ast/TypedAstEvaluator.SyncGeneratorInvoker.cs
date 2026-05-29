@@ -2,7 +2,9 @@
 
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.StdLib;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -41,9 +43,146 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
+            if (TryCreateUnifiedBytecodeGenerator(arguments, out var unifiedIterator))
+            {
+                return JsValue.FromJsObject(unifiedIterator);
+            }
+
             var runner = CreateRunner(arguments, thisValue);
             runner.Initialize();
             return (JsValue)runner.CreateGeneratorObject();
+        }
+
+        private bool TryCreateUnifiedBytecodeGenerator(
+            IReadOnlyList<JsValue> arguments,
+            out JsObject iterator)
+        {
+            iterator = null!;
+            if (!TryGetExecutionPlan(out var plan))
+            {
+                return false;
+            }
+
+            var activation = new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: false,
+                IsGenerator: true,
+                HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(_function) || _closure.HasWithObjectInChain(),
+                HasArgumentsObjectDependency: NeedsArgumentsBinding(_function));
+            var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
+            if (!eligibility.IsEligible)
+            {
+                return false;
+            }
+
+            var program = eligibility.Program;
+            var slots = new JsValue[program.SlotCount];
+            Array.Fill(slots, JsValue.Undefined);
+            InitializeLexicalSlots(slots, program);
+            PopulateParameterSlots(arguments, slots, program);
+            var state = new UnifiedBytecodeResumeState(program, slots);
+            var context = RealmState.CreateContext();
+
+            RealmState.Logger?.LogInformation(
+                "unified-bytecode-resumable-generator-fast-path func={Function} argc={ArgumentCount}",
+                _function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+
+            var prototype = GetGeneratorPrototype();
+            var createdIterator = CreateGeneratorIteratorObject(
+                args => ExecuteUnifiedBytecodeGeneratorStep(
+                    state,
+                    UnifiedBytecodeResumeMode.Next,
+                    args.GetArgument(0),
+                    context),
+                args => ExecuteUnifiedBytecodeGeneratorStep(
+                    state,
+                    UnifiedBytecodeResumeMode.Return,
+                    args.Count > 0 ? args[0] : JsValue.Undefined,
+                    context),
+                args => ExecuteUnifiedBytecodeGeneratorStep(
+                    state,
+                    UnifiedBytecodeResumeMode.Throw,
+                    args.Count > 0 ? args[0] : JsValue.Undefined,
+                    context),
+                prototype);
+            createdIterator.SetProperty(IteratorSymbolPropertyName,
+                JsValue.FromObjectUnsafe(new HostFunction((_, _) => JsValue.FromJsObject(createdIterator))));
+            createdIterator.SetProperty(GeneratorBrandPropertyName, JsValue.FromObjectUnsafe(GeneratorBrandMarker));
+            iterator = createdIterator;
+            return true;
+        }
+
+        private bool TryGetExecutionPlan(out ExecutionPlan plan)
+        {
+            if (_planSeed.Plan is { } seededPlan)
+            {
+                plan = seededPlan;
+                return true;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)_function).GetOrCreateCache();
+            if (cache.Plan is { } cachedPlan)
+            {
+                plan = cachedPlan;
+                return true;
+            }
+
+            plan = null!;
+            return false;
+        }
+
+        private static JsValue ExecuteUnifiedBytecodeGeneratorStep(
+            UnifiedBytecodeResumeState state,
+            UnifiedBytecodeResumeMode mode,
+            JsValue value,
+            EvaluationContext context)
+        {
+            var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(state, mode, value, context);
+            return step.Kind switch
+            {
+                UnifiedBytecodeStepKind.Yield =>
+                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false)),
+                UnifiedBytecodeStepKind.Completed =>
+                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true)),
+                UnifiedBytecodeStepKind.Throw => throw new ThrowSignal(step.Value),
+                _ => throw new NotSupportedException(
+                    $"Unified bytecode generator step '{step.Kind}' is not supported by synchronous generators.")
+            };
+        }
+
+        private static void InitializeLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
+        {
+            var lexicalSlotIndices = program.LexicalSlotIndices;
+            if (lexicalSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < lexicalSlotIndices.Length; i++)
+            {
+                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+            }
+        }
+
+        private static void PopulateParameterSlots(
+            IReadOnlyList<JsValue> arguments,
+            JsValue[] slots,
+            UnifiedBytecodeProgram program)
+        {
+            var parameterSlotIndices = program.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < parameterSlotIndices.Length; i++)
+            {
+                var parameterSlotIndex = parameterSlotIndices[i];
+                if (parameterSlotIndex >= 0)
+                {
+                    slots[parameterSlotIndex] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                }
+            }
         }
 
         protected override void EnsureIntrinsics()

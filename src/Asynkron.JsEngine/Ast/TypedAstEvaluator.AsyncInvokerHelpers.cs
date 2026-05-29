@@ -12,10 +12,16 @@ public static partial class TypedAstEvaluator
         ExecutionPlanRunner.AsyncGeneratorStepResult step,
         IJsCallable reject,
         out IJsCallable thenCallable)
+        => TryGetPendingThenMethod(step.PendingPromise, reject, out thenCallable);
+
+    private static bool TryGetPendingThenMethod(
+        JsValue pendingPromiseValue,
+        IJsCallable reject,
+        out IJsCallable thenCallable)
     {
         thenCallable = null!;
 
-        if (!step.PendingPromise.TryGetPropertyAccessor(out var pendingPromise))
+        if (!pendingPromiseValue.TryGetPropertyAccessor(out var pendingPromise))
         {
             AsyncInvokeWithOneArg(reject, (JsValue)"Awaited value is not a promise");
             return false;

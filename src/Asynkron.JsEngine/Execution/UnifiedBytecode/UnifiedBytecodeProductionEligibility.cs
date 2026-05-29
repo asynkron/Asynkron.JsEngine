@@ -165,6 +165,100 @@ internal static class UnifiedBytecodeProductionEligibility
         return UnifiedBytecodeProductionEligibilityResult.Accept(program);
     }
 
+    public static UnifiedBytecodeProductionEligibilityResult EvaluateResumable(
+        ExecutionPlan plan,
+        in UnifiedBytecodeProductionActivationDescriptor activation)
+    {
+        if (activation.IsAsyncLike && activation.IsGenerator)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction,
+                "Async-like generator activation is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (!activation.IsAsyncLike && !activation.IsGenerator)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                "Only async-like or generator functions are currently eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasCapturedOrDynamicActivation)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation,
+                "Captured or dynamic activation is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasArgumentsObjectDependency)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency,
+                "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasThisDependency)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.ThisDependency,
+                "'this' dependency is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasNewTargetDependency)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.NewTargetDependency,
+                "new.target dependency is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasCallDependency)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.CallDependency,
+                "Call/construct dependency is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (activation.HasDynamicLookupDependency)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency,
+                "Dynamic lookup dependency is not eligible for resumable unified bytecode routing.");
+        }
+
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                "Activation slot metadata is required.");
+        }
+
+        if (TryFindResumablePlanDecline(plan, activationSlots, out var declineCode, out var declineReason))
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(declineCode, declineReason);
+        }
+
+        if (!UnifiedBytecodeCompiler.TryCompile(
+                plan,
+                activation.IsAsyncLike,
+                activation.IsGenerator,
+                out var program,
+                out var compileReason))
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                $"Plan is not eligible for resumable unified bytecode routing: {compileReason}");
+        }
+
+        if (TryFindUnsupportedResumableOpcode(program, out declineReason))
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                declineReason);
+        }
+
+        return UnifiedBytecodeProductionEligibilityResult.Accept(program);
+    }
+
     private static bool TryFindPlanDecline(
         ExecutionPlan plan,
         ActivationSlotShape activationSlots,
@@ -281,6 +375,153 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool TryFindResumablePlanDecline(
+        ExecutionPlan plan,
+        ActivationSlotShape activationSlots,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (!UnifiedBytecodeWithDepthAnalysis.TryBuildActiveWithDepths(
+                plan.Instructions,
+                plan.EntryPoint,
+                out var activeWithDepths,
+                out var withDepthReason))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+            declineReason = withDepthReason;
+            return true;
+        }
+
+        for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
+        {
+            if (activeWithDepths[instructionIndex] < 0)
+            {
+                continue;
+            }
+
+            var instruction = plan.Instructions[instructionIndex];
+            var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
+            if (!IsSupportedResumableInstruction(instruction, out declineReason))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                return true;
+            }
+
+            if (!allowsDynamicIdentifiers &&
+                TryFindInstructionDynamicIdentifierDecline(
+                    instruction,
+                    activationSlots,
+                    out declineCode,
+                    out declineReason))
+            {
+                return true;
+            }
+
+            if (TryGetResumableExpressionProgram(instruction, out var program) &&
+                TryFindExpressionDecline(
+                    program,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    out declineCode,
+                    out declineReason))
+            {
+                return true;
+            }
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool IsSupportedResumableInstruction(ExecutionInstruction instruction, out string declineReason)
+    {
+        switch (instruction)
+        {
+            case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } }:
+            case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: null }:
+            case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
+            case EvaluateAndDiscardInstruction { ExpressionProgram: { } }:
+            case BranchInstruction:
+            case JumpInstruction:
+            case ReturnInstruction { AwaitedProgram: null }:
+            case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } }:
+            case YieldInstruction { AwaitedProgram: null, YieldProgram: { } or null }:
+            case AwaitAndDiscardInstruction:
+            case ReturnInstruction { AwaitedProgram: not null }:
+            case StoreResumeValueInstruction:
+                declineReason = string.Empty;
+                return true;
+            case YieldStarInstruction:
+                declineReason =
+                    "YieldStar is not eligible for resumable unified bytecode routing until delegated return/throw is modeled.";
+                return false;
+            default:
+                declineReason =
+                    $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";
+                return false;
+        }
+    }
+
+    private static bool TryGetResumableExpressionProgram(
+        ExecutionInstruction instruction,
+        out ExpressionProgram program)
+    {
+        switch (instruction)
+        {
+            case YieldInstruction { AwaitedProgram: null, YieldProgram: { } yieldProgram }:
+                program = yieldProgram;
+                return true;
+            case AwaitAndDiscardInstruction awaitAndDiscard:
+                program = awaitAndDiscard.AwaitedProgram;
+                return true;
+            case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
+                program = awaitedReturnProgram;
+                return true;
+            case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram }:
+                program = iterableProgram;
+                return true;
+            default:
+                return TryGetExpressionProgram(instruction, out program);
+        }
+    }
+
+    private static bool TryFindUnsupportedResumableOpcode(
+        UnifiedBytecodeProgram program,
+        out string declineReason)
+    {
+        foreach (var instruction in program.Instructions)
+        {
+            if (instruction.OpCode is
+                UnifiedBytecodeOpCode.LoadSlot or
+                UnifiedBytecodeOpCode.LoadLiteral or
+                UnifiedBytecodeOpCode.StoreSlot or
+                UnifiedBytecodeOpCode.InitializeSlot or
+                UnifiedBytecodeOpCode.Binary or
+                UnifiedBytecodeOpCode.Pop or
+                UnifiedBytecodeOpCode.Jump or
+                UnifiedBytecodeOpCode.JumpIfFalse or
+                UnifiedBytecodeOpCode.Return or
+                UnifiedBytecodeOpCode.ReturnUndefined or
+                UnifiedBytecodeOpCode.Throw or
+                UnifiedBytecodeOpCode.Yield or
+                UnifiedBytecodeOpCode.StoreResumeValue or
+                UnifiedBytecodeOpCode.AwaitAndDiscard or
+                UnifiedBytecodeOpCode.AwaitedReturn or
+                UnifiedBytecodeOpCode.YieldStar)
+            {
+                continue;
+            }
+
+            declineReason =
+                $"Unified bytecode opcode '{instruction.OpCode}' is not supported by resumable production routing.";
+            return true;
+        }
+
         declineReason = string.Empty;
         return false;
     }
@@ -1372,8 +1613,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return activationSlots.SlotMap.ContainsKey(identifier.Name);
+        return activationSlots.SlotMap.ContainsKey(identifier.Name) ||
+               IsYieldStarSyntheticResult(identifier.Name);
     }
+
+    private static bool IsYieldStarSyntheticResult(Symbol symbol) =>
+        symbol.Name.StartsWith("__yield_lower_resume", StringComparison.Ordinal);
 
     private static bool TryResolveActivationSymbolSlot(
         Symbol symbol,
@@ -1439,6 +1684,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                 case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:

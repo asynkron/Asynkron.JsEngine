@@ -34,6 +34,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                     UnifiedBytecodeOpCode.LoadSlot,
                     UnifiedBytecodeOpCode.LoadLiteral,
                     UnifiedBytecodeOpCode.StoreSlot,
+                    UnifiedBytecodeOpCode.InitializeSlot,
                     UnifiedBytecodeOpCode.Return
                 }));
     }
@@ -74,6 +75,67 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.GeneratorFunction, result.Code);
         Assert.Contains("Generator", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_SimpleGeneratorYieldSend_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(input) {
+                var x = yield input;
+                return x + 1;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreResumeValue);
+    }
+
+    [Fact]
+    public void EvaluateResumable_YieldStar_DeclinesUntilDelegatedAbruptResumeIsModeled()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(values) {
+                yield* values;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("YieldStar", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncLikeGeneratorActivation_DeclinesBeforeExecution()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen() {
+                yield 1;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
+        Assert.Contains("Async-like", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

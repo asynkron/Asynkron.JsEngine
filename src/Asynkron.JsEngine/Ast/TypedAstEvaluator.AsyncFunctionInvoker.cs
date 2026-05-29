@@ -3,6 +3,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Microsoft.Extensions.Logging;
 
@@ -36,6 +37,7 @@ public static partial class TypedAstEvaluator
         private readonly RealmState _realmState = realmState;
         private readonly FunctionExecutionPlanSeed _planSeed = planSeed;
         private ExecutionPlanRunner? _inner;
+        private UnifiedBytecodeResumeState? _unifiedState;
 
         /// <summary>
         ///     Executes the async function and returns a Promise that resolves/rejects
@@ -58,6 +60,11 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
+                    if (TryExecuteUnifiedBytecode(resolve, reject))
+                    {
+                        return JsValue.Undefined;
+                    }
+
                     // Initialize generator inside Promise to capture any early errors
                     _inner = new ExecutionPlanRunner(
                         function,
@@ -100,6 +107,130 @@ public static partial class TypedAstEvaluator
             return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
         }
 
+        private bool TryExecuteUnifiedBytecode(IJsCallable resolve, IJsCallable reject)
+        {
+            if (!TryGetExecutionPlan(out var plan))
+            {
+                return false;
+            }
+
+            var activation = new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: true,
+                IsGenerator: false,
+                HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
+                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function),
+                HasThisDependency: !thisValue.IsUndefined,
+                HasNewTargetDependency: false,
+                HasCallDependency: false);
+            var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
+            if (!eligibility.IsEligible)
+            {
+                return false;
+            }
+
+            var program = eligibility.Program;
+            var slots = new JsValue[program.SlotCount];
+            Array.Fill(slots, JsValue.Undefined);
+            InitializeLexicalSlots(slots, program);
+            PopulateParameterSlots(arguments, slots, program);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots);
+
+            _realmState.Logger?.LogInformation(
+                "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",
+                function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+
+            DriveUnifiedBytecodeToCompletion(
+                UnifiedBytecodeResumeMode.Next,
+                JsValue.Undefined,
+                resolve,
+                reject);
+            return true;
+        }
+
+        private bool TryGetExecutionPlan(out ExecutionPlan plan)
+        {
+            if (_planSeed.Plan is { } seededPlan)
+            {
+                plan = seededPlan;
+                return true;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+            if (cache.Plan is { } cachedPlan)
+            {
+                plan = cachedPlan;
+                return true;
+            }
+
+            plan = null!;
+            return false;
+        }
+
+        private void DriveUnifiedBytecodeToCompletion(
+            UnifiedBytecodeResumeMode mode,
+            JsValue argument,
+            IJsCallable resolve,
+            IJsCallable reject)
+        {
+            var context = _realmState.CreateContext();
+            var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(_unifiedState!, mode, argument, context);
+            switch (step.Kind)
+            {
+                case UnifiedBytecodeStepKind.Completed:
+                    AsyncInvokeWithOneArg(resolve, step.Value);
+                    break;
+                case UnifiedBytecodeStepKind.Throw:
+                    AsyncInvokeWithOneArg(reject, step.Value);
+                    break;
+                case UnifiedBytecodeStepKind.PendingAwait:
+                    HandlePendingPromise(step.PendingPromise, resolve, reject);
+                    break;
+                case UnifiedBytecodeStepKind.Yield:
+                    DriveUnifiedBytecodeToCompletion(
+                        UnifiedBytecodeResumeMode.Next,
+                        step.Value,
+                        resolve,
+                        reject);
+                    break;
+            }
+        }
+
+        private static void InitializeLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
+        {
+            var lexicalSlotIndices = program.LexicalSlotIndices;
+            if (lexicalSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < lexicalSlotIndices.Length; i++)
+            {
+                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+            }
+        }
+
+        private static void PopulateParameterSlots(
+            IReadOnlyList<JsValue> sourceArguments,
+            JsValue[] slots,
+            UnifiedBytecodeProgram program)
+        {
+            var parameterSlotIndices = program.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < parameterSlotIndices.Length; i++)
+            {
+                var parameterSlotIndex = parameterSlotIndices[i];
+                if (parameterSlotIndex >= 0)
+                {
+                    slots[parameterSlotIndex] = i < sourceArguments.Count ? sourceArguments[i] : JsValue.Undefined;
+                }
+            }
+        }
+
         private void DriveToCompletion(
             ExecutionPlanRunner.ResumeMode mode,
             JsValue argument,
@@ -134,7 +265,7 @@ public static partial class TypedAstEvaluator
 
                     case ExecutionPlanRunner.AsyncGeneratorStepKind.Pending:
                         // Await hit a pending promise - attach handlers to resume
-                        HandlePendingStep(step, resolve, reject);
+                        HandlePendingPromise(step.PendingPromise, resolve, reject);
                         break;
                 }
             }
@@ -150,19 +281,19 @@ public static partial class TypedAstEvaluator
             }
         }
 
-        private void HandlePendingStep(
-            ExecutionPlanRunner.AsyncGeneratorStepResult step,
+        private void HandlePendingPromise(
+            JsValue pendingPromiseValue,
             IJsCallable resolve,
             IJsCallable reject)
         {
             var (onFulfilled, onRejected) = AsyncResumeCallback.Rent(this, resolve, reject);
-            if (JsPromise.TryGetInternalPromise(step.PendingPromise, out var pendingPromise))
+            if (JsPromise.TryGetInternalPromise(pendingPromiseValue, out var pendingPromise))
             {
                 pendingPromise!.Then(onFulfilled, onRejected);
                 return;
             }
 
-            if (!TryGetPendingThenMethod(step, reject, out var thenCallable))
+            if (!TryGetPendingThenMethod(pendingPromiseValue, reject, out var thenCallable))
             {
                 return;
             }
@@ -171,7 +302,7 @@ public static partial class TypedAstEvaluator
                 thenCallable,
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
-                step.PendingPromise);
+                pendingPromiseValue);
         }
 
         /// <summary>
@@ -217,7 +348,18 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    executor.DriveToCompletion(mode, value, resolve, reject);
+                    if (executor._unifiedState is not null)
+                    {
+                        executor.DriveUnifiedBytecodeToCompletion(
+                            isRejection ? UnifiedBytecodeResumeMode.Throw : UnifiedBytecodeResumeMode.Next,
+                            value,
+                            resolve,
+                            reject);
+                    }
+                    else
+                    {
+                        executor.DriveToCompletion(mode, value, resolve, reject);
+                    }
                 }
                 finally
                 {

@@ -17,6 +17,20 @@ Production-eligible unified programs are all-or-nothing VM execution. Accepted
 programs must execute fully in `UnifiedBytecodeVirtualMachine` and must not
 fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 
+## Ordinary Sync Routing Boundary
+- Ordinary sync invocation keeps the dedicated simple-return binary and
+  binary-chain fast paths ahead of the broader production unified-bytecode
+  route, matching ADR 0258's route-priority contract.
+- For ordinary sync functions that pass both
+  `CanUseProductionUnifiedBytecodeFastPath` and
+  `UnifiedBytecodeProductionEligibility.Evaluate`, the production VM is the
+  primary default attempt before `SyncIrCallTrampoline` and generic
+  `ExecutionPlanRunner` interpretation.
+- Current route coverage estimate: 100% of accepted ordinary sync production
+  programs attempt `UnifiedBytecodeVirtualMachine` before generic IR fallback.
+  This is a selector coverage estimate, not a full ECMAScript function-surface
+  claim; unsupported buckets below remain pre-VM declines.
+
 ## Current Support Matrix
 
 ### Unified Opcode Inventory (current)
@@ -301,26 +315,26 @@ support today.
   explicit driver-state descriptors and pre-VM declines for shapes that would
   require mixed IR/AST execution.
 
-## Next Unsupported Buckets (current boundary)
-- Wider call invocation remains outside the admitted boundary. Direct eval,
-  spread calls, construct/super calls, optional calls, arguments-object
-  dependencies, unsupported non-with dynamic lookup, private/super member
-  targets, complex receiver/key shapes, and receiver-binding-sensitive adjacent
-  families beyond the direct activation-resolved and with-backed
-  dynamic-identifier boundaries must still decline before VM execution.
-- Async iterator drivers, TDZ head environments, and awaited iterator/for-in
-  sources remain outside the admitted boundary and must decline before VM
-  execution.
-- Object destructuring, expression-level `ApplyBindingTarget` destructuring,
-  dynamic-name destructuring shapes, and targets that cannot resolve to
-  unified slots remain outside the admitted boundary
-  (`DestructuringDependency`).
-- Label-dependent control flow remains outside the admitted boundary
-  (`LabelControlFlow`) and must decline before VM execution.
-- Dynamic lookup families remain outside the admitted boundary
-  (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
-  slice above. Direct eval source execution, unresolved non-with lookup shapes,
-  and captured dynamic activation still decline before VM execution.
+## Ranked Next Unsupported Buckets (current boundary)
+1. Wider call invocation remains the highest-impact unsupported bucket. Direct
+   eval, spread calls, construct/super calls, optional calls, arguments-object
+   dependencies, unsupported non-with dynamic lookup, private/super member
+   targets, complex receiver/key shapes, and receiver-binding-sensitive
+   adjacent families beyond the direct activation-resolved and with-backed
+   dynamic-identifier boundaries must still decline before VM execution.
+2. Driver-state widening is next. Async iterator drivers, TDZ head
+   environments, and awaited iterator/for-in sources remain outside the
+   admitted boundary and must decline before VM execution.
+3. Destructuring widening is still model-first. Object destructuring,
+   expression-level `ApplyBindingTarget` destructuring, dynamic-name
+   destructuring shapes, and targets that cannot resolve to unified slots
+   remain outside the admitted boundary (`DestructuringDependency`).
+4. Dynamic lookup families remain outside the admitted boundary
+   (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
+   slice above. Direct eval source execution, unresolved non-with lookup
+   shapes, and captured dynamic activation still decline before VM execution.
+5. Label-dependent control flow remains outside the admitted boundary
+   (`LabelControlFlow`) and must decline before VM execution.
 
 ## Proof Commands
 ```bash

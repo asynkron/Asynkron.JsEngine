@@ -2828,6 +2828,60 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
+    public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeGenericIr()
+    {
+        var repositoryRoot = FindRepositoryRootForSourceGate();
+        var invokerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Ast",
+            "TypedAstEvaluator.SyncFunctionInvoker.cs");
+
+        var invokerSource = File.ReadAllText(invokerPath);
+        var routeStart = invokerSource.IndexOf(
+            "private bool TryInvokeIrFast<TArgs>(",
+            StringComparison.Ordinal);
+        Assert.True(routeStart >= 0, "Could not locate TryInvokeIrFast route method.");
+        var routeEnd = invokerSource.IndexOf(
+            "private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(",
+            routeStart,
+            StringComparison.Ordinal);
+        Assert.True(routeEnd > routeStart, "Could not locate end boundary for TryInvokeIrFast.");
+        var routeSource = invokerSource.Substring(routeStart, routeEnd - routeStart);
+
+        var binaryFastPathIndex = routeSource.IndexOf(
+            "plan.SimpleReturnParameterBinary",
+            StringComparison.Ordinal);
+        var binaryChainFastPathIndex = routeSource.IndexOf(
+            "plan.SimpleReturnParameterBinaryChain",
+            StringComparison.Ordinal);
+        var unifiedBytecodeIndex = routeSource.IndexOf(
+            "CanUseProductionUnifiedBytecodeFastPath(plan, newTarget)",
+            StringComparison.Ordinal);
+        var syncIrTrampolineIndex = routeSource.IndexOf(
+            "SyncIrCallTrampoline.TryInvoke(",
+            StringComparison.Ordinal);
+        var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
+
+        Assert.True(
+            binaryFastPathIndex >= 0,
+            "Simple binary fast path is missing from the ordinary sync route.");
+        Assert.True(
+            binaryChainFastPathIndex > binaryFastPathIndex,
+            "Binary-chain fast path should stay after the simple binary fast path.");
+        Assert.True(
+            unifiedBytecodeIndex > binaryChainFastPathIndex,
+            "Production unified bytecode should stay behind the specialized simple-return fast paths.");
+        Assert.True(
+            syncIrTrampolineIndex > unifiedBytecodeIndex,
+            "Production unified bytecode should be attempted before SyncIrCallTrampoline.");
+        Assert.True(
+            genericRunnerIndex > syncIrTrampolineIndex,
+            "Generic ExecutionPlanRunner fallback should stay after production unified bytecode and SyncIrCallTrampoline.");
+    }
+
+    [Fact]
     public void SourceGate_ProductionUnifiedBytecodeAcceptedPath_DoesNotDelegateToAstOrExecutionPlanRunner()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();

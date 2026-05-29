@@ -554,6 +554,37 @@ all-or-nothing until a separate routing issue proves production readiness.
     fixes exposed catch-slot lifetime, operand-stack cleanup, pending body-throw
     preservation, and nested driver-cleanup topology as the durable guardrails.
 
+34. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
+    verify that the plan-level decline taxonomy in
+    `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` already
+    covers every opcode family the pre-gate was blocking; do not remove a gate
+    whose declined case has no corresponding plan-level boundary. The
+    `_homeObject is not null` pre-gate is the concrete reference: all super-
+    property opcode families (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
+    `SetNamedSuperProperty`, `SetComputedSuperProperty`,
+    `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`,
+    `EnsureSuperReference`) were already declined by `SuperPropertyDependency`,
+    making the gate redundant. The remaining pre-gates
+    (`_lexicalThisEnvironment is not null`, `_superConstructor is not null`,
+    `_superPrototype is not null`) correspond to capability gaps the plan-level
+    taxonomy does not fully cover and must not be removed without a matching
+    plan-level decline or proven VM support. When admitting `this`-using class
+    or object-literal methods through the fast path, note that the property-
+    write boundary still applies: simple `this.prop = slot/constant` assignments
+    are within boundary, but compound read-modify-write patterns such as
+    `this.prop = this.prop + n` are declined by the existing
+    `PropertyWriteDependency` rule and must not be used as fast-path invocation
+    proof in tests. When writing invocation proof tests for class methods or
+    object-literal methods, assert `func=<anonymous>` in the production log — not
+    the JavaScript method name — because class method AST nodes carry no `Name`
+    field; asserting the JS identifier will silently pass the wrong log line or
+    fail on the correct one. WHY: issue #2633 / PR #2643 found that removing the
+    `_homeObject` pre-gate was safe exactly because `SuperPropertyDependency`
+    already covered every super opcode family; the build-review process then
+    surfaced the `func=<anonymous>` naming trap and the `PropertyWriteDependency`
+    boundary as two further durable guardrails for future `this`-using method
+    admissions.
+
 ## Why
 
 Issue #2118 / PR #2137 introduced the first unified bytecode slice for
@@ -843,3 +874,4 @@ Related ADRs:
 - `docs/adrs/0258-keep-unified-bytecode-completed-lanes-integrated-at-production-boundary.md`
 - `docs/adrs/0271-keep-unified-bytecode-exception-regions-vm-owned-and-driver-cleanup-topology-guarded.md`
 - `docs/adrs/0277-keep-resumable-unified-bytecode-state-bounded-and-yield-star-declined.md`
+- `docs/adrs/0279-accept-this-dependent-ordinary-sync-in-unified-bytecode.md`

@@ -465,6 +465,11 @@ Boundary contract rules:
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit | Dedicated async-generator IR executor (Milestone C) |
 | Module runtime | ESM lifecycle, registry, dynamic import phases, top-level await proven | Node.js-competitive CommonJS ergonomics (host-layer work) |
 | Host interop | Host callable/global bridge boundaries explicit | Broader Node.js-style host behavior (integration-layer work) |
+| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
+| Tiered execution | Unified bytecode VM is an explicit tier-1 with bounded eligibility; interpreted runner is tier-0. | Tier-2 optimizing execution (JIT or AOT shape) remains directional; profile-guided tier promotion requires separate proof. |
+| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. |
+| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
+| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
 
 ## Architecture constraints (current reality)
 
@@ -493,6 +498,7 @@ flowchart LR
     E -. fail .-> B
     F -. fail .-> B
 ```
+
 
 Delivery invariants:
 - One slice, one primary owner module. Cross-module edits require an explicit boundary contract.

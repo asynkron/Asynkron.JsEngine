@@ -681,12 +681,7 @@ public static class ReflectHelper
 
     private static IJsPropertyAccessor? GetPrototypeAccessor(IJsObjectLike target)
     {
-        if (target.Prototype is not null)
-        {
-            return target.Prototype;
-        }
-
-        return target is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null;
+        return target.Prototype ?? (IJsPropertyAccessor?)(target is IPrototypeAccessorProvider provider ? provider.PrototypeAccessor : null);
     }
 
     private static bool TryDefineProperty(IJsObjectLike target, string propertyKey, PropertyDescriptor descriptor)

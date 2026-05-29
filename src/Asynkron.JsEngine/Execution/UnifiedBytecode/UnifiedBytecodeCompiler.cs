@@ -2543,31 +2543,6 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool IsSupportedIteratorCleanupTry(
-        EnterTryInstruction enterTry,
-        ImmutableArray<ExecutionInstruction> instructions,
-        out string reason)
-    {
-        if (enterTry.HandlerIndex >= 0 ||
-            enterTry.FinallyIndex < 0 ||
-            enterTry.EndFinallyIndex < 0 ||
-            enterTry.LeaveTryIndex < 0 ||
-            (uint)enterTry.FinallyIndex >= (uint)instructions.Length ||
-            (uint)enterTry.EndFinallyIndex >= (uint)instructions.Length ||
-            (uint)enterTry.LeaveTryIndex >= (uint)instructions.Length ||
-            instructions[enterTry.FinallyIndex] is not IteratorCloseInstruction ||
-            instructions[enterTry.EndFinallyIndex] is not EndFinallyInstruction ||
-            instructions[enterTry.LeaveTryIndex] is not LeaveTryInstruction)
-        {
-            reason =
-                "Only iterator-cleanup try/finally regions are eligible for unified bytecode compilation.";
-            return false;
-        }
-
-        reason = string.Empty;
-        return true;
-    }
-
     private static void PatchOperand(
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         int instructionIndex,

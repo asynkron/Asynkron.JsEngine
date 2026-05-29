@@ -320,16 +320,16 @@ internal sealed class CompactStatementStorage
                 PrimaryExpressionProgramReferenceId: references.PrimaryExpressionIndex,
                 SecondaryExpressionProgramReferenceId: references.SecondaryExpressionIndex,
                 BindingTargetProgramReferenceId: references.BindingTargetIndex,
-                FunctionDeclarationDescriptorReferenceId: references.FunctionDeclarationDescriptorIndex,
-                ClassDeclarationDescriptorReferenceId: references.ClassDeclarationDescriptorIndex,
                 PrimarySymbol: GetReference(ReferenceTables.Symbols, references.PrimarySymbolIndex),
                 SecondarySymbol: GetReference(ReferenceTables.Symbols, references.SecondarySymbolIndex),
                 BindingTargetProgram: GetReference(ReferenceTables.BindingTargets, references.BindingTargetIndex),
+                FunctionDeclarationDescriptorReferenceId: references.FunctionDeclarationDescriptorIndex,
+                ClassDeclarationDescriptorReferenceId: references.ClassDeclarationDescriptorIndex,
                 FunctionDeclarationDescriptor: GetReference(ReferenceTables.FunctionDeclarationDescriptors, references.FunctionDeclarationDescriptorIndex),
                 ClassDeclarationDescriptor: GetReference(ReferenceTables.ClassDeclarationDescriptors, references.ClassDeclarationDescriptorIndex),
-                PushEnvironmentPayload: GetReference(ReferenceTables.PushEnvironmentPayloads, references.PushEnvironmentPayloadIndex),
                 ScopeId: references.ScopeId,
                 FlatSlotId: references.FlatSlotId,
-                HasAssignmentMetadata: references.HasAssignmentMetadata));
+                HasAssignmentMetadata: references.HasAssignmentMetadata,
+                PushEnvironmentPayload: GetReference(ReferenceTables.PushEnvironmentPayloads, references.PushEnvironmentPayloadIndex)));
     }
 }

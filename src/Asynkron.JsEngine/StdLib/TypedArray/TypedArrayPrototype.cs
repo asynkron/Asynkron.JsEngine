@@ -671,7 +671,7 @@ public sealed partial class TypedArrayPrototype
             }
 
             var numeric = JsOps.ToNumber(value, valueContext);
-            if (valueContext.IsThrow == true)
+            if (valueContext.IsThrow)
             {
                 throw new ThrowSignal(valueContext.FlowValue);
             }
@@ -989,7 +989,7 @@ public sealed partial class TypedArrayPrototype
             }
 
             var numeric = JsOps.ToNumber(value, valueContext);
-            if (valueContext.IsThrow == true)
+            if (valueContext.IsThrow)
             {
                 throw new ThrowSignal(valueContext.FlowValue);
             }

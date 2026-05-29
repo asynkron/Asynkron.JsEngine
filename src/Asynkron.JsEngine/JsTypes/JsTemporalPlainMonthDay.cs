@@ -14,8 +14,6 @@ namespace Asynkron.JsEngine.JsTypes;
 public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay>, IComparable<JsTemporalPlainMonthDay>
 {
     private readonly string? _monthCode;
-    private readonly int _referenceMonth;
-    private readonly int _referenceDay;
 
     public JsTemporalPlainMonthDay(int month, int day, string calendar = "iso8601", int? referenceYear = null,
         string? monthCode = null, int? referenceMonth = null, int? referenceDay = null)
@@ -59,16 +57,16 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
         // Reference year is used internally for calendar calculations
         ReferenceYear = referenceYear ?? 1972; // 1972 is a leap year
         _monthCode = monthCode;
-        _referenceMonth = referenceMonth ?? month;
-        _referenceDay = referenceDay ?? day;
+        ReferenceMonth = referenceMonth ?? month;
+        ReferenceDay = referenceDay ?? day;
     }
 
     public int Month { get; }
     public int Day { get; }
     public string Calendar { get; }
     internal int ReferenceYear { get; }
-    internal int ReferenceMonth => _referenceMonth;
-    internal int ReferenceDay => _referenceDay;
+    internal int ReferenceMonth { get; }
+    internal int ReferenceDay { get; }
 
     /// <summary>
     ///     The month code (e.g., "M01" for January).
@@ -154,8 +152,8 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
         return Month == other.Month && Day == other.Day &&
                ReferenceYear == other.ReferenceYear &&
-               _referenceMonth == other._referenceMonth &&
-               _referenceDay == other._referenceDay &&
+               ReferenceMonth == other.ReferenceMonth &&
+               ReferenceDay == other.ReferenceDay &&
                string.Equals(_monthCode, other._monthCode, StringComparison.Ordinal) &&
                string.Equals(
                    TemporalHelper.CanonicalizeCalendarIdForComparison(Calendar),
@@ -170,7 +168,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(Month, Day, ReferenceYear, _referenceMonth, _referenceDay, _monthCode, Calendar);
+        return HashCode.Combine(Month, Day, ReferenceYear, ReferenceMonth, ReferenceDay, _monthCode, Calendar);
     }
 
     /// <summary>
@@ -191,7 +189,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
         // The leading -- IS REQUIRED. Internal tests verify "--12-25".
         if (!string.Equals(Calendar, "iso8601", StringComparison.Ordinal))
         {
-            return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}[u-ca={Calendar}]";
+            return FormatYear(ReferenceYear) + $"-{ReferenceMonth:D2}-{ReferenceDay:D2}[u-ca={Calendar}]";
         }
         return $"--{Month:D2}-{Day:D2}";
     }
@@ -203,7 +201,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     public string ToStringWithCalendar(bool critical = false)
     {
         var prefix = critical ? "!" : "";
-        return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}[{prefix}u-ca={Calendar}]";
+        return FormatYear(ReferenceYear) + $"-{ReferenceMonth:D2}-{ReferenceDay:D2}[{prefix}u-ca={Calendar}]";
     }
 
     /// <summary>
@@ -211,7 +209,7 @@ public sealed class JsTemporalPlainMonthDay : IEquatable<JsTemporalPlainMonthDay
     /// </summary>
     public string ToStringReferenceDate()
     {
-        return FormatYear(ReferenceYear) + $"-{_referenceMonth:D2}-{_referenceDay:D2}";
+        return FormatYear(ReferenceYear) + $"-{ReferenceMonth:D2}-{ReferenceDay:D2}";
     }
 
     private static string FormatYear(int year)

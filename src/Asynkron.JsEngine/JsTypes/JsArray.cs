@@ -28,9 +28,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private static readonly JsValue ArrayHole = new(JsValueKind.Object, 0.0, ArrayHoleSentinel);
     private readonly IJsObjectLike? _arrayPrototype;
     private readonly List<JsValue> _items;
-
-    private readonly JsObject _properties = new();
-    internal JsObject Properties => _properties;
+    internal JsObject Properties { get; } = new();
     private readonly IJsCallable? _rangeErrorCtor;
     private readonly IJsCallable? _typeErrorCtor;
     private uint _length;
@@ -53,10 +51,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         _typeErrorCtor = realmState?.TypeErrorConstructor;
         _arrayPrototype = realmState?.ArrayPrototype;
         _length = 0;
-        _properties.RealmState = realmState;
+        Properties.RealmState = realmState;
         if (_arrayPrototype is not null)
         {
-            _properties.SetPrototype(_arrayPrototype);
+            Properties.SetPrototype(_arrayPrototype);
         }
         else
         {
@@ -71,7 +69,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void EnsureArrayPrototype()
     {
-        if (_properties.PrototypeAccessor is not null || _properties.Prototype is not null)
+        if (Properties.PrototypeAccessor is not null || Properties.Prototype is not null)
         {
             return;
         }
@@ -79,7 +77,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         var arrayPrototype = GetArrayPrototype();
         if (arrayPrototype is not null)
         {
-            _properties.SetPrototype(arrayPrototype);
+            Properties.SetPrototype(arrayPrototype);
         }
     }
 
@@ -114,18 +112,18 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public bool HasCustomIndexedProperties =>
         // Custom descriptors on indices (e.g., Object.defineProperty(arr, '0', {get: ...}))
         // are stored in JsObject's _descriptors dictionary, not in _storage.Keys
-        _properties.HasNumericDescriptorKeys();
+        Properties.HasNumericDescriptorKeys();
 
     internal bool HasDefaultValuesIteratorForFastDestructuring()
     {
         EnsureArrayPrototype();
 
-        if (_properties.GetOwnPropertyDescriptor(SymbolKeys.Iterator) is not null)
+        if (Properties.GetOwnPropertyDescriptor(SymbolKeys.Iterator) is not null)
         {
             return false;
         }
 
-        return _properties.TryGetProperty(SymbolKeys.Iterator, _cachedJsValue, out var iteratorValue) &&
+        return Properties.TryGetProperty(SymbolKeys.Iterator, _cachedJsValue, out var iteratorValue) &&
                iteratorValue.TryGetObject<HostFunction>(out var iteratorFunction) &&
                iteratorFunction.HasNativeSourceDisplayName("values") &&
                HasDefaultArrayIteratorNextForFastDestructuring();
@@ -175,16 +173,16 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         return GetEnumerator();
     }
 
-    public bool IsExtensible => _properties.IsExtensible;
+    public bool IsExtensible => Properties.IsExtensible;
 
     public void PreventExtensions()
     {
-        _properties.PreventExtensions();
+        Properties.PreventExtensions();
     }
 
     public void SetPrototype(IJsPropertyAccessor? candidate)
     {
-        _properties.SetPrototype(candidate);
+        Properties.SetPrototype(candidate);
     }
 
     public JsObject? Prototype
@@ -193,13 +191,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         {
             EnsureArrayPrototype();
 
-            return _properties.Prototype;
+            return Properties.Prototype;
         }
     }
 
-    public bool IsSealed => _properties.IsSealed;
-    public bool IsFrozen => _properties.IsFrozen;
-    public IEnumerable<string> Keys => _properties.Keys;
+    public bool IsSealed => Properties.IsSealed;
+    public bool IsFrozen => Properties.IsFrozen;
+    public IEnumerable<string> Keys => Properties.Keys;
 
     public bool TryGetProperty(string name, out JsValue value)
     {
@@ -213,20 +211,20 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!TryParseArrayIndex(name, out var index))
         {
-            return _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
+            return Properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
         }
 
         // Accessor/data descriptors defined via Object.defineProperty on an
         // index should override the internal dense/sparse storage.
-        if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-            _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value))
+        if (Properties.GetOwnPropertyDescriptor(name) is not null &&
+            Properties.TryGetProperty(name, JsValue.FromJsArray(this), out value))
         {
             return true;
         }
 
         if (!TryGetOwnIndex(index, out var jsValue))
         {
-            return _properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
+            return Properties.TryGetProperty(name, JsValue.FromJsArray(this), out value);
         }
 
         value = jsValue;
@@ -245,20 +243,20 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!TryParseArrayIndex(name, out var index))
         {
-            return _properties.TryGetProperty(name, receiver, out value);
+            return Properties.TryGetProperty(name, receiver, out value);
         }
 
         // Accessor/data descriptors defined via Object.defineProperty on an
         // index should override the internal dense/sparse storage.
-        if (_properties.GetOwnPropertyDescriptor(name) is not null &&
-            _properties.TryGetProperty(name, receiver, out value))
+        if (Properties.GetOwnPropertyDescriptor(name) is not null &&
+            Properties.TryGetProperty(name, receiver, out value))
         {
             return true;
         }
 
         if (!TryGetOwnIndex(index, out var jsValue))
         {
-            return _properties.TryGetProperty(name, receiver, out value);
+            return Properties.TryGetProperty(name, receiver, out value);
         }
 
         value = jsValue;
@@ -288,7 +286,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 return;
             }
 
-            var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
+            var lengthDescriptor = Properties.GetOwnPropertyDescriptor("length");
             if (lengthDescriptor is null || lengthDescriptor is { HasWritable: true, Writable: false })
             {
                 SetLength(value, null);
@@ -342,7 +340,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return;
         }
 
-        _properties.SetProperty(name, value,
+        Properties.SetProperty(name, value,
             receiver.IsNull || receiver.IsUndefined ? JsValue.FromJsArray(this) : receiver);
     }
 
@@ -356,7 +354,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         EnsureArrayPrototype();
 
         // First check if there's an explicit descriptor in _properties (e.g., for frozen/sealed arrays or custom descriptors)
-        var explicitDescriptor = _properties.GetOwnPropertyDescriptor(name);
+        var explicitDescriptor = Properties.GetOwnPropertyDescriptor(name);
         if (explicitDescriptor is not null)
         {
             return explicitDescriptor;
@@ -382,7 +380,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             yield return indexKey;
         }
 
-        foreach (var key in _properties.GetOwnPropertyNames())
+        foreach (var key in Properties.GetOwnPropertyNames())
         {
             if (TryParseArrayIndex(key, out _))
             {
@@ -400,7 +398,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             yield return indexKey;
         }
 
-        foreach (var key in _properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable))
+        foreach (var key in Properties.GetOwnPropertyKeysInOrder(includeSymbols, includeNonEnumerable))
         {
             if (TryParseArrayIndex(key, out _))
             {
@@ -418,7 +416,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             yield return indexKey;
         }
 
-        foreach (var key in _properties.GetEnumerablePropertyNames())
+        foreach (var key in Properties.GetEnumerablePropertyNames())
         {
             if (TryParseArrayIndex(key, out _))
             {
@@ -432,7 +430,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public void Seal()
     {
         ApplyIntegrityLevelToIndexedProperties(freeze: false);
-        _properties.Seal();
+        Properties.Seal();
     }
 
     public bool Delete(string name)
@@ -444,7 +442,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return DeleteProperty(name);
         }
 
-        var descriptor = _properties.GetOwnPropertyDescriptor(name);
+        var descriptor = Properties.GetOwnPropertyDescriptor(name);
         if (descriptor?.Configurable == false)
         {
             return false;
@@ -455,7 +453,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        _properties.DeleteOwnProperty(name);
+        Properties.DeleteOwnProperty(name);
         return DeleteElement((int)index);
     }
 
@@ -470,14 +468,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         if (!TryParseArrayIndex(name, out var index))
         {
-            return _properties.TryDefineProperty(name, descriptor);
+            return Properties.TryDefineProperty(name, descriptor);
         }
 
         // Per ES spec 10.4.2.1 [[DefineOwnProperty]] step 3.d:
         // If index >= oldLen and oldLenDesc.[[Writable]] is false, return false.
         if (index >= _length)
         {
-            var lengthDesc = _properties.GetOwnPropertyDescriptor("length");
+            var lengthDesc = Properties.GetOwnPropertyDescriptor("length");
             if (lengthDesc is { HasWritable: true, Writable: false })
             {
                 return false;
@@ -487,7 +485,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // If the element exists in _items but not in _properties, we need to establish
         // the implicit descriptor first so that attributes like configurable=true are preserved.
         // Per ES spec, array elements have default attributes: writable=true, enumerable=true, configurable=true.
-        if (_properties.GetOwnPropertyDescriptor(name) is null && TryGetOwnIndex(index, out var existingValue))
+        if (Properties.GetOwnPropertyDescriptor(name) is null && TryGetOwnIndex(index, out var existingValue))
         {
             var implicitDescriptor = new PropertyDescriptor
             {
@@ -496,10 +494,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 Enumerable = true,
                 Configurable = true
             };
-            _properties.DefineProperty(name, implicitDescriptor);
+            Properties.DefineProperty(name, implicitDescriptor);
         }
 
-        var defined = _properties.TryDefineProperty(name, descriptor);
+        var defined = Properties.TryDefineProperty(name, descriptor);
         if (!defined)
         {
             return false;
@@ -531,7 +529,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     }
 
     public IJsPropertyAccessor? PrototypeAccessor =>
-        _properties.PrototypeAccessor ?? GetArrayPrototype();
+        Properties.PrototypeAccessor ?? GetArrayPrototype();
 
     private static bool IsArrayHole(JsValue value)
     {
@@ -541,7 +539,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     public void Freeze()
     {
         ApplyIntegrityLevelToIndexedProperties(freeze: true);
-        _properties.Freeze();
+        Properties.Freeze();
     }
 
     public void PushHole()
@@ -675,7 +673,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
         }
 
-        foreach (var key in _properties.GetOwnPropertyNames())
+        foreach (var key in Properties.GetOwnPropertyNames())
         {
             if (TryParseArrayIndex(key, out var parsed))
             {
@@ -754,7 +752,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal bool TryCreateDataPropertyFast(uint index, JsValue value)
     {
-        if (_properties.HasNumericDescriptorKeys() || !IsExtensible)
+        if (Properties.HasNumericDescriptorKeys() || !IsExtensible)
         {
             return false;
         }
@@ -778,7 +776,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     {
         newLength = JsValue.Undefined;
         if (_length == MaxArrayLength ||
-            _properties.HasNumericDescriptorKeys() ||
+            Properties.HasNumericDescriptorKeys() ||
             !IsExtensible ||
             !IsLengthWritable() ||
             HasIndexedPrototypeOverride(_length))
@@ -803,10 +801,10 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     /// </summary>
     public void SetElement(uint index, JsValue value)
     {
-        if (_properties.HasNumericDescriptorKeys())
+        if (Properties.HasNumericDescriptorKeys())
         {
             var key = index.ToString(CultureInfo.InvariantCulture);
-            var descriptor = _properties.GetOwnPropertyDescriptor(key);
+            var descriptor = Properties.GetOwnPropertyDescriptor(key);
             if (descriptor is not null)
             {
                 if (descriptor.IsAccessorDescriptor)
@@ -825,7 +823,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                     return;
                 }
 
-                _properties.SetProperty(key, value, JsValue.FromJsArray(this));
+                Properties.SetProperty(key, value, JsValue.FromJsArray(this));
                 var existingExtended = StoreElement(index, value);
                 if (existingExtended)
                 {
@@ -846,11 +844,11 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // Check the prototype chain for an inherited setter.
         // Note: the array prototype may be resolved lazily, so always use the live lookup.
         // First try _properties.GetSetter which walks JsObject prototypes.
-        var prototypeSetter = _properties.GetSetter(keyStr);
+        var prototypeSetter = Properties.GetSetter(keyStr);
 
         // If not found via Prototype (JsObject chain), traverse non-JsObject prototypes as well
         // (e.g., Array.prototype implemented as a typed prototype object).
-        var prototypeRoot = _properties.PrototypeAccessor ?? GetArrayPrototype();
+        var prototypeRoot = Properties.PrototypeAccessor ?? GetArrayPrototype();
         if (prototypeSetter is null && prototypeRoot is not null)
         {
             prototypeSetter = FindSetterInPrototypeChain(prototypeRoot, keyStr);
@@ -937,7 +935,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     private bool HasIndexedPrototypeOverride(uint index)
     {
         var propertyKey = index.ToString(CultureInfo.InvariantCulture);
-        var current = _properties.PrototypeAccessor ?? GetArrayPrototype();
+        var current = Properties.PrototypeAccessor ?? GetArrayPrototype();
         var depth = 0;
         while (current is not null && depth++ < JsEngineConstants.MaxPrototypeChainDepth)
         {
@@ -1013,14 +1011,14 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void ApplyIntegrityLevelToIndexedProperties(bool freeze)
     {
-        foreach (var key in _properties.GetOwnPropertyNames())
+        foreach (var key in Properties.GetOwnPropertyNames())
         {
             if (!TryParseArrayIndex(key, out var index))
             {
                 continue;
             }
 
-            var descriptor = _properties.GetOwnPropertyDescriptor(key);
+            var descriptor = Properties.GetOwnPropertyDescriptor(key);
             if (descriptor is null)
             {
                 continue;
@@ -1041,13 +1039,13 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
             descriptor.Configurable = false;
 
-            _properties.TryDefineProperty(key, descriptor);
+            Properties.TryDefineProperty(key, descriptor);
         }
 
         foreach (var index in GetOwnIndices())
         {
             var key = index.ToString(CultureInfo.InvariantCulture);
-            if (_properties.GetOwnPropertyDescriptor(key) is not null)
+            if (Properties.GetOwnPropertyDescriptor(key) is not null)
             {
                 continue;
             }
@@ -1060,7 +1058,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
                 Configurable = false
             };
 
-            _properties.TryDefineProperty(key, descriptor);
+            Properties.TryDefineProperty(key, descriptor);
         }
     }
 
@@ -1098,7 +1096,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return false;
         }
 
-        return _properties.DeleteOwnProperty(name);
+        return Properties.DeleteOwnProperty(name);
     }
 
     /// <summary>
@@ -1209,7 +1207,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool IsLengthWritable()
     {
-        var descriptor = _properties.GetOwnPropertyDescriptor("length");
+        var descriptor = Properties.GetOwnPropertyDescriptor("length");
         return descriptor is not { HasWritable: true, Writable: false };
     }
 
@@ -1225,7 +1223,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return FailTypeError(context, throwOnWritableFailure);
         }
 
-        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
+        var lengthDescriptor = Properties.GetOwnPropertyDescriptor("length") ??
                                new PropertyDescriptor
                                {
                                    JsValue = JsValue.FromDouble(_length),
@@ -1330,7 +1328,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
         // No non-configurable elements to worry about — just truncate the list directly.
         // This turns O(n log n) sort + O(n) delete into O(1) for the common case
         // (e.g., codePoints.length = 0 to clear an array in a loop).
-        if (!_properties.HasNumericDescriptorKeys() && _sparseItems is null)
+        if (!Properties.HasNumericDescriptorKeys() && _sparseItems is null)
         {
             if (_items.Count > (int)newLength)
             {
@@ -1371,7 +1369,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             }
         }
 
-        foreach (var key in _properties.GetOwnPropertyNames())
+        foreach (var key in Properties.GetOwnPropertyNames())
         {
             if (!TryParseArrayIndex(key, out var index) || index < newLength)
             {
@@ -1421,7 +1419,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void UpdateLengthProperty(bool? writable = null)
     {
-        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length");
+        var lengthDescriptor = Properties.GetOwnPropertyDescriptor("length");
         if (lengthDescriptor is null)
         {
             DefineInitialLengthProperty(writable);
@@ -1430,7 +1428,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
         var lengthValue = JsValue.FromDouble(_length);
         lengthDescriptor.JsValue = lengthValue;
-        _properties.SetJsValue("length", lengthValue);
+        Properties.SetJsValue("length", lengthValue);
         if (writable.HasValue)
         {
             lengthDescriptor.Writable = writable.Value;
@@ -1439,7 +1437,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
 
     private void DefineInitialLengthProperty(bool? writable = null)
     {
-        _properties.DefineProperty("length",
+        Properties.DefineProperty("length",
             new PropertyDescriptor
             {
                 JsValue = JsValue.FromDouble(_length),
@@ -1490,7 +1488,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             return new JsValue(iterator);
         });
 
-        _properties.SetProperty(iteratorKey, (JsValue)iteratorFunction);
+        Properties.SetProperty(iteratorKey, (JsValue)iteratorFunction);
     }
 
     /// <summary>
@@ -1603,7 +1601,7 @@ public sealed class JsArray : IJsObjectLike, IPropertyDefinitionHost, IExtensibi
             newLength = coercedUint;
         }
 
-        var lengthDescriptor = _properties.GetOwnPropertyDescriptor("length") ??
+        var lengthDescriptor = Properties.GetOwnPropertyDescriptor("length") ??
                                new PropertyDescriptor
                                {
                                    JsValue = JsValue.FromDouble(_length),

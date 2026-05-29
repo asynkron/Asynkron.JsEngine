@@ -188,8 +188,7 @@ public static partial class TypedAstEvaluator
             // Use cached driver state for scope-correct access from child scopes
             // (The iterator slot is in the loop scope, but we may be in a per-iteration child scope)
             var driverState = runner.IteratorStateRef.CurrentDriverState;
-            if (driverState is not null &&
-                driverState.IteratorVariable.IsValid &&
+            if (driverState?.IteratorVariable.IsValid == true &&
                 driverState.IteratorVariable.SlotIndex != instruction.IteratorSlotIndex)
             {
                 driverState = null;

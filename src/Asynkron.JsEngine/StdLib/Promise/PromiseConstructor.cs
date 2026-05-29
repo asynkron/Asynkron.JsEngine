@@ -276,7 +276,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private JsValue PromiseAll(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var capability = NewPromiseCapability(thisValue);
-        var operation = "Promise.all";
+        const string operation = "Promise.all";
 
         if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
@@ -341,7 +341,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private JsValue PromiseRace(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var capability = NewPromiseCapability(thisValue);
-        var operation = "Promise.race";
+        const string operation = "Promise.race";
 
         if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
@@ -371,7 +371,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private JsValue PromiseAllSettled(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var capability = NewPromiseCapability(thisValue);
-        var operation = "Promise.allSettled";
+        const string operation = "Promise.allSettled";
 
         if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {
@@ -439,7 +439,7 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
     private JsValue PromiseAny(JsValue thisValue, IReadOnlyList<JsValue> args)
     {
         var capability = NewPromiseCapability(thisValue);
-        var operation = "Promise.any";
+        const string operation = "Promise.any";
 
         if (!TryPreparePromiseCombinator(thisValue, args, capability, operation, out var promiseResolve, out var iterator, out var earlyResult))
         {

@@ -127,30 +127,14 @@ still lacked the same boundary. The durable lesson is to mirror cross-cutting
 Faktorial output rules into `agents/how-to-workflow-and-issues.md` when that
 playbook is an agent entrypoint, while keeping this file as the semantic home.
 
-Issue #1331 was a `main is red: 8b1273e` repair where Faktorial mainverify
-recorded `dotnet test tests/Asynkron.JsEngine.Tests` as failed, but the
-build-stage reran that exact command and the timeout-shaped variant on the
-current worktree and both passed 3919 tests. No source change was warranted; the
-useful durable rule is to reprove main-health failures before patching and to
-close stale/transient reds with evidence instead of changing unrelated owners.
-Issue #1400 repeated the same pattern for `main is red: 391ce40`: the stored
-mainverify status pointed at `dotnet build Asynkron.JsEngine.sln`, but the
-build-stage reran that exact command on the current issue branch and it passed
-with no source diff. That incident confirms the rule covers build-health reds as
-well as test-health reds.
-Issue #1568 repeated the test-health variant for `main is red: c08723b`: the
-stored mainverify status pointed at `dotnet test tests/Asynkron.JsEngine.Tests`,
-but the build-stage reran the exact command on the current issue branch and it
-passed 4021 tests with a clean worktree. That incident confirms agents should
-continue stopping on proven stale/transient reds instead of inventing a nearby
-implementation patch just because the trigger was p0.
-Issue #1708 repeated the build-health variant for `main is red: d944f3a`: the
-stored mainverify excerpt only showed restore output from
-`dotnet build Asynkron.JsEngine.sln`, but the build-stage reran that exact
-command and it passed with no changed paths. That incident confirms that
-truncated failure excerpts must still be reproved before source edits, and a
-clean exact-command pass should close as stale/transient evidence rather than a
-nearby repair.
+Issues #1331, #1400, #1568, and #1708 all repeated the same `main is red`
+pattern across test-health and build-health variants: the stored mainverify
+status pointed at a failing command, but the build-stage reran that exact
+command on the current issue branch and it passed with no source diff or changed
+paths. The durable rule across all four incidents is to reprove main-health
+failures before patching, close stale/transient reds with evidence, and never
+invent a nearby repair just because the trigger was p0. Truncated failure
+excerpts must also be reproved before any source edits are made.
 
 Issue #1773 was a fan-in task for the shared signal
 `repair_kind:merge_conflict` across source issues #1745 and #1756. By the time

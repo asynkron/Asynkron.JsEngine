@@ -264,18 +264,12 @@ internal static partial class IntlUtilities
         {
             minutes = 0;
         }
-        else if (rest.Length == 4 &&
-                 int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) &&
-                 int.TryParse(rest[2..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes))
-        {
-        }
-        else if (rest.Length == 5 &&
-                 rest[2] == ':' &&
-                 int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) &&
-                 int.TryParse(rest[3..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes))
-        {
-        }
-        else
+        else if ((rest.Length != 4 ||
+                 !int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) ||
+                 !int.TryParse(rest[2..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes)) && (rest.Length != 5 ||
+                 rest[2] != ':' ||
+                 !int.TryParse(rest[..2], NumberStyles.None, CultureInfo.InvariantCulture, out hours) ||
+                 !int.TryParse(rest[3..], NumberStyles.None, CultureInfo.InvariantCulture, out minutes)))
         {
             return false;
         }

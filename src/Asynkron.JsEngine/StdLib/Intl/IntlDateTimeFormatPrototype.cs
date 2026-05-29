@@ -506,25 +506,25 @@ public sealed partial class IntlDateTimeFormatPrototype
             switch (slots.DateStyle)
             {
                 case "full":
-                    CreateDataPropertyOrThrowJsValue(obj, "weekday", "long", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "month", "long", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "weekday", "long", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "month", "long", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm, op);
                     break;
                 case "long":
-                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "month", "long", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "month", "long", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm, op);
                     break;
                 case "medium":
-                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "month", "short", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "year", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "month", "short", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm, op);
                     break;
                 case "short":
-                    CreateDataPropertyOrThrowJsValue(obj, "year", "2-digit", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "month", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "year", "2-digit", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "month", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "day", "numeric", realm, op);
                     break;
             }
         }
@@ -536,20 +536,20 @@ public sealed partial class IntlDateTimeFormatPrototype
             {
                 case "full":
                 case "long":
-                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "second", "2-digit", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "second", "2-digit", realm, op);
                     CreateDataPropertyOrThrowJsValue(obj, "timeZoneName",
-                        slots.TimeStyle is "full" ? "long" : "short", realm!, op);
+                        slots.TimeStyle is "full" ? "long" : "short", realm, op);
                     break;
                 case "medium":
-                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "second", "2-digit", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "second", "2-digit", realm, op);
                     break;
                 case "short":
-                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm!, op);
-                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm!, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "hour", "numeric", realm, op);
+                    CreateDataPropertyOrThrowJsValue(obj, "minute", "2-digit", realm, op);
                     break;
             }
         }
@@ -1369,7 +1369,7 @@ public sealed partial class IntlDateTimeFormatPrototype
         TemporalFormatterKind kind)
     {
         var includeYear = kind is not TemporalFormatterKind.PlainMonthDay;
-        var includeMonth = true;
+        const bool includeMonth = true;
         var includeDay = kind is not TemporalFormatterKind.PlainYearMonth;
         var includeWeekday = kind is TemporalFormatterKind.PlainDate or TemporalFormatterKind.PlainDateTime;
 
@@ -2530,12 +2530,7 @@ public sealed partial class IntlDateTimeFormatPrototype
                 }
 
                 var ianaLongName = GetIanaTimeZoneLongName(timeZoneId, dto, tz);
-                if (ianaLongName is not null)
-                {
-                    return ianaLongName;
-                }
-
-                return longName;
+                return ianaLongName ?? longName;
             }
 
             var offset = tz.GetUtcOffset(dto);
@@ -2628,11 +2623,8 @@ public sealed partial class IntlDateTimeFormatPrototype
 
         if (hasYear || hasMonth || hasDay)
         {
-            if (TryAppendChineseDateParts(parts, ref addedSomething, dto, slots.Calendar, culture,
+            if (!TryAppendChineseDateParts(parts, ref addedSomething, dto, slots.Calendar, culture,
                     hasYear, year, hasMonth, month, hasDay, day))
-            {
-            }
-            else
             {
                 AppendLocaleDateParts(parts, ref addedSomething, dto, culture,
                     hasYear, year, hasMonth, month, hasDay, day);

@@ -41,8 +41,7 @@ public static class TypedArrayHelper
         var sharedPrototype = realm.TypedArrayPrototype;
         var prototype = new JsObject();
 
-        HostFunction constructor = null!;
-        constructor = new HostFunction((thisValue, args) =>
+        HostFunction constructor = new HostFunction((thisValue, args) =>
         {
             _ = thisValue;
             _ = args;

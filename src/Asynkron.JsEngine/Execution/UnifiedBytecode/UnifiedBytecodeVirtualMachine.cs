@@ -1130,8 +1130,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.LeaveTry:
-                    if (tryStack is not null &&
-                        tryStack.Count > 0 &&
+                    if (tryStack?.Count > 0 &&
                         tryStack.Peek().Descriptor.LeaveTryTarget == programCounter)
                     {
                         CompleteTryNormally(

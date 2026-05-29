@@ -141,13 +141,6 @@ public sealed class JsRegExp
     private readonly RegexOptions _regexOptions;
 
     /// <summary>
-    /// Maps .NET-safe group names back to original ECMAScript group names.
-    /// ECMAScript allows '$' and unicode chars in group names that .NET doesn't support.
-    /// Key = sanitized name (used in .NET regex), Value = original JS name.
-    /// </summary>
-    private readonly Dictionary<string, string>? _groupNameMapping;
-
-    /// <summary>
     /// ES2025 duplicate named groups: maps original group name → ordered array of .NET renamed names.
     /// E.g., "x" → ["x__0", "x__1"]. Null if no duplicate group names exist.
     /// </summary>
@@ -157,7 +150,7 @@ public sealed class JsRegExp
     /// Maps JS (left-to-right) group index → .NET group index.
     /// Null if no reordering is needed.
     /// </summary>
-    private int[]? _groupReorderMap;
+    private readonly int[]? _groupReorderMap;
 
     /// <summary>
     /// For each .NET group index, the .NET group index of its nearest ancestor that
@@ -166,7 +159,7 @@ public sealed class JsRegExp
     /// iterates, groups inside it that didn't participate in the last iteration must be
     /// reported as undefined rather than retaining their stale value from a prior iteration.
     /// </summary>
-    private int[]? _quantifiedAncestorMap;
+    private readonly int[]? _quantifiedAncestorMap;
 
     private Regex? _compiledRegex;
     private readonly AnchoredPropertyEscapeMatcher? _anchoredPropertyEscapeMatcher;
@@ -221,7 +214,7 @@ public sealed class JsRegExp
         {
             _normalizedPattern = pattern;
             _regexOptions = RegexOptions.CultureInvariant;
-            _groupNameMapping = null;
+            GroupNameMapping = null;
             _duplicateGroupNames = null;
             return;
         }
@@ -232,7 +225,7 @@ public sealed class JsRegExp
         _normalizedPattern = _duplicateGroupNames is not null
             ? InsertQuantifierResets(renamed)
             : renamed;
-        _groupNameMapping = nameMapping;
+        GroupNameMapping = nameMapping;
 
         var canDeferInitialConstruction = CanDeferInitialRegexConstruction(pattern, _encodedFlags);
 
@@ -313,7 +306,7 @@ public sealed class JsRegExp
     /// Mapping from sanitized .NET group names back to original ECMAScript group names.
     /// Null if no sanitization was needed.
     /// </summary>
-    internal Dictionary<string, string>? GroupNameMapping => _groupNameMapping;
+    internal Dictionary<string, string>? GroupNameMapping { get; }
 
     private void SetProperty(string name, JsValue value, JsValue receiver)
     {
@@ -4328,6 +4321,9 @@ public sealed class JsRegExp
         return pos; // {n,} or {n,m} — valid
     }
 
+    /// <summary>
+    ///
+    /// </summary>
     /// Tries to parse a modifier group at position i: (?s:, (?m:, (?-s:, (?sm:, (?s-m:, etc.
     /// Returns true if a valid modifier group prefix was found.
     /// Throws ParseException for invalid modifier syntax per ES2024 spec early errors:
@@ -5279,7 +5275,7 @@ public sealed class JsRegExp
                 groupStack.Push(groupId);
 
                 // This is a renamed duplicate capture. Mark all ancestor groups.
-                if (groupName is not null && groupName.Contains("__", StringComparison.Ordinal))
+                if (groupName?.Contains("__", StringComparison.Ordinal) == true)
                 {
                     var ancestor = parentId;
                     while (ancestor >= 0)
@@ -5478,7 +5474,7 @@ public sealed class JsRegExp
     /// </summary>
     private string GetOriginalGroupName(string dotNetName)
     {
-        if (_groupNameMapping is not null && _groupNameMapping.TryGetValue(dotNetName, out var original))
+        if (GroupNameMapping is not null && GroupNameMapping.TryGetValue(dotNetName, out var original))
         {
             return original;
         }
@@ -5524,8 +5520,7 @@ public sealed class JsRegExp
                 j++;
             }
 
-            var k = j;
-            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            for (var k = j; k < subtrahend.Length && subtrahend[k].Start <= end; k++)
             {
                 var (otherStart, otherEnd) = subtrahend[k];
                 if (otherStart > currentStart)
@@ -5540,7 +5535,6 @@ public sealed class JsRegExp
                 }
 
                 currentStart = Math.Max(currentStart, otherEnd + 1);
-                k++;
             }
 
             if (currentStart <= end)
@@ -5915,9 +5909,13 @@ public sealed class JsRegExp
                     foreach (var (s, e) in complementRanges)
                     {
                         if (e <= 0xFFFF)
+                        {
                             bmpRanges.Add((s, e));
+                        }
                         else if (s > 0xFFFF)
+                        {
                             astralRanges.Add((s, e));
+                        }
                         else
                         {
                             bmpRanges.Add((s, 0xFFFF));
@@ -5930,9 +5928,13 @@ public sealed class JsRegExp
                     foreach (var (s, e) in propRanges)
                     {
                         if (e <= 0xFFFF)
+                        {
                             bmpRanges.Add((s, e));
+                        }
                         else if (s > 0xFFFF)
+                        {
                             astralRanges.Add((s, e));
+                        }
                         else
                         {
                             bmpRanges.Add((s, 0xFFFF));
@@ -5964,9 +5966,13 @@ public sealed class JsRegExp
                 foreach (var (s, e) in classRanges)
                 {
                     if (e <= 0xFFFF)
+                    {
                         bmpRanges.Add((s, e));
+                    }
                     else if (s > 0xFFFF)
+                    {
                         astralRanges.Add((s, e));
+                    }
                     else
                     {
                         bmpRanges.Add((s, 0xFFFF));
@@ -6892,8 +6898,7 @@ public sealed class JsRegExp
                 j++;
             }
 
-            var k = j;
-            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            for (var k = j; k < subtrahend.Length && subtrahend[k].Start <= end; k++)
             {
                 var (otherStart, otherEnd) = subtrahend[k];
                 if (otherStart > currentStart)
@@ -6908,7 +6913,6 @@ public sealed class JsRegExp
                 }
 
                 currentStart = Math.Max(currentStart, otherEnd + 1);
-                k++;
             }
 
             if (currentStart <= end)
@@ -6997,18 +7001,12 @@ public sealed class JsRegExp
 
     private static void AddBmpRanges(UnicodeSetElements elements, IEnumerable<(int Start, int End)> ranges)
     {
-        foreach (var range in ranges)
-        {
-            elements.BmpRanges.Add(range);
-        }
+        elements.BmpRanges.AddRange(ranges);
     }
 
     private static void AddAstralRanges(UnicodeSetElements elements, IEnumerable<(int Start, int End)> ranges)
     {
-        foreach (var range in ranges)
-        {
-            elements.AstralRanges.Add(range);
-        }
+        elements.AstralRanges.AddRange(ranges);
     }
 
     private static bool TryNormalizeSimpleUnicodeSetDifference(string pattern, ref int index, bool unicodeIgnoreCase, out string normalized)
@@ -7102,8 +7100,7 @@ public sealed class JsRegExp
                 j++;
             }
 
-            var k = j;
-            while (k < subtrahend.Length && subtrahend[k].Start <= end)
+            for (var k = j; k < subtrahend.Length && subtrahend[k].Start <= end; k++)
             {
                 var (otherStart, otherEnd) = subtrahend[k];
                 if (otherStart > currentStart)
@@ -7118,7 +7115,6 @@ public sealed class JsRegExp
                 }
 
                 currentStart = Math.Max(currentStart, otherEnd + 1);
-                k++;
             }
 
             if (currentStart <= end)

@@ -48,11 +48,6 @@ internal static class JsWeakCollectionHelpers
                 return JsSymbol.KeyFor(jsSymbol) is null;
         }
 
-        if (value.GetType().IsValueType)
-        {
-            return false;
-        }
-
-        return true;
+        return !value.GetType().IsValueType;
     }
 }

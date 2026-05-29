@@ -1493,7 +1493,7 @@ public sealed partial class RegExpPrototype
         {
             // Check for non-writable property to throw TypeError (Set with Throw=true per spec)
             var descriptor = obj.GetOwnPropertyDescriptor(name);
-            if (descriptor is not null && !descriptor.IsAccessorDescriptor && !descriptor.Writable)
+            if (descriptor?.IsAccessorDescriptor == false && !descriptor.Writable)
             {
                 throw ThrowTypeError($"Cannot assign to read only property '{name}'", realm: Realm);
             }

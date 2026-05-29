@@ -1045,8 +1045,7 @@ public static partial class TypedAstEvaluator
         {
             current = null!;
             var executing = t_currentlyExecuting;
-            if (executing is null ||
-                !executing._isStrict ||
+            if (executing?._isStrict != true ||
                 executing.IsAsyncLike ||
                 executing.IsClassConstructor ||
                 !executing.HasOnlySimpleLegacyTailRestartParameters() ||
@@ -1298,36 +1297,31 @@ public static partial class TypedAstEvaluator
             }
 
             var parameterName = parameterNames[0];
-            if (function.Body.Statements[0] is not IfStatement
+            return function.Body.Statements[0] is IfStatement
+            {
+                Condition: BinaryExpression
                 {
-                    Condition: BinaryExpression
-                    {
-                        Operator: BinaryOperator.LessThanOrEqual,
-                        Left: IdentifierExpression conditionIdentifier,
-                        Right: LiteralExpression { Value.IsNumber: true } conditionLimit
-                    },
-                    Then: ReturnStatement { Expression: { } baseReturn },
-                    Else: null
-                } ||
-                !ReferenceEquals(conditionIdentifier.Name, parameterName) ||
-                !TryGetSimpleNumericSelfRecursionBase(baseReturn, parameterName, out var recursionBase) ||
-                !TryGetSmallInteger(conditionLimit.Value, out var baseThreshold) ||
-                baseThreshold < 0 ||
-                function.Body.Statements[1] is not ReturnStatement
+                    Operator: BinaryOperator.LessThanOrEqual,
+                    Left: IdentifierExpression conditionIdentifier,
+                    Right: LiteralExpression { Value.IsNumber: true } conditionLimit
+                },
+                Then: ReturnStatement { Expression: { } baseReturn },
+                Else: null
+            } &&
+ReferenceEquals(conditionIdentifier.Name, parameterName) &&
+TryGetSimpleNumericSelfRecursionBase(baseReturn, parameterName, out var recursionBase) &&
+TryGetSmallInteger(conditionLimit.Value, out var baseThreshold) &&
+                baseThreshold >= 0 &&
+                function.Body.Statements[1] is ReturnStatement
                 {
                     Expression: BinaryExpression returnExpression
-                } ||
-                !TryCreateSimpleNumericSelfRecursionFastPath(
+                } &&
+TryCreateSimpleNumericSelfRecursionFastPath(
                     returnExpression,
                     parameterName,
                     baseThreshold,
                     recursionBase,
-                    out fastPath))
-            {
-                return false;
-            }
-
-            return true;
+                    out fastPath);
         }
 
         private static bool TryCreateSimpleNumericSelfRecursionFastPath(
@@ -4069,92 +4063,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
-        private static HashSet<Symbol> CollectAnnexBBlockFunctionNames(BlockStatement body)
-        {
-            var result = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-            foreach (var statement in body.Statements)
-            {
-                CollectFromStatement(statement, result, body.IsStrict, inBlockScope: false);
-            }
-
-            return result;
-
-            static void CollectFromStatement(StatementNode statement, HashSet<Symbol> sink, bool isStrict, bool inBlockScope)
-            {
-                while (true)
-                {
-                    switch (statement)
-                    {
-                        case FunctionDeclaration functionDeclaration:
-                            if (!isStrict && inBlockScope &&
-                                !functionDeclaration.Function.IsAsync &&
-                                !functionDeclaration.Function.WasAsync &&
-                                !functionDeclaration.Function.IsGenerator)
-                            {
-                                sink.Add(functionDeclaration.Name);
-                            }
-
-                            return;
-                        case BlockStatement block:
-                            foreach (var inner in block.Statements)
-                            {
-                                CollectFromStatement(inner, sink, isStrict, inBlockScope: true);
-                            }
-
-                            return;
-                        case IfStatement ifStatement:
-                            CollectFromStatement(ifStatement.Then, sink, isStrict, inBlockScope: true);
-                            if (ifStatement.Else is { } elseBranch)
-                            {
-                                statement = elseBranch;
-                                continue;
-                            }
-
-                            return;
-                        case WhileStatement whileStatement:
-                            statement = whileStatement.Body;
-                            continue;
-                        case DoWhileStatement doWhileStatement:
-                            statement = doWhileStatement.Body;
-                            continue;
-                        case WithStatement withStatement:
-                            statement = withStatement.Body;
-                            continue;
-                        case ForStatement forStatement:
-                            statement = forStatement.Body;
-                            continue;
-                        case ForEachStatement forEachStatement:
-                            statement = forEachStatement.Body;
-                            continue;
-                        case SwitchStatement switchStatement:
-                            foreach (var switchCase in switchStatement.Cases)
-                            {
-                                CollectFromStatement(switchCase.Body, sink, isStrict, inBlockScope: true);
-                            }
-
-                            return;
-                        case TryStatement tryStatement:
-                            CollectFromStatement(tryStatement.TryBlock, sink, isStrict, inBlockScope: true);
-                            if (tryStatement.Catch?.Body is { } catchBody)
-                            {
-                                CollectFromStatement(catchBody, sink, isStrict, inBlockScope: true);
-                            }
-
-                            if (tryStatement.Finally is { } finallyBlock)
-                            {
-                                CollectFromStatement(finallyBlock, sink, isStrict, inBlockScope: true);
-                            }
-
-                            return;
-                        case LabeledStatement labeledStatement:
-                            statement = labeledStatement.Statement;
-                            continue;
-                        default:
-                            return;
-                    }
-                }
-            }
-        }
+        private static HashSet<Symbol> CollectAnnexBBlockFunctionNames(BlockStatement body) =>
+            AnnexBFunctionCollector.CollectBlockFunctionNames(body);
 
         private static string DescribeValueJsValue(JsValue value)
         {
@@ -4506,12 +4416,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             if ((_argumentsObjectNeeded && _needsArgumentsBinding) || _usesArguments)
             {
-                extras += 1; // Symbol.Arguments
+                extras++; // Symbol.Arguments
             }
 
             if (!IsArrowFunction && _function.Name is not null && !_hasFunctionNameEnvironment)
             {
-                extras += 1; // Named function expression body binding.
+                extras++; // Named function expression body binding.
             }
 
             return baseSlots + extras;

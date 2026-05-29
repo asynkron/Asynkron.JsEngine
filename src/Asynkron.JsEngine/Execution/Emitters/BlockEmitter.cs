@@ -180,7 +180,7 @@ internal static class BlockEmitter
         var builder = ImmutableHashSet.CreateBuilder(ReferenceEqualityComparer<Symbol>.Instance);
         foreach (var name in topLevelLexicalNames)
         {
-            if (funcNames is null || !funcNames.Contains(name))
+            if (funcNames?.Contains(name) != true)
             {
                 builder.Add(name);
             }

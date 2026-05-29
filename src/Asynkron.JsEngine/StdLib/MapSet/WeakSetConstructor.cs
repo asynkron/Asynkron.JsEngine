@@ -36,9 +36,6 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
         }
 
         var instanceValue = JsValue.FromObjectUnsafe(instance);
-        MapSetIterationHelper.Iterate(args[0], Realm, "WeakSet constructor", entry =>
-        {
-            adder.Invoke([entry], instanceValue);
-        });
+        MapSetIterationHelper.Iterate(args[0], Realm, "WeakSet constructor", entry => adder.Invoke([entry], instanceValue));
     }
 }

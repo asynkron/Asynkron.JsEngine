@@ -2049,7 +2049,7 @@ public sealed partial class StringPrototype
                     i++;
                     break;
                 default:
-                    if (next is >= '0' and <= '9' && captures is not null && captures.Count > 0)
+                    if (next is >= '0' and <= '9' && captures?.Count > 0)
                     {
                         var digit1 = next - '0';
                         if (i + 2 < replacement.Length && replacement[i + 2] is >= '0' and <= '9')

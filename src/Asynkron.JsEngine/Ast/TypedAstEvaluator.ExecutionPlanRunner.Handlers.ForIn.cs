@@ -176,7 +176,7 @@ public static partial class TypedAstEvaluator
             // Find the next property key that still exists on the object.
             // Per ES spec, properties deleted during enumeration should be skipped.
             JsValue currentKey;
-            while (true)
+            do
             {
                 if (driverState.CurrentIndex >= driverState.PropertyKeys.Count)
                 {
@@ -190,13 +190,8 @@ public static partial class TypedAstEvaluator
 
                 currentKey = driverState.PropertyKeys[driverState.CurrentIndex];
                 driverState.CurrentIndex++;
-
-                // Check if the property still exists on the source object (or its prototype chain)
-                if (PropertyStillExists(driverState.SourceObject, currentKey))
-                {
-                    break;
-                }
             }
+            while (!PropertyStillExists(driverState.SourceObject, currentKey));
 
             // Store the value in the value slot.
             // Always use StoreValueBySlot which updates both the slot AND the dictionary.

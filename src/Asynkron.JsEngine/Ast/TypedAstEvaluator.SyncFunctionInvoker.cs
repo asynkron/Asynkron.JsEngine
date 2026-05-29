@@ -3146,7 +3146,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !canUseDynamicNamePath ||
                 !_allowIdentifierCache && !canUseDynamicNamePath ||
                 _lexicalThisEnvironment is not null ||
-                _homeObject is not null ||
                 PrivateNameScope is not null ||
                 !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
                 _superConstructor is not null ||
@@ -3332,7 +3331,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
-                _argumentsObjectNeeded ||
+                // _argumentsObjectNeeded is intentionally omitted: the fast path skips creating the
+                // arguments object, which is safe when _usesArguments and _needsArgumentsBinding are
+                // both false — the IR plan has no instructions that access the arguments binding.
                 _usesArguments ||
                 _needsArgumentsBinding ||
                 !_allowIdentifierCache ||

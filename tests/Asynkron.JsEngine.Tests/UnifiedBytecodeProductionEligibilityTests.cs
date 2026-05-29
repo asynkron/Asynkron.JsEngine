@@ -2314,4 +2314,79 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }
+
+    // This-binding widening proof pack (issue #2633 / ADR 0279)
+
+    [Fact]
+    public void Evaluate_ClassMethodThisPropertyRead_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Point {
+                getX() {
+                    return this.x;
+                }
+            }
+            """,
+            "Point",
+            "getX");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ClassMethodThisPropertyWrite_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Counter {
+                inc() {
+                    this.count = 1;
+                }
+            }
+            """,
+            "Counter",
+            "inc");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ClassMethodWithSuperProperty_DeclinesSuperPropertyDependency()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() { return 1; }
+            }
+
+            class Child extends Base {
+                readSuper() {
+                    return super.value;
+                }
+            }
+            """,
+            "Child",
+            "readSuper");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
+    }
 }

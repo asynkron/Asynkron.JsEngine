@@ -1,6 +1,6 @@
 # Test262 regression pack: temporal
 # Source umbrella list: tests/Asynkron.JsEngine.Tests.Test262/current-regressions.filter.txt
-# Filters: 226
+# Filters: 208
 FullyQualifiedName~Temporal_Duration_compare&FullyQualifiedName~relativeto-sub-minute-offset.js
 FullyQualifiedName~Temporal_Duration_compare&FullyQualifiedName~twenty-five-hour-day.js
 FullyQualifiedName~Temporal_Duration_from&FullyQualifiedName~argument-duration-precision-exact-numerical-values.js

@@ -68,6 +68,17 @@ boundary-explicit.
     sentences as `previous run` or historical evidence. Leave only the active
     delivery's section and signal labels as `this run`; stale current-run
     wording makes owner and proof status ambiguous.
+14. When `docs/dreaming.md` contains both a routing tier model and a
+    speculative/JIT tier model in the same document, label each section's
+    tier-zero explicitly to prevent cross-section confusion. The routing
+    4-tier model numbers hot-first (Tier 0 = UnifiedBytecodeVM, the proven
+    production route); the JIT speculative tier model uses the opposite
+    convention (Tier 0 = interpreter fallback, Tier 1 = optimized VM). Both
+    numbering schemes can coexist, but each diagram and invariant block must
+    carry a scoped prefix or parenthetical (e.g., "routing Tier 0" vs
+    "speculative Tier 0") so readers and future Dreamer agents do not treat
+    the two as the same numbering. Do not use bare "Tier N" labels in a
+    section without establishing which convention applies.
 
 ## Why
 
@@ -148,6 +159,15 @@ plane (this run)" section left the older Milestone C slice also labeled as
 slice represented the active delivery and which was carried historical
 evidence. Future Dreamer slices should demote older run-scoped headings and
 sentences while preserving the current delivery's traceability signals.
+
+Faktorial issue `autrun-divg7tnacvm8-b71e7281d4` / PR #2647 introduced both a
+routing 4-tier model (Tier 0 = UnifiedBytecodeVM, hot path) and a speculative
+JIT tier section (Tier 0 = interpreter fallback) in the same document. The two
+sections used inverted Tier-0 conventions without disambiguation labels, making
+it ambiguous which "Tier 0" a future agent or reader should apply when referencing
+tier numbering. WHY: future Dreamer runs or architecture slices that read either
+section in isolation will carry the wrong tier-mapping into new prose unless the
+section-scoped convention is explicit.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

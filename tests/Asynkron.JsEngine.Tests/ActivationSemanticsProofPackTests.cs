@@ -130,14 +130,13 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("42:1", result);
+        // Non-number args bypass the precomputed numeric path but use the general binary parameter path.
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -161,7 +160,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("fast path throw", result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        // probe() uses the simple IR activation + return fast path; thrown exceptions propagate correctly.
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
     }
 
@@ -271,16 +271,6 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         }
 
         probe(1, 42);
-        """, 42d)]
-    [InlineData("""
-        function makeReader(a) {
-            return function read() {
-                return a;
-            };
-        }
-
-        var read = makeReader(42);
-        read();
         """, 42d)]
     [InlineData("""
         function* probe(a) {
@@ -674,6 +664,26 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("1,2,11,3,12", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClosureCaptureRead_UsesIrActivationFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeReader(a) {
+                return function read() {
+                    return a;
+                };
+            }
+
+            var read = makeReader(42);
+            read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

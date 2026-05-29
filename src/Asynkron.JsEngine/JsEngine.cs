@@ -914,7 +914,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
             EnsureModuleEvaluated(entry);
             return entry.LastValue;
-            return entry.LastValue.ToObject();
 #pragma warning restore CS0618
         }
         finally
@@ -2030,6 +2029,15 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         // After evaluation completes, still only drain earlier epochs
         DrainMicrotasks(maxDrainEpoch, cancellationToken: cancellationToken);
         return await evaluationTask.ConfigureAwait(false);
+    }
+
+
+    /// <summary>
+    ///     Registers a value in the global scope (object overload for internal use).
+    /// </summary>
+    private void SetGlobal(string name, object? value, bool isGlobalConstant = false, bool registerBinding = false)
+    {
+        SetGlobal(name, JsValue.FromObjectUnsafe(value), isGlobalConstant, registerBinding);
     }
 
     /// <summary>

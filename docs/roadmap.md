@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Roadmap
 
-_Last updated: 2026-05-30 (PRs #2750, #2755, #2758, #2761)_
+_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777)_
 
 ## Current State
 
@@ -37,6 +37,8 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 - **Spread bulk-copy optimization attempt documented** (commit `af145ffe`, PR #2727). A dense-array spread pre-size and bulk-copy path was prototyped and A/B measured; the approach was found to be below threshold, so the decision and measurements are recorded rather than left as a recurring optimization candidate (rule 9b).
 
 - **`docs/dreaming.md` rev 3 expands architecture direction** (commit `9308b48f`, PR #2725). Additions: `.NET Platform Advantage` section (JsValue struct, Span<JsValue>, NativeAOT, ValueTask zero-alloc async, meta-JIT, SIMD intrinsics); `Component 11 — Embedding / Host API` (CreateRealm, HostFunction bridge, first-class embedding contract); register-based VM directional note; positive completion conditions for each component.
+
+- **`docs/dreaming.md` rev 4 adds Component 14 (Worker / Realm Fabric), Component 15 (Compilation Artifact Cache), JsValue struct layout, directional bytecode format, and Mermaid diagrams for components 3–6** (PR #2768). Worker / Realm Fabric: each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` opt-in requiring host capability grant. Compilation Artifact Cache: content-addressed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility; primary enabler for cold-start < 5 ms p95 SLO on repeated-script workloads. JsValue struct layout: 24-byte tagged union — `Kind` (4-byte int enum, tags 0–9), `NumberValue` (8-byte double; Boolean stored as 0.0/1.0), `ObjectValue` (8-byte managed reference for String/BigInt/Symbol/Object). Directional bytecode encoding: `[Opcode:8][Dest:8][Src1:8][Src2:8]` fixed 32-bit word; Src1+Src2 as 16-bit constant pool index for literal loads; wide-instruction escape for large operands; requires ADR before wire-format freeze. Both new components are entirely directional; no implementation exists today.
 
 - **Unified-bytecode production routing widened to admit array spread in array literals** (`[...x]`, `[a, ...x]`, `[, ...x]`). New `ArraySpread` opcode iterates the spread source via `EnumerateSpread` and pushes each element; `ArrayPushHole` standalone admission added for hole-before-spread patterns (`[, ...x]`). Holey and spread arrays are now accepted in call-argument and expression-value positions. Rule 40 (four-surface coupling checklist) documents the required update sites (PR #2750).
 
@@ -76,6 +78,8 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] Offer ahead-of-time / cached compilation of hot scripts for faster warm starts.
 - [ ] Reach the 2-stratum greenfield target (delete Tier 1 ExpressionProgram VM + Tier 2 Statement IR Runner; retain only Stratum 0 Compiled VM and Stratum F correctness fallback — see `docs/dreaming.md`).
 - [ ] Implement Shape/IC system (directional): hidden-class property layout, shape transition table, and mono/poly/megamorphic inline-cache dispatch at the compiled VM layer, once Stratum 0 coverage is proven — see component 10 in `docs/dreaming.md`.
+- [ ] Implement Worker / Realm Fabric (directional): each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` opt-in requiring explicit host capability grant; host-owned Worker lifecycle — see component 14 in `docs/dreaming.md`.
+- [ ] Implement Compilation Artifact Cache (directional): content-addressed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary architectural enabler for cold-start < 5 ms p95 SLO on repeated-script workloads — see component 15 in `docs/dreaming.md`.
 
 ## Next Steps
 

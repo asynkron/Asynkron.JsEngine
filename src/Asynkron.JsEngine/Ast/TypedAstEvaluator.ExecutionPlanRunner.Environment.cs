@@ -30,7 +30,7 @@ public static partial class TypedAstEvaluator
                 .ParameterNames;
             var needsArgumentsBinding = !_function.IsArrow && NeedsArgumentsBinding(_function);
             HashSet<Symbol>? blockedFunctionVarNames = null;
-            if (!_isStrict)
+            if (!_isStrict && hoistPlan.HasFunctionDeclarations)
             {
                 var catchParameterNamesRaw = hoistPlan.CatchParameterNames;
                 blockedFunctionVarNames = bodyLexicalTemplate.Length == 0

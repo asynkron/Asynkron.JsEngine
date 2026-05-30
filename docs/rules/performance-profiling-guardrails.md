@@ -719,6 +719,26 @@ optimization.
     `valueVar.Write(...)` in the SyncIterator StoreValue handler, where the slot
     write already completed the assignment.
 
+31. For `CreateExecutionEnvironment` compliance-overhead work, guard spec-required
+    bookkeeping structures with `HoistPlan` or `ExecutionPlan` AST-cached flags
+    before building them. The blocked-names `HashSet<Symbol>` in non-strict
+    `CreateExecutionEnvironment` is only consulted by `HandleFunctionDeclaration`;
+    when `hoistPlan.HasFunctionDeclarations` is false the set is never read, so
+    allocating it unconditionally pays 10K+ wasted HashSet constructions per
+    benchmark run for bodies with no function declarations (IIFE arithmetic, class
+    constructors, class methods). The profiled signal for this pattern is
+    `CastHelpers.Box` taking 73–80% under `CreateExecutionEnvironment` while the
+    actual workload work such as arithmetic execution appears at only ~4%. Before
+    adding a plan-flag guard to any other compliance structure in
+    `CreateExecutionEnvironment`, verify with a focused CPU profile that the
+    structure is the actual hot allocation, confirm the sole consumer and the
+    AST-cached flag are semantically aligned, and prove the win with repeated
+    selected-profile timings and the internal test suite. WHY: issue
+    `autrun-divxrxqes5rk-9f8659046c` / PR #2702 retained a 37% improvement
+    (447→281 ms) on `simplearithmetic` and a 43% improvement (1537→871 ms) on
+    `classdef` by adding `&& hoistPlan.HasFunctionDeclarations` to the existing
+    `!_isStrict` guard in `CreateExecutionEnvironment`.
+
 ## Why
 
 Issue

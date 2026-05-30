@@ -3228,6 +3228,24 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
                     break;
 
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    {
+                        reason = "Optional named property reads are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    if (operation.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+                    {
+                        reason = "Private named property reads are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    var namedPropNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, namedPropNameIndex));
+                    break;
+
                 case ExpressionOpKind.LoadNewTarget:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
                     break;

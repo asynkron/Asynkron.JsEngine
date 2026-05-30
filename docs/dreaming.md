@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-30
+Date: 2026-05-30 (rev 2)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -21,16 +21,20 @@ The 2026-05-29 dream — the revision this document supersedes — was the stron
 
 4. **The seam inventory has no closing condition.** The table distinguishes near-closure from structural seams, which is good, but it never states *when the dream itself is done*. A greenfield north star should describe its own terminal state: the dream is fulfilled when Tier 1 and Tier 2 are deleted, every fallback entry is either eliminated or ADR-accepted as intentional, and the execution surface is exactly two strata. Without that, the document is an inventory with no finish line.
 
-This revision keeps every proven constraint and diagram from the prior dream and adds: a **greenfield 2-tier target vs. migration 4-tier reality** section with a contrast diagram, an **abrupt-completion / exception propagation** diagram, a single consistent stratum-numbering convention, and an explicit **dream completion condition**.
+The 2026-05-29 revision kept every proven constraint and added: a **greenfield 2-tier target vs. migration 4-tier reality** section with a contrast diagram, an **abrupt-completion / exception propagation** diagram, a single consistent stratum-numbering convention, and an explicit **dream completion condition**.
+
+This revision keeps all of those and addresses five further gaps: (1) **stronger greenfield-first framing** in the product dream (2-stratum target replaces the "4-tier execution" bullet); (2) a **full event loop lifecycle diagram** that distinguishes microtask drain from host macrotask scheduling; (3) a **Shape / IC system** component (directional) for hidden-class and inline-cache property access; (4) an **active GC allocation budget** table with per-site Gen targets and reduction rules; and (5) a **Performance SLOs** section with measurable targets and governance rules so "Node.js-competitive" has a finish line, not just a direction.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
 
 - **compilation-first:** source is compiled to typed bytecode artifacts; AST is never in the runtime hot path.
-- **4-tier execution:** Tier 0 (UnifiedBytecodeVM) is the target for all accepted shapes; Tiers 1–3 are temporary correctness bridges on the path to elimination.
+- **2-stratum target:** the greenfield design is exactly two execution strata — Stratum 0 (compiled VM, all statically decidable shapes) and Stratum F (correctness fallback for genuinely dynamic semantics: direct `eval`, dynamic `with`, proxy-intercepted scope). The 4-tier migration reality exists as a bridge to this target; the 4 tiers are not the design.
 - **realm-isolated by design:** every operation is realm-contextualized; cross-realm boundaries are explicit contracts, not implicit assumptions.
 - **seam-free by design:** every fallback seam is a temporary correctness bridge, not a permanent design choice; near-closure seams are first in the optimization queue.
 - **value-model-native:** `JsValue` is the universal runtime currency; object-overload seams are temporary compat shims.
+- **shape-aware:** object property access should exploit shape (hidden-class) identity for fast IC (inline-cache) dispatch once the compiled VM layer is proven; shape transitions and IC invalidation are first-class concerns at the VM layer.
+- **allocation-budgeted:** short-lived per-call allocations must stay in Gen 0; call-frame boxing, argument array creation, and value-stack spills are tracked allocation sites with explicit reduction targets.
 - **evidence-governed:** every correctness and performance claim is non-deliverable until focused proof plus canonical quality gate evidence exists.
 
 ## Greenfield target vs migration reality
@@ -134,6 +138,7 @@ flowchart TD
         PRC[Prototype Chain + Built-ins]
         DSC[Descriptor System]
         SPC[Specialized Storage]
+        SHP[Shape / IC System — directional]
     end
 
     SRC --> COMP
@@ -409,10 +414,14 @@ Value contract rules:
 
 ## Async concurrency model
 
+The concurrency runtime has two distinct drain levels: the **microtask queue** (ECMAScript-specified Promise jobs that drain to empty after each macrotask) and the **host event loop** (the enclosing .NET scheduler that delivers macrotasks — timers, I/O completions, host callbacks). Slices that touch async behavior must be precise about which level they are modifying.
+
+### Microtask queue (ECMAScript-specified)
+
 ```mermaid
 flowchart TB
-    subgraph AsyncRuntime["Concurrency Runtime"]
-        MQ[Microtask Queue\nPromise jobs]
+    subgraph AsyncRuntime["Concurrency Runtime — ECMAScript layer"]
+        MQ[Microtask Queue\nPromise jobs\nPromiseReactionJob / PromiseResolveThenableJob]
         AW[Await suspension point\nopcode in Tier 0 / Tier 1]
         RS[Resume routing\nrestore slot state + restart]
         AG[Async Generator\nstate machine — yield*/next/return]
@@ -434,6 +443,38 @@ flowchart TB
     HC --> MQ
     AG --> AW
 ```
+
+### Event loop lifecycle (host + ECMAScript combined)
+
+The event loop describes the full ordering of work from host entry through ECMAScript drain and back. This is the anchor for every `setTimeout`, `setInterval`, I/O, and host-callback scheduling decision.
+
+```mermaid
+flowchart TB
+    HOST[Host scheduler\n.NET Task / timer / I/O]
+    MT[Select macrotask\n(timer fire, I/O callback,\nhost-enqueued work)]
+    EX[Execute macrotask script\nor resume callback]
+    MQD[Drain microtask queue\nuntil empty\n(Promise jobs, queueMicrotask)]
+    RA[Render animation callbacks\n— directional: requestAnimationFrame\nnot a current contract]
+    IDLE[Idle / no pending work\n→ wait for next host event]
+
+    HOST --> MT
+    MT --> EX
+    EX --> MQD
+    MQD -->|new microtasks enqueued| MQD
+    MQD -->|queue empty| RA
+    RA --> IDLE
+    IDLE --> HOST
+
+    style RA fill:#555,color:#fff
+    style IDLE fill:#333,color:#fff
+```
+
+Event loop invariants:
+- The microtask queue drains **completely** after each macrotask before the host can deliver the next macrotask. This is the ECMAScript ordering guarantee; the engine must not return to the host scheduler while microtasks are pending.
+- The host delivers macrotasks (timers, I/O) through the Host Wakeup Bridge; it never directly re-enters the Execution Engine. Callbacks enqueue into the microtask queue or schedule a new macrotask.
+- `queueMicrotask` injects a job at the back of the current microtask queue; it drains in the same macrotask turn.
+- `setTimeout`/`setInterval` are host-layer macrotask schedulers; their exact resolution depends on the host's timer precision. The engine does not implement timers; it exposes the scheduling surface to the host.
+- Animation callbacks (requestAnimationFrame) are directional; they are not a current engine contract.
 
 Async invariants:
 - The suspension/resume boundary is an explicit opcode contract, not an implicit continuation.
@@ -738,7 +779,70 @@ GC invariants:
 - Rope string flattening is consumer-driven: the runtime does not eagerly flatten; the consumer that needs a contiguous buffer requests flattening.
 - Finalizer discipline for JS wrapper objects and GC-aware pool allocation are directional; no finalizer contract exists today.
 
-### 10. Developer Tooling / Inspector Protocol (directional)
+### Allocation budget strategy (active targets)
+
+The GC model is not passive: every allocation site has a generation budget. Violating a budget is tracked technical debt, not a minor style issue.
+
+| Allocation site | Target generation | Current reality | Action on violation |
+|---|---|---|---|
+| Value stack frames | Gen 0 | Mostly Gen 0 | Profile, find escape, fix |
+| ExpressionOp inline buffers | Gen 0 | Gen 0 if size ≤ inline cap | Add allocation test |
+| Argument arrays (spread/rest) | Gen 0 | Mixed — depends on caller | Replace with stack span where possible |
+| Completion records (`Completion<T>`) | Gen 0 struct | Value types today | Preserve struct return |
+| Slot arrays (closure environments) | Gen 1–2 (intentionally long-lived) | Long-lived | Expected: no action |
+| JsObject property bags | Gen 1–2 | Long-lived | Expected; shape system reduces churn |
+| Rope / interned strings | Gen 2 or pinned | Long-lived | Expected |
+| Module namespace objects | Pinned (realm lifetime) | Registry-pinned | Expected |
+
+Allocation reduction rules:
+- **Boxing avoidance:** `JsValue` is a struct; returning or passing `JsValue` on the call stack avoids heap boxing. Every helper that currently returns `object?` for a value result is an unboxing target.
+- **Argument array elision:** direct calls with a fixed, small arity should avoid creating an `arguments`-backing `JsValue[]`. The VM should pass arguments on its value stack or via a `ReadOnlySpan<JsValue>` parameter.
+- **Closure slot minimization:** static analysis should count only the variables actually captured by an inner function; the slot array should be sized to the capture set, not the full local variable set.
+- **Stackalloc eligibility:** `stackalloc`-backed spans for temporary per-call buffers (argument marshalling, spread flattening for short lists) are an acceptable optimization in Tier 0 if they reduce Gen 0 pressure in hot loops.
+- ProfileRunner matrix runs must include an allocation trace (`./benchmark.sh --allocations`) before any allocation-sensitive change is merged. Baseline + final managed-bytes per operation are required evidence.
+
+### 10. Shape / Property Cache System (directional)
+
+Goal: exploit object shape (hidden-class) identity to replace per-access property dictionary lookups with single-comparison IC (inline-cache) dispatch on the hot path.
+
+A "shape" records the ordered set of property names and their storage offsets for a given object layout. When an object acquires a property, it transitions to a new shape; when two objects share a shape, their property offsets are identical. A call-site IC caches the last-seen shape + offset, so the fast path is a pointer comparison followed by a direct slot read, with no dictionary traversal.
+
+```mermaid
+flowchart TB
+    subgraph ShapeSystem["Shape / IC System — directional"]
+        SHP["Shape (hidden class)\nordered property names → slot offsets\nimmutable after creation"]
+        STR["Shape transition table\nnew property → new shape\nshared prefix → shared subtree"]
+        MON["Monomorphic IC\ncall site: shape == cached_shape\n→ direct slot read (no lookup)"]
+        POL["Polymorphic IC\ncall site: shape in {s1, s2, …}\n→ small inline compare chain"]
+        MEG["Megamorphic fallback\nshape not in IC cache\n→ full property lookup"]
+        INV["IC invalidation\nshape transition at write site\n→ IC flush or polymorphic upgrade"]
+    end
+
+    SHP --> STR
+    STR -->|shape assigned at object creation| MON
+    MON -->|shape mismatch| POL
+    POL -->|too many shapes| MEG
+    MEG -.->|reprofile| MON
+    STR -->|new property added| INV
+    INV -->|flush| MON
+
+    style MON fill:#060,color:#fff
+    style MEG fill:#c00,color:#fff
+    style SHP fill:#333,color:#fff
+```
+
+Shape system invariants (all directional):
+- Shape transitions are **append-only**: adding a property to an object creates a new shape that extends the parent; no existing shape is mutated. This keeps shared subtrees stable.
+- Shape identity, not shape equality, gates IC hits: the IC comparison is a single pointer equality check.
+- IC sites start monomorphic (one cached shape). Repeated shape mismatches promote to polymorphic (inline chain, typically ≤4), then megamorphic (dictionary fallback).
+- Shape system requires a stable slot model at the compiled VM layer. It is not a candidate for implementation until Tier 0 routing covers the majority of production shapes.
+- The prototype chain is shape-sensitive: prototype mutation that changes a shape must invalidate all IC sites that cache that prototype shape. Prototype-chain invalidation is a directional correctness requirement.
+
+Shape system relationship to today's code:
+- Today JsObject uses a property bag (`Dictionary<string, PropertyDescriptor>`) with no shape concept. Implementing shape tracking requires a new object header layout and a shape allocator.
+- The first step is a Shape proof-of-concept under an ADR (not a production migration). Until that ADR lands, this section is purely directional.
+
+### 12. Developer Tooling / Inspector Protocol (directional)
 
 Goal: expose bytecode-level source attribution and a standard debug protocol surface; keep tooling concerns out of the hot execution path.
 
@@ -764,7 +868,7 @@ Dev tooling invariants:
 - The V8 Inspector Protocol (CDP) is the target bridge; no alternative debug wire protocol should be designed in parallel.
 - Tooling hooks must be zero-cost when disabled; they must not add branches to the bytecode dispatch loop.
 
-### 11. Security / Realm Isolation
+### 13. Security / Realm Isolation
 
 Goal: realm boundary isolates per-script globals; capability grants control host-surface access; sandbox escape is blocked at the host bridge.
 
@@ -833,10 +937,13 @@ Boundary contract rules:
 | Host interop | Host callable/global bridge boundaries explicit | Broader Node.js-style host behavior (integration-layer work) |
 | Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
 | Tiered execution | Unified bytecode VM is an explicit tier-1 with bounded eligibility; interpreted runner is tier-0. | Tier-2 optimizing execution (JIT or AOT shape) remains directional; profile-guided tier promotion requires separate proof. |
-| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. |
+| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. Allocation budget table defines per-site Gen 0/1/2 targets. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. Argument array elision and stackalloc fast paths are improvement targets. |
 | Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
 | Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
 | Primary sync route | 100% of accepted ordinary sync production programs attempt Tier 0 before Tier 2/Tier 3 (PR #2623) | Profile evidence for coverage claim (#2634) |
+| Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
+| Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
+| Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. | Cold-start latency, microtask drain latency, and full Jint allocation comparison are in Candidate state (no baseline yet). |
 
 ## Architecture constraints (current reality)
 
@@ -848,6 +955,27 @@ These constraints are binding until new evidence says otherwise.
 - Tier 0 production routing remains bounded by explicit eligibility and opcode/control-flow constraints until `this`-dependent sync function parity + profile evidence is added (#2633, #2634).
 - Dynamic/eval-sensitive paths remain correctness-first; they cannot be erased by architecture preference.
 - Compact statement-bytecode storage is directional; it is not the current universal execution contract.
+
+## Performance SLOs
+
+These are the observable performance targets the dream must eventually satisfy to support the "Node.js-competitive runtime" product claim. SLOs are **not** requirements today; they are the finish line that makes "directional" language concrete. No SLO may be claimed without ProfileRunner matrix evidence (baseline + final signal, `./benchmark.sh` and `./benchmark.sh --allocations`).
+
+| SLO | Target | Measured by | Current status |
+|---|---|---|---|
+| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Not yet measured |
+| Warm-path throughput (`fibonacci`, `looping`) | ≤ 2× Jint managed bytes per op | `./benchmark.sh --allocations` | Tracked, improving |
+| Allocation per expression eval (hot loop, no object creation) | Zero Gen 1+ promotions | `./benchmark.sh --allocations` | Partially met; args still escape |
+| Microtask drain latency | < 1 ms per 1 000 queued jobs | Dedicated microtask benchmark | Not yet measured |
+| Test262 true correctness failures | < 10 in Language + BuiltIns suites | Testrunner baseline | < 20 today |
+| Tier 0 routing coverage (accepted ordinary sync programs) | 100% attempt-Tier-0 | PR #2623 expansion contract | Proven for primary sync route |
+| Seam inventory shrink rate | One near-closure seam eliminated per milestone | Seam inventory table above | In progress |
+
+SLO governance rules:
+- A SLO that has never been measured is in **Candidate** state. It cannot be claimed until at least one ProfileRunner run establishes a baseline.
+- A SLO that has a measured baseline but has not been validated with a **final signal** (post-change measurement) is in **Prototyped** state.
+- A SLO enters **ProvenScoped** only after both signals are attached to a merged ADR or PR.
+- SLOs for Node.js parity (startup, throughput, allocation) require a comparison benchmark against a reference Jint run at the same input; "faster than before" is not sufficient.
+- No SLO is deleted from this table without an ADR documenting why the target was dropped or superseded.
 
 ## Delivery lifecycle
 

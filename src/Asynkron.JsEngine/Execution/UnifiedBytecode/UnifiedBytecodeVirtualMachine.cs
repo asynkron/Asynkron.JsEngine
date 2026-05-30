@@ -1016,6 +1016,21 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.ArraySpread:
+                    var spreadSourceValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetArray(out var spreadTargetArray))
+                    {
+                        throw new InvalidOperationException("Array spread unified bytecode op requires an array receiver.");
+                    }
+
+                    foreach (var spreadElement in TypedAstEvaluator.EnumerateSpread(spreadSourceValue, context))
+                    {
+                        spreadTargetArray.Push(spreadElement);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.CreateObject:
                     var targetObject = new JsObject
                     {

@@ -1258,14 +1258,44 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("externalValue", result.Reason, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Evaluate_SimpleSourceArraySpread_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function spreadArray(source) {
+                return [1, ...source];
+            }
+            """,
+            "spreadArray");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode()
+    {
+        var plan = GetFunctionPlan("""
+            function spreadNonSimple(a, b) {
+                return [...a.slice(0, b)];
+            }
+            """,
+            "spreadNonSimple");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.NotEmpty(result.Reason);
+    }
+
     [Theory]
-    [InlineData(
-        """
-        function spreadArray(source) {
-            return [1, ...source];
-        }
-        """,
-        "spreadArray")]
     [InlineData(
         """
         function spreadObject(source) {

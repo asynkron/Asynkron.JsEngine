@@ -4214,7 +4214,7 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Compiles a simple array literal span starting at startIndex in the expression program.
-    // Emits: CreateArray, then N×[simple-operand-load, ArrayPush]. No holes or spread.
+    // Emits: CreateArray, then N×[simple-operand-load, ArrayPush|ArraySpread]. No holes.
     private static bool TryAppendSimpleArrayLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -4253,14 +4253,21 @@ internal static class UnifiedBytecodeCompiler
             }
 
             var pushOp = expressionProgram.GetOperation(i);
-            if (pushOp.Kind != ExpressionOpKind.ArrayPush)
+            if (pushOp.Kind == ExpressionOpKind.ArrayPush)
+            {
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPush));
+            }
+            else if (pushOp.Kind == ExpressionOpKind.ArraySpread)
+            {
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArraySpread));
+            }
+            else
             {
                 spanLength = 0;
-                reason = "Array holes and spread elements are not admitted in simple array literals.";
+                reason = "Array holes are not admitted in simple array literals.";
                 return false;
             }
 
-            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPush));
             i++;
         }
 

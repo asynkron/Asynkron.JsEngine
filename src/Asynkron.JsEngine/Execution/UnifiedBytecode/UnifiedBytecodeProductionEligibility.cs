@@ -979,6 +979,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
 
                 case ExpressionOpKind.ArraySpread:
+                    if (operationIndex > 0 &&
+                        IsSimpleOperand(program.GetOperation(operationIndex - 1), identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                    declineReason =
+                        "Array spread with non-simple source is not eligible for production unified bytecode routing.";
+                    return true;
+
                 case ExpressionOpKind.DefineObjectMethod:
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
@@ -1833,8 +1844,8 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple array literal starting at startIndex.
-    // Admitted shape: CreateArray followed by N×[simple-operand, ArrayPush] (N ≥ 0).
-    // ArrayPushHole, ArraySpread, and nested complex elements are declined (spanLength=0, return false).
+    // Admitted shape: CreateArray followed by N×[simple-operand, ArrayPush|ArraySpread] (N ≥ 0).
+    // ArrayPushHole and nested complex elements are declined (spanLength=0, return false).
     private static bool TryMeasureSimpleArrayLiteralSpan(
         ExpressionProgram program,
         int startIndex,
@@ -1866,7 +1877,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var pushOp = program.GetOperation(i);
-            if (pushOp.Kind != ExpressionOpKind.ArrayPush)
+            if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
             {
                 // ArrayPushHole or any other op — decline; holes are not admitted.
                 spanLength = 0;

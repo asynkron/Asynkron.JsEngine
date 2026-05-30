@@ -2506,17 +2506,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
-    [Theory(Timeout = 5000)]
-    [InlineData(
-        """
-        function spreadArray(source) {
-            return [1, ...source];
-        }
+    [Fact(Timeout = 5000)]
+    public async Task SimpleSourceArraySpread_UsesUnifiedBytecodeProductionFastPathAndSpreadsCorrectly()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function spreadArray(source) {
+                return [1, ...source];
+            }
 
-        spreadArray([41])[1];
-        """,
-        "spreadArray",
-        41d)]
+            spreadArray([41])[1];
+            """);
+
+        Assert.Equal(41d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadArray",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
     [InlineData(
         """
         function methodObject() {

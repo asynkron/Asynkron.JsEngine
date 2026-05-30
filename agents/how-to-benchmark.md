@@ -72,6 +72,63 @@ ProfileRunner measures allocations with `GC.GetTotalAllocatedBytes(precise:
 true)` around the measured iterations. It forces a full GC before measurement.
 Treat the result as managed allocation pressure, not retained heap size.
 
+## Allocation Regression Gate
+
+`tools/check-allocation-regression` guards the evaluator hot-path allocation
+wins (PR #2661 SyncFunctionInvoker static-analysis caching, commit `bd70ca63`
+`JsValue` struct coercion, PR #2658 typed-AST property-key caching) against
+silent regression. It re-measures **Asynkron-only** managed allocations for the
+benchmark smoke set (`fib forloop ir-arithmetic functioncalls
+functioncalls-lite`) and compares them to the committed baseline at
+`tools/allocation-baseline.txt`.
+
+> Note: this repo has no GitHub Actions CI (Actions were intentionally removed).
+> The gate is a standalone, deterministic command wired into the local
+> [`/pre-pr`](../.claude/commands/pre-pr.md) quality path (Step 5). It does not
+> run Jint, so it is cheap. If true PR-CI is ever desired, that is a separate
+> owner decision; the gate command is ready to be called from any CI.
+
+Run the gate:
+
+```bash
+rtk ./tools/check-allocation-regression
+```
+
+It prints a per-profile table and exits non-zero with a clear diff when any
+profile regresses beyond tolerance. Skip the rebuild when ProfileRunner is
+already current:
+
+```bash
+rtk ./tools/check-allocation-regression --no-build
+```
+
+### Tolerance model
+
+Allocation counts are nearly deterministic, but a fixed ~24 KB measurement blip
+occasionally lands inside the measured loop. That blip is a large percentage on
+the small profiles (`ir-arithmetic`, `forloop`) yet negligible on large ones.
+So the gate fails a profile only when its increase exceeds the **larger** of:
+
+- a percentage headroom (`--tolerance`, default `15`%, or `ALLOC_GATE_TOLERANCE`), and
+- an absolute floor (`--abs-floor`, default `49152` bytes, or `ALLOC_GATE_ABS_FLOOR`).
+
+The percentage dominates large profiles (catches proportional regressions); the
+floor absorbs the fixed noise on small profiles.
+
+### Baseline-refresh path (one command)
+
+When an intentional change legitimately moves the allocation numbers, refresh
+the committed baseline and commit it:
+
+```bash
+rtk ./tools/check-allocation-regression --update
+git add tools/allocation-baseline.txt && git commit
+```
+
+`--update` re-measures the smoke set and rewrites `tools/allocation-baseline.txt`
+(values are Asynkron managed allocated bytes per profile, with a header noting
+how they were generated).
+
 ## Fairness Contract
 
 The comparison runner parses/prepares each script before the measured loop:

@@ -1,0 +1,287 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Force a stable locale so awk formats numbers with a '.' decimal separator
+# regardless of the host locale.
+export LC_ALL=C
+
+# Allocation-regression gate for the evaluator hot paths.
+#
+# Re-measures managed allocated bytes for the Asynkron engine across the
+# benchmark "smoke" profile set and compares them to a committed baseline
+# (tools/allocation-baseline.txt). Exits non-zero with a clear per-profile
+# diff when any profile's allocations regress beyond a tolerance.
+#
+# This guards the recent hot-path allocation wins (PR #2661, commit bd70ca63,
+# PR #2658) from silently regressing. It only measures Asynkron's own
+# allocations -- the Jint comparison is irrelevant to the guard, so this gate
+# does not run Jint and stays cheap.
+#
+# Usage:
+#   ./tools/check-allocation-regression [--no-build] [--update] [--tolerance PCT]
+#
+#   (default)         Check current allocations against the committed baseline.
+#   --update          Refresh tools/allocation-baseline.txt from a fresh run
+#                     (use after an intentional change moves the numbers).
+#   --no-build        Skip the ProfileRunner build (assume it is current).
+#   --tolerance PCT   Allowed per-profile regression headroom, percent.
+#                     Default 15 (overridable via ALLOC_GATE_TOLERANCE).
+#   --abs-floor BYTES Absolute headroom that always applies, to absorb the
+#                     fixed ~24 KB measurement blip seen on small profiles.
+#                     Default 49152 (overridable via ALLOC_GATE_ABS_FLOOR).
+#                     A profile fails only when its increase exceeds the LARGER
+#                     of the percentage headroom and this absolute floor, so the
+#                     percentage dominates large profiles and the floor absorbs
+#                     fixed measurement noise on small ones.
+#
+# Baseline-refresh path (one command):
+#   ./tools/check-allocation-regression --update
+#   git add tools/allocation-baseline.txt && git commit
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+runner_project="$script_dir/ProfileRunner/ProfileRunner.csproj"
+runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
+runner_exe="$runner_bin/ProfileRunner"
+runner_dll="$runner_bin/ProfileRunner.dll"
+baseline_file="$script_dir/allocation-baseline.txt"
+
+build_runner=true
+update_baseline=false
+tolerance_pct="${ALLOC_GATE_TOLERANCE:-15}"
+abs_floor="${ALLOC_GATE_ABS_FLOOR:-49152}"
+runner_cmd=()
+
+# Keep this list in sync with the smoke_profiles in tools/compare-jint-profiles.
+smoke_profiles=(
+  fib
+  forloop
+  ir-arithmetic
+  functioncalls
+  functioncalls-lite
+)
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./tools/check-allocation-regression [--no-build] [--update] [--tolerance PCT]
+
+Re-measures Asynkron managed allocations for the benchmark smoke set and
+compares them to tools/allocation-baseline.txt, failing on regressions beyond
+the tolerance (default 15%).
+
+Options:
+  --no-build        Skip the ProfileRunner Release build.
+  --update          Refresh the committed baseline from a fresh run instead of
+                    checking against it.
+  --tolerance PCT   Allowed per-profile regression headroom in percent
+                    (default 15; or set ALLOC_GATE_TOLERANCE).
+  --abs-floor BYTES Absolute headroom that always applies (default 49152; or
+                    set ALLOC_GATE_ABS_FLOOR). Absorbs the fixed ~24 KB
+                    measurement blip on small profiles. A profile fails only
+                    when its increase exceeds the larger of the percentage and
+                    this floor.
+  --help, -h        Show this help.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --no-build)
+      build_runner=false
+      shift
+      ;;
+    --update)
+      update_baseline=true
+      shift
+      ;;
+    --tolerance)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --tolerance" >&2
+        exit 2
+      fi
+      tolerance_pct="$2"
+      shift 2
+      ;;
+    --tolerance=*)
+      tolerance_pct="${1#*=}"
+      shift
+      ;;
+    --abs-floor)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --abs-floor" >&2
+        exit 2
+      fi
+      abs_floor="$2"
+      shift 2
+      ;;
+    --abs-floor=*)
+      abs_floor="${1#*=}"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if ! [[ "$tolerance_pct" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "Invalid --tolerance value: $tolerance_pct" >&2
+  exit 2
+fi
+
+if ! [[ "$abs_floor" =~ ^[0-9]+$ ]]; then
+  echo "Invalid --abs-floor value: $abs_floor" >&2
+  exit 2
+fi
+
+if [[ "$build_runner" == true ]]; then
+  dotnet build "$runner_project" -c Release -v q --nologo >/dev/null
+fi
+
+if [[ -x "$runner_exe" ]]; then
+  runner_cmd=("$runner_exe")
+elif [[ -f "$runner_dll" ]]; then
+  runner_cmd=(dotnet "$runner_dll")
+else
+  echo "ProfileRunner was not found. Build it first or omit --no-build." >&2
+  exit 1
+fi
+
+# These smoke profiles do not need an IIFE wrap (none are in the wrap set used
+# by tools/compare-jint-profiles). Measure Asynkron only.
+measure_profile() {
+  local profile=$1
+  local out status line allocated
+
+  set +e
+  out=$("${runner_cmd[@]}" --asynkron --force-timing --measure-allocations "$profile" 2>&1)
+  status=$?
+  set -e
+
+  line=$(printf '%s\n' "$out" | awk '/Done in/ {line=$0} END {if (line) print line}')
+  if [[ $status -ne 0 || -z "$line" ]]; then
+    printf '\nasynkron %s failed:\n%s\n' "$profile" "$out" >&2
+    return 1
+  fi
+
+  allocated=$(printf '%s\n' "$line" | sed -n 's/.*allocated \([0-9][0-9]*\) bytes.*/\1/p')
+  if [[ -z "$allocated" ]]; then
+    printf '\nCould not parse allocation count for asynkron %s:\n%s\n' "$profile" "$line" >&2
+    return 1
+  fi
+
+  printf '%s' "$allocated"
+}
+
+measure_all() {
+  local profile alloc
+  measured_values=()
+  for profile in "${smoke_profiles[@]}"; do
+    alloc=$(measure_profile "$profile")
+    measured_values+=("$alloc")
+  done
+}
+
+if [[ "$update_baseline" == true ]]; then
+  echo "Measuring Asynkron allocations for the smoke set ..." >&2
+  measure_all
+  {
+    echo "# Asynkron.JsEngine allocation baseline (managed bytes, smoke profile set)."
+    echo "#"
+    echo "# Guards evaluator hot-path allocation wins (PR #2661, commit bd70ca63,"
+    echo "# PR #2658) against silent regression. Compared by"
+    echo "# tools/check-allocation-regression."
+    echo "#"
+    echo "# Generated by: ./tools/check-allocation-regression --update"
+    echo "# Values are Asynkron managed allocated bytes for the measured iteration"
+    echo "# loop, as reported by ProfileRunner --measure-allocations."
+    echo "# Refresh after an intentional change moves the numbers, then commit."
+    echo "#"
+    echo "# format: <profile> <allocated_bytes>"
+    local_i=0
+    for profile in "${smoke_profiles[@]}"; do
+      printf '%s %s\n' "$profile" "${measured_values[$local_i]}"
+      local_i=$((local_i + 1))
+    done
+  } >"$baseline_file"
+  echo "Wrote baseline to $baseline_file:" >&2
+  grep -v '^#' "$baseline_file" >&2 || true
+  exit 0
+fi
+
+if [[ ! -f "$baseline_file" ]]; then
+  echo "Missing baseline: $baseline_file" >&2
+  echo "Generate it with: ./tools/check-allocation-regression --update" >&2
+  exit 1
+fi
+
+# Look up the baseline bytes for a profile (portable; no associative arrays so
+# this works on the bash 3.2 shipped with macOS).
+baseline_for() {
+  local want=$1 profile bytes _rest
+  while read -r profile bytes _rest; do
+    [[ -z "$profile" || "$profile" == \#* ]] && continue
+    if [[ "$profile" == "$want" ]]; then
+      printf '%s' "$bytes"
+      return 0
+    fi
+  done <"$baseline_file"
+  return 0
+}
+
+echo "Checking Asynkron allocations against baseline (tolerance ${tolerance_pct}%, floor ${abs_floor} bytes) ..." >&2
+measure_all
+
+printf '%-22s %14s %14s %10s %s\n' "profile" "baseline_bytes" "current_bytes" "delta_%" "status"
+
+regressed=false
+i=0
+for profile in "${smoke_profiles[@]}"; do
+  current="${measured_values[$i]}"
+  i=$((i + 1))
+  base=$(baseline_for "$profile")
+
+  if [[ -z "$base" ]]; then
+    printf '%-22s %14s %14s %10s %s\n' "$profile" "n/a" "$current" "n/a" "NO BASELINE"
+    regressed=true
+    continue
+  fi
+
+  # Fail only when the increase exceeds the LARGER of the percentage headroom
+  # and the absolute floor. The percentage dominates large profiles; the floor
+  # absorbs the fixed ~24 KB measurement blip on small ones.
+  read -r delta_pct status <<<"$(awk -v base="$base" -v cur="$current" -v tol="$tolerance_pct" -v floor="$abs_floor" 'BEGIN {
+    if (base <= 0) { printf "n/a BADBASE"; exit }
+    pct = (cur - base) / base * 100.0
+    increase = cur - base
+    allowed = base * tol / 100.0
+    if (allowed < floor) { allowed = floor }
+    if (increase > allowed) {
+      printf "%+.1f REGRESSED", pct
+    } else {
+      printf "%+.1f ok", pct
+    }
+  }')"
+
+  printf '%-22s %14s %14s %10s %s\n' "$profile" "$base" "$current" "$delta_pct" "$status"
+  if [[ "$status" == "REGRESSED" || "$status" == "BADBASE" ]]; then
+    regressed=true
+  fi
+done
+
+if [[ "$regressed" == true ]]; then
+  echo "" >&2
+  echo "Allocation regression detected (tolerance ${tolerance_pct}%, floor ${abs_floor} bytes)." >&2
+  echo "If this is an intentional change, refresh the baseline:" >&2
+  echo "  ./tools/check-allocation-regression --update && git add $baseline_file" >&2
+  exit 1
+fi
+
+echo "" >&2
+echo "OK: no allocation regression beyond ${tolerance_pct}% tolerance (floor ${abs_floor} bytes)." >&2

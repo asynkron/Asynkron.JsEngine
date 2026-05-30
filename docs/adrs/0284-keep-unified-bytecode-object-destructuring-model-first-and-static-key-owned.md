@@ -1,4 +1,4 @@
-# ADR 0283: Keep unified bytecode object destructuring model-first and static-key owned
+# ADR 0284: Keep unified bytecode object destructuring model-first and static-key owned
 
 ## Status
 

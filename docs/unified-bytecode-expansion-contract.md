@@ -373,7 +373,7 @@ support today.
   rest). Computed/dynamic-name keys, defaults, nested patterns, and non-slot
   targets keep the generic `BindingVariableDeclarationInstruction` path and
   still decline with `DestructuringDependency`. ADR
-  [`0283`](adrs/0283-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
+  [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.
 - Decision for this lane: model-first. Any future widening must preserve
   explicit driver-state descriptors and pre-VM declines for shapes that would

@@ -2492,6 +2492,9 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.UnsignedRightShift => ">>>",
             BinaryOperator.In => "in",
             BinaryOperator.InstanceOf => "instanceof",
+            BinaryOperator.LogicalAnd => "&&",
+            BinaryOperator.LogicalOr => "||",
+            BinaryOperator.NullishCoalescing => "??",
             _ => binaryOperator.ToString()
         };
 }

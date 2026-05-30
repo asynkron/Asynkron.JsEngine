@@ -612,7 +612,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise AND of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue BitwiseAndValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue BitwiseAndValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -632,7 +632,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise OR of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue BitwiseOrValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue BitwiseOrValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -652,7 +652,7 @@ public static partial class TypedAstEvaluator
     /// Bitwise XOR of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue BitwiseXorValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue BitwiseXorValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -672,7 +672,7 @@ public static partial class TypedAstEvaluator
     /// Left shift of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue LeftShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue LeftShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -689,7 +689,7 @@ public static partial class TypedAstEvaluator
     /// Right shift of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue RightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue RightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)
@@ -706,7 +706,7 @@ public static partial class TypedAstEvaluator
     /// Unsigned right shift of two JsValue operands.
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    private static JsValue UnsignedRightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static JsValue UnsignedRightShiftValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         // Fast path: both numbers
         if (left.IsNumber && right.IsNumber)

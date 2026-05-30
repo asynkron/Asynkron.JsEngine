@@ -751,6 +751,28 @@ optimization.
     `classdef` by adding `&& hoistPlan.HasFunctionDeclarations` to the existing
     `!_isStrict` guard in `CreateExecutionEnvironment`.
 
+32. For generator yield-path allocation work, verify which generator execution path
+    your profile workload exercises before interpreting allocation numbers as evidence
+    for or against the target change.
+    - `generator.js` (`./benchmark.sh --allocations generator`) exercises the
+      `ExecutionPlanRunner` generator path, which was already converted to use
+      `IteratorResultObject` / `IteratorResultObjectPool` before PR #2718. Both
+      baseline and final runs show nearly identical managed allocation pressure
+      (~1,070–1,120 KB) regardless of `UnifiedBytecodeVirtualMachine` changes,
+      because the benchmark's `function* range()` takes the plan-runner path.
+    - `forofiteration.js` exercises the Array Iterator built-in path
+      (`for (const n of arr)`), not any generator resumption path, and its
+      allocation numbers are invariant to generator invoker changes.
+    When optimizing `UnifiedBytecodeVirtualMachine.CreateIteratorResult` or other
+    resumable unified-bytecode helpers, neither existing profile directly measures
+    the changed path. Report as regression-covered (no allocation regression on
+    existing profiles) rather than profile-proven improvement, and document the
+    scope boundary explicitly in the ADR or delivery evidence.
+    WHY: issue #2712 / PR #2718 showed 0 allocation delta on `forofiteration` and
+    ~+49 KB noise on `generator` after the `IteratorResultObject` migration,
+    because neither benchmark workload exercises the `UnifiedBytecodeVirtualMachine`
+    generator path.
+
 ## Why
 
 Issue

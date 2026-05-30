@@ -74,6 +74,25 @@ internal sealed record ExecutionPlan(
     public SimpleReturnParameterExpression? SimpleReturnParameter { get; } =
         ComputeSimpleReturnParameter(Instructions, EntryPoint, ActivationSlots);
 
+    // Mutable plan-level caches — set once after the first eligibility evaluation; never reverted.
+    // Thread-safe: writes use volatile semantics; only the first writer wins (benign race on the
+    // accept path since all competing threads derive the same compiled program from the same plan).
+
+    /// <summary>
+    /// Set to true once the plan-level production unified-bytecode eligibility check has found a
+    /// structural decline.  Structural declines are purely plan-dependent (not closure- or
+    /// descriptor-dependent) and never change after first evaluation, so any subsequent
+    /// SyncFunctionInvoker instance for the same FunctionExpression can skip the re-evaluation.
+    /// </summary>
+    private volatile bool _productionEligibilityPermanentDecline;
+
+    internal bool IsProductionEligibilityPermanentDecline => _productionEligibilityPermanentDecline;
+
+    internal void MarkProductionEligibilityPermanentDecline()
+    {
+        _productionEligibilityPermanentDecline = true;
+    }
+
     public CompactStatementStorageBoundary CreateCompactStatementStorageBoundary() =>
         CompactStatementStorageBoundary ?? CompactStatementStorage.CreateBoundary(
             Instructions,

@@ -718,7 +718,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     // Synchronous spread calls are admitted (gh2676); the call-target
                     // preparation candidate check accepts them. Anything reaching here is
                     // an out-of-boundary call shape.
-                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    //
+                    // Use CallInvocationBoundary (not CallDependency) for this plan-structural
+                    // decline so IsPlanStructuralDecline can distinguish it from the
+                    // descriptor-level HasCallDependency decline and cache it permanently.
+                    declineCode = operation.IsDirectEval
+                        ? UnifiedBytecodeProductionDeclineCode.CallDependency  // direct eval is context-sensitive
+                        : UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary;
                     if (operation.IsDirectEval)
                     {
                         declineReason =
@@ -836,6 +842,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    if (TryIsNamedPropertyReadAtLogicalShortCircuitBoundary(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1427,6 +1438,53 @@ internal static class UnifiedBytecodeProductionEligibility
                 operation.GetString(program.StringConstants.AsSpan()).IsPrivateName() ||
                 operation.IsOptional ||
                 operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the <see cref="ExpressionOpKind.GetNamedProperty"/> operation at
+    /// <paramref name="operationIndex"/> is the last op before a logical short-circuit jump
+    /// (<c>JumpIfFalse</c>, <c>JumpIfTrue</c>, <c>JumpIfNotNullish</c>), and ops 0..<paramref name="operationIndex"/>
+    /// form a valid activation-resolved named property read chain (<c>base, GetNamedProperty+</c>).
+    /// This covers <c>this.prop &amp;&amp; rhs</c>, <c>slot.prop || rhs</c>, and <c>slot.prop ?? rhs</c>
+    /// where the property read is the LHS of the operator.
+    /// </summary>
+    private static bool TryIsNamedPropertyReadAtLogicalShortCircuitBoundary(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        var nextIndex = operationIndex + 1;
+        if (nextIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var nextOp = program.GetOperation(nextIndex);
+        if (nextOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish))
+        {
+            return false;
+        }
+
+        // Validate that ops 0..operationIndex form a valid named property read chain.
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        for (var index = 1; index <= operationIndex; index++)
+        {
+            var op = program.GetOperation(index);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+                op.GetString(program.StringConstants.AsSpan()).IsPrivateName() ||
+                op.IsOptional ||
+                op.ShortCircuitOnNullishTarget)
             {
                 return false;
             }

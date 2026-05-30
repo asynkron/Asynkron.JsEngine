@@ -430,6 +430,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     for all optional call prepare opcodes; a fixed-offset formula will silently
     produce the wrong jump target when the actual argument span length differs
     from `ArgumentCount`.
+    Issue #2741 / PR #2745 extended span-measured arguments further to include
+    **simple untagged template literals** (`` fn(`hello ${name}`) ``,
+    `` fn(`static`) ``): `TryMeasureSimpleTemplateLiteralSpan` recognizes the
+    compiler-emitted `LoadLiteral("") seed + text-part cycles +
+    substitution-part cycles` shape. Because the seed `LoadLiteral("")` is
+    syntactically identical to a plain string literal, the admission branch uses
+    `spanLen > 1` to distinguish a real multi-op template span from a standalone
+    string; without this check a bare `""` literal would incorrectly enter the
+    template span path. Unlike array and object span admission, template literal
+    wiring must also update the **named-write, compound-write, and binary-read
+    RHS admission sites** (`TryIsFirstBoundaryPropertyWriteCandidate`,
+    `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`,
+    `TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate`) — not just
+    `HasSimpleCallArguments`. Any future span helper for a multi-op value
+    expression shape must be wired into all value-position admission sites in
+    the same delivery slice. No backpatch is required for optional call prepare
+    opcodes when the new shape is purely in argument value position. Tagged
+    template literals (`` tag`...` ``) are declined because `LoadTemplateObject`
+    requires owned VM/compiler support not in scope; complex substitutions
+    (`` `${a + b}` ``) decline because `a + b` is not a simple operand (ADR 0292).
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -1096,3 +1116,4 @@ Related ADRs:
 - `docs/adrs/0288-admit-tdz-head-environments-for-sync-iterator-and-for-in-drivers.md`
 - `docs/adrs/0289-admit-optional-calls-in-unified-bytecode-nullish-short-circuit-receiver-owned.md`
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
+- `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`

@@ -1426,7 +1426,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledLoop_DeclinesWithLabelControlFlow()
+    public void Evaluate_LabeledLoop_Accepts()
     {
         var plan = GetFunctionPlan("""
             function labeled(n) {
@@ -1435,6 +1435,121 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 }
 
                 return n;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledBreakOutOfForOf_Accepts()
+    {
+        // Labeled break out of a for-of where the label is on the for-of itself: the break target is
+        // that loop's own exit, so the existing single-level driver cleanup closes the iterator.
+        var plan = GetFunctionPlan("""
+            function labeled(source) {
+                outer: for (var value of source) {
+                    break outer;
+                }
+
+                return 0;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledContinueInLoop_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function labeled(n) {
+                var total = 0;
+                outer: while (n > 0) {
+                    n = n - 1;
+                    continue outer;
+                    total = total + 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledContinueCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    {
+        // A labeled continue that re-enters an outer loop from inside an enclosing for-of driver
+        // loop would leak the inner iterator (the VM continue path performs no driver cleanup), so
+        // it must decline before VM execution to preserve no-mixed-execution.
+        var plan = GetFunctionPlan("""
+            function labeled(outer, inner) {
+                var total = 0;
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        if (y === 1) {
+                            continue outerLabel;
+                        }
+
+                        total = total + 1;
+                    }
+                }
+
+                return total;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    {
+        // A labeled break that exits an enclosing for-of driver loop it is not directly targeting
+        // (here: break outerLabel from inside the inner for-of) would leave the inner iterator
+        // active, because the VM's single-level driver cleanup only closes the driver whose break
+        // target equals the jump target. Decline before VM execution to preserve no-mixed-execution.
+        var plan = GetFunctionPlan("""
+            function labeled(outer, inner) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        break outerLabel;
+                    }
+
+                    return -1;
+                }
+
+                return 0;
             }
             """,
             "labeled");
@@ -1685,6 +1800,93 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readComputed")]
     public void Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
+        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectDestructuringPlan_AcceptsDriverStateOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function readAb(source) {
+                var { a, b } = source;
+                return a + b;
+            }
+            """,
+            "readAb");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringClose);
+        Assert.NotEmpty(result.Program.DriverDescriptors);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectDestructuringRestPlan_AcceptsRestDriverOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function readRest(source) {
+                var { a, ...rest } = source;
+                return rest;
+            }
+            """,
+            "readRest");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringRest);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function readObjectDefault(source) {
+            var { a = 1 } = source;
+            return a;
+        }
+        """,
+        "readObjectDefault")]
+    [InlineData(
+        """
+        function readObjectComputed(source, key) {
+            var { [key]: value } = source;
+            return value;
+        }
+        """,
+        "readObjectComputed")]
+    [InlineData(
+        """
+        function readObjectNested(source) {
+            var { a: { b } } = source;
+            return b;
+        }
+        """,
+        "readObjectNested")]
+    public void Evaluate_UnsupportedObjectDestructuringShapes_DeclineWithExplicitReason(
         string source,
         string functionName)
     {

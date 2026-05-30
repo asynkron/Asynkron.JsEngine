@@ -104,6 +104,10 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `ArrayDestructuringElement`
 - `ArrayDestructuringRest`
 - `ArrayDestructuringClose`
+- `ObjectDestructuringInit`
+- `ObjectDestructuringProperty`
+- `ObjectDestructuringRest`
+- `ObjectDestructuringClose`
 - `PrepareIdentifierCallTarget`
 - `PrepareDynamicIdentifierCallTarget`
 - `PrepareNamedCallTarget`
@@ -121,7 +125,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync)*
+- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync, and no longer triggered on the resumable async/generator route — see Production Resumable Boundary and ADR 0283)*
 - `NewTargetDependency`
 - `CallDependency`
 - `DynamicLookupDependency`
@@ -192,8 +196,18 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   condition-first loop backedges, unlabeled `BreakInstruction` and
   `ContinueInstruction` target jumps, simple for-style update continue targets,
   and simple do-while consequent backedges proven by PR #2489.
-- Labeled breakable control flow still declines with `LabelControlFlow`.
-  Unsupported complex loop/control-flow shapes must decline before VM execution
+- Labeled breakable control flow is admitted (ADR 0285): labeled statements,
+  labeled loops, labeled block `break`, and labeled `break`/`continue` route
+  through the same compiler-owned resolved-target path as the unlabeled case.
+  Label resolution is not a source-syntax permission — a labeled construct
+  routes whenever its unlabeled IR topology would route.
+- The one labeled shape still declined with `LabelControlFlow` is a labeled
+  `break`/`continue` that transfers control out of an enclosing iterator/for-in
+  driver loop it is not directly targeting (driver-crossing). The VM's
+  single-level driver cleanup only closes the driver whose break target equals
+  the abrupt jump target, so an intervening inner iterator would be leaked;
+  multi-driver labeled cleanup is the next loop-control widening frontier.
+- Unsupported complex loop/control-flow shapes must decline before VM execution
   instead of falling back from inside `UnifiedBytecodeVirtualMachine`.
 - `BreakOrContinueControlFlow` remains listed above because it is still a
   decline-taxonomy enum member, but PR #2489 removed the blanket production
@@ -300,11 +314,23 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   lowered to expression bytecode and element/rest targets resolve to unified
   flat slots. Normal and abrupt cleanup close the destructuring iterator from
   VM-owned driver state.
-- Object destructuring, expression-level `ApplyBindingTarget` destructuring,
-  async iterator drivers, awaited driver sources, dynamic-name shapes, and
-  targets that cannot resolve to unified slots still decline before VM
-  execution. Sync-driver TDZ head environments are now admitted (Slice A,
-  #2678); async-kind and awaited-source TDZ heads remain declined.
+- Accepted object destructuring driver shapes include
+  `ObjectDestructuringInit`, `ObjectDestructuringProperty`,
+  `ObjectDestructuringRest`, and `ObjectDestructuringClose` when the source is
+  lowered to expression bytecode, all property keys are static identifiers (no
+  computed keys), there are no defaults or nested patterns, and every property
+  and rest target resolves to a unified flat slot. The VM coerces the source
+  with `ToObject`, reads properties in source order (observable getter side
+  effects preserved), and a trailing rest target collects the remaining own
+  enumerable keys minus the consumed ones. Abrupt completion (a non-coercible
+  source or a throwing getter) closes the VM-owned driver state.
+- Object destructuring with computed/dynamic keys, defaults, nested patterns,
+  or rest targets that cannot resolve to unified slots, expression-level
+  `ApplyBindingTarget` destructuring, async iterator drivers, awaited driver
+  sources, dynamic-name shapes, and targets that cannot resolve to unified
+  slots still decline before VM execution. Sync-driver TDZ head environments
+  are now admitted (Slice A, #2678); async-kind and awaited-source TDZ heads
+  remain declined.
 
 ## Production Resumable Boundary
 - Current production resumable support is a separate async/generator route with
@@ -315,7 +341,16 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   storage bodies that compile through `Yield` and `StoreResumeValue`.
 - Accepted resumable async shapes include simple awaited discard and awaited
   return bodies that compile through `AwaitAndDiscard` and `AwaitedReturn`.
-- Captured/dynamic activation, arguments objects, `this`, `new.target`, calls,
+- `this`-dependent async and generator programs are admitted (resumable-route
+  counterpart to the ordinary sync `this` support; see Production This-Binding
+  Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is
+  computed in the async and sync-generator invokers via
+  `CoerceThisValueForNonStrict` and stored on `UnifiedBytecodeResumeState` at
+  construction so it survives suspension/resume across `yield`/`await`. The
+  resumable `LoadThis` opcode pushes `state.ThisValue`. Property reads such as
+  `this.x` remain outside the resumable opcode set and decline independently of
+  the `this`-binding gate.
+- Captured/dynamic activation, arguments objects, `new.target`, calls,
   dynamic lookup, labels, iterator/destructuring drivers, unsupported
   expression payloads, and unmodeled statement families still decline before
   VM execution.
@@ -347,6 +382,17 @@ support today.
   `ArrayDestructuringCloseInstruction` are eligible only for the lowered
   direct-slot array destructuring model described above. Unsupported
   destructuring shapes still decline with `DestructuringDependency`.
+- `ObjectDestructuringInitInstruction`,
+  `ObjectDestructuringPropertyInstruction`,
+  `ObjectDestructuringRestInstruction`, and
+  `ObjectDestructuringCloseInstruction` are eligible only for the lowered
+  direct-slot object destructuring model described above (static keys,
+  identifier targets, no defaults, no nested patterns, optional identifier
+  rest). Computed/dynamic-name keys, defaults, nested patterns, and non-slot
+  targets keep the generic `BindingVariableDeclarationInstruction` path and
+  still decline with `DestructuringDependency`. ADR
+  [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
+  records the model-first decision and admit/decline boundary.
 - Decision for this lane: model-first. Any future widening must preserve
   explicit driver-state descriptors and pre-VM declines for shapes that would
   require mixed IR/AST execution.
@@ -363,16 +409,24 @@ support today.
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0283). Async iterator
    drivers and awaited iterator/for-in sources remain outside the admitted
    boundary and must decline before VM execution.
-3. Destructuring widening is still model-first. Object destructuring,
-   expression-level `ApplyBindingTarget` destructuring, dynamic-name
-   destructuring shapes, and targets that cannot resolve to unified slots
-   remain outside the admitted boundary (`DestructuringDependency`).
+3. Destructuring widening is still model-first. Simple array and object
+   destructuring driver shapes are admitted (static keys, identifier targets,
+   no defaults/nested patterns, optional identifier rest). Object destructuring
+   with computed/dynamic-name keys, defaults, or nested patterns,
+   expression-level `ApplyBindingTarget` destructuring, and targets that cannot
+   resolve to unified slots remain outside the admitted boundary
+   (`DestructuringDependency`).
 4. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
    slice above. Direct eval source execution, unresolved non-with lookup
    shapes, and captured dynamic activation still decline before VM execution.
-5. Label-dependent control flow remains outside the admitted boundary
-   (`LabelControlFlow`) and must decline before VM execution.
+5. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
+   labeled loops, labeled block `break`, and labeled `break`/`continue` route
+   through the compiler-owned resolved-target path. The remaining
+   `LabelControlFlow` decline is narrow — a labeled `break`/`continue` that
+   crosses (exits) an enclosing iterator/for-in driver loop it is not directly
+   targeting. Multi-driver labeled cleanup is the next loop-control widening
+   frontier.
 
 ## Proof Commands
 ```bash

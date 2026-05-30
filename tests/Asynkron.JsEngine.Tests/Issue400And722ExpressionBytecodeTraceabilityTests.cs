@@ -206,9 +206,10 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
                 return first;
             }
             """, "proofObjectDestructure");
-        var bindingInstruction = Assert.Single(objectDestructuringPlan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.Null(bindingInstruction.Initializer);
-        Assert.False(bindingInstruction.InitializerProgram!.Value.IsEmpty);
+        var objectDestructuringInitInstruction =
+            Assert.Single(objectDestructuringPlan.Instructions.OfType<ObjectDestructuringInitInstruction>());
+        Assert.Null(objectDestructuringInitInstruction.SourceExpression);
+        Assert.False(objectDestructuringInitInstruction.SourceProgram.IsEmpty);
 
         var destructuringPlan = await GetFunctionPlan("""
             function proofDestructure(source) {

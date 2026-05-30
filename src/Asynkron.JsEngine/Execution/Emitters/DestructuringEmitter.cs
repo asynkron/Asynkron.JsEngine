@@ -115,6 +115,133 @@ internal static class DestructuringEmitter
     }
 
     /// <summary>
+    /// Try to emit IR for an object destructuring declaration.
+    /// Only handles simple cases: static property names binding to identifiers,
+    /// no computed keys, no defaults, no nested patterns. Rest must be an identifier.
+    /// </summary>
+    /// <returns>True if IR was emitted, false if the caller should use the generic binding declaration instruction.</returns>
+    public static bool TryEmitObjectDestructuring(
+        EmitContext ctx,
+        ObjectBinding binding,
+        ExpressionNode sourceExpression,
+        VariableKind varKind,
+        int nextIndex,
+        out int entryIndex)
+    {
+        // Don't emit destructuring IR when in a nested scope (e.g., per-iteration scope for for-of).
+        // The slot count was pre-computed and additional slot allocations won't work correctly.
+        if (ctx.IsInNestedScope)
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        // Phase 1: Only handle simple cases (static keys, identifier targets, no defaults).
+        if (!IsSimpleObjectBinding(binding))
+        {
+            entryIndex = -1;
+            return false;
+        }
+
+        // Create state slot with a globally unique symbol.
+        var sourceSymbol = Symbol.Synthetic("__objDestr_src");
+        var sourceSlotIndex = ctx.AllocateSlot(sourceSymbol);
+
+        // Build instruction chain bottom-up:
+        // Close -> nextIndex
+        // Rest (if any) -> Close
+        // Properties -> Rest or Close
+        // Init -> first Property
+
+        // Close instruction (clears the state slot; no iterator to close).
+        var closeIndex = ctx.Append(new ObjectDestructuringCloseInstruction(
+            sourceSymbol,
+            sourceSlotIndex,
+            nextIndex));
+
+        var currentNext = closeIndex;
+
+        // Rest element (if any).
+        if (binding.RestElement is IdentifierBinding restId)
+        {
+            var restIndex = ctx.Append(new ObjectDestructuringRestInstruction(
+                sourceSymbol,
+                sourceSlotIndex,
+                restId.Name,
+                -1, // Resolved at runtime
+                varKind,
+                currentNext));
+            currentNext = restIndex;
+        }
+
+        // Properties (in reverse order to build the chain correctly).
+        for (var i = binding.Properties.Length - 1; i >= 0; i--)
+        {
+            var property = binding.Properties[i];
+            var targetSymbol = ((IdentifierBinding)property.Target).Name;
+
+            var propertyIndex = ctx.Append(new ObjectDestructuringPropertyInstruction(
+                sourceSymbol,
+                sourceSlotIndex,
+                property.Name,
+                targetSymbol,
+                -1, // Resolved at runtime
+                varKind,
+                currentNext));
+            currentNext = propertyIndex;
+        }
+
+        // Init instruction.
+        if (!ExpressionProgramCompiler.TryCompile(sourceExpression, out var sourceProgram, out var failureReason))
+        {
+            ctx.SetExpressionProgramFailure("ObjectDestructuringInitInstruction", sourceExpression, failureReason);
+            entryIndex = -1;
+            return false;
+        }
+
+        var initIndex = ctx.Append(new ObjectDestructuringInitInstruction(
+            sourceSymbol,
+            sourceSlotIndex,
+            currentNext,
+            sourceProgram));
+
+        entryIndex = initIndex;
+        return true;
+    }
+
+    /// <summary>
+    /// Check if this object binding can be handled by Phase 1 IR emission.
+    /// Phase 1 only handles: static property names binding to identifiers, no
+    /// computed keys, no defaults, no nested patterns. Rest must be an identifier.
+    /// </summary>
+    private static bool IsSimpleObjectBinding(ObjectBinding binding)
+    {
+        foreach (var property in binding.Properties)
+        {
+            // Computed/dynamic property names keep the generic (declined) path.
+            if (property.NameExpression is not null)
+            {
+                return false;
+            }
+
+            // Must be a simple identifier binding.
+            if (property.Target is not IdentifierBinding)
+            {
+                return false;
+            }
+
+            // No default values in Phase 1.
+            if (property.DefaultValue is not null)
+            {
+                return false;
+            }
+        }
+
+        // Rest element must be an identifier (if present).
+        return binding.RestElement is null || binding.RestElement is IdentifierBinding;
+    }
+
+    /// <summary>
     /// Check if this array binding can be handled by Phase 1 IR emission.
     /// Phase 1 only handles: identifier bindings, no defaults, no nested patterns.
     /// </summary>

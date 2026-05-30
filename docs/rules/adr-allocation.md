@@ -42,3 +42,33 @@ duplicate-prefix check over `docs/adrs`, and if the returned prefix already
 exists, re-allocate (the allocator increments per call) until you get a clean
 one before writing the file. Do not fall back to scanning-and-incrementing as
 the primary allocator.
+
+Issue #2677 / PR #2682 extends the trigger beyond learn-stage writes. The
+**build** stage authored the object-destructuring ADR and picked `0283` (the
+allocator is framed for learn work, so build-stage authors tend to scan
+`docs/adrs` instead). Meanwhile #2675's resumable this-binding ADR also took
+`0283`, landed on `main`, and was pulled into this branch by a merge from `main`
+between the build write and the learn pass — producing two distinct ADRs both
+numbered `0283`. The learn pass detected it and renamed the object-destructuring
+ADR to the free `0284` (heading + the contract/roadmap cross-references). Two
+durable takeaways: (1) any stage that writes an ADR, including build, is exposed
+to this collision, so treat a build-stage ADR number as **provisional** until
+the learn pass confirms it; (2) the duplicate-prefix check must also run **after
+merging `main`**, not only after allocation — a merge can import a sibling's ADR
+number into your branch even when your number was clean when you wrote it. When
+a collision is found, renumber the *newer* ADR (keep the one already merged to
+`main` stable) and update its heading plus every cross-reference.
+
+Issue #2679 / PR #2683 is a second occurrence of the exact #2677 pattern,
+confirming it is systemic rather than a one-off. The build stage again authored
+its labeled-control-flow ADR as `0283` by scanning instead of allocating;
+meanwhile #2675's resumable this-binding ADR already held `0283` and #2677's
+renumbered object-destructuring ADR held `0284`, both pulled in by a merge from
+`main`. The learn pass detected the now triple-contended prefix and renamed this
+PR's ADR to the free `0285` (heading + roadmap + the two contract
+cross-references), leaving the #2675 `0283` async-generator references intact.
+The takeaways from #2677 stand and are reinforced: build-stage ADR numbers are
+provisional, the duplicate-prefix check must run after merging `main`, and the
+*newer* ADR is the one to renumber. The standing fix is for ADR-authoring
+stages (including build) to reserve via `rtk faktorial-api adr-next` rather than
+scan `docs/adrs`, which is what keeps regenerating this collision.

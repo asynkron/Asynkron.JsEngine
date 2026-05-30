@@ -1282,6 +1282,180 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = arrayDestructuringClose.Next;
                         continue;
 
+                    case ObjectDestructuringInitInstruction objectDestructuringInit:
+                        if (!TryResolveDriverSlot(
+                                objectDestructuringInit.SourceSlot,
+                                objectDestructuringInit.SourceSlotIndex,
+                                slotLayout,
+                                out var objectDestructuringStateSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring state slot '{objectDestructuringInit.SourceSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                objectDestructuringInit.SourceProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ObjectDestructuringInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(objectDestructuringStateSlot))));
+                        maxStackDepth = Math.Max(maxStackDepth, objectDestructuringInit.SourceProgram.MaxStackDepth);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                objectDestructuringInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = objectDestructuringInit.Next;
+                        continue;
+
+                    case ObjectDestructuringPropertyInstruction objectDestructuringProperty:
+                        if (!TryResolveDriverSlot(
+                                objectDestructuringProperty.SourceSlot,
+                                objectDestructuringProperty.SourceSlotIndex,
+                                slotLayout,
+                                out var objectPropertyStateSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring state slot '{objectDestructuringProperty.SourceSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryResolveDeclarationSlot(
+                                objectDestructuringProperty.TargetSymbol,
+                                objectDestructuringProperty.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var objectPropertyTargetSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring target '{objectDestructuringProperty.TargetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        var objectPropertyNameIndex = stringConstants.Count;
+                        stringConstants.Add(objectDestructuringProperty.PropertyName);
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ObjectDestructuringProperty,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    objectPropertyStateSlot,
+                                    TargetSlot: objectPropertyTargetSlot,
+                                    NameConstantIndex: objectPropertyNameIndex))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                objectDestructuringProperty.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = objectDestructuringProperty.Next;
+                        continue;
+
+                    case ObjectDestructuringRestInstruction objectDestructuringRest:
+                        if (!TryResolveDriverSlot(
+                                objectDestructuringRest.SourceSlot,
+                                objectDestructuringRest.SourceSlotIndex,
+                                slotLayout,
+                                out var objectRestStateSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring state slot '{objectDestructuringRest.SourceSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryResolveDeclarationSlot(
+                                objectDestructuringRest.RestSymbol,
+                                objectDestructuringRest.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var objectRestTargetSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring rest target '{objectDestructuringRest.RestSymbol.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ObjectDestructuringRest,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    objectRestStateSlot,
+                                    TargetSlot: objectRestTargetSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                objectDestructuringRest.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = objectDestructuringRest.Next;
+                        continue;
+
+                    case ObjectDestructuringCloseInstruction objectDestructuringClose:
+                        if (!TryResolveDriverSlot(
+                                objectDestructuringClose.SourceSlot,
+                                objectDestructuringClose.SourceSlotIndex,
+                                slotLayout,
+                                out var objectCloseStateSlot))
+                        {
+                            reason =
+                                $"Unsupported object destructuring state slot '{objectDestructuringClose.SourceSlot.Name}'.";
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ObjectDestructuringClose,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(objectCloseStateSlot))));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                objectDestructuringClose.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = objectDestructuringClose.Next;
+                        continue;
+
                     case JumpInstruction jump:
                         return TryAppendResolvedJump(
                             instructionIndex,
@@ -2500,7 +2674,6 @@ internal static class UnifiedBytecodeCompiler
         {
             if (instruction is BreakableEnterInstruction
                 {
-                    Label: null,
                     ContinueTarget: var continueTarget,
                     BreakTarget: var breakTarget
                 } &&
@@ -2556,12 +2729,11 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool IsSupportedBreakableEnter(BreakableEnterInstruction breakableEnter, out string reason)
     {
-        if (breakableEnter.Label is not null)
-        {
-            reason = "Unsupported breakable construct: labels are not eligible for unified bytecode compilation.";
-            return false;
-        }
-
+        // Labeled breakable regions are admitted: loop-control targets are compiler-owned
+        // (ADR 0253), and a labeled break/continue resolves to a numeric target through the
+        // same resolved-jump path as the unlabeled case. The driver-crossing safety check
+        // (a labeled abrupt that exits an enclosing iterator/for-in/destructuring driver loop)
+        // is enforced conservatively during production eligibility, not here.
         if (breakableEnter.ConstructKind != BreakableKind.ResetsCompletionValue)
         {
             reason =

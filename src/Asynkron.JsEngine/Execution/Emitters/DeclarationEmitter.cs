@@ -119,6 +119,11 @@ internal static class DeclarationEmitter
             return true;
         }
 
+        if (TryEmitObjectDestructuringDeclarator(ctx, varKind, declarator, nextIndex, out entryIndex))
+        {
+            return true;
+        }
+
         if (!BindingTargetProgramCompiler.TryCompile(
                 declarator.Target,
                 out var targetProgram,
@@ -232,6 +237,44 @@ internal static class DeclarationEmitter
 
         return DestructuringEmitter.TryEmitArrayDestructuring(
             ctx, arrayBinding, declarator.Initializer, varKind, nextIndex, out entryIndex);
+    }
+
+    /// <summary>
+    /// Try to emit IR for object destructuring declarations.
+    /// Only handles simple object binding with no yields or awaits in the source expression.
+    /// </summary>
+    private static bool TryEmitObjectDestructuringDeclarator(
+        EmitContext ctx,
+        VariableKind varKind,
+        VariableDeclarator declarator,
+        int nextIndex,
+        out int entryIndex)
+    {
+        entryIndex = -1;
+
+        if (declarator.Target is not ObjectBinding objectBinding)
+        {
+            return false;
+        }
+
+        if (declarator.Initializer is null)
+        {
+            return false;
+        }
+
+        if (varKind is VariableKind.Using or VariableKind.AwaitUsing)
+        {
+            return false;
+        }
+
+        if (AstShapeAnalyzer.ContainsAwait(declarator.Initializer) ||
+            AstShapeAnalyzer.ContainsYield(declarator.Initializer))
+        {
+            return false;
+        }
+
+        return DestructuringEmitter.TryEmitObjectDestructuring(
+            ctx, objectBinding, declarator.Initializer, varKind, nextIndex, out entryIndex);
     }
 
     private static bool TryEmitYieldInitializer(

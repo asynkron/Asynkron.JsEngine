@@ -76,6 +76,10 @@ internal static class CompactStatementInstructionTaxonomy
             InstructionKind.ArrayDestructuringElement => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
             InstructionKind.ArrayDestructuringRest => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
             InstructionKind.ArrayDestructuringClose => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
+            InstructionKind.ObjectDestructuringInit => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
+            InstructionKind.ObjectDestructuringProperty => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
+            InstructionKind.ObjectDestructuringRest => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
+            InstructionKind.ObjectDestructuringClose => new CompactStatementKindClassification(kind, CompactStatementPayloadGroup.DeferredWithAndDestructuring, false),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown InstructionKind")
         };
     }

@@ -1448,6 +1448,18 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        // Optional-call shapes (box?.read(), box.read?.(), box[key]?.()) carry a
+        // JumpIfNullish short-circuit and, for callee-optional cases, a trailing
+        // Jump/SwapTopTwo/Pop structure that the non-optional branches below would
+        // reject (or never reach, because they end in Pop rather than Call). Detect
+        // them first so the dedicated optional candidates own these shapes.
+        if (TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
+            TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
+            TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots))
+        {
+            return true;
+        }
+
         var callIndex = program.OperationCount - 1;
         var call = program.GetOperation(callIndex);
         // Synchronous spread calls are admitted (gh2676); spread args are flattened at
@@ -1514,21 +1526,6 @@ internal static class UnifiedBytecodeProductionEligibility
                        activationSlots,
                        computedCallTargetIndex + 1,
                        call);
-        }
-
-        if (TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots))
-        {
-            return true;
-        }
-
-        if (TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots))
-        {
-            return true;
-        }
-
-        if (TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots))
-        {
-            return true;
         }
 
         return false;
@@ -2180,6 +2177,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
+                case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:
+                case UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:

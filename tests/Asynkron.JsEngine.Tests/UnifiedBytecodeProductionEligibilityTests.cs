@@ -380,6 +380,75 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ReceiverOptionalNamedCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2689: receiver-optional named call box?.read(value) is admitted.
+        var plan = GetFunctionPlan("""
+            function invoke(box, value) {
+                return box?.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CalleeOptionalNamedCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2689: callee-optional named call box.read?.(value) is admitted.
+        var plan = GetFunctionPlan("""
+            function invoke(box, value) {
+                return box.read?.(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CalleeOptionalComputedCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2689: callee-optional computed call box[key]?.(value) is admitted.
+        var plan = GetFunctionPlan("""
+            function invoke(box, key, value) {
+                return box[key]?.(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_SpreadIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         // gh2676: synchronous spread call f(...args) is admitted to the production pipeline.
@@ -1331,30 +1400,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readOptionalComputed",
         (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
-    [InlineData(
-        """
-        function invokeOptionalReceiver(box) {
-            return box?.read();
-        }
-        """,
-        "invokeOptionalReceiver",
-        (int)UnifiedBytecodeProductionDeclineCode.None)]
-    [InlineData(
-        """
-        function invokeOptionalCallee(box) {
-            return box.read?.();
-        }
-        """,
-        "invokeOptionalCallee",
-        (int)UnifiedBytecodeProductionDeclineCode.None)]
-    [InlineData(
-        """
-        function invokeOptionalComputedCallee(box, key) {
-            return box[key]?.();
-        }
-        """,
-        "invokeOptionalComputedCallee",
-        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readLiteral(box) {

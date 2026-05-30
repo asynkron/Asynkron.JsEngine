@@ -73,6 +73,10 @@ internal enum UnifiedBytecodeOpCode : byte
     ArrayDestructuringElement,
     ArrayDestructuringRest,
     ArrayDestructuringClose,
+    ObjectDestructuringInit,
+    ObjectDestructuringProperty,
+    ObjectDestructuringRest,
+    ObjectDestructuringClose,
     PrepareIdentifierCallTarget,
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
@@ -125,7 +129,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int TargetSlot = -1,
     int BreakTarget = -1,
     int NextTarget = -1,
-    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync);
+    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
+    int NameConstantIndex = -1);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {
@@ -196,15 +201,25 @@ internal readonly record struct UnifiedBytecodeStepResult(
 
 internal sealed class UnifiedBytecodeResumeState
 {
-    public UnifiedBytecodeResumeState(UnifiedBytecodeProgram program, JsTypes.JsValue[] slots)
+    public UnifiedBytecodeResumeState(
+        UnifiedBytecodeProgram program,
+        JsTypes.JsValue[] slots,
+        JsTypes.JsValue thisValue = default)
     {
         Program = program;
         Slots = slots;
+        ThisValue = thisValue;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
     }
 
     public UnifiedBytecodeProgram Program { get; }
     public JsTypes.JsValue[] Slots { get; }
+
+    /// <summary>
+    ///     The strict/sloppy-coerced <c>this</c> binding for the resumable activation. Captured at
+    ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
+    /// </summary>
+    public JsTypes.JsValue ThisValue { get; }
     public JsTypes.JsValue[] OperandStack { get; }
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }

@@ -43,7 +43,7 @@ public static partial class TypedAstEvaluator
 
         public override JsValue Invoke(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
-            if (TryCreateUnifiedBytecodeGenerator(arguments, out var unifiedIterator))
+            if (TryCreateUnifiedBytecodeGenerator(arguments, thisValue, out var unifiedIterator))
             {
                 return JsValue.FromJsObject(unifiedIterator);
             }
@@ -55,6 +55,7 @@ public static partial class TypedAstEvaluator
 
         private bool TryCreateUnifiedBytecodeGenerator(
             IReadOnlyList<JsValue> arguments,
+            JsValue thisValue,
             out JsObject iterator)
         {
             iterator = null!;
@@ -79,7 +80,11 @@ public static partial class TypedAstEvaluator
             Array.Fill(slots, JsValue.Undefined);
             InitializeLexicalSlots(slots, program);
             PopulateParameterSlots(arguments, slots, program);
-            var state = new UnifiedBytecodeResumeState(program, slots);
+            var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis);
             var context = RealmState.CreateContext();
 
             RealmState.Logger?.LogInformation(

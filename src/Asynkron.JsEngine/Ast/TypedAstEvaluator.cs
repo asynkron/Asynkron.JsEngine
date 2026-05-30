@@ -998,22 +998,45 @@ public static partial class TypedAstEvaluator
     /// </summary>
     private static IJsObjectLike ToObjectForDestructuringJsValue(JsValue jsValue, EvaluationContext context)
     {
+        if (!TryToObjectForDestructuring(jsValue, context, out var result))
+        {
+            throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, context.RealmState);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    ///     Coerces a destructuring source value to an object using the spec ToObject
+    ///     semantics, returning <c>false</c> (without throwing) when the value is
+    ///     <c>null</c>/<c>undefined</c> so callers can route the TypeError through
+    ///     their own abrupt-completion handling. Shared by the IR interpreter and the
+    ///     unified-bytecode VM object-destructuring drivers.
+    /// </summary>
+    internal static bool TryToObjectForDestructuring(
+        JsValue jsValue,
+        EvaluationContext context,
+        out IJsObjectLike result)
+    {
         var realm = context.RealmState;
 
         if (jsValue.IsNull || jsValue.IsUndefined)
         {
-            throw StandardLibrary.ThrowTypeError("Cannot destructure undefined or null", context, realm);
+            result = null!;
+            return false;
         }
 
         // Fast path: if it's already an IJsObjectLike, return directly
         if (jsValue is { Kind: JsValueKind.Object, ObjectValue: IJsObjectLike objectLike })
         {
-            return objectLike;
+            result = objectLike;
+            return true;
         }
 
         if (StandardLibrary.TryGetObject(jsValue, realm, out var coerced))
         {
-            return coerced;
+            result = coerced;
+            return true;
         }
 
         var obj = new JsObject();
@@ -1022,7 +1045,8 @@ public static partial class TypedAstEvaluator
             obj.SetPrototype(realm.ObjectPrototype);
         }
 
-        return obj;
+        result = obj;
+        return true;
     }
 
     private static JsObject CreateGeneratorIteratorObject(

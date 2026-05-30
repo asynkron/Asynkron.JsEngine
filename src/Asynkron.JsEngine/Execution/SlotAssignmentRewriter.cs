@@ -583,6 +583,34 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
                 return destructuringRest;
 
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                return objectDestructuringInit with
+                {
+                    SourceProgram = RewriteExpressionProgram(objectDestructuringInit.SourceProgram)
+                };
+
+            case ObjectDestructuringPropertyInstruction objectDestructuringProperty:
+                if (TryResolve(objectDestructuringProperty.TargetSymbol, out var objectDestructuringPropertyResolution))
+                {
+                    return objectDestructuringProperty with
+                    {
+                        TargetSlotIndex = objectDestructuringPropertyResolution.slotIndex
+                    };
+                }
+
+                return objectDestructuringProperty;
+
+            case ObjectDestructuringRestInstruction objectDestructuringRest:
+                if (TryResolve(objectDestructuringRest.RestSymbol, out var objectDestructuringRestResolution))
+                {
+                    return objectDestructuringRest with
+                    {
+                        RestSlotIndex = objectDestructuringRestResolution.slotIndex
+                    };
+                }
+
+                return objectDestructuringRest;
+
             case IncrementSlotInstruction increment:
                 {
                     // Resolve the target symbol to get scope/slot/flatSlot metadata

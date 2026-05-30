@@ -1386,6 +1386,89 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.ObjectDestructuringInit:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var sourceValue = stack[--stackPointer];
+                        if (!TryGetSourceForObjectDestructuring(sourceValue, context, out var state))
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                        }
+
+                        slots[descriptor.StateSlot] = JsValue.FromObjectUnsafe(state);
+                        state.ActiveDriverOrdinal = ++nextActiveDriverOrdinal;
+                        SyncSlotEnvironment(slotEnvironments, descriptor.StateSlot, slots[descriptor.StateSlot]);
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringProperty:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var propertyName = program.StringConstants[descriptor.NameConstantIndex];
+                        if (!TryReadObjectDestructuringProperty(
+                                descriptor.StateSlot,
+                                propertyName,
+                                slots,
+                                slotEnvironments,
+                                context,
+                                out var value))
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                        }
+
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = value;
+                            SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, value);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringRest:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (!TryReadObjectDestructuringRest(
+                                descriptor.StateSlot,
+                                slots,
+                                slotEnvironments,
+                                context,
+                                out var restValue))
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                        }
+
+                        slots[descriptor.TargetSlot] = restValue;
+                        SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, restValue);
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringClose:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        CloseObjectDestructuringState(descriptor.StateSlot, slots, slotEnvironments);
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.Return:
                     var result = stack[--stackPointer];
                     if (HandleAbruptCompletion(
@@ -1932,6 +2015,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadLiteral:
                     stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadThis:
+                    stack[stackPointer++] = state.ThisValue;
                     programCounter++;
                     break;
 
@@ -2966,6 +3054,14 @@ internal static class UnifiedBytecodeVirtualMachine
             {
                 activeDriverSlots ??= new List<ActiveDriverSlot>();
                 activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, arrayState.ActiveDriverOrdinal));
+                continue;
+            }
+
+            if (slotValue.TryGetObject<UnifiedObjectDestructuringState>(out var objectState) &&
+                objectState.ActiveDriverOrdinal > 0)
+            {
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, objectState.ActiveDriverOrdinal));
             }
         }
 
@@ -3058,6 +3154,12 @@ internal static class UnifiedBytecodeVirtualMachine
             return ordinal > 0;
         }
 
+        if (slotValue.TryGetObject<UnifiedObjectDestructuringState>(out var objectState))
+        {
+            ordinal = objectState.ActiveDriverOrdinal;
+            return ordinal > 0;
+        }
+
         return false;
     }
 
@@ -3085,6 +3187,12 @@ internal static class UnifiedBytecodeVirtualMachine
         {
             CloseArrayDestructuringState(slotIndex, slots, slotEnvironments, context, preserveCloseThrow);
             preserveCloseThrow |= context.IsThrow;
+            return;
+        }
+
+        if (slots[slotIndex].TryGetObject<UnifiedObjectDestructuringState>(out _))
+        {
+            CloseObjectDestructuringState(slotIndex, slots, slotEnvironments);
         }
     }
 
@@ -3451,6 +3559,167 @@ internal static class UnifiedBytecodeVirtualMachine
             {
                 context.SetThrow(signal.ThrownValue);
             }
+        }
+
+        state.Dispose();
+        ClearDriverSlot(slotIndex, slots, slotEnvironments);
+    }
+
+    private sealed class UnifiedObjectDestructuringState : IDisposable
+    {
+        public IJsObjectLike Source = null!;
+        public readonly HashSet<string> UsedKeys = new(StringComparer.Ordinal);
+        public int ActiveDriverOrdinal;
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            ActiveDriverOrdinal = 0;
+            UsedKeys.Clear();
+            Source = null!;
+        }
+    }
+
+    private static bool TryGetSourceForObjectDestructuring(
+        JsValue sourceValue,
+        EvaluationContext context,
+        out UnifiedObjectDestructuringState state)
+    {
+        if (!TypedAstEvaluator.TryToObjectForDestructuring(sourceValue, context, out var source))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot destructure undefined or null",
+                context,
+                context.RealmState));
+            state = null!;
+            return false;
+        }
+
+        state = new UnifiedObjectDestructuringState
+        {
+            Source = source
+        };
+        return true;
+    }
+
+    private static bool TryReadObjectDestructuringProperty(
+        int stateSlot,
+        string propertyName,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context,
+        out JsValue value)
+    {
+        if (!TryGetDriverState<UnifiedObjectDestructuringState>(slots, stateSlot, out var state))
+        {
+            throw new InvalidOperationException("Object destructuring state not found.");
+        }
+
+        state.UsedKeys.Add(propertyName);
+
+        try
+        {
+            var hasProperty = JsOps.TryGetPropertyValue(
+                JsValue.FromObjectUnsafe(state.Source),
+                propertyName,
+                out value,
+                context);
+            if (!context.ShouldStopEvaluation)
+            {
+                if (!hasProperty)
+                {
+                    value = JsValue.Undefined;
+                }
+
+                return true;
+            }
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
+
+        CloseObjectDestructuringState(stateSlot, slots, slotEnvironments);
+        value = JsValue.Undefined;
+        return false;
+    }
+
+    private static bool TryReadObjectDestructuringRest(
+        int stateSlot,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        EvaluationContext context,
+        out JsValue restValue)
+    {
+        if (!TryGetDriverState<UnifiedObjectDestructuringState>(slots, stateSlot, out var state))
+        {
+            throw new InvalidOperationException("Object destructuring state not found.");
+        }
+
+        var restObject = new JsObject();
+        if (context.RealmState?.ObjectPrototype is not null)
+        {
+            restObject.SetPrototype(context.RealmState.ObjectPrototype);
+        }
+
+        try
+        {
+            foreach (var key in state.Source.GetOwnPropertyKeysInOrder())
+            {
+                if (state.UsedKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                var descriptor = state.Source.GetOwnPropertyDescriptor(key);
+                if (descriptor is not { Enumerable: true })
+                {
+                    continue;
+                }
+
+                if (JsOps.TryGetPropertyValue(JsValue.FromObjectUnsafe(state.Source), key, out var propertyValue,
+                        context))
+                {
+                    restObject.SetProperty(key, propertyValue);
+                    continue;
+                }
+
+                if (context.ShouldStopEvaluation)
+                {
+                    break;
+                }
+            }
+
+            if (!context.ShouldStopEvaluation)
+            {
+                restValue = JsValue.FromObjectUnsafe(restObject);
+                return true;
+            }
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
+
+        CloseObjectDestructuringState(stateSlot, slots, slotEnvironments);
+        restValue = JsValue.Undefined;
+        return false;
+    }
+
+    private static void CloseObjectDestructuringState(
+        int slotIndex,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments)
+    {
+        if (!TryGetDriverState<UnifiedObjectDestructuringState>(slots, slotIndex, out var state))
+        {
+            return;
         }
 
         state.Dispose();

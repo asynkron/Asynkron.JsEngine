@@ -197,13 +197,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing.");
         }
 
-        if (activation.HasThisDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.ThisDependency,
-                "'this' dependency is not eligible for resumable unified bytecode routing.");
-        }
-
+        // 'this'-dependent resumable programs are accepted: the strict/sloppy-coerced binding is
+        // threaded through UnifiedBytecodeResumeState and pushed by the ExecuteResumable LoadThis
+        // case (mirrors the production sync route landed in #2633/#2643). new.target, captured/dynamic
+        // activation, arguments-object, call, and dynamic-lookup shapes still decline below.
         if (activation.HasNewTargetDependency)
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
@@ -313,6 +310,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 ArrayDestructuringCloseInstruction)
             {
                 if (!IsSupportedArrayDestructuringInstruction(instruction, out declineReason))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                    return true;
+                }
+            }
+
+            if (instruction is ObjectDestructuringInitInstruction or
+                ObjectDestructuringPropertyInstruction or
+                ObjectDestructuringRestInstruction or
+                ObjectDestructuringCloseInstruction)
+            {
+                if (!IsSupportedObjectDestructuringInstruction(instruction, out declineReason))
                 {
                     declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
                     return true;
@@ -499,6 +508,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction.OpCode is
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
+                UnifiedBytecodeOpCode.LoadThis or
                 UnifiedBytecodeOpCode.StoreSlot or
                 UnifiedBytecodeOpCode.InitializeSlot or
                 UnifiedBytecodeOpCode.Binary or
@@ -1091,6 +1101,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
     }
 
+    private static bool IsSupportedObjectDestructuringInstruction(
+        ExecutionInstruction instruction,
+        out string reason)
+    {
+        switch (instruction)
+        {
+            case ObjectDestructuringInitInstruction { SourceProgram.IsEmpty: false }:
+            case ObjectDestructuringPropertyInstruction:
+            case ObjectDestructuringRestInstruction:
+            case ObjectDestructuringCloseInstruction:
+                reason = string.Empty;
+                return true;
+
+            default:
+                reason =
+                    "Only object destructuring driver instructions with lowered expression bytecode are eligible for production unified bytecode routing.";
+                return false;
+        }
+    }
+
     private static bool TryGetActivationResolvedIdentifier(
         PackedExpressionOp operation,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -1579,6 +1609,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = arrayDestructuringInit.SourceProgram;
                 return true;
 
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                program = objectDestructuringInit.SourceProgram;
+                return true;
+
             case ReturnInstruction { AwaitedProgram: null, ReturnProgram: { } returnProgram }:
                 program = returnProgram;
                 return true;
@@ -1659,6 +1693,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ArrayDestructuringElement:
                 case UnifiedBytecodeOpCode.ArrayDestructuringRest:
                 case UnifiedBytecodeOpCode.ArrayDestructuringClose:
+                case UnifiedBytecodeOpCode.ObjectDestructuringInit:
+                case UnifiedBytecodeOpCode.ObjectDestructuringProperty:
+                case UnifiedBytecodeOpCode.ObjectDestructuringRest:
+                case UnifiedBytecodeOpCode.ObjectDestructuringClose:
                     break;
 
                 case UnifiedBytecodeOpCode.Binary:

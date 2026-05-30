@@ -887,7 +887,11 @@ public sealed class ExecutionPlanDiagnosticsTests(ITestOutputHelper output) : In
             InstructionKind.ArrayDestructuringInit,
             InstructionKind.ArrayDestructuringElement,
             InstructionKind.ArrayDestructuringRest,
-            InstructionKind.ArrayDestructuringClose
+            InstructionKind.ArrayDestructuringClose,
+            InstructionKind.ObjectDestructuringInit,
+            InstructionKind.ObjectDestructuringProperty,
+            InstructionKind.ObjectDestructuringRest,
+            InstructionKind.ObjectDestructuringClose
         };
 
         var allKinds = Enum.GetValues<InstructionKind>().ToHashSet();

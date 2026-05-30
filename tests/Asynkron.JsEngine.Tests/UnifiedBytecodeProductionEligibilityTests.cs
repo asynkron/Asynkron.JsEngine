@@ -1812,6 +1812,93 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ObjectDestructuringPlan_AcceptsDriverStateOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function readAb(source) {
+                var { a, b } = source;
+                return a + b;
+            }
+            """,
+            "readAb");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringClose);
+        Assert.NotEmpty(result.Program.DriverDescriptors);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectDestructuringRestPlan_AcceptsRestDriverOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function readRest(source) {
+                var { a, ...rest } = source;
+                return rest;
+            }
+            """,
+            "readRest");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringRest);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function readObjectDefault(source) {
+            var { a = 1 } = source;
+            return a;
+        }
+        """,
+        "readObjectDefault")]
+    [InlineData(
+        """
+        function readObjectComputed(source, key) {
+            var { [key]: value } = source;
+            return value;
+        }
+        """,
+        "readObjectComputed")]
+    [InlineData(
+        """
+        function readObjectNested(source) {
+            var { a: { b } } = source;
+            return b;
+        }
+        """,
+        "readObjectNested")]
+    public void Evaluate_UnsupportedObjectDestructuringShapes_DeclineWithExplicitReason(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
+        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Evaluate_ForOfPlan_AcceptsIteratorDriverOpcodes()
     {
         var plan = GetFunctionPlan("""

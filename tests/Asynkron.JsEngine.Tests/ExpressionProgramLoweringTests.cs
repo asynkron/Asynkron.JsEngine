@@ -1285,7 +1285,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BindingVariableDeclarationInstruction_ObjectInitializer_IsLoweredToExpressionProgram()
+    public async Task ObjectDestructuringInitInstruction_InlineObjectLiteralSource_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
             function sumPoint() {
@@ -1294,16 +1294,18 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "sumPoint");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        var targetProgram = Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
-        Assert.Collection(
-            targetProgram.Properties,
-            property => Assert.Equal("x", property.Name),
-            property => Assert.Equal("y", property.Name));
-        Assert.Null(instruction.Initializer);
-        AssertProgramContains<CreateObjectExpressionOp>(instruction.InitializerProgram);
-        AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.InitializerProgram, op => op.PropertyName == "x");
-        AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.InitializerProgram, op => op.PropertyName == "y");
+        var instruction = Assert.Single(plan.Instructions.OfType<ObjectDestructuringInitInstruction>());
+        Assert.Null(instruction.SourceExpression);
+        AssertProgramContains<CreateObjectExpressionOp>(instruction.SourceProgram);
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.SourceProgram, op => op.PropertyName == "x");
+        AssertProgramContains<DefineObjectPropertyExpressionOp>(instruction.SourceProgram, op => op.PropertyName == "y");
+
+        var propertyNames = plan.Instructions
+            .OfType<ObjectDestructuringPropertyInstruction>()
+            .Select(property => property.PropertyName)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(new[] { "x", "y" }, propertyNames);
     }
 
     [Fact]
@@ -1343,11 +1345,10 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             op => op.Name.Name == "pointPromise");
 
         var bindingInstruction = Assert.Single(
-            plan.Instructions.OfType<BindingVariableDeclarationInstruction>(),
-            i => i.InitializerProgram is not null);
-        Assert.Null(bindingInstruction.Initializer);
+            plan.Instructions.OfType<ObjectDestructuringInitInstruction>());
+        Assert.Null(bindingInstruction.SourceExpression);
         AssertProgramContains<LoadIdentifierExpressionOp>(
-            bindingInstruction.InitializerProgram,
+            bindingInstruction.SourceProgram,
             op => op.Name.Name!.StartsWith("__yield_lower_", StringComparison.Ordinal));
 
         Assert.DoesNotContain(
@@ -2258,7 +2259,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BindingVariableDeclarationInstruction_ComputedObjectLiteralInitializer_IsLoweredToExpressionProgram()
+    public async Task ObjectDestructuringInitInstruction_ComputedObjectLiteralSource_IsLoweredToExpressionProgram()
     {
         var plan = await GetFunctionPlan("""
             function readComputedPoint(key) {
@@ -2267,10 +2268,9 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
             }
             """, "readComputedPoint");
 
-        var instruction = Assert.Single(plan.Instructions.OfType<BindingVariableDeclarationInstruction>());
-        Assert.IsType<ObjectBindingTargetProgram>(instruction.TargetProgram);
-        Assert.Null(instruction.Initializer);
-        AssertProgramContains<DefineComputedObjectPropertyExpressionOp>(instruction.InitializerProgram);
+        var instruction = Assert.Single(plan.Instructions.OfType<ObjectDestructuringInitInstruction>());
+        Assert.Null(instruction.SourceExpression);
+        AssertProgramContains<DefineComputedObjectPropertyExpressionOp>(instruction.SourceProgram);
     }
 
     [Fact]

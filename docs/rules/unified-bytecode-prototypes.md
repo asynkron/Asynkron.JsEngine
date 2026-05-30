@@ -430,6 +430,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     for all optional call prepare opcodes; a fixed-offset formula will silently
     produce the wrong jump target when the actual argument span length differs
     from `ArgumentCount`.
+    Issue #2741 / PR #2745 extended span-measured arguments further to include
+    **simple untagged template literals** (`` fn(`hello ${name}`) ``,
+    `` fn(`static`) ``): `TryMeasureSimpleTemplateLiteralSpan` recognizes the
+    compiler-emitted `LoadLiteral("") seed + text-part cycles +
+    substitution-part cycles` shape. Because the seed `LoadLiteral("")` is
+    syntactically identical to a plain string literal, the admission branch uses
+    `spanLen > 1` to distinguish a real multi-op template span from a standalone
+    string; without this check a bare `""` literal would incorrectly enter the
+    template span path. Unlike array and object span admission, template literal
+    wiring must also update the **named-write, compound-write, and binary-read
+    RHS admission sites** (`TryIsFirstBoundaryPropertyWriteCandidate`,
+    `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`,
+    `TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate`) — not just
+    `HasSimpleCallArguments`. Any future span helper for a multi-op value
+    expression shape must be wired into all value-position admission sites in
+    the same delivery slice. No backpatch is required for optional call prepare
+    opcodes when the new shape is purely in argument value position. Tagged
+    template literals (`` tag`...` ``) are declined because `LoadTemplateObject`
+    requires owned VM/compiler support not in scope; complex substitutions
+    (`` `${a + b}` ``) decline because `a + b` is not a simple operand (ADR 0292).
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -757,13 +777,13 @@ all-or-nothing until a separate routing issue proves production readiness.
 
 39. Keep `ApplyBinaryOperator` in `UnifiedBytecodeVirtualMachine` exhaustive over every `BinaryOperator` enum member. When new enum members are added, or when a production-eligible operator subset is widened, ensure each remaining unsupported operator still has an explicit `case` arm that declines as `PrototypeOnlyBinaryOpcode` rather than silently falling through to a default clause. For operators whose canonical evaluation path is `bool`-returning on `TypedAstEvaluator` (such as `In` and `InstanceOf`), add a `JsValue`-returning internal wrapper in `TypedAstEvaluator.JsValue.cs` in the `#region Public API for JsOps` section before wiring the VM arm — mirror the existing `BitwiseAnd`/`Power` pattern: the wrapper calls the underlying `bool`-returning method and returns `JsValue.True` or `JsValue.False`. When widening `IsProductionBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs`, also update `IsSupportedBinaryOperator` in `UnifiedBytecodeCompiler.cs` to match — these two gates are coupled but live in separate files. If the compiler gate is not widened in sync, the eligibility check passes but the compiler falls through to its default "Unsupported expression op 'Binary'" error at runtime, requiring a second build pass to fix. Treat the binary-operator widening checklist as four simultaneous updates: (1) `IsProductionBinaryOperator` in the eligibility file, (2) `IsSupportedBinaryOperator` in the compiler, (3) `ApplyBinaryOperator` case arms in the VM, (4) `FormatBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs` — replace any wildcard `_ => binaryOperator.ToString()` arm with `_ => throw new ArgumentOutOfRangeException(nameof(binaryOperator), binaryOperator, null)` so unhandled operators surface immediately at runtime and CS8524 (unnamed enum value) is suppressed without hiding real gaps. A wildcard `ToString()` arm silently returns a formatted string for future unhandled operators and defeats the compiler's exhaustiveness signal. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-30e0eb731c` / PR #2730 found 10 missing arms in the VM switch (`Power`, `NotEqual`, `BitwiseAnd`, `BitwiseOr`, `BitwiseXor`, `LeftShift`, `RightShift`, `UnsignedRightShift`, `In`, `InstanceOf`). Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-a079ef8fec` / PR #2731 found the coupled compiler gate (`IsSupportedBinaryOperator`) was not updated alongside the eligibility gate, causing a verification failure that required a second build pass to fix. Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-b71305a0ac` / PR #2734 found the `FormatBinaryOperator` wildcard arm `_ => binaryOperator.ToString()` still in place after the other three surfaces were updated; the accepted repair replaced it with a throw, making all 25 `BinaryOperator` cases explicit. Without keeping all four surfaces in sync, production widening silently produces wrong, missing, or misleadingly formatted behavior.
 
-40. When adding a new production opcode to the array literal span path (`TryAppendSimpleArrayLiteralSpan` / `TryMeasureSimpleArrayLiteralSpan`), update four sites beyond the span helper in the same slice:
-    1. **Main compiler switch**: add a `case` in the top-level expression compilation switch (`TryCompileExpression` or equivalent) so the new opcode is emitted when the compiler processes the expression outside of the span path (e.g., in a standalone expression statement or an object-literal property value). Missing this site causes the compiler to hit its default "Unsupported expression op" error at runtime even when eligibility passes.
-    2. **`TryFindPrototypeOnlyOpcode` allowlist**: add the new opcode to the production opcode subset list. The post-compile check scans every opcode in the emitted program and declines with `PrototypeOnlyOpcode` for any opcode not in this list; adding an opcode to the span helper without the allowlist causes the post-compile check to block the program from running.
-    3. **`TryFindExpressionDecline` pre-scan** (required for opcodes whose source expressions can be non-simple): detect the non-simple source case before the main loop processes the source ops. Without this pre-scan, the source expression ops — such as a function call — are consumed by the general loop and surface as `CallDependency` instead of the intended `ObjectLiteralOrSpreadDependency`, producing an incorrect decline code and confusing test diagnostics.
-    4. **`docs/unified-bytecode-expansion-contract.md`**: add the new opcode to the contract opcode inventory. Missing this triggers the drift-guard test in `ExpressionProgramCoverageMapTests`.
-    
-    The span helper itself handles only the fast-path span-measured emission; the compiler, eligibility allowlist, pre-scan, and contract are independent infrastructure layers that each enforce their own constraint independently. Missing any one of them causes a distinct quality-gate failure mode. Treat all four as a required checklist for every array literal span opcode extension. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 added `ArraySpread` to `TryAppendSimpleArrayLiteralSpan` but missed all four secondary sites; a second fix commit was required to repair the main compiler switch, the `TryFindPrototypeOnlyOpcode` allowlist, the `TryFindExpressionDecline` pre-scan for non-simple spread sources, and the expansion contract entry before the quality gate passed.
+40. When extending an existing array-literal span family with a new push-like opcode variant (e.g., adding `ArraySpread` alongside `ArrayPush`), treat it as **four coupled surfaces** that must all move together in the same delivery slice:
+    1. **Compiler main switch** (`UnifiedBytecodeCompiler` expression switch): add a case for the new `ExpressionOpKind` value to emit the corresponding `UnifiedBytecodeOpCode`. The span helper (`TryAppendSimpleArrayLiteralSpan`) emits the opcode only inside a recognized literal span; any `ArraySpread` op encountered by the general compiler switch falls to `default` and returns "Unsupported expression op" at runtime.
+    2. **Production opcode allowlist** (`TryFindPrototypeOnlyOpcode`): add the new `UnifiedBytecodeOpCode` to the production-eligible subset. A missing entry causes the post-compile opcode-subset check to reject programs that contain the new opcode even when eligibility and compilation succeeded.
+    3. **Span helper pair** (eligibility's `TryMeasureSimpleArrayLiteralSpan` + compiler's `TryAppendSimpleArrayLiteralSpan`): update the push-op kind check from an exact equality to `is (existing or new)` so both measurement and emission accept the new variant. When admitting `ArraySpread`, also check whether `ArrayPushHole` (the zero-argument hole-element op) needs standalone admission in `TryMeasureSimpleArrayLiteralSpan` — hole+spread patterns (`[, ...a]`) emit `ArrayPushHole` before `ArraySpread` in the op sequence, so without standalone `ArrayPushHole` acceptance the span measurement fails and the spread admission is incomplete. If `ArrayPushHole` is already recognized as a push element, no change is needed; otherwise add it in the same slice.
+    4. **Expansion contract** (`docs/unified-bytecode-expansion-contract.md`): add the new opcode name to the current opcode inventory in the same slice. A missing entry fails the contract-coverage drift-guard test.
+
+    Additionally: when a non-simple source precedes an `ArraySpread` op in an expression program, the main `TryFindExpressionDecline` left-to-right loop will encounter the source's inner ops (e.g., a `Call` in `a.slice(0, b)`) before reaching the `ArraySpread` op and may fire a more generic decline code (`CallDependency`) instead of the intended `ObjectLiteralOrSpreadDependency`. Fix this by adding a **pre-scan** before the main loop that detects `ArraySpread` ops whose immediately-preceding op is non-simple and returns `ObjectLiteralOrSpreadDependency` immediately. The pre-scan must run before the general op-by-op loop so that the specific spread-source decline supersedes any inner-op decline from the source expression. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 wired `ArraySpread` in the span helper first but required a build-back repair to add (1) the compiler main switch case, (2) the production allowlist entry, (3) the docs contract entry, and (4) the pre-scan for non-simple spread sources. Without all four surfaces aligned, eligibility succeeds but the compiler falls through to its default error; or the compiler emits the opcode but the allowlist check rejects it at post-compile validation; or a non-simple spread source produces the wrong decline code for the caller. Confirmed by issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-389e8f1c98` / PR #2750 (the main array spread delivery), which applied all four surfaces plus standalone `ArrayPushHole` admission in a single slice with no build-back repair needed.
 
 ## Why
 
@@ -1064,6 +1084,17 @@ then repair, adding latency and context switch.
 
 Issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 admitted `ArraySpread` as the first production-eligible spread opcode in array literals. The span helper (`TryAppendSimpleArrayLiteralSpan`) was extended to emit `ArraySpread` for spread elements whose source is `IsSimpleOperand` (activation-resolved), and `TryMeasureSimpleArrayLiteralSpan` was widened to accept `ArraySpread` alongside `ArrayPush`. Non-simple spread sources decline with `ObjectLiteralOrSpreadDependency` (a pre-scan in `TryFindExpressionDecline` detects this before the source ops are processed by the general loop). The initial implementation only wired the span helper; a fix commit added the four missing secondary sites. The durable lesson is rule #40: the span helper is not self-contained — it has four dependent infrastructure layers (main compiler switch, production opcode allowlist, decline pre-scan, and expansion contract) that must each be updated in the same slice.
 
+Faktorial issue
+`planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-389e8f1c98`
+and PR #2750 completed the array spread in array literals admission (Batch 3),
+applying all four span-extension surfaces (rule #40) plus VM opcode, eligibility
+tests, and invocation tests in a single slice without a build-back repair. The
+delivery also admitted `ArrayPushHole` standalone to `TryMeasureSimpleArrayLiteralSpan`
+alongside `ArraySpread`, enabling hole+spread patterns (`[, ...a]`). The lesson is
+that following rule #40 proactively — applying all four surfaces together, including
+`ArrayPushHole` standalone measurement admission for hole-bearing spread arrays —
+avoids the build-back repair cycle that the sibling task (PR #2748) required.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1098,3 +1129,4 @@ Related ADRs:
 - `docs/adrs/0288-admit-tdz-head-environments-for-sync-iterator-and-for-in-drivers.md`
 - `docs/adrs/0289-admit-optional-calls-in-unified-bytecode-nullish-short-circuit-receiver-owned.md`
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
+- `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`

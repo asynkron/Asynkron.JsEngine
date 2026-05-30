@@ -1013,7 +1013,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
-                        "Literal spread, object methods, and object accessors are not eligible for production unified bytecode routing.";
+                        "Object methods, object accessors, and object spread are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.DefineObjectProperty:
@@ -1819,8 +1819,8 @@ internal static class UnifiedBytecodeProductionEligibility
         int callIndex)
     {
         // Span-walk: each logical argument is either a single simple operand or a
-        // multi-op array/object literal span. Count logical arguments and verify the
-        // total matches call.ArgumentCount.
+        // multi-op array/object/template-literal span. Count logical arguments and
+        // verify the total matches call.ArgumentCount.
         var argCount = 0;
         var operationIndex = argsStartIndex;
         while (operationIndex < callIndex)
@@ -1844,6 +1844,21 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 operationIndex += spanLen;
             }
+            else if (op.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                // A LoadLiteral may be the seed of a multi-op template literal span
+                // (`hello ${x}` → LoadLiteral(""), text parts, substitution parts).
+                // Use spanLen > 1 to distinguish a real template span from a standalone literal.
+                if (TryMeasureSimpleTemplateLiteralSpan(program, operationIndex, identifierConstants, activationSlots, out var spanLen) && spanLen > 1)
+                {
+                    operationIndex += spanLen;
+                }
+                else
+                {
+                    // Standalone literal — same as IsSimpleOperand.
+                    operationIndex++;
+                }
+            }
             else if (IsSimpleOperand(op, identifierConstants, activationSlots))
             {
                 operationIndex++;
@@ -1860,8 +1875,11 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple array literal starting at startIndex.
-    // Admitted shape: CreateArray followed by N×[simple-operand, ArrayPush|ArraySpread] (N ≥ 0).
-    // ArrayPushHole and nested complex elements are declined (spanLength=0, return false).
+    // Admitted shapes (CreateArray followed by N ≥ 0 elements, each one of):
+    //   Normal:  [simple-operand, ArrayPush]
+    //   Spread:  [simple-operand, ArraySpread]
+    //   Hole:    ArrayPushHole (standalone)
+    // Non-simple operands and any other ops terminate the element scan (end of literal).
     private static bool TryMeasureSimpleArrayLiteralSpan(
         ExpressionProgram program,
         int startIndex,
@@ -1879,6 +1897,13 @@ internal static class UnifiedBytecodeProductionEligibility
         while (i < program.OperationCount)
         {
             var elementOp = program.GetOperation(i);
+
+            if (elementOp.Kind == ExpressionOpKind.ArrayPushHole)
+            {
+                i++;
+                continue;
+            }
+
             if (!IsSimpleOperand(elementOp, identifierConstants, activationSlots))
             {
                 // Non-simple op terminates the element scan — the array literal ends here.
@@ -1895,7 +1920,6 @@ internal static class UnifiedBytecodeProductionEligibility
             var pushOp = program.GetOperation(i);
             if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
             {
-                // ArrayPushHole or any other op — decline; holes are not admitted.
                 spanLength = 0;
                 return false;
             }
@@ -2007,12 +2031,83 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
+    // Measures the op span for a simple untagged template literal starting at startIndex.
+    // Admitted shape: LoadLiteral (seed), then any number of:
+    //   text part:         LoadLiteral(string), Binary(Add)
+    //   substitution part: <simple-operand>, ToString, Binary(Add)
+    // Returns spanLength=1 for a bare LoadLiteral with no matching continuation
+    // (treat as standalone literal at the call site; check spanLen > 1 to detect a real template span).
+    // Returns false only when startIndex does not point to LoadLiteral.
+    private static bool TryMeasureSimpleTemplateLiteralSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (program.GetOperation(startIndex).Kind != ExpressionOpKind.LoadLiteral)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var i = startIndex + 1;
+        while (i < program.OperationCount)
+        {
+            var op = program.GetOperation(i);
+
+            // Text part: LoadLiteral followed by Binary(Add)
+            if (op.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                if (i + 1 < program.OperationCount)
+                {
+                    var next = program.GetOperation(i + 1);
+                    if (next.Kind == ExpressionOpKind.Binary && next.Operator == BinaryOperator.Add)
+                    {
+                        i += 2;
+                        continue;
+                    }
+                }
+
+                // LoadLiteral not followed by Binary(Add) — template span ends here.
+                break;
+            }
+
+            // Substitution part: simple-operand, ToString, Binary(Add)
+            if (IsSimpleOperand(op, identifierConstants, activationSlots))
+            {
+                if (i + 2 < program.OperationCount)
+                {
+                    var toString = program.GetOperation(i + 1);
+                    var add = program.GetOperation(i + 2);
+                    if (toString.Kind == ExpressionOpKind.ToString &&
+                        add.Kind == ExpressionOpKind.Binary && add.Operator == BinaryOperator.Add)
+                    {
+                        i += 3;
+                        continue;
+                    }
+                }
+
+                // Simple operand not followed by ToString, Binary(Add) — template span ends here.
+                break;
+            }
+
+            // Non-matching op — template span ends here.
+            break;
+        }
+
+        spanLength = i - startIndex;
+        return true;
+    }
+
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 6)
+        // Shape: [base, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // Minimum: 6 ops (rhs is a single simple operand).
+        if (program.OperationCount < 6)
         {
             return false;
         }
@@ -2024,9 +2119,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var duplicateTarget = program.GetOperation(1);
         var propertyRead = program.GetOperation(2);
-        var rhs = program.GetOperation(3);
-        var binary = program.GetOperation(4);
-        var propertyWrite = program.GetOperation(5);
+        var binary = program.GetOperation(program.OperationCount - 2);
+        var propertyWrite = program.GetOperation(program.OperationCount - 1);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
             propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
             propertyWrite.Kind != ExpressionOpKind.SetNamedProperty ||
@@ -2039,10 +2133,26 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var propertyName = propertyRead.GetString(program.StringConstants.AsSpan());
-        return !propertyName.IsPrivateName() &&
-               propertyName == propertyWrite.GetString(program.StringConstants.AsSpan()) &&
-               IsSimpleOperand(rhs, identifierConstants, activationSlots);
+        var stringConstants = program.StringConstants.AsSpan();
+        var propertyName = propertyRead.GetString(stringConstants);
+        if (propertyName.IsPrivateName() || propertyName != propertyWrite.GetString(stringConstants))
+        {
+            return false;
+        }
+
+        var rhsStart = 3;
+        var rhsEnd = program.OperationCount - 3;
+
+        if (rhsStart == rhsEnd)
+        {
+            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+        }
+
+        // Multi-op RHS — try template literal span.
+        return TryMeasureSimpleTemplateLiteralSpan(
+                   program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
+               spanLen > 1 &&
+               rhsStart + spanLen - 1 == rhsEnd;
     }
 
     private static bool TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
@@ -2086,27 +2196,47 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount == 3)
-        {
-            var propertyWrite = program.GetOperation(2);
-            return propertyWrite.Kind == ExpressionOpKind.SetNamedProperty &&
-                   !propertyWrite.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
-                   !propertyWrite.AllowNameInference &&
-                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
-                   IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
-        }
-
-        if (program.OperationCount != 4)
+        if (program.OperationCount < 3)
         {
             return false;
         }
 
-        var computedWrite = program.GetOperation(3);
-        return computedWrite.Kind == ExpressionOpKind.SetComputedProperty &&
-               !computedWrite.AllowNameInference &&
-               TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
-               IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
-               IsSimpleOperand(program.GetOperation(2), identifierConstants, activationSlots);
+        var stringConstants = program.StringConstants.AsSpan();
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+
+        // Named property write: [base, rhs..., SetNamedProperty]
+        if (lastOp.Kind == ExpressionOpKind.SetNamedProperty &&
+            !lastOp.GetString(stringConstants).IsPrivateName() &&
+            !lastOp.AllowNameInference &&
+            TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            var rhsStart = 1;
+            var rhsEnd = program.OperationCount - 2;
+
+            if (rhsStart == rhsEnd)
+            {
+                return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+            }
+
+            // Multi-op RHS — try template literal span.
+            return TryMeasureSimpleTemplateLiteralSpan(
+                       program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
+                   spanLen > 1 &&
+                   rhsStart + spanLen - 1 == rhsEnd;
+        }
+
+        // Computed property write: [base, key, value, SetComputedProperty]
+        if (program.OperationCount == 4)
+        {
+            var computedWrite = program.GetOperation(3);
+            return computedWrite.Kind == ExpressionOpKind.SetComputedProperty &&
+                   !computedWrite.AllowNameInference &&
+                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
+                   IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
+                   IsSimpleOperand(program.GetOperation(2), identifierConstants, activationSlots);
+        }
+
+        return false;
     }
 
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(
@@ -2201,7 +2331,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
         }
 
-        // Multi-op RHS — must be a simple array or object literal span that exactly fills [rhsStart..rhsEnd].
+        // Multi-op RHS — must be a simple array, object, or template-literal span that exactly fills [rhsStart..rhsEnd].
         if (TryMeasureSimpleArrayLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var arraySpanLen))
         {
             return rhsStart + arraySpanLen - 1 == rhsEnd;
@@ -2210,6 +2340,11 @@ internal static class UnifiedBytecodeProductionEligibility
         if (TryMeasureSimpleObjectLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var objSpanLen))
         {
             return rhsStart + objSpanLen - 1 == rhsEnd;
+        }
+
+        if (TryMeasureSimpleTemplateLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var templateSpanLen) && templateSpanLen > 1)
+        {
+            return rhsStart + templateSpanLen - 1 == rhsEnd;
         }
 
         return false;

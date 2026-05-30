@@ -4195,6 +4195,19 @@ internal static class UnifiedBytecodeCompiler
 
                 operationIndex += objSpanLen;
             }
+            else if (op.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                // A LoadLiteral may be the seed of a multi-op template literal span.
+                // TryAppendSimpleTemplateLiteralSpan always emits at least the seed and returns spanLength >= 1.
+                if (!TryAppendSimpleTemplateLiteralSpan(
+                        expressionProgram, operationIndex, activationSlots,
+                        unified, literalConstants, out var templateSpanLen, out reason))
+                {
+                    return false;
+                }
+
+                operationIndex += templateSpanLen;
+            }
             else
             {
                 // Spread arguments push the iterable value; flattening happens at the
@@ -4229,7 +4242,10 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Compiles a simple array literal span starting at startIndex in the expression program.
-    // Emits: CreateArray, then N×[simple-operand-load, ArrayPush|ArraySpread]. No holes.
+    // Emits: CreateArray, then N elements where each element is one of:
+    //   - [simple-operand-load, ArrayPush]   — normal element
+    //   - [simple-operand-load, ArraySpread] — spread element
+    //   - ArrayPushHole                      — hole element
     private static bool TryAppendSimpleArrayLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -4252,6 +4268,14 @@ internal static class UnifiedBytecodeCompiler
         while (i < expressionProgram.OperationCount)
         {
             var elementOp = expressionProgram.GetOperation(i);
+
+            if (elementOp.Kind == ExpressionOpKind.ArrayPushHole)
+            {
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPushHole));
+                i++;
+                continue;
+            }
+
             if (!TryAppendSimpleOperandLoad(elementOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
             {
                 // Non-simple op — element scan is done; the array literal ends here.
@@ -4263,7 +4287,7 @@ internal static class UnifiedBytecodeCompiler
             if (i >= expressionProgram.OperationCount)
             {
                 spanLength = 0;
-                reason = "Expected ArrayPush after element.";
+                reason = "Expected ArrayPush or ArraySpread after element.";
                 return false;
             }
 
@@ -4279,7 +4303,7 @@ internal static class UnifiedBytecodeCompiler
             else
             {
                 spanLength = 0;
-                reason = "Array holes are not admitted in simple array literals.";
+                reason = "Expected ArrayPush or ArraySpread after array element operand.";
                 return false;
             }
 
@@ -4425,7 +4449,9 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 6)
+        // Shape: [base, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // Minimum: 6 ops (rhs is a single simple operand).
+        if (expressionProgram.OperationCount < 6)
         {
             reason = string.Empty;
             return false;
@@ -4433,9 +4459,8 @@ internal static class UnifiedBytecodeCompiler
 
         var duplicateTarget = expressionProgram.GetOperation(1);
         var propertyRead = expressionProgram.GetOperation(2);
-        var rhs = expressionProgram.GetOperation(3);
-        var binary = expressionProgram.GetOperation(4);
-        var propertySet = expressionProgram.GetOperation(5);
+        var binary = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
             propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
             binary.Kind != ExpressionOpKind.Binary ||
@@ -4492,9 +4517,43 @@ internal static class UnifiedBytecodeCompiler
             UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
             propertyNameIndex));
 
-        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        var rhsStart = 3;
+        var rhsEnd = expressionProgram.OperationCount - 3;
+
+        if (rhsStart == rhsEnd)
         {
-            return false;
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(rhsStart),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            var rhsOp = expressionProgram.GetOperation(rhsStart);
+            if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (!TryAppendSimpleTemplateLiteralSpan(
+                    expressionProgram, rhsStart, activationSlots,
+                    unified, literalConstants, out var spanLen, out reason))
+            {
+                return false;
+            }
+
+            if (rhsStart + spanLen - 1 != rhsEnd)
+            {
+                reason = "Template literal RHS span does not match expected boundary.";
+                return false;
+            }
         }
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
@@ -4597,13 +4656,13 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 3)
+        if (expressionProgram.OperationCount < 3)
         {
             reason = string.Empty;
             return false;
         }
 
-        var propertySet = expressionProgram.GetOperation(2);
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
         if (propertySet.Kind != ExpressionOpKind.SetNamedProperty)
         {
             reason = string.Empty;
@@ -4632,15 +4691,43 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoad(
-                expressionProgram.GetOperation(1),
-                expressionProgram,
-                activationSlots,
-                unified,
-                literalConstants,
-                out reason))
+        var rhsStart = 1;
+        var rhsEnd = expressionProgram.OperationCount - 2;
+
+        if (rhsStart == rhsEnd)
         {
-            return false;
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(rhsStart),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            var rhsOp = expressionProgram.GetOperation(rhsStart);
+            if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (!TryAppendSimpleTemplateLiteralSpan(
+                    expressionProgram, rhsStart, activationSlots,
+                    unified, literalConstants, out var spanLen, out reason))
+            {
+                return false;
+            }
+
+            if (rhsStart + spanLen - 1 != rhsEnd)
+            {
+                reason = "Template literal RHS span does not match expected boundary.";
+                return false;
+            }
         }
 
         var propertyNameIndex = stringConstants.Count;
@@ -4998,6 +5085,17 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
             }
+            else if (rhsOp.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                if (!TryAppendSimpleTemplateLiteralSpan(
+                        expressionProgram, rhsStart, activationSlots, unified, literalConstants,
+                        out var templateSpanLen, out reason) ||
+                    rhsStart + templateSpanLen - 1 != rhsEnd)
+                {
+                    reason = reason.Length == 0 ? "Template literal RHS span does not match expected boundary." : reason;
+                    return false;
+                }
+            }
             else
             {
                 reason = string.Empty;
@@ -5105,6 +5203,81 @@ internal static class UnifiedBytecodeCompiler
                 reason = $"Unsupported computed property key op '{operation.Kind}'.";
                 return false;
         }
+    }
+
+    // Compiles a simple untagged template literal span starting at startIndex.
+    // Shape: LoadLiteral (seed), then any number of text parts (LoadLiteral, Binary(Add))
+    // or substitution parts (simple-operand, ToString, Binary(Add)).
+    // Returns spanLength=1 when only the seed was emitted (standalone literal — no template cycles).
+    // Returns false only if startIndex does not point to LoadLiteral.
+    private static bool TryAppendSimpleTemplateLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.LoadLiteral)
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var seedLiteral = expressionProgram.GetOperation(startIndex).GetLiteral(expressionProgram.LiteralConstants.AsSpan());
+        var seedIndex = literalConstants.Count;
+        literalConstants.Add(seedLiteral);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, seedIndex));
+
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            var op = expressionProgram.GetOperation(i);
+
+            // Text part: LoadLiteral followed by Binary(Add)
+            if (op.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                if (i + 1 >= expressionProgram.OperationCount)
+                    break;
+                var next = expressionProgram.GetOperation(i + 1);
+                if (next.Kind != ExpressionOpKind.Binary || next.Operator != BinaryOperator.Add)
+                    break;
+
+                var textLiteral = op.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
+                var textIndex = literalConstants.Count;
+                literalConstants.Add(textLiteral);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, textIndex));
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)BinaryOperator.Add));
+                i += 2;
+                continue;
+            }
+
+            // Substitution part: simple-operand, ToString, Binary(Add)
+            if (i + 2 < expressionProgram.OperationCount)
+            {
+                var toString = expressionProgram.GetOperation(i + 1);
+                var add = expressionProgram.GetOperation(i + 2);
+                if (toString.Kind == ExpressionOpKind.ToString &&
+                    add.Kind == ExpressionOpKind.Binary && add.Operator == BinaryOperator.Add)
+                {
+                    if (TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out _))
+                    {
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)BinaryOperator.Add));
+                        i += 3;
+                        continue;
+                    }
+                }
+            }
+
+            break;
+        }
+
+        spanLength = i - startIndex;
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendSimpleOperandLoad(

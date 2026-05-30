@@ -3362,6 +3362,11 @@ internal static class UnifiedBytecodeCompiler
                 return true;
             }
         }
+        else
+        {
+            // Last op is neither Call nor Pop — not a call-target preparation candidate.
+            return false;
+        }
 
         if (string.IsNullOrEmpty(reason))
         {

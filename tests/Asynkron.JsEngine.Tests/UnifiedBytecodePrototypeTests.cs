@@ -1463,6 +1463,36 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Return);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task Execute_ObjectLiteralWithStaticKeyAnonymousFunction_InfersName()
+    {
+        // AC-3: { greet: function() {} }.greet.name === "greet"
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeObj() {
+                return { greet: function() {} };
+            }
+            makeObj().greet.name;
+            """);
+
+        Assert.Equal("greet", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Execute_ObjectLiteralWithComputedKeyAnonymousFunction_InfersName()
+    {
+        // AC-4: { [k]: function() {} } where k === "hello" produces function with .name === "hello"
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeObj(k) {
+                return { [k]: function() {} };
+            }
+            makeObj("hello")["hello"].name;
+            """);
+
+        Assert.Equal("hello", result);
+    }
+
     private static (ExecutionPlan Plan, bool IsAsync, bool IsGenerator) GetFunctionPlan(string source, string functionName)
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze(source);

@@ -1677,6 +1677,19 @@ internal static class UnifiedBytecodeVirtualMachine
                     CleanupActiveDriverStates(slots, slotEnvironments, context, true);
                     return JsValue.Undefined;
 
+                case UnifiedBytecodeOpCode.LoadFunctionLiteral:
+                    {
+                        var flDescriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];
+                        var isConstructor = (instruction.Operand & 1) != 0;
+                        var closureEnv = currentCallingEnvironment
+                            ?? throw new InvalidOperationException("Cannot create function literal without a calling environment.");
+                        var functionCallable = TypedAstEvaluator.CreateFunctionValueFromLiteral(
+                            flDescriptor.Function, closureEnv, context, isConstructor, flDescriptor.PlanSeed);
+                        stack[stackPointer++] = JsValue.FromObjectUnsafe(functionCallable);
+                        programCounter++;
+                        break;
+                    }
+
                 default:
                     throw new InvalidOperationException($"Unsupported unified opcode '{instruction.OpCode}'.");
                 }
@@ -4357,10 +4370,10 @@ internal static class UnifiedBytecodeVirtualMachine
         int operand,
         JsValue propertyValue)
     {
-        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        if (DecodeDefineObjectPropertyAllowNameInference(operand) &&
+            propertyValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
         {
-            throw new InvalidOperationException(
-                "Computed object literal name inference is not supported by unified bytecode.");
+            nameTarget.EnsureHasName(propertyName);
         }
 
         targetObject.DefineDefaultDataProperty(propertyName, propertyValue);

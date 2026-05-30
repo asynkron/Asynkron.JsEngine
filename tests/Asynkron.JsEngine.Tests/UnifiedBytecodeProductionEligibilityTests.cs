@@ -1287,13 +1287,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "accessorObject")]
-    [InlineData(
-        """
-        function anonymousFunctionValue() {
-            return { value: function() {} };
-        }
-        """,
-        "anonymousFunctionValue")]
     public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
         string source,
         string functionName)
@@ -3110,5 +3103,43 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions,
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectLiteralWithAnonymousFunctionValue_AcceptsWithNameInferenceFlag()
+    {
+        // AC-1: { key: function() {} } must be accepted (AllowNameInference on DefineObjectProperty).
+        var plan = GetFunctionPlan("""
+            function anonymousFunctionValue() {
+                return { value: function() {} };
+            }
+            """,
+            "anonymousFunctionValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectLiteralWithComputedKeyAnonymousFunctionValue_AcceptsWithNameInferenceFlag()
+    {
+        // AC-2: { [expr]: function() {} } must be accepted (AllowNameInference on DefineComputedObjectProperty).
+        var plan = GetFunctionPlan("""
+            function computedKeyFunctionValue(k) {
+                return { [k]: function() {} };
+            }
+            """,
+            "computedKeyFunctionValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 }

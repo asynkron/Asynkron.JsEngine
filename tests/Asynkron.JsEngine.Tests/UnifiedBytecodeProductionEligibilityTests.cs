@@ -1,5 +1,8 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit.Abstractions;
 
@@ -1724,24 +1727,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ForInTdzHead_DeclinesWithExplicitDriverReason()
+    public void Evaluate_ForInTdzHead_IsAdmittedWithTdzHeadInit()
     {
+        // Slice A (#2678): a lexical for-in head over a flat-slot source is now admitted.
+        // Previously declined with ForInDriverStateDependency ("TDZ head").
         var plan = GetFunctionPlan("""
-            function tdzHead() {
-                for (let key in { [key]: 1 }) {
-                    return key;
+            function collect(obj) {
+                var keys = "";
+                for (const key in obj) {
+                    keys = keys + key;
                 }
+
+                return keys;
             }
             """,
-            "tdzHead");
+            "collect");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
-        Assert.Contains("TDZ", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
     }
 
     [Fact]

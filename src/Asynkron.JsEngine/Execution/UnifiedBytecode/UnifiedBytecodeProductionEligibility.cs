@@ -1033,7 +1033,9 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
+    // Exposed to the test assembly (AC-5 negative coverage): the async-kind and awaited-source
+    // arms must keep declining with their explicit reasons even though sync TDZ heads are admitted.
+    internal static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
     {
         if (instruction.IteratorKind != IteratorDriverKind.Sync)
         {
@@ -1047,17 +1049,19 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!instruction.TdzBindings.IsDefaultOrEmpty)
-        {
-            reason = "Iterator driver TDZ head environments are not yet eligible for production unified bytecode routing.";
-            return false;
-        }
-
+        // Slice A (#2678): sync iterator drivers that own a TDZ head environment
+        // (for example `for (const x of ...)`) are now admitted. The production
+        // compiler resolves the head bindings to flat slots and the VM marks them
+        // uninitialized (with const-ness) so the temporal dead zone is enforced on
+        // the production path. Async-kind and awaited-source drivers above remain
+        // declined pending later slices.
         reason = string.Empty;
         return true;
     }
 
-    private static bool IsSupportedForInInit(ForInInitInstruction instruction, out string reason)
+    // Exposed to the test assembly (AC-5 negative coverage): the awaited-source arm must keep
+    // declining with its explicit reason even though sync TDZ heads are admitted.
+    internal static bool IsSupportedForInInit(ForInInitInstruction instruction, out string reason)
     {
         if (instruction.ObjectProgram is null || instruction.AwaitedProgram is not null)
         {
@@ -1065,12 +1069,12 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!instruction.TdzBindings.IsDefaultOrEmpty)
-        {
-            reason = "for-in driver TDZ head environments are not yet eligible for production unified bytecode routing.";
-            return false;
-        }
-
+        // Slice A (#2678): for-in drivers that own a TDZ head environment
+        // (for example `for (const k in ...)`) are now admitted. The production
+        // compiler resolves the head bindings to flat slots and the VM marks them
+        // uninitialized (with const-ness) so the temporal dead zone is enforced on
+        // the production path. Awaited-source drivers above remain declined pending
+        // later slices.
         reason = string.Empty;
         return true;
     }

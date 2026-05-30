@@ -64,6 +64,7 @@ internal enum UnifiedBytecodeOpCode : byte
     EndFinally,
     EnterWith,
     LeaveWith,
+    TdzHeadInit,
     IteratorInit,
     IteratorMoveNext,
     IteratorClose,
@@ -125,7 +126,9 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int TargetSlot = -1,
     int BreakTarget = -1,
     int NextTarget = -1,
-    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync);
+    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
+    ImmutableArray<int> TdzHeadSlots = default,
+    bool TdzHeadIsConst = false);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {

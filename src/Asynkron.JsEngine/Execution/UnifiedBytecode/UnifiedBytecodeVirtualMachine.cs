@@ -1210,6 +1210,25 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.TdzHeadInit:
+                    {
+                        // Slice A (#2678): establish the loop-head temporal dead zone before the
+                        // iterator/for-in source is evaluated. Marking the flat head slots
+                        // uninitialized mirrors the EnterScope path so reads of `const x`/`let x`
+                        // inside the source throw a ReferenceError on the production path.
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var headSlots = descriptor.TdzHeadSlots;
+                        for (var i = 0; i < headSlots.Length; i++)
+                        {
+                            var headSlot = headSlots[i];
+                            slots[headSlot] = JsValue.Uninitialized;
+                            SyncSlotEnvironment(slotEnvironments, headSlot, JsValue.Uninitialized);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.IteratorInit:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];

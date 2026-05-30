@@ -32,5 +32,6 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 
 - [ ] (open, gh2665) Triage and fix the top real Test262 correctness failures in the Language suite (target: <10 true failures).
 - [ ] (open, gh2668) Add an allocation-regression benchmark gate to CI to guard the evaluator hot-path gains above.
+- [ ] (open, gh2678) Continue the unified-bytecode driver-state widening: Slice A (TDZ head environments for sync iterator/for-in drivers) landed via `TdzHeadInit` and ADR 0283; Slice B (awaited iterator/for-in sources) and Slice C (async iterator driver kind) remain declined.
 
 _Generated and maintained by the recurring Roadmapper run._

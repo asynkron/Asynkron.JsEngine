@@ -916,6 +916,21 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
+                        // Slice A (#2678): resolve the loop-head TDZ bindings to flat slots and
+                        // mark them uninitialized BEFORE the iterable source is evaluated, so a
+                        // read of the head binding inside the source (e.g. `for (const x of [x])`)
+                        // throws a ReferenceError on the production path.
+                        if (!TryEmitTdzHeadInit(
+                                iteratorInit.TdzBindings,
+                                iteratorInit.TdzIsConst,
+                                slotLayout,
+                                unified,
+                                driverDescriptors,
+                                out reason))
+                        {
+                            return false;
+                        }
+
                         if (!TryAppendExpressionProgramOps(
                                 iterableProgram,
                                 slotLayout,
@@ -1018,6 +1033,21 @@ internal static class UnifiedBytecodeCompiler
                                 out var forInStateSlot))
                         {
                             reason = $"Unsupported for-in state slot '{forInInit.StateSlot.Name}'.";
+                            return false;
+                        }
+
+                        // Slice A (#2678): resolve the loop-head TDZ bindings to flat slots and
+                        // mark them uninitialized BEFORE the source object is evaluated, so a
+                        // read of the head binding inside the source (e.g. `for (const k in k)`)
+                        // throws a ReferenceError on the production path.
+                        if (!TryEmitTdzHeadInit(
+                                forInInit.TdzBindings,
+                                forInInit.TdzIsConst,
+                                slotLayout,
+                                unified,
+                                driverDescriptors,
+                                out reason))
+                        {
                             return false;
                         }
 
@@ -2559,6 +2589,54 @@ internal static class UnifiedBytecodeCompiler
         var index = descriptors.Count;
         descriptors.Add(descriptor);
         return index;
+    }
+
+    /// <summary>
+    ///     Slice A (#2678): emits a <see cref="UnifiedBytecodeOpCode.TdzHeadInit" /> instruction that
+    ///     marks the loop-head lexical bindings (for example <c>for (const x of ...)</c>) uninitialized
+    ///     before the iterator/for-in source expression is evaluated, establishing the temporal dead
+    ///     zone on the production VM path. Returns <see langword="true" /> (emitting nothing) when there
+    ///     are no TDZ bindings. Declines when a head binding cannot be resolved to a flat activation
+    ///     slot, so an incompletely modeled head environment is never admitted.
+    /// </summary>
+    private static bool TryEmitTdzHeadInit(
+        ImmutableArray<Symbol> tdzBindings,
+        bool tdzIsConst,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        out string reason)
+    {
+        if (tdzBindings.IsDefaultOrEmpty)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        var headSlots = ImmutableArray.CreateBuilder<int>(tdzBindings.Length);
+        foreach (var binding in tdzBindings)
+        {
+            if (!TryResolveActivationSymbolSlot(binding, slotLayout, out var headSlot))
+            {
+                reason =
+                    $"Iterator/for-in driver TDZ head binding '{binding.Name}' could not be resolved to a flat activation slot.";
+                return false;
+            }
+
+            headSlots.Add(headSlot);
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.TdzHeadInit,
+            AddDriverDescriptor(
+                driverDescriptors,
+                new UnifiedBytecodeDriverDescriptor(
+                    StateSlot: -1,
+                    TdzHeadSlots: headSlots.ToImmutable(),
+                    TdzHeadIsConst: tdzIsConst))));
+
+        reason = string.Empty;
+        return true;
     }
 
     private static void PatchDriverDescriptorBreakTarget(

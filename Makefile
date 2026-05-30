@@ -1,4 +1,4 @@
-.PHONY: help quality build-internal test-internal test-internal-no-build
+.PHONY: help quality build-internal test-internal test-internal-no-build slo-gate
 
 CONFIGURATION ?= Debug
 DOTNET_BUILD_ARGS ?= /p:RunAnalyzers=false
@@ -12,6 +12,7 @@ help:
 	@printf "%s\n" "Available targets:" \
 		"  help                   Show available repo maintenance targets" \
 		"  quality                Check diff, build internal projects, run internal tests (no Test262)" \
+		"  slo-gate               Re-measure SLO timing profiles and check against committed baseline" \
 		"  build-internal         Build internal projects used by the quality gate" \
 		"  test-internal          Run internal tests with build" \
 		"  test-internal-no-build Run internal tests without rebuilding" \
@@ -29,6 +30,9 @@ quality:
 	$(GIT) diff --check
 	$(MAKE) build-internal
 	$(MAKE) test-internal-no-build
+
+slo-gate:
+	./tools/check-slo-gate
 
 build-internal:
 	$(DOTNET) build src/Asynkron.JsEngine/Asynkron.JsEngine.csproj -c $(CONFIGURATION) $(DOTNET_BUILD_ARGS) $(DOTNET_BUILD_STABILITY_ARGS)

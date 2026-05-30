@@ -397,6 +397,29 @@
       "show_progress": false,
       "show_timing": true
     },
+    "startup": {
+      "name": "StartupLatencyProfile",
+      "description": "Cold-start latency: realm init + trivial script on a fresh engine per iteration",
+      "script": "startup.js",
+      "mode": "sync",
+      "iterations": 10,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true,
+      "fresh_engine_per_iteration": true,
+      "include_in_all": false
+    },
+    "microtask": {
+      "name": "MicrotaskDrainProfile",
+      "description": "Microtask drain latency: await 1 000 Promise.resolve() jobs in a loop",
+      "script": "microtask.js",
+      "mode": "async",
+      "iterations": 5,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true,
+      "include_in_all": false
+    },
     "test262-function-tostring": {
       "name": "Test262FunctionToStringProfile",
       "description": "Reported slow/crash Test262 Function.prototype.toString built-in function object cases",

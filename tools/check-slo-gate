@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Force a stable locale so awk formats numbers with a '.' decimal separator
+# regardless of the host locale.
+export LC_ALL=C
+
+# Performance SLO gate for Asynkron.JsEngine.
+#
+# Re-measures timing for the instrumented SLOs (cold-start latency and
+# microtask drain latency) and compares them to the committed baseline
+# (.testrunner/perf-slo-baseline.md). Exits non-zero with a clear per-profile
+# diff when any profile's avg-ms-per-iteration regresses beyond the tolerance.
+#
+# This guards the Performance SLOs defined in docs/dreaming.md from silently
+# regressing. Timing is noisier than allocation bytes, so the default tolerance
+# is 200% (gate fails only when a measurement exceeds 3× the baseline value).
+#
+# Usage:
+#   ./tools/check-slo-gate [--no-build] [--update] [--tolerance PCT]
+#
+#   (default)         Check current timing against the committed baseline.
+#   --update          Refresh tools/perf-slo-baseline.md from a fresh run
+#                     (use after an intentional change moves the numbers).
+#   --no-build        Skip the ProfileRunner build (assume it is current).
+#   --tolerance PCT   Allowed per-profile regression headroom, percent.
+#                     Default 200 (overridable via TIMING_GATE_TOLERANCE).
+#                     Gate fails when avg_ms > baseline_ms * (1 + pct/100).
+#
+# Baseline-refresh path (one command):
+#   ./tools/check-slo-gate --update
+#   git add tools/perf-slo-baseline.md && git commit
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+runner_project="$script_dir/ProfileRunner/ProfileRunner.csproj"
+runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
+runner_exe="$runner_bin/ProfileRunner"
+runner_dll="$runner_bin/ProfileRunner.dll"
+baseline_file="$script_dir/perf-slo-baseline.md"
+
+build_runner=true
+update_baseline=false
+tolerance_pct="${TIMING_GATE_TOLERANCE:-200}"
+runner_cmd=()
+
+# Profiles measured by this gate (must exist in profile-manifest.json).
+slo_profiles=(
+  startup
+  microtask
+)
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./tools/check-slo-gate [--no-build] [--update] [--tolerance PCT]
+
+Re-measures ProfileRunner avg-ms-per-iteration for the SLO profile set and
+compares them to .testrunner/perf-slo-baseline.md, failing on regressions
+beyond the tolerance (default 200% — fails only when measurement exceeds 3×
+the baseline value).
+
+Options:
+  --no-build        Skip the ProfileRunner Release build.
+  --update          Refresh tools/perf-slo-baseline.md from a fresh run instead
+                    of checking against it.
+  --tolerance PCT   Allowed per-profile regression headroom in percent
+                    (default 200; or set TIMING_GATE_TOLERANCE).
+                    Gate fails when avg_ms > baseline_ms * (1 + pct/100).
+  --help, -h        Show this help.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --no-build)
+      build_runner=false
+      shift
+      ;;
+    --update)
+      update_baseline=true
+      shift
+      ;;
+    --tolerance)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --tolerance" >&2
+        exit 2
+      fi
+      tolerance_pct="$2"
+      shift 2
+      ;;
+    --tolerance=*)
+      tolerance_pct="${1#*=}"
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if ! [[ "$tolerance_pct" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "Invalid --tolerance value: $tolerance_pct" >&2
+  exit 2
+fi
+
+if [[ "$build_runner" == true ]]; then
+  dotnet build "$runner_project" -c Release -v q --nologo >/dev/null
+fi
+
+if [[ -x "$runner_exe" ]]; then
+  runner_cmd=("$runner_exe")
+elif [[ -f "$runner_dll" ]]; then
+  runner_cmd=(dotnet "$runner_dll")
+else
+  echo "ProfileRunner was not found. Build it first or omit --no-build." >&2
+  exit 1
+fi
+
+# Run a single ProfileRunner profile with --force-timing and return the avg
+# ms per iteration from the "Done in Xms (avg Y.YYms per iteration)" output.
+measure_profile() {
+  local profile=$1
+  local out status line avg_ms
+
+  set +e
+  out=$("${runner_cmd[@]}" --asynkron --force-timing "$profile" 2>&1)
+  status=$?
+  set -e
+
+  line=$(printf '%s\n' "$out" | awk '/Done in/ {line=$0} END {if (line) print line}')
+  if [[ $status -ne 0 || -z "$line" ]]; then
+    printf '\nasynkron %s failed:\n%s\n' "$profile" "$out" >&2
+    return 1
+  fi
+
+  # Parse "avg X.XXms per iteration" from the Done line (BSD + GNU sed portable).
+  avg_ms=$(printf '%s\n' "$line" | sed -nE 's/.*avg ([0-9]+(\.[0-9]+)?)ms per iteration.*/\1/p')
+  if [[ -z "$avg_ms" ]]; then
+    printf '\nCould not parse avg timing for asynkron %s:\n%s\n' "$profile" "$line" >&2
+    return 1
+  fi
+
+  printf '%s' "$avg_ms"
+}
+
+measure_all() {
+  local profile avg_ms
+  measured_values=()
+  for profile in "${slo_profiles[@]}"; do
+    avg_ms=$(measure_profile "$profile")
+    measured_values+=("$avg_ms")
+  done
+}
+
+if [[ "$update_baseline" == true ]]; then
+  echo "Measuring SLO timing for the profile set ..." >&2
+  measure_all
+  {
+    echo "# Asynkron.JsEngine Performance SLO Baseline"
+    echo "#"
+    echo "# Committed baseline values for the Performance SLOs defined in docs/dreaming.md."
+    echo "# Compared by tools/check-slo-gate."
+    echo "#"
+    echo "# Generated by: ./tools/check-slo-gate --update"
+    echo "# Values are ProfileRunner --force-timing avg ms per iteration."
+    echo "# Timing is hardware-dependent; regenerate on a new machine with --update then commit."
+    echo "# Default tolerance: 200% (gate fails only at >3x baseline). Override with TIMING_GATE_TOLERANCE."
+    echo "#"
+    echo "# format: <profile> <avg_ms_per_iteration>"
+    local_i=0
+    for profile in "${slo_profiles[@]}"; do
+      printf '%s %s\n' "$profile" "${measured_values[$local_i]}"
+      local_i=$((local_i + 1))
+    done
+  } >"$baseline_file"
+  echo "Wrote baseline to $baseline_file:" >&2
+  grep -v '^#' "$baseline_file" >&2 || true
+  exit 0
+fi
+
+if [[ ! -f "$baseline_file" ]]; then
+  echo "Missing baseline: $baseline_file" >&2
+  echo "Generate it with: ./tools/check-slo-gate --update" >&2
+  exit 1
+fi
+
+# Look up the baseline avg_ms for a profile (portable; no associative arrays).
+baseline_for() {
+  local want=$1 profile ms _rest
+  while read -r profile ms _rest; do
+    [[ -z "$profile" || "$profile" == \#* ]] && continue
+    if [[ "$profile" == "$want" ]]; then
+      printf '%s' "$ms"
+      return 0
+    fi
+  done <"$baseline_file"
+  return 0
+}
+
+echo "Checking SLO timing against baseline (tolerance ${tolerance_pct}%) ..." >&2
+measure_all
+
+printf '%-12s %18s %18s %10s %s\n' "profile" "baseline_avg_ms" "current_avg_ms" "delta_%" "status"
+
+regressed=false
+i=0
+for profile in "${slo_profiles[@]}"; do
+  current="${measured_values[$i]}"
+  i=$((i + 1))
+  base=$(baseline_for "$profile")
+
+  if [[ -z "$base" ]]; then
+    printf '%-12s %18s %18s %10s %s\n' "$profile" "n/a" "$current" "n/a" "NO BASELINE"
+    regressed=true
+    continue
+  fi
+
+  read -r delta_pct status <<<"$(awk -v base="$base" -v cur="$current" -v tol="$tolerance_pct" 'BEGIN {
+    if (base <= 0) { printf "n/a BADBASE"; exit }
+    pct = (cur - base) / base * 100.0
+    ceiling = base * (1.0 + tol / 100.0)
+    if (cur > ceiling) {
+      printf "%+.1f REGRESSED", pct
+    } else {
+      printf "%+.1f ok", pct
+    }
+  }')"
+
+  printf '%-12s %18s %18s %10s %s\n' "$profile" "$base" "$current" "$delta_pct" "$status"
+  if [[ "$status" == "REGRESSED" || "$status" == "BADBASE" ]]; then
+    regressed=true
+  fi
+done
+
+if [[ "$regressed" == true ]]; then
+  echo "" >&2
+  echo "SLO timing regression detected (tolerance ${tolerance_pct}%)." >&2
+  echo "If this is an intentional change, refresh the baseline:" >&2
+  echo "  ./tools/check-slo-gate --update && git add $baseline_file" >&2
+  exit 1
+fi
+
+echo "" >&2
+echo "OK: no SLO timing regression beyond ${tolerance_pct}% tolerance." >&2

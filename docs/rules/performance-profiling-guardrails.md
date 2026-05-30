@@ -657,6 +657,28 @@ optimization.
     focused row regressed from 778 ms to 2957 ms, so the runtime edit was
     reverted and retained as failed-attempt evidence. Related ADR:
     `docs/adrs/0267-keep-simple-arrow-unified-bytecode-routing-benchmark-proven.md`.
+30. For invoker-constructor static-analysis cost, profile the per-invocation
+    constructor before touching call dispatch. When the hot owner is a pure-AST
+    traversal in an invoker constructor (for example `SyncFunctionInvoker..ctor`
+    re-running `ContainsParameterVarDeclarationWithoutInitializer`,
+    `ContainsFunctionDeclarationParameterConflict`,
+    `ContainsNonParameterCalleeIdentifier`, or `ContainsInnerFunctionExpression`
+    on every call), cache the result once per `FunctionExpression` through the
+    existing `IAstCacheable<T>` pattern instead of recomputing it. Such analyses
+    are eligible for this cache only when their result is determined purely by the
+    immutable function AST and does not depend on closure, realm, or runtime state.
+    Keep the analysis logic itself unchanged: move shared static methods next to
+    their siblings in `ScopeDynamicnessAnalyzer` rather than duplicating them, and
+    delete the now-dead private copy. Prove the win with a baseline/final selected
+    profile pair plus the internal test suite. WHY: issue
+    `autrun-divgn4xb5ce0-ebfe13774f` / PR #2661 found `SyncFunctionInvoker..ctor`
+    spending 57 ms of 60 ms on `ContainsParameterVarDeclarationWithoutInitializer`
+    re-traversal per `forofiteration` invocation; adding
+    `FunctionInvokerStaticPlan` cached on `FunctionExpression` retained a ~15%
+    improvement (487 ms -> 413 ms median) with no semantic change. The same
+    delivery also removed a redundant `DefineOrAssignJsValue` after
+    `valueVar.Write(...)` in the SyncIterator StoreValue handler, where the slot
+    write already completed the assignment.
 
 ## Why
 
@@ -1151,3 +1173,22 @@ execution. Issue #2278 / PR #2285 made the wrapper comparable for
 `simplearithmetic` and `tools/profile all` by forwarding `--wrap-iife`; future
 wrapper changes must preserve that workload-shape parity. Related ADR:
 `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.
+
+Issue `autrun-divgn4xb5ce0-ebfe13774f` / PR #2661 selected `forofiteration` and
+proved with a speedscope CPU trace that the per-invocation `SyncFunctionInvoker`
+constructor was the owner, dominated by
+`ContainsParameterVarDeclarationWithoutInitializer` re-traversing the immutable
+function body on every call (57 ms of 60 ms total `.ctor` cost). All four of the
+constructor's static-analysis booleans are pure functions of the
+`FunctionExpression` AST, so the accepted slice computed them once into a
+`FunctionInvokerStaticPlan` cached via the established `IAstCacheable<T>` pattern
+and had the constructor read the plan. The durable lesson is that
+invoker/activation constructors run on every call, so any pure-AST analysis there
+belongs in a per-`FunctionExpression` cache, not in the hot constructor path —
+and that this is a convention-following caching change, not a new architectural
+decision: the shared analysis methods moved to `ScopeDynamicnessAnalyzer` next to
+their siblings rather than changing, with no semantic risk. The same delivery also
+removed a redundant `DefineOrAssignJsValue` after `valueVar.Write(...)` in the
+SyncIterator StoreValue handler, where the slot write already completed the
+assignment. Result doc:
+`docs/performance/forofiteration-invoker-static-plan-cache.md`.

@@ -943,7 +943,7 @@ Boundary contract rules:
 | Primary sync route | 100% of accepted ordinary sync production programs attempt Tier 0 before Tier 2/Tier 3 (PR #2623) | Profile evidence for coverage claim (#2634) |
 | Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
 | Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
-| Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. | Cold-start latency, microtask drain latency, and full Jint allocation comparison are in Candidate state (no baseline yet). |
+| Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. Cold-start latency and microtask drain latency have a committed ProfileRunner baseline (`startup`, `microtask` profiles in `profile-manifest.json`; `tools/perf-slo-baseline.md`; `make slo-gate`). | Full Jint allocation comparison; tightening SLO timing targets to < 5 ms p95 for cold-start and < 1 ms per 1 000 microtasks. |
 
 ## Architecture constraints (current reality)
 
@@ -960,12 +960,14 @@ These constraints are binding until new evidence says otherwise.
 
 These are the observable performance targets the dream must eventually satisfy to support the "Node.js-competitive runtime" product claim. SLOs are **not** requirements today; they are the finish line that makes "directional" language concrete. No SLO may be claimed without ProfileRunner matrix evidence (baseline + final signal, `./benchmark.sh` and `./benchmark.sh --allocations`).
 
+Instrumented SLOs have a committed baseline in `tools/perf-slo-baseline.md` and can be re-checked with `make slo-gate`.
+
 | SLO | Target | Measured by | Current status |
 |---|---|---|---|
-| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Not yet measured |
+| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Candidate — baseline committed (~4.8 ms avg; see `tools/perf-slo-baseline.md`) |
 | Warm-path throughput (`fibonacci`, `looping`) | ≤ 2× Jint managed bytes per op | `./benchmark.sh --allocations` | Tracked, improving |
 | Allocation per expression eval (hot loop, no object creation) | Zero Gen 1+ promotions | `./benchmark.sh --allocations` | Partially met; args still escape |
-| Microtask drain latency | < 1 ms per 1 000 queued jobs | Dedicated microtask benchmark | Not yet measured |
+| Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Candidate — baseline committed (~8.0 ms avg/1 000 jobs; see `tools/perf-slo-baseline.md`) |
 | Test262 true correctness failures | < 10 in Language + BuiltIns suites | Testrunner baseline | < 20 today |
 | Tier 0 routing coverage (accepted ordinary sync programs) | 100% attempt-Tier-0 | PR #2623 expansion contract | Proven for primary sync route |
 | Seam inventory shrink rate | One near-closure seam eliminated per milestone | Seam inventory table above | In progress |

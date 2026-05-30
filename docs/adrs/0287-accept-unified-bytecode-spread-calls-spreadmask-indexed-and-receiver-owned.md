@@ -1,4 +1,4 @@
-# ADR 0285: Accept unified bytecode spread calls, spread-mask indexed and receiver-owned
+# ADR 0287: Accept unified bytecode spread calls, spread-mask indexed and receiver-owned
 
 ## Status
 

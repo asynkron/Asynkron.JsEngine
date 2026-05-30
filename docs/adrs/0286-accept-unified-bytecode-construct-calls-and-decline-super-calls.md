@@ -122,7 +122,7 @@ requirement that every admitted shape be demonstrable.
 
 ## Related
 
-- Parent: #2676 (Batch 1 — spread calls, ADR 0285)
+- Parent: #2676 (Batch 1 — spread calls, ADR 0287)
 - Batch 2: optional calls (#2689)
-- Precedent ADRs: 0261, 0262, 0263, 0264, 0275, 0285
+- Precedent ADRs: 0261, 0262, 0263, 0264, 0275, 0287
 - [Unified bytecode expansion contract](../unified-bytecode-expansion-contract.md)

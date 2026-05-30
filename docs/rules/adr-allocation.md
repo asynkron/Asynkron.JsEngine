@@ -72,3 +72,5 @@ provisional, the duplicate-prefix check must run after merging `main`, and the
 *newer* ADR is the one to renumber. The standing fix is for ADR-authoring
 stages (including build) to reserve via `rtk faktorial-api adr-next` rather than
 scan `docs/adrs`, which is what keeps regenerating this collision.
+
+Issue #2676 / spread-calls and #2678 / tdz-heads (PRs #2685 and #2687) are a third and fourth recurrence of the same pattern, now at ADR numbers 0285 and 0286. The build stage for gh2676 authored the spread-calls ADR as 0285 by scanning; meanwhile gh2679's labeled-control-flow ADR already held 0285 and was merged to main before gh2676's learn. Similarly, the build stage for gh2678 authored the TDZ-heads ADR as 0286 by scanning; meanwhile gh2690's construct-calls ADR already held 0286 and was merged via its learn PR (#2699) before gh2678's delivery PR (#2687) landed. The learn pass for gh2678 detected both collisions and renamed the newer files: spread-calls to 0287, TDZ-heads to 0288, then updated roadmap, expansion contract, and rule cross-references in the same slice.

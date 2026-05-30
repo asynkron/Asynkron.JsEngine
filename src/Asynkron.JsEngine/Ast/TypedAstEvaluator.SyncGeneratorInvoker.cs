@@ -158,9 +158,9 @@ public static partial class TypedAstEvaluator
             return step.Kind switch
             {
                 UnifiedBytecodeStepKind.Yield =>
-                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false, context)),
+                    UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false),
                 UnifiedBytecodeStepKind.Completed =>
-                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true, context)),
+                    UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true),
                 UnifiedBytecodeStepKind.Throw => throw new ThrowSignal(step.Value),
                 _ => throw new NotSupportedException(
                     $"Unified bytecode generator step '{step.Kind}' is not supported by synchronous generators.")

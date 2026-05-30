@@ -1020,6 +1020,40 @@ then. WHY: the build-stage repair for PR #2613 had to decline `yield*` from the
 new resumable fast path after the first slice exposed that delegated abrupt
 resume is a separate protocol boundary from simple `yield` and awaited return.
 
+Faktorial issue
+`planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`
+and PR #2740 admitted `LoadFunctionLiteral` as the first opcode that creates
+function values from AST descriptors inside the unified VM. Future opcodes with
+similar semantics must follow the same four-part pattern:
+
+1. **Eligibility**: move the opcode from the decline block into the
+   allowed-opcode subset; do not assume a blanket-decline entry is safe to leave
+   as-is just because it has not been exercised in the target slice.
+2. **Constant pool**: add a typed `FunctionLiteralConstants` field (or analogous
+   typed pool) to `UnifiedBytecodeProgram` for the descriptors — do not reuse
+   `LoadLiteral`/`JsValue` constants for non-`JsValue` payloads. Default the
+   field to `ImmutableArray.Empty` when the program contains no such opcodes.
+   Encode the pool index in the upper operand bits and any flags in the low bits
+   (PR #2740 uses bit 0 for `isConstructor`).
+3. **Calling environment gate**: if the opcode needs closure creation, register
+   the program via `RequiresProductionUnifiedBytecodeCallEnvironment` in
+   `SyncFunctionInvoker` so the calling environment is provisioned before the VM
+   runs. The VM case must throw `InvalidOperationException` when `currentCallingEnvironment`
+   is null — never silently fall through with an uninitialized closure.
+4. **VM case**: call `TypedAstEvaluator.CreateFunctionValueFromLiteral` (or the
+   relevant internal wrapper in `FunctionExpressionExtensions`) with the
+   descriptor, calling environment, execution context, and `isConstructor`; push
+   the resulting `JsValue` and advance the program counter.
+
+Investigation-stage caution: when unblocking an `AllowNameInference`-gated shape
+in the eligibility and compiler, count the full set of guards — eligibility
+decline block, compiler guard, VM throw stub, and the calling-environment gate —
+before declaring the fix complete. PR #2740's build stage discovered a fourth
+guard (`LoadFunctionLiteral` had no VM support at all) that the investigation
+summary missed. WHY: guard-removal analysis that stops at three visible blocks
+misses a fourth structural gap (unsupported opcode), which the build stage must
+then repair, adding latency and context switch.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`

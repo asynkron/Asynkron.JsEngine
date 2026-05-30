@@ -4,15 +4,13 @@ _Last updated: 2026-05-30_
 
 ## Current State
 
-Asynkron.JsEngine is a tree-walking JavaScript interpreter for .NET with broad ECMAScript coverage. Recent work has concentrated on the typed-AST evaluator and allocation reduction in hot paths:
+Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage. Execution runs through a multi-tier typed-AST evaluator rather than a single tree-walker: a `UnifiedBytecodeVM` as the target hot route, an `ExpressionProgram` expression-bytecode VM, a lowered statement-IR runner (`ExplicitExecutionPlan`), and an AST tree-walking bridge retained only as a correctness fallback. Recent work has concentrated on the typed-AST evaluator and allocation reduction in hot paths:
 
 - Per-`FunctionExpression` caching of `SyncFunctionInvoker` static analysis (PR #2661, ~15% faster `forofiteration`).
-- Typed-AST member-access caching, hardened against poisoned/stale cache entries (PRs #2646, #2659, #2644).
-- Cached typed-AST property keys to cut `ToPropertyKey` churn (PR #2658) and cached argument handling on call expressions (PRs #2654, #2650).
-- Cached resolved variable slots in typed-AST identifiers and skipped redundant typed-AST conversion in cached invokers (PRs #2651, #2656).
-- `JsValue` struct adoption across numeric/string coercion paths (`ToNumericCore`, `ToJsStringFromObjectValue`, commit bd70ca63).
+- Skipping the redundant arguments guard in the simple-IR closure-activation fast path (PR #2646).
+- `JsValue` struct adoption across numeric/string coercion paths — `ToNumericCore` and `ToJsStringFromObjectValue` (commit bd70ca63); the evaluation-pipeline `JsValue` migration boundary is recorded in ADR 0281 / rule 20 (PR #2651).
 
-A typed-AST/"dreaming" evaluator vision is being refined in docs (PRs #2652, #2655, #2660, #2663), covering a staged migration with allocation budgets and escape hatches.
+Architecture direction is tracked in docs rather than as runtime parity claims: unified-bytecode primary sync-route coverage is recorded (PR #2644), and the typed-AST/"dreaming" target is refined in `docs/dreaming.md` — a 4-tier execution model (PR #2647) followed by a self-critique revision (PR #2663), with tier-numbering disambiguation captured as rule 14 (PR #2650). These describe a staged migration with allocation budgets and escape hatches, not current parity.
 
 Conformance against Test262 is tracked via a custom testrunner with baselines in `.testrunner/`. Most reported failures are crash collateral rather than true correctness gaps; real correctness failures are typically under 20.
 

@@ -4375,4 +4375,137 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=sendMixed argc=4",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAnd_ShortCircuitsOnFalsyLeft_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function andOp(a, b) {
+                return a && b;
+            }
+
+            andOp(0, 42);
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=andOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAnd_EvaluatesRight_WhenLeftIsTruthy_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function andOp(a, b) {
+                return a && b;
+            }
+
+            andOp(1, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=andOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalOr_ShortCircuitsOnTruthyLeft_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orOp(a, b) {
+                return a || b;
+            }
+
+            orOp(1, 99);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalOr_EvaluatesRight_WhenLeftIsFalsy_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orOp(a, b) {
+                return a || b;
+            }
+
+            orOp(0, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishCoalescing_ShortCircuitsOnNonNullishLeft_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nullishOp(a, b) {
+                return a ?? b;
+            }
+
+            nullishOp(0, 42);
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nullishOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishCoalescing_EvaluatesRight_WhenLeftIsNull_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nullishOp(a, b) {
+                return a ?? b;
+            }
+
+            nullishOp(null, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nullishOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishCoalescing_EvaluatesRight_WhenLeftIsUndefined_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nullishOp(a, b) {
+                return a ?? b;
+            }
+
+            nullishOp(undefined, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nullishOp argc=2",
+                StringComparison.Ordinal));
+    }
 }

@@ -3110,8 +3110,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        foreach (var operation in expressionProgram.EnumerateOperations())
+        var exprPcToUnifiedPc = new int[expressionProgram.OperationCount + 1];
+        List<(int UnifiedIndex, int ExprTarget)>? patches = null;
+
+        for (var exprPc = 0; exprPc < expressionProgram.OperationCount; exprPc++)
         {
+            exprPcToUnifiedPc[exprPc] = unified.Count;
+            var operation = expressionProgram.GetOperation(exprPc);
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadIdentifier:
@@ -3405,9 +3410,39 @@ internal static class UnifiedBytecodeCompiler
                         EncodeLoadFunctionLiteralOperand(functionLiteralIndex, operation.IsConstructorFunction)));
                     break;
 
+                case ExpressionOpKind.JumpIfFalse:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitFalse, 0));
+                    break;
+
+                case ExpressionOpKind.JumpIfTrue:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitTrue, 0));
+                    break;
+
+                case ExpressionOpKind.JumpIfNotNullish:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish, 0));
+                    break;
+
                 default:
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;
+            }
+        }
+
+        exprPcToUnifiedPc[expressionProgram.OperationCount] = unified.Count;
+
+        if (patches is not null)
+        {
+            foreach (var (unifiedIndex, exprTarget) in patches)
+            {
+                unified[unifiedIndex] = new UnifiedBytecodeInstruction(
+                    unified[unifiedIndex].OpCode,
+                    exprPcToUnifiedPc[exprTarget]);
             }
         }
 

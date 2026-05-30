@@ -83,6 +83,9 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `Jump`
 - `JumpWithDriverCleanup`
 - `JumpIfFalse`
+- `JumpIfShortCircuitFalse`
+- `JumpIfShortCircuitTrue`
+- `JumpIfShortCircuitNotNullish`
 - `Return`
 - `ReturnUndefined`
 - `Throw`

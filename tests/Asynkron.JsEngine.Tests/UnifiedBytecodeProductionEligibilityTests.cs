@@ -3694,4 +3694,82 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_LogicalAndExpression_AcceptsWithShortCircuitFalseOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function andExpr(a, b) {
+                return a && b;
+            }
+            """,
+            "andExpr");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrExpression_AcceptsWithShortCircuitTrueOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function orExpr(a, b) {
+                return a || b;
+            }
+            """,
+            "orExpr");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitTrue);
+    }
+
+    [Fact]
+    public void Evaluate_NullishCoalescingExpression_AcceptsWithShortCircuitNotNullishOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function nullishExpr(a, b) {
+                return a ?? b;
+            }
+            """,
+            "nullishExpr");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalChainExpression_StillDeclinesWithOptionalChainDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function optChain(obj) {
+                return obj?.value;
+            }
+            """,
+            "optChain");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
 }

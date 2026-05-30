@@ -47,6 +47,39 @@ left room to treat `rtk make quality` as a replacement for the pre-PR checklist.
 The gate is additive local build/test evidence; it must not weaken the required
 PR-readiness steps.
 
+## Allocation Regression Gate
+
+`tools/check-allocation-regression` is a `/pre-pr` step (Step 5): it re-measures
+Asynkron managed allocations for the benchmark smoke set and fails on a
+per-profile regression beyond tolerance, guarding the evaluator hot-path
+allocation wins (PR #2661, commit `bd70ca63`, PR #2658).
+
+- **Gates live in the local `/pre-pr` quality path, not GitHub Actions.** This
+  repo has no `.github/workflows` — Actions were intentionally removed (commits
+  `dcd3ff22`, `3d993683`). When an issue asks to "add a CI job" or "a CI gate",
+  deliver a standalone, runnable command wired into `/pre-pr`; do NOT resurrect
+  GitHub Actions. Adopting true PR-CI is a separate owner decision.
+- **The tolerance is `max(percentage, absolute floor)`, by design.** A fixed
+  ~24 KB measurement blip occasionally lands in the measured loop; it is a large
+  percentage on small profiles (`ir-arithmetic`, `forloop`) but negligible on
+  large ones. Do not "simplify" the gate to a pure percentage tolerance — that
+  reintroduces false positives on small profiles. The floor
+  (`--abs-floor`/`ALLOC_GATE_ABS_FLOOR`, default 49152) absorbs the fixed noise;
+  the percentage (`--tolerance`/`ALLOC_GATE_TOLERANCE`, default 15) catches
+  proportional regressions on large profiles.
+- **Refresh the baseline only via `--update`, never by hand.** When an
+  intentional change legitimately moves the numbers, run
+  `./tools/check-allocation-regression --update && git add
+  tools/allocation-baseline.txt` and commit. The header is regenerated; do not
+  edit `tools/allocation-baseline.txt` directly.
+- **Keep the gate's `smoke_profiles` in sync with `tools/compare-jint-profiles`.**
+  Changing one list without the other silently stops guarding a profile.
+
+WHY: issue #2668 / PR #2671 added this gate after PR #2661 / `bd70ca63` / #2658
+reduced evaluator hot-path allocations and nothing guarded those wins from
+silently regressing. ADR:
+`docs/adrs/0282-allocation-regression-gate-local-and-noise-tolerant.md`.
+
 ## Rules
 
 - Do NOT skip any steps

@@ -31,3 +31,14 @@ prose with copy/paste command examples. In the agent runtime, shell commands
 must follow the repo's `rtk` invocation contract, so future edits should keep
 actionable allocator examples as `rtk faktorial-api adr-next` without rewriting
 non-runnable helper-name references.
+
+Issue #2668 / PR #2671 confirmed the duplicate-prefix check is not optional: the
+runtime allocator handed back `adr_id 281`, but `0281-*` was already on disk —
+consumed by a concurrent learn PR (the `bd70ca63` JsValue-native helpers work)
+that merged between allocation and this run's write. The allocator is still the source of
+truth for the *next* number, but a number it returns can already exist when a
+sibling learn PR landed in the window. Remedy: after allocating, run the
+duplicate-prefix check over `docs/adrs`, and if the returned prefix already
+exists, re-allocate (the allocator increments per call) until you get a clean
+one before writing the file. Do not fall back to scanning-and-incrementing as
+the primary allocator.

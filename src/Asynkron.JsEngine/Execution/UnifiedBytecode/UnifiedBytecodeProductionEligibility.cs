@@ -2495,6 +2495,6 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.LogicalAnd => "&&",
             BinaryOperator.LogicalOr => "||",
             BinaryOperator.NullishCoalescing => "??",
-            _ => binaryOperator.ToString()
+            _ => throw new ArgumentOutOfRangeException(nameof(binaryOperator), binaryOperator, null)
         };
 }

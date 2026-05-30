@@ -129,6 +129,54 @@ git add tools/allocation-baseline.txt && git commit
 (values are Asynkron managed allocated bytes per profile, with a header noting
 how they were generated).
 
+## Node.js Throughput Regression Gate
+
+`tools/check-nodejs-regression` measures timing for three profile scripts
+(`fib`, `objectcreation`, `stringops`) under both Node.js (via `vm.Script`)
+and Asynkron.JsEngine (via ProfileRunner `--force-timing`), computes the
+`asynkron_ms / node_ms` ratio per profile, and compares against the committed
+baseline at `tools/nodejs-baseline.json`. Exits non-zero when any profile's
+ratio regresses beyond tolerance.
+
+The ratio is machine-normalized: since both engines are measured on the same
+machine in the same run, the ratio is stable across hardware configurations.
+A ratio below 1.0 means Asynkron is faster than Node.js for that workload;
+above 1.0 means slower. The gate fails only when Asynkron gets *relatively
+worse* compared to the committed baseline ratio.
+
+Requires `node` on the developer machine. `dotnet` (ProfileRunner) is built
+automatically unless `--no-build` is passed.
+
+Run the gate:
+
+```bash
+rtk ./tools/check-nodejs-regression
+```
+
+Skip the rebuild when ProfileRunner is already current:
+
+```bash
+rtk ./tools/check-nodejs-regression --no-build
+```
+
+### Tolerance model
+
+Timing measurements have more variance than allocation counts. The gate uses a
+25% tolerance by default (`--tolerance PCT` or `NODEJS_GATE_TOLERANCE`). A
+profile only fails when its ratio increase exceeds the tolerance percentage.
+
+### Baseline-refresh path (one command)
+
+When an intentional change legitimately moves the ratio numbers:
+
+```bash
+rtk ./tools/check-nodejs-regression --update
+git add tools/nodejs-baseline.json && git commit
+```
+
+`--update` measures both engines, computes ratios, and rewrites
+`tools/nodejs-baseline.json` with the new values.
+
 ## Fairness Contract
 
 The comparison runner parses/prepares each script before the measured loop:

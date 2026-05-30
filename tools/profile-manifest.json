@@ -11,6 +11,16 @@
       "show_progress": true,
       "show_timing": true
     },
+    "fib-iterative": {
+      "name": "FibonacciIterativeProfile",
+      "description": "Iterative fibonacci(25) - tests loop + arithmetic without recursion overhead",
+      "script": "fib-iterative.js",
+      "mode": "sync",
+      "iterations": 10,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "forloop": {
       "name": "ForLoopProfile",
       "description": "For loop with 1M iterations - tests loop performance",

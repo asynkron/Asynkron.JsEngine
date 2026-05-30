@@ -1,0 +1,11 @@
+{
+  "_comment": "Node.js vs Asynkron.JsEngine timing baseline (ratio = asynkron_ms / node_ms for the iteration loop).",
+  "_generated_by": "./tools/check-nodejs-regression --update",
+  "_note": "Refresh after an intentional throughput change: ./tools/check-nodejs-regression --update && git add tools/nodejs-baseline.json",
+  "profiles": {
+    "fib": { "node_ms": 14.43, "asynkron_ms": 1, "ratio": 0.0693 },
+    "fib-iterative": { "node_ms": 0.06, "asynkron_ms": 3, "ratio": 50.0000 },
+    "objectcreation": { "node_ms": 14.36, "asynkron_ms": 20, "ratio": 1.3928 },
+    "stringops": { "node_ms": 14.16, "asynkron_ms": 20, "ratio": 1.4124 }
+  }
+}

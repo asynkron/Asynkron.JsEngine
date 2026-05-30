@@ -1,4 +1,4 @@
-# ADR 0291: Admit untagged template literals in unified bytecode, simple span measurement
+# ADR 0292: Admit untagged template literals in unified bytecode, simple span measurement
 
 ## Status
 

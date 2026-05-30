@@ -872,6 +872,56 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
+    [Theory]
+    [MemberData(nameof(CompoundNamedPropertyWriteOperators))]
+    public void Evaluate_NamedCompoundPropertyWrite_AcceptsForEachProductionOperator(
+        string functionName,
+        string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function {{functionName}}(box, value) {
+                return box.prop {{op}} value;
+            }
+            """,
+            functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Theory]
+    [MemberData(nameof(CompoundNamedPropertyWriteOperators))]
+    public void Evaluate_ComputedCompoundPropertyWrite_AcceptsForEachProductionOperator(
+        string functionName,
+        string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function {{functionName}}(box, key, value) {
+                return box[key] {{op}} value;
+            }
+            """,
+            functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
     [Fact]
     public void Evaluate_NamedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
     {
@@ -1604,6 +1654,22 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndWrite(box, value) {
+            return box.value &&= value;
+        }
+        """,
+        "logicalAndWrite",
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function nullishWrite(box, value) {
+            return box.value ??= value;
+        }
+        """,
+        "nullishWrite",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """
@@ -2734,6 +2800,23 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             { "unsignedRightShift", ">>>", (int)BinaryOperator.UnsignedRightShift },
             { "inOp", "in", (int)BinaryOperator.In },
             { "instanceOf", "instanceof", (int)BinaryOperator.InstanceOf }
+        };
+
+    public static TheoryData<string, string> CompoundNamedPropertyWriteOperators =>
+        new()
+        {
+            { "addAssign", "+=" },
+            { "subtractAssign", "-=" },
+            { "multiplyAssign", "*=" },
+            { "divideAssign", "/=" },
+            { "moduloAssign", "%=" },
+            { "powerAssign", "**=" },
+            { "bitwiseAndAssign", "&=" },
+            { "bitwiseOrAssign", "|=" },
+            { "bitwiseXorAssign", "^=" },
+            { "leftShiftAssign", "<<=" },
+            { "rightShiftAssign", ">>=" },
+            { "unsignedRightShiftAssign", ">>>=" }
         };
 
     public static TheoryData<string, string, int[], int[]>

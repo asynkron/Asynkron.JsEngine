@@ -850,6 +850,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -2363,6 +2368,70 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    // Accepts: [activation-resolved, GetNamedProperty+, JumpIfFalse|JumpIfTrue|JumpIfNotNullish, Pop, simple-rhs]
+    // i.e. this.prop && b / this.prop || b / this.prop ?? b
+    private static bool TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIfX, Pop, rhs] = 5 ops
+        if (program.OperationCount < 5)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var shortCircuitStart = -1;
+        for (var i = 1; i < program.OperationCount - 1; i++)
+        {
+            var op = program.GetOperation(i);
+            if (op.Kind == ExpressionOpKind.GetNamedProperty &&
+                !op.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
+                !op.IsOptional &&
+                !op.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (i < 2)
+            {
+                return false;
+            }
+
+            shortCircuitStart = i;
+            break;
+        }
+
+        if (shortCircuitStart < 0)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(shortCircuitStart);
+        if (jumpOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish))
+        {
+            return false;
+        }
+
+        var popIndex = shortCircuitStart + 1;
+        var rhsStart = shortCircuitStart + 2;
+
+        if (rhsStart >= program.OperationCount ||
+            program.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            jumpOp.Target != program.OperationCount ||
+            rhsStart != program.OperationCount - 1)
+        {
+            return false;
+        }
+
+        return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
     }
 
     private static bool IsSimpleOperand(

@@ -850,6 +850,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -2348,6 +2353,100 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         // Multi-op RHS — must be a simple array, object, or template-literal span that exactly fills [rhsStart..rhsEnd].
+        if (TryMeasureSimpleArrayLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var arraySpanLen))
+        {
+            return rhsStart + arraySpanLen - 1 == rhsEnd;
+        }
+
+        if (TryMeasureSimpleObjectLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var objSpanLen))
+        {
+            return rhsStart + objSpanLen - 1 == rhsEnd;
+        }
+
+        if (TryMeasureSimpleTemplateLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var templateSpanLen) && templateSpanLen > 1)
+        {
+            return rhsStart + templateSpanLen - 1 == rhsEnd;
+        }
+
+        return false;
+    }
+
+    private static bool TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIf*, Pop, rhs] = 5 ops
+        if (program.OperationCount < 5)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+
+        // Walk the GetNamedProperty chain from index 1. At least one GetNamedProperty is required.
+        var jumpIndex = -1;
+        for (var i = 1; i < program.OperationCount - 1; i++)
+        {
+            var op = program.GetOperation(i);
+            if (op.Kind == ExpressionOpKind.GetNamedProperty &&
+                !op.GetString(stringConstants).IsPrivateName() &&
+                !op.IsOptional &&
+                !op.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            // Require at least one GetNamedProperty before the short-circuit jump.
+            if (i < 2)
+            {
+                return false;
+            }
+
+            jumpIndex = i;
+            break;
+        }
+
+        if (jumpIndex < 0)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(jumpIndex);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfFalse &&
+            jumpOp.Kind != ExpressionOpKind.JumpIfTrue &&
+            jumpOp.Kind != ExpressionOpKind.JumpIfNotNullish)
+        {
+            return false;
+        }
+
+        // &&/||/?? emit a Pop after the short-circuit jump to discard the left value
+        // when the right branch is taken. Skip it before measuring the RHS.
+        var afterJump = jumpIndex + 1;
+        if (afterJump < program.OperationCount && program.GetOperation(afterJump).Kind == ExpressionOpKind.Pop)
+        {
+            afterJump++;
+        }
+
+        var rhsStart = afterJump;
+        var rhsEnd = program.OperationCount - 1;
+
+        if (rhsStart > rhsEnd)
+        {
+            return false;
+        }
+
+        if (rhsStart == rhsEnd)
+        {
+            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+        }
+
+        // Multi-op RHS — must be a simple array, object, or template-literal span.
         if (TryMeasureSimpleArrayLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var arraySpanLen))
         {
             return rhsStart + arraySpanLen - 1 == rhsEnd;

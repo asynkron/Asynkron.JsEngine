@@ -308,7 +308,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   (`box?.read(args)`), callee-optional named calls (`box.read?.(args)`), and
   callee-optional computed calls (`box[key]?.(args)`). The `IsOptionalReceiverCheck`
   flag in `UnifiedBytecodeCallTarget` distinguishes the two named variants.
-  (Optional calls admitted as of gh2689; ADR 0286.)
+  (Optional calls admitted as of gh2689; ADR 0289.)
 - Direct eval, construct/super calls,
   private/super member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
@@ -433,7 +433,7 @@ support today.
 ## Ranked Next Unsupported Buckets (current boundary)
 1. Wider call invocation remains the highest-impact unsupported bucket.
    Synchronous spread calls are now admitted (gh2676). Optional calls are
-   now admitted (gh2689, ADR 0286): `box?.read(args)`, `box.read?.(args)`,
+   now admitted (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`,
    and `box[key]?.(args)`. Synchronous non-spread construct calls
    (`new F(...)`) are now admitted (gh2690, ADR 0286). Direct eval,
    super calls (`super(...)` and super-member call targets, activation-gated
@@ -446,7 +446,7 @@ support today.
    dynamic-identifier boundaries must still decline before VM execution.
 2. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
-   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0286). Async iterator
+   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator
    drivers and awaited iterator/for-in sources remain outside the admitted
    boundary and must decline before VM execution.
 3. Destructuring widening is still model-first. Simple array and object

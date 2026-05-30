@@ -1,4 +1,4 @@
-# ADR 0286: Admit optional calls in unified bytecode, nullish short-circuit receiver-owned
+# ADR 0289: Admit optional calls in unified bytecode, nullish short-circuit receiver-owned
 
 ## Status
 

@@ -1628,6 +1628,86 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyRead_ReturnsUndefinedWhenBaseIsNull()
+    {
+        // gh2771: a?.b short-circuits to undefined when base is null/undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptional(box) {
+                return box?.value;
+            }
+
+            readOptional(null);
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptional",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyRead_ReturnsPropertyValueWhenBaseIsNonNull()
+    {
+        // gh2771: a?.b returns the property value when base is not null/undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptional(box) {
+                return box?.value;
+            }
+
+            readOptional({ value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptional",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedPropertyRead_ReturnsUndefinedWhenBaseIsNull()
+    {
+        // gh2771: a?.[k] short-circuits to undefined when base is null/undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptionalComputed(box, key) {
+                return box?.[key];
+            }
+
+            readOptionalComputed(null, "value");
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptionalComputed",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedPropertyRead_ReturnsPropertyValueWhenBaseIsNonNull()
+    {
+        // gh2771: a?.[k] returns the property value when base is not null/undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptionalComputed(box, key) {
+                return box?.[key];
+            }
+
+            readOptionalComputed({ value: 42 }, "value");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptionalComputed",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -3343,16 +3423,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readViaSuperBoundary",
         2d)]
-    [InlineData(
-        """
-        function readOptional(box) {
-            return box?.value;
-        }
-
-        readOptional({ value: 1 });
-        """,
-        "readOptional",
-        1d)]
     [InlineData(
         """
         var externalKey = "value";

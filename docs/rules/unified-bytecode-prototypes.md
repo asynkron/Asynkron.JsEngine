@@ -885,6 +885,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     must follow in the same slice or as a tracked immediate follow-up, because
     this-property LHS shapes expose eligibility and compiler gaps that slot/slot
     shapes cannot reveal.
+    Issue `autrun-diwb8ex5sizk-189ab69a31` / PR #2773 completed the this-property
+    short-circuit admission by adding a **dedicated helper pair** for the full
+    `[activation-resolved base, GetNamedProperty+, JumpIfX, Pop, simple-rhs]`
+    expression program shape: `TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate`
+    (eligibility) and `TryAppendFirstBoundaryPropertyReadShortCircuitExpression`
+    (compiler), resolving 9 pre-existing `ThisPropertyLeft` test failures. Two
+    design decisions distinguish this helper from the analogous binary-expression
+    helper (`TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate`):
+    (a) **RHS is restricted to a single simple operand** — multi-op spans (array,
+    object, template literals) are not admitted in the RHS position. A single-op
+    RHS makes the backpatch trivial: emit the jump placeholder, emit RHS, patch
+    the jump to `unified.Count`. A multi-op span RHS would require measuring span
+    length before the jump placeholder is emitted; that widening is a future slice.
+    (b) **Jump target validation is exact** — eligibility requires
+    `jumpOp.Target == expressionProgram.OperationCount`, ensuring the short-circuit
+    jump exits at the end of the expression program. Any program where the jump
+    target is interior is declined rather than speculatively compiled.
+    `TryIsNamedPropertyReadAtLogicalShortCircuitBoundary` (from PR #2766) remains
+    in use for boundary-candidate probes that are not standalone short-circuit
+    return expressions; this helper pair does not replace it. See ADR 0295.
 
 ## Why
 
@@ -1232,3 +1252,4 @@ Related ADRs:
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0293-admit-logical-and-nullish-expressions-in-unified-bytecode-with-peek-jump-semantics.md`
+- `docs/adrs/0295-admit-property-read-short-circuit-expressions-simple-rhs-owned.md`

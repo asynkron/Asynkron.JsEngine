@@ -1577,22 +1577,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
     [InlineData(
         """
-        function readOptional(box) {
-            return box?.value;
-        }
-        """,
-        "readOptional",
-        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
-    [InlineData(
-        """
-        function readOptionalComputed(box, key) {
-            return box?.[key];
-        }
-        """,
-        "readOptionalComputed",
-        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
-    [InlineData(
-        """
         function readLiteral(box) {
             return { ...box }.value;
         }
@@ -3792,14 +3776,57 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalChainExpression_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_OptionalNamedPropertyReadExpressionPlan_AcceptsWithGetNamedPropertyOptionalOpcode()
     {
+        // gh2771: simple a?.b form is admitted through the production unified bytecode VM.
         var plan = GetFunctionPlan("""
             function optChain(obj) {
                 return obj?.value;
             }
             """,
             "optChain");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalComputedPropertyReadExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefinedOpcode()
+    {
+        // gh2771: simple a?.[k] form is admitted through the production unified bytecode VM.
+        var plan = GetFunctionPlan("""
+            function optComputedChain(box, key) {
+                return box?.[key];
+            }
+            """,
+            "optComputedChain");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_ChainedOptionalPropertyReadExpressionPlan_StillDeclinesWithOptionalChainDependency()
+    {
+        // Chained optional forms (a?.b?.c) use ShortCircuitOnNullishTarget and are deferred.
+        var plan = GetFunctionPlan("""
+            function chainedOptChain(a) {
+                return a?.b?.c;
+            }
+            """,
+            "chainedOptChain");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,

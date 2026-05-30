@@ -84,6 +84,18 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   delivery. Prefer the superset branch when it cleanly contains the duplicate
   child's change, record why the other child is superseded, and do not land the
   overlapping documentation edit twice.
+- Measure the baseline signal against the latest `origin/main`, not against a
+  possibly stale branch base. A recurring child branched from old main can show
+  a non-zero baseline (for example `rg -c '\.claude/rules/' = 13`) for a slice
+  that already-merged sibling PRs have driven to zero on current main. The
+  sibling check must therefore include *already-merged* sibling work
+  (recently-landed PRs touching the same files), not only *active* sibling-child
+  summaries. The active-summary lookup cannot see a sibling that already merged.
+- If the slice's final diff against current `origin/main` is empty — the target
+  edits already exist on main — treat the work as already delivered and abort
+  the slice rather than landing an empty/no-op merge. An empty final diff is a
+  collision tell, not a successful pass. Pick a different bounded slice (or
+  record the no-remaining-work gap) instead of carrying the run to PR.
 - When a docs slice enumerates filesystem contents (regression packs, demo
   directories, runsettings files, build targets), compare the doc against the
   actual directory listing as the baseline signal. Treat doc/filesystem drift
@@ -471,6 +483,22 @@ was already handling the README stale-link candidate
 (`docs/remaining-test262-gaps.md`). The durable lesson for #1324 was not to
 duplicate the README slice, but to add an explicit sibling-summary check so
 parallel recurring children choose different bounded slices.
+
+Issue #2655 / PR #2658 hardened that sibling check against *already-merged*
+siblings and a stale branch base. The child branched from old main and redid
+two slices that had already landed: the `dreaming.md` 4-tier execution-model
+rewrite (already merged via PR #2647) and the stale `.claude/rules/` →
+`docs/rules/` cross-reference fixes in `agents/how-to-build-and-test.md` and
+`docs/rules/recurring-maintenance-child-runs.md` (merged concurrently via
+PR #2659 and PR #2660). The build stage recorded a clean-looking baseline
+(`rg -c '\.claude/rules/' = 13` → final `0`), but that baseline was measured on
+the stale worktree; current `origin/main` already had `0`. When PR #2658
+finally merged, its diff against main was empty — a pure no-op delivery that
+consumed a full investigate + build + review lifecycle. The durable lessons:
+measure the baseline against latest `origin/main`, include recently-merged
+sibling PRs in the sibling check (the active-summary lookup cannot see a sibling
+that already merged), and treat an empty final diff against current main as a
+collision-abort signal rather than a successful pass.
 
 Issue #1323 / PR #1327 was the stale-link slice itself: at that time README
 still pointed operators at missing `docs/remaining-test262-gaps.md`, while the

@@ -202,12 +202,20 @@ all-or-nothing until a separate routing issue proves production readiness.
     to exact operation sequences, and leave logical assignment, nested member
     chains, richer computed keys, optional chains, `super`, private fields,
     `delete`, calls, destructuring, and dynamic lookup as pre-VM declines until
-    a later slice owns their full proof. WHY: issue
+    a later slice owns their full proof. The admitted compound-assignment
+    operators are the 12 arithmetic and bitwise operators (`+=`, `-=`, `*=`,
+    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`); the three
+    logical operators (`&&=`, `||=`, `??=`) decline as `PropertyWriteDependency`
+    because their conditional short-circuit semantics require a branch opcode
+    that the compound get-for-set model does not provide. WHY: issue
     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
     / PR #2426 widened direct named/computed compound writes by adding
     `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
     Those opcodes intentionally avoid treating compound writes as permission for
-    a generic expression-stack VM or broad property-write routing.
+    a generic expression-stack VM or broad property-write routing. Issue
+    `planitem-planmanual1780157100924814000-baseline-batch-4-compound-property-writes-8f79995e52`
+    / PR #2755 added parametric Theory coverage over all 12 admitted operators
+    and confirmed `&&=`, `||=`, and `??=` as explicit pre-VM declines.
 20. When adding a broad production proof pack for an already-admitted unified
     bytecode family, prove the accepted and rejected boundaries separately. For
     accepted source shapes, assert selector eligibility, `None` decline code,
@@ -216,13 +224,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     invocation coverage, assert `unified-bytecode-production-fast-path` on the
     exact newly covered function variants and assert no-route fallback for
     adjacent unsupported bodies such as discarded writes/updates, nested member
-    chains, complex compound writes, and destructuring writes. WHY: issue
+    chains, complex compound writes, and destructuring writes. When an admitted
+    family is operator-parameterized (such as compound property writes), use
+    `TheoryData` over the complete admitted operator set rather than a single
+    representative; a single-operator proof gives a false sense of coverage and
+    would not catch a future operator incorrectly excluded from the admitted
+    list or an incorrect decline for a logical-assignment operator that should
+    stay declined. WHY: issue
     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-5-59d012f0b5`
     / PR #2438 added the post-boundary baseline proof pack for property
     write/update routing. The useful lesson was that behavior-only tests were
     not enough; accepted mutation shapes also needed explicit owned-opcode
     whitelist proof, while unsupported neighbors still needed public no-route
-    proof.
+    proof. Issue
+    `planitem-planmanual1780157100924814000-baseline-batch-4-compound-property-writes-8f79995e52`
+    / PR #2755 demonstrated the operator-parametric pattern: a
+    `CompoundNamedPropertyWriteOperators` `TheoryData` property enumerates all
+    12 admitted compound-write operators, and two Theory methods prove both
+    named and computed paths accept each one.
 21. Before widening parallel unified-bytecode lanes, start from
     `docs/unified-bytecode-expansion-contract.md` and keep contract, roadmap,
     and ADR/rule surfaces synchronized in the same slice when shared boundary

@@ -3772,4 +3772,193 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
+
+    // Literal-operand proof pack for &&/||/?? (ADR 0238 batch-5)
+
+    [Fact]
+    public void Evaluate_LogicalAndExpression_LiteralRight_AcceptsWithShortCircuitFalseOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function andLiteral(a) {
+                return a && 42;
+            }
+            """,
+            "andLiteral");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrExpression_LiteralRight_AcceptsWithShortCircuitTrueOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function orLiteral(a) {
+                return a || 0;
+            }
+            """,
+            "orLiteral");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitTrue);
+    }
+
+    [Fact]
+    public void Evaluate_NullishCoalescingExpression_LiteralRight_AcceptsWithShortCircuitNotNullishOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function nullishLiteral(a) {
+                return a ?? 0;
+            }
+            """,
+            "nullishLiteral");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
+    }
+
+    // This-property-operand proof pack for &&/||/?? (ADR 0238 batch-5)
+
+    [Fact]
+    public void Evaluate_LogicalAndExpression_ThisPropertyLeft_AcceptsWithShortCircuitFalseOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Guard {
+                check(b) {
+                    return this.enabled && b;
+                }
+            }
+            """,
+            "Guard",
+            "check");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrExpression_ThisPropertyLeft_AcceptsWithShortCircuitTrueOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Guard {
+                fallback(b) {
+                    return this.value || b;
+                }
+            }
+            """,
+            "Guard",
+            "fallback");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitTrue);
+    }
+
+    [Fact]
+    public void Evaluate_NullishCoalescingExpression_ThisPropertyLeft_AcceptsWithShortCircuitNotNullishOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Box {
+                resolve(b) {
+                    return this.cached ?? b;
+                }
+            }
+            """,
+            "Box",
+            "resolve");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
+    }
+
+    // Optional-chain-as-operand declines for &&/||/?? (ADR 0238 batch-5)
+
+    [Fact]
+    public void Evaluate_LogicalAndExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function andOpt(a, obj) {
+                return a && obj?.value;
+            }
+            """,
+            "andOpt");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function orOpt(a, obj) {
+                return a || obj?.value;
+            }
+            """,
+            "orOpt");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NullishCoalescingExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function nullishOpt(a, obj) {
+                return a ?? obj?.value;
+            }
+            """,
+            "nullishOpt");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
 }

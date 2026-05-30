@@ -860,6 +860,31 @@ all-or-nothing until a separate routing issue proves production readiness.
     (causing `InvalidOperationException` on production invocations), and six
     initial invocation tests used `((dynamic)result)[N]` which `JsArray` does
     not support via dynamic integer indexing.
+    Issue
+    `planitem-planmanual1780157100924814000-baseline-batch-5-logical-and-nullish-opera-30c56defe6`
+    / PR #2766 then revealed two follow-on gaps when this-property LHS shapes
+    (`this.enabled && b`) were added to the test suite:
+    (a) **Eligibility boundary helper scope**: `TryIsFirstBoundaryNamedPropertyReadCandidate`
+    validates the *entire* expression program as a property-read shape; when
+    `GetNamedProperty` is followed by `JumpIfShortCircuitFalse` instead of another
+    property op, the helper correctly declines it as a non-standalone read — but
+    that rejection incorrectly blocked the LHS of a short-circuit operator. The fix
+    is `TryIsNamedPropertyReadAtLogicalShortCircuitBoundary`: accepts
+    `GetNamedProperty` at index `operationIndex` when (i) `ops[0..operationIndex]`
+    form a valid activation-resolved named read chain and (ii) `ops[operationIndex + 1]`
+    is one of the three short-circuit jump opcodes. Construct-target member reads
+    (`new box.Ctor()`) are unaffected because they are followed by `Construct`, not
+    a jump op.
+    (b) **Compiler general-loop gap**: the compiler's general expression-op loop had
+    no case for `GetNamedProperty`, so expressions that passed the new eligibility
+    gate still failed at compile time with "Unsupported expression op". The fix adds
+    `GetNamedProperty` to the general compiler loop with non-optional and
+    non-private guards.
+    The durable lesson from PR #2766: when an admitted operator family is initially
+    tested with slot/slot operands only, literal-right and this-property-left shapes
+    must follow in the same slice or as a tracked immediate follow-up, because
+    this-property LHS shapes expose eligibility and compiler gaps that slot/slot
+    shapes cannot reveal.
 
 ## Why
 

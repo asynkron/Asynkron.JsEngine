@@ -715,12 +715,34 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.Construct:
+                    // Synchronous non-spread construct calls (`new F(...)`) are admitted (gh2690):
+                    // the constructor value and simple-operand arguments are pushed left-to-right
+                    // and the ConstructInvocationBoundary opcode invokes [[Construct]] with the
+                    // constructor as new.target. Spread-onto-construct stays declined — spread
+                    // flattening for construct is not yet modeled at the invocation boundary.
+                    if (operation.SpreadMaskConstantIndex >= 0)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Spread construct arguments are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
                 case ExpressionOpKind.SuperConstruct:
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 case ExpressionOpKind.LoadComputedSuperCallTarget:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    // super(...) and super-member call targets only appear inside derived
+                    // constructors, which the activation gate in
+                    // SyncFunctionInvoker.CanUseProductionUnifiedBytecode already declines
+                    // (IsClassConstructor / IsDefaultDerivedConstructor / _superConstructor /
+                    // _lexicalThisEnvironment / _instanceFields). Admitting them here would be
+                    // unreachable, unprovable dead code, so they stay explicitly declined
+                    // (gh2690 ADR 0286).
+                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
                     declineReason =
-                        "Construct and super call semantics are not eligible for production unified bytecode routing.";
+                        "super call semantics are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.LoadIdentifier:
@@ -1985,6 +2007,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.EnterWith:
                 case UnifiedBytecodeOpCode.LeaveWith:
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                case UnifiedBytecodeOpCode.ConstructInvocationBoundary:
                     break;
 
                 default:

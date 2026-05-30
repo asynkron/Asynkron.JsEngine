@@ -3212,6 +3212,23 @@ internal static class UnifiedBytecodeCompiler
                         UnifiedBytecodeOpCode.DefineComputedObjectProperty));
                     break;
 
+                case ExpressionOpKind.Construct:
+                    // Synchronous non-spread construct calls (`new F(...)`, gh2690). The
+                    // constructor value and each simple-operand argument are lowered by their
+                    // own preceding ops in source order; this boundary opcode pops them and
+                    // invokes [[Construct]] with the constructor as new.target. Spread-onto-
+                    // construct is declined by eligibility, so guard defensively here too.
+                    if (operation.SpreadMaskConstantIndex >= 0)
+                    {
+                        reason = "Spread construct arguments are outside the construct invocation boundary.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ConstructInvocationBoundary,
+                        operation.ArgumentCount));
+                    break;
+
                 default:
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;

@@ -273,6 +273,17 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   side-effects, then invokes through the existing callable helpers with
   receiver-as-`this`. Direct eval, construct/super spread, and optional spread
   calls stay declined.
+- Synchronous non-spread construct calls are admitted (gh2690): `new F(...)`. The
+  constructor value and each simple-operand argument are pushed left-to-right by
+  their own loads (no receiver/`this`), then a single `ConstructInvocationBoundary`
+  opcode (operand = pushed argument count) invokes `[[Construct]]` with the
+  constructor itself as `new.target`, mirroring the spec-conformant construct
+  reference helper. A non-constructor target throws `TypeError` at the boundary.
+  Spread-onto-construct (`new F(...args)`), member-target constructs (`new a.b()`),
+  non-simple argument constructs, and the super call family (`super(...)`,
+  super-member call targets) stay declined — the latter is activation-gated by the
+  derived-constructor decline in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
+  and so is unreachable (ADR 0286).
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -287,12 +298,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   stack, preserves nullish-receiver-before-key-coercion ordering, consumes the
   computed key with normal property-key semantics, loads the callee from that
   receiver, and invokes through the existing receiver-as-`this` stack contract.
-- Direct eval, construct/super calls, optional calls,
+- Direct eval, super calls, optional calls,
   private/super member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, and
   receiver-binding-sensitive adjacent families still decline before VM
-  execution. (Synchronous spread calls are admitted as of gh2676.)
+  execution. (Synchronous spread calls are admitted as of gh2676; synchronous
+  non-spread construct calls are admitted as of gh2690.)
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -401,8 +413,11 @@ support today.
 
 ## Ranked Next Unsupported Buckets (current boundary)
 1. Wider call invocation remains the highest-impact unsupported bucket.
-   Synchronous spread calls are now admitted (gh2676). Direct
-   eval, construct/super calls, optional calls, arguments-object
+   Synchronous spread calls are now admitted (gh2676) and synchronous non-spread
+   construct calls (`new F(...)`) are now admitted (gh2690, ADR 0286). Direct
+   eval, super calls (`super(...)` and super-member call targets, activation-gated
+   and unreachable in production), spread-onto-construct, member-target/non-simple
+   constructs, optional calls, arguments-object
    dependencies, unsupported non-with dynamic lookup, private/super member
    targets, complex receiver/key shapes, and receiver-binding-sensitive
    adjacent families beyond the direct activation-resolved and with-backed

@@ -325,6 +325,34 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.ConstructInvocationBoundary:
+                    stackPointer = ExecutePreparedConstruct(
+                        instruction.Operand,
+                        stack,
+                        stackPointer,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (HandleContextThrow(
+                                context,
+                                program,
+                                tryStack,
+                                slots,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     if (slots[instruction.Operand].IsUninitialized)
                     {
@@ -3880,6 +3908,110 @@ internal static class UnifiedBytecodeVirtualMachine
 
         stack[baseIndex] = result;
         return baseIndex + 1;
+    }
+
+    // Synchronous non-spread construct call (`new F(...)`, gh2690). Mirrors the
+    // spec-conformant construct reference helper: the constructor and its simple
+    // arguments are already on the stack ([constructor, arg0, .. arg(n-1)]); invoke
+    // [[Construct]] with the constructor itself as new.target (per `new F()` semantics)
+    // and replace the constructor slot with the result. Spread-onto-construct is declined
+    // by eligibility, so only the no-spread path is modeled here.
+    private static int ExecutePreparedConstruct(
+        int argumentCount,
+        Span<JsValue> stack,
+        int stackPointer,
+        EvaluationContext context)
+    {
+        var constructorIndex = stackPointer - argumentCount - 1;
+        var constructorValue = stack[constructorIndex];
+
+        if (!JsOps.IsConstructor(constructorValue) ||
+            !constructorValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Target is not a constructor",
+                context,
+                context.RealmState));
+            stack[constructorIndex] = JsValue.Undefined;
+            return constructorIndex + 1;
+        }
+
+        try
+        {
+            stack[constructorIndex] = ConstructNoSpread(
+                callable,
+                stack,
+                constructorIndex + 1,
+                argumentCount,
+                context.RealmState);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            stack[constructorIndex] = signal.ThrownValue;
+        }
+
+        return constructorIndex + 1;
+    }
+
+    // Invoke [[Construct]] with the constructor as new.target, mirroring the
+    // no-spread construct reference helper: small arity uses the allocation-free
+    // value-args structs, larger arity materializes an argument array.
+    private static JsValue ConstructNoSpread(
+        IJsCallable callable,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        int argumentCount,
+        RealmState realm)
+    {
+        return argumentCount switch
+        {
+            0 => ReflectHelper.Construct(callable, EmptyValueArgs.Instance, callable, realm),
+            1 => ReflectHelper.Construct(
+                callable,
+                new SingleValueArgs(stack[firstArgumentIndex]),
+                callable,
+                realm),
+            2 => ReflectHelper.Construct(
+                callable,
+                new TwoValueArgs(stack[firstArgumentIndex], stack[firstArgumentIndex + 1]),
+                callable,
+                realm),
+            3 => ReflectHelper.Construct(
+                callable,
+                new ThreeValueArgs(
+                    stack[firstArgumentIndex],
+                    stack[firstArgumentIndex + 1],
+                    stack[firstArgumentIndex + 2]),
+                callable,
+                realm),
+            4 => ReflectHelper.Construct(
+                callable,
+                new FourValueArgs(
+                    stack[firstArgumentIndex],
+                    stack[firstArgumentIndex + 1],
+                    stack[firstArgumentIndex + 2],
+                    stack[firstArgumentIndex + 3]),
+                callable,
+                realm),
+            _ => ConstructNoSpreadMany(callable, stack, firstArgumentIndex, argumentCount, realm)
+        };
+    }
+
+    private static JsValue ConstructNoSpreadMany(
+        IJsCallable callable,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        int argumentCount,
+        RealmState realm)
+    {
+        var arguments = new JsValue[argumentCount];
+        for (var i = 0; i < argumentCount; i++)
+        {
+            arguments[i] = stack[firstArgumentIndex + i];
+        }
+
+        return ReflectHelper.Construct(callable, arguments, callable, realm);
     }
 
     // CallInvocationBoundary operand packing for spread calls (gh2676). Mirrors

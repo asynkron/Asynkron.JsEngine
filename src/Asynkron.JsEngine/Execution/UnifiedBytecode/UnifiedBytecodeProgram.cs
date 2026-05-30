@@ -82,6 +82,7 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,
     CallInvocationBoundary,
+    ConstructInvocationBoundary,
     Yield,
     StoreResumeValue,
     AwaitAndDiscard,

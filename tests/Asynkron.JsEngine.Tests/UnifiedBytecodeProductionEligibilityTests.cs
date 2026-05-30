@@ -462,9 +462,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithCallDependency()
+    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithSpreadDependency()
     {
-        // gh2676 keeps spread construct declined.
+        // gh2690 admits non-spread `new F(...)` but keeps spread-onto-construct declined.
         var plan = GetFunctionPlan("""
             function invoke(ctor, args) {
                 return new ctor(...args);
@@ -477,7 +477,91 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.Contains("Spread construct", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierConstructExpressionPlan_AcceptsConstructInvocationBoundary()
+    {
+        // gh2690: synchronous non-spread `new F(...)` is admitted to the production pipeline.
+        var plan = GetFunctionPlan("""
+            function make(ctor, a, b) {
+                return new ctor(a, b);
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_ZeroArgConstructExpressionPlan_AcceptsConstructInvocationBoundary()
+    {
+        // gh2690: `new F()` with no arguments.
+        var plan = GetFunctionPlan("""
+            function make(ctor) {
+                return new ctor();
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_MemberTargetConstructExpressionPlan_DeclinesOutOfBoundaryReceiver()
+    {
+        // gh2690 keeps `new a.b()` declined: the member receiver chain for a construct target
+        // is outside the admitted simple-identifier construct boundary.
+        var plan = GetFunctionPlan("""
+            function make(box) {
+                return new box.Ctor();
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
+    public void Evaluate_SuperConstructExpressionPlan_DeclinesWithSuperDependency()
+    {
+        // gh2690 keeps super(...) declined: derived constructors are activation-gated, so the
+        // SuperConstruct op stays explicitly out of the production pipeline (ADR 0286).
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(x) { this.x = x; }
+            }
+            class Derived extends Base {
+                constructor(x) { super(x); }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
     }
 
     [Fact]
@@ -1221,14 +1305,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
-        function construct(ctor, value) {
-            return new ctor(value);
-        }
-        """,
-        "construct",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
         function remove(box) {
             return delete box.value;
         }
@@ -1439,7 +1515,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
         Assert.Contains("super call", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 

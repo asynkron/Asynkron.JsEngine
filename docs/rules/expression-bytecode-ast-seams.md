@@ -141,6 +141,14 @@ fallback or cleanup.
     both without adding a runtime AST fallback. Keep computed, optional, and
     super tagged-template validation separate, and prove the accepted member
     shape with focused lowering plus runtime receiver tests.
+25. Quarantine guard source-gate tests have a two-phase lifecycle. Phase 1
+    (`Assert.Single`) proves "isolated to exactly one definition site." Phase 2
+    (`Assert.Empty`) proves "tombstoned — no remaining reference." Treat the
+    transition from Phase 1 to Phase 2 as a mandatory companion step whenever
+    the quarantined method is fully deleted; rename the test to reflect
+    "IsCompletelyRemoved" instead of "FindsNoCallers" so its intent is
+    unambiguous. Missing this update causes a build failure on an otherwise
+    clean deletion commit.
 
 ## Dynamic Boundary Classification (#1405 Retry)
 
@@ -331,3 +339,18 @@ ordinary non-dynamic path before and after the dynamic seam. The durable lesson
 is that dynamic-boundary approval is not enough by itself: tests must prove the
 ordinary path still fails loudly if it regresses to legacy AST evaluation and
 that exercising the dynamic seam does not hide later ordinary-path re-entry.
+
+PR #2729 completed full deletion of `EvaluateLegacyAstExpression` and its
+sibling methods from `Ast/Legacy/ExpressionNodeExtensions.cs`. The build-stage
+quality gate failed because the quarantine guard test
+`RuntimeScan_FindsNoEvaluateExpressionCallersOutsideLegacyDefinition` used
+`Assert.Single` to assert exactly one definition site remained; after deletion
+the collection became empty and the assertion threw. The fix was to rename the
+test to `RuntimeScan_EvaluateLegacyAstExpressionIsCompletelyRemoved` and change
+`Assert.Single` to `Assert.Empty`, confirming total removal instead of quarantine.
+The durable lesson: quarantine guard tests have a two-phase lifecycle — the
+`Assert.Single` phase proves "isolated to its own definition", and the
+`Assert.Empty` phase proves "tombstoned — no remaining reference". Treat the
+phase transition as a mandatory companion step whenever the quarantined method
+is deleted, not as a follow-up cleanup. Failing to update the guard causes the
+build to break on what would otherwise be a clean deletion commit.

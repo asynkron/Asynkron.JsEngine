@@ -236,34 +236,12 @@ public static partial class TypedAstEvaluator
                 .ParameterNames;
             _parameterNames = parameterNames;
             _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
-            if (parameterNames.Length == 0)
-            {
-                var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
-                {
-                    Symbol.Arguments
-                };
-                _hasFunctionDeclarationParameterConflict =
-                    ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
-                _hasParameterVarDeclarationWithoutInitializer =
-                    ContainsParameterVarDeclarationWithoutInitializer(function, parameterNames);
-                _hasNonParameterCalleeCall =
-                    ContainsNonParameterCalleeIdentifier(function, new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
-            }
-            else
-            {
-                var parameterNameSet = new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
-                foreach (var parameterName in parameterNames)
-                {
-                    parameterNameSet.Add(parameterName);
-                }
 
-                parameterNameSet.Add(Symbol.Arguments);
-                _hasFunctionDeclarationParameterConflict =
-                    ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
-                _hasParameterVarDeclarationWithoutInitializer =
-                    ContainsParameterVarDeclarationWithoutInitializer(function, parameterNames);
-                _hasNonParameterCalleeCall = ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
-            }
+            // Use cached static analysis — these are pure AST properties, safe to cache per FunctionExpression.
+            var invokerStatics = ((IAstCacheable<FunctionInvokerStaticPlan>)_function).GetOrCreateCache();
+            _hasFunctionDeclarationParameterConflict = invokerStatics.HasFunctionDeclarationParameterConflict;
+            _hasParameterVarDeclarationWithoutInitializer = invokerStatics.HasParameterVarDeclarationWithoutInitializer;
+            _hasNonParameterCalleeCall = invokerStatics.HasNonParameterCalleeCall;
 
             // Recursive/self-call-like shapes must get a fresh activation per invocation.
             if (_hasNonParameterCalleeCall)
@@ -274,7 +252,7 @@ public static partial class TypedAstEvaluator
 
             // Pool only when fast/simple and proven non-recursive for identifier callees.
             _canPoolInvocationEnvironment = isSimpleFunction &&
-                                            !ContainsInnerFunctionExpression(function) &&
+                                            !invokerStatics.HasInnerFunctionExpression &&
                                             !_hasNonParameterCalleeCall;
             _lexicalTemplate = hoistPlan.LexicalTemplate;
             _lexicalDeclarationKinds = hoistPlan.LexicalDeclarationKinds;
@@ -409,7 +387,7 @@ public static partial class TypedAstEvaluator
             // If parent uses fast path but child uses IR, scope IDs won't match and variable
             // lookup via scope chain will fail. By forcing parent to IR, we ensure consistent scope IDs.
             _canUseFastPathBase = isSimpleFunction && _lexicalThisEnvironment is null &&
-                                  !ContainsInnerFunctionExpression(function) &&
+                                  !invokerStatics.HasInnerFunctionExpression &&
                                   !_hasNonParameterCalleeCall;
             _canUseSimpleIrActivationFastBase = canUseFastPathForStrictness &&
                                                 !function.IsAsync &&
@@ -420,7 +398,7 @@ public static partial class TypedAstEvaluator
                                                 _allowIdentifierCache &&
                                                 hasSimpleParams &&
                                                 _lexicalThisEnvironment is null &&
-                                                !ContainsInnerFunctionExpression(function) &&
+                                                !invokerStatics.HasInnerFunctionExpression &&
                                                 !_hasNonParameterCalleeCall;
             if (planSeed.Plan is { SimpleReturnParameterBinary: { } parameterBinary } plan &&
                 CanUseSimpleIrActivationPlanShape(plan))
@@ -4111,107 +4089,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private static bool ContainsVarDeclaration(FunctionExpression function, Symbol name)
         {
             return VarDeclarationDetector.ContainsVarDeclaration(function.Body, name);
-        }
-
-        private static bool ContainsParameterVarDeclarationWithoutInitializer(
-            FunctionExpression function,
-            ImmutableArray<Symbol> parameterNames)
-        {
-            var statements = new Stack<StatementNode>();
-            statements.Push(function.Body);
-
-            while (statements.Count > 0)
-            {
-                var statement = statements.Pop();
-                switch (statement)
-                {
-                    case VariableDeclaration { Kind: VariableKind.Var } declaration:
-                        foreach (var declarator in declaration.Declarators)
-                        {
-                            if (declarator.Initializer is null &&
-                                declarator.Target is IdentifierBinding identifier &&
-                                IsParameterOrArguments(identifier.Name, parameterNames))
-                            {
-                                return true;
-                            }
-                        }
-
-                        break;
-                    case BlockStatement block:
-                        foreach (var inner in block.Statements)
-                        {
-                            statements.Push(inner);
-                        }
-
-                        break;
-                    case IfStatement ifStatement:
-                        statements.Push(ifStatement.Then);
-                        if (ifStatement.Else is { } elseBranch)
-                        {
-                            statements.Push(elseBranch);
-                        }
-
-                        break;
-                    case WhileStatement whileStatement:
-                        statements.Push(whileStatement.Body);
-                        break;
-                    case DoWhileStatement doWhileStatement:
-                        statements.Push(doWhileStatement.Body);
-                        break;
-                    case WithStatement withStatement:
-                        statements.Push(withStatement.Body);
-                        break;
-                    case ForStatement forStatement:
-                        statements.Push(forStatement.Body);
-                        break;
-                    case ForEachStatement forEachStatement:
-                        statements.Push(forEachStatement.Body);
-                        break;
-                    case LabeledStatement labeledStatement:
-                        statements.Push(labeledStatement.Statement);
-                        break;
-                    case TryStatement tryStatement:
-                        statements.Push(tryStatement.TryBlock);
-                        if (tryStatement.Catch?.Body is { } catchBody)
-                        {
-                            statements.Push(catchBody);
-                        }
-
-                        if (tryStatement.Finally is { } finallyBlock)
-                        {
-                            statements.Push(finallyBlock);
-                        }
-
-                        break;
-                    case SwitchStatement switchStatement:
-                        foreach (var switchCase in switchStatement.Cases)
-                        {
-                            statements.Push(switchCase.Body);
-                        }
-
-                        break;
-                }
-            }
-
-            return false;
-
-            static bool IsParameterOrArguments(Symbol name, ImmutableArray<Symbol> parameterNames)
-            {
-                if (string.Equals(name.Name, Symbol.Arguments.Name, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-
-                for (var i = 0; i < parameterNames.Length; i++)
-                {
-                    if (string.Equals(name.Name, parameterNames[i].Name, StringComparison.Ordinal))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
         }
 
         /// <summary>

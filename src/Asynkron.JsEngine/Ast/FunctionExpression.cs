@@ -35,12 +35,14 @@ public sealed partial record FunctionExpression(
     int FunctionNameScopeId = -1)
     : ExpressionNode(Source),
         IAstCacheable<FunctionParameterNamesPlan>,
+        IAstCacheable<FunctionInvokerStaticPlan>,
         IAstCacheable<ExecutionPlanCache>;
 
 public sealed partial record FunctionExpression
 {
     private ExecutionPlanCache? _cachedExecutionPlan;
     private FunctionParameterNamesPlan? _cachedParameterNames;
+    private FunctionInvokerStaticPlan? _cachedInvokerStatics;
 
     internal ImmutableDictionary<Symbol, int> SlotMap { get; init; } =
         ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
@@ -64,6 +66,12 @@ public sealed partial record FunctionExpression
     {
         return AstCache.GetOrCreate(ref _cachedParameterNames, this,
             static function => FunctionParameterNamesPlan.Build(function));
+    }
+
+    FunctionInvokerStaticPlan IAstCacheable<FunctionInvokerStaticPlan>.GetOrCreateCache()
+    {
+        return AstCache.GetOrCreate(ref _cachedInvokerStatics, this,
+            static function => FunctionInvokerStaticPlan.Build(function));
     }
 
     internal void WarmExecutionPlanCache()

@@ -105,6 +105,23 @@ the admitted boundary.
 - `TryIsFirstBoundaryCalleeOptionalNamedCallCandidate` (Case 2)
 - `TryIsFirstBoundaryCalleeOptionalComputedCallCandidate` (Case 3)
 
+### Regression fixed during delivery
+
+The initial implementation of `TryAppendFirstBoundaryCallTargetPreparation` added a
+`lastOp.Kind == ExpressionOpKind.Pop` branch for the callee-optional pattern without
+adding an `else { return false; }` guard. The catch-all error-message block was left
+in scope for all non-`Call`, non-`Pop` last-ops (e.g., `Binary`, `Return`,
+`GetNamedProperty`), causing `TryAppendExpressionProgramOps` to fail those programs
+with a non-empty reason rather than silently declining and trying other fast-path
+handlers. This caused 196 test failures. The fix: add `else { return false; }` so
+unrecognized trailing ops silently decline, and let the outer loop's per-op dispatch
+handle them independently.
+
+**Rule**: When adding a new `if`/`else-if` arm to a pattern-dispatch chain where the
+*absence of a match* means "not my responsibility," always close every new arm with
+`else { return false; }` (or equivalent silent-decline) before any catch-all
+error-reporting block. See also `docs/rules/expression-bytecode-call-targets.md` rule 9.
+
 ### Remaining declines
 
 - **Optional property reads** (`box?.value`, `box?.[key]`) still decline with
@@ -137,6 +154,22 @@ in full.
 - Future widening (optional chains across property reads — `box?.a?.b.read()`) must
   own its full stack — eligibility, compiler, VM, proof pack, and contract update —
   before removing the corresponding decline.
+
+## Tradeoffs
+
+- Two new opcodes (`PrepareNamedOptionalCallTarget`, `PrepareComputedOptionalCallTarget`)
+  increase VM opcode surface but keep the nullish-check and jump-target encoding
+  self-contained in a single packed operand. Alternative of re-using existing
+  opcodes with flags was rejected: it would couple the nullish-check semantics to
+  the non-optional preparation path and make the jump-target operand invisible at
+  the opcode level.
+- `IsOptionalReceiverCheck` on `UnifiedBytecodeCallTarget` is a single bit that
+  unifies receiver-optional and callee-optional under one named-call opcode.
+  Alternative of separate opcodes for each named sub-case was rejected as over-
+  granular; the bit distinction is visible in the constant table and testable.
+- Spread-onto-optional is deliberately left declined. Admitting it would require
+  modeling spread flattening and nullish short-circuit together; the combined shape
+  has no production evidence yet.
 
 ## Evidence
 

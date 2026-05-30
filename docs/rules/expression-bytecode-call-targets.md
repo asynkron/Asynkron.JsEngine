@@ -44,6 +44,24 @@ checks separate.
    back to AST evaluation or by only proving non-call member access. Include
    focused lowering coverage and runtime receiver/`this` regression coverage for
    the accepted non-computed member shape.
+8. When admitting optional calls (`?.`) into a bytecode call-target preparation
+   dispatcher, encode the nullish short-circuit jump target directly in the
+   opcode operand rather than through a separate jump instruction. The receiver-
+   optional (`box?.read()`) and callee-optional (`box.read?.()`, `box[key]?.()`
+   shapes have distinct expression-program trailing structures and must be detected
+   by separate sub-predicates before the non-optional path runs. Keep the nullish
+   check before argument evaluation (arguments are only evaluated when the call
+   proceeds). Do not share the optional preparation opcode with non-optional
+   member calls; the nullish-check and jump-target operand encoding must be
+   self-contained and visible at the opcode level.
+9. When adding a new `if`/`else-if` branch to a pattern-dispatch chain where a
+   non-match means "not my responsibility," always close every new arm with
+   `else { return false; }` (or equivalent silent-decline) before any
+   catch-all error-reporting block. Leaving a catch-all in scope for all
+   non-matching trailing shapes causes the dispatcher to report a hard failure
+   for programs that belong to entirely different fast-path handlers, blocking
+   all subsequent patterns and producing widespread false-positive failures
+   (196 test failures in gh2689).
 
 ## Why
 
@@ -78,3 +96,18 @@ but direct calls add a receiver hazard: accepting `obj.method()` must still
 preserve `obj` as `this`. Future direct-call slices need both lowering proof and
 runtime receiver proof, not a runtime AST fallback or only ordinary member-access
 coverage.
+
+Issue #2689 admitted optional calls (`box?.read()`, `box.read?.()`,
+`box[key]?.()`) into unified bytecode production routing (ADR 0289). The
+callee-optional pattern is detected by the trailing `Call, Jump, SwapTopTwo, Pop`
+structure; the compiler skips those trailing ops by setting `callIndex =
+OperationCount - 4` and emits `PrepareNamedOptionalCallTarget` /
+`PrepareComputedOptionalCallTarget` with the jump target packed into the operand.
+During delivery, adding the `lastOp.Kind == ExpressionOpKind.Pop` branch to
+`TryAppendFirstBoundaryCallTargetPreparation` without an `else { return false; }`
+guard left the catch-all error block in scope for every expression whose last op
+was neither `Call` nor `Pop` (e.g. `Binary`, `Return`, `GetNamedProperty`). This
+caused 196 test failures because `TryAppendExpressionProgramOps` received a
+non-empty failure reason and could not fall through to the per-op dispatch loop
+for those programs. The fix — `else { return false; }` for the unrecognized
+trailing-op case — is now rule 9 above.

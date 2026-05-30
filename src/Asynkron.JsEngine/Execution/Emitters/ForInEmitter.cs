@@ -86,7 +86,9 @@ internal static class ForInEmitter
             stateSymbol, valueSymbol,
             stateSlotIndex, valueSlotIndex,
             statement.Iterable,
-            tdzBindings, tdzIsConst);
+            tdzBindings, tdzIsConst,
+            tdzScopeId: tdzBindings.IsDefaultOrEmpty ? -1 : iteratorPlan.IterationScopeId,
+            tdzSlotIndices: tdzBindings.IsDefaultOrEmpty ? default : iteratorPlan.PerIterationSlotIndices);
 
         return LoopEmitterHelpers.EmitLoopSkeleton(ctx, ref driver, in config, nextIndex, label, out entryIndex);
     }
@@ -105,6 +107,8 @@ internal struct ForInLoopDriver : ILoopDriver
     private readonly ExpressionNode _objectExpression;
     private readonly ImmutableArray<Symbol> _tdzBindings;
     private readonly bool _tdzIsConst;
+    private readonly int _tdzScopeId;
+    private readonly ImmutableArray<int> _tdzSlotIndices;
 
     private int _initIndex;
     private int _moveNextIndex;
@@ -113,7 +117,9 @@ internal struct ForInLoopDriver : ILoopDriver
         Symbol stateSymbol, Symbol valueSymbol,
         int stateSlotIndex, int valueSlotIndex,
         ExpressionNode objectExpression,
-        ImmutableArray<Symbol> tdzBindings, bool tdzIsConst)
+        ImmutableArray<Symbol> tdzBindings, bool tdzIsConst,
+        int tdzScopeId = -1,
+        ImmutableArray<int> tdzSlotIndices = default)
     {
         _stateSymbol = stateSymbol;
         _valueSymbol = valueSymbol;
@@ -122,6 +128,8 @@ internal struct ForInLoopDriver : ILoopDriver
         _objectExpression = objectExpression;
         _tdzBindings = tdzBindings;
         _tdzIsConst = tdzIsConst;
+        _tdzScopeId = tdzScopeId;
+        _tdzSlotIndices = tdzSlotIndices;
         _initIndex = -1;
         _moveNextIndex = -1;
     }
@@ -146,7 +154,9 @@ internal struct ForInLoopDriver : ILoopDriver
                 AwaitedProgram: awaitedProgram,
                 TdzBindings: _tdzBindings,
                 TdzIsConst: _tdzIsConst,
-                ObjectSource: _objectExpression.Source));
+                ObjectSource: _objectExpression.Source,
+                TdzScopeId: _tdzScopeId,
+                TdzSlotIndices: _tdzSlotIndices));
 
             _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
                 _stateSymbol, _valueSymbol,
@@ -173,7 +183,9 @@ internal struct ForInLoopDriver : ILoopDriver
             ObjectProgram: objectProgram,
             TdzBindings: _tdzBindings,
             TdzIsConst: _tdzIsConst,
-            ObjectSource: _objectExpression.Source));
+            ObjectSource: _objectExpression.Source,
+            TdzScopeId: _tdzScopeId,
+            TdzSlotIndices: _tdzSlotIndices));
 
         _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
             _stateSymbol, _valueSymbol,

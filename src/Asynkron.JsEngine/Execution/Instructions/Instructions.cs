@@ -443,6 +443,14 @@ internal sealed record EndFinallyInstruction(int Next)
 ///     This ensures `for (const x of [x])` throws ReferenceError for accessing x before initialization.
 /// </param>
 /// <param name="TdzIsConst">Whether the TDZ bindings are const (true) or let (false).</param>
+/// <param name="TdzScopeId">
+///     Scope ID of the per-iteration scope that owns the TDZ bindings (-1 if not set).
+///     Used by the unified bytecode compiler to resolve TDZ binding flat slot indices.
+/// </param>
+/// <param name="TdzSlotIndices">
+///     Per-iteration-scope-relative slot indices for the TDZ bindings, parallel to TdzBindings.
+///     Used together with TdzScopeId to resolve flat slot IDs for each TDZ binding.
+/// </param>
 internal sealed record IteratorInitInstruction(
     IteratorDriverKind IteratorKind,
     Symbol IteratorSlot,
@@ -453,7 +461,9 @@ internal sealed record IteratorInitInstruction(
     ExpressionProgram? AwaitedProgram = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
-    SourceReference? IterableSource = null)
+    SourceReference? IterableSource = null,
+    int TdzScopeId = -1,
+    ImmutableArray<int> TdzSlotIndices = default)
     : ExecutionInstruction(InstructionKind.IteratorInit, Next);
 
 /// <summary>
@@ -587,6 +597,14 @@ internal sealed record SetCompletionValueInstruction(int Next)
 ///     This ensures `for (const x in {[x]: 1})` throws ReferenceError for accessing x before initialization.
 /// </param>
 /// <param name="TdzIsConst">Whether the TDZ bindings are const (true) or let (false).</param>
+/// <param name="TdzScopeId">
+///     Scope ID of the per-iteration scope that owns the TDZ bindings (-1 if not set).
+///     Used by the unified bytecode compiler to resolve TDZ binding flat slot indices.
+/// </param>
+/// <param name="TdzSlotIndices">
+///     Per-iteration-scope-relative slot indices for the TDZ bindings, parallel to TdzBindings.
+///     Used together with TdzScopeId to resolve flat slot IDs for each TDZ binding.
+/// </param>
 internal sealed record ForInInitInstruction(
     Symbol StateSlot,
     int StateSlotIndex,
@@ -598,7 +616,9 @@ internal sealed record ForInInitInstruction(
     ExpressionProgram? AwaitedProgram = null,
     ImmutableArray<Symbol> TdzBindings = default,
     bool TdzIsConst = false,
-    SourceReference? ObjectSource = null)
+    SourceReference? ObjectSource = null,
+    int TdzScopeId = -1,
+    ImmutableArray<int> TdzSlotIndices = default)
     : ExecutionInstruction(InstructionKind.ForInInit, Next);
 
 /// <summary>

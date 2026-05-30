@@ -1,5 +1,8 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit.Abstractions;
 
@@ -8,6 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+
     [Fact]
     public void Evaluate_LinearSlotLiteralReturnPlan_Accepts()
     {
@@ -462,9 +466,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithCallDependency()
+    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithSpreadDependency()
     {
-        // gh2676 keeps spread construct declined.
+        // gh2690 admits non-spread `new F(...)` but keeps spread-onto-construct declined.
         var plan = GetFunctionPlan("""
             function invoke(ctor, args) {
                 return new ctor(...args);
@@ -477,7 +481,91 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.Contains("Spread construct", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierConstructExpressionPlan_AcceptsConstructInvocationBoundary()
+    {
+        // gh2690: synchronous non-spread `new F(...)` is admitted to the production pipeline.
+        var plan = GetFunctionPlan("""
+            function make(ctor, a, b) {
+                return new ctor(a, b);
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_ZeroArgConstructExpressionPlan_AcceptsConstructInvocationBoundary()
+    {
+        // gh2690: `new F()` with no arguments.
+        var plan = GetFunctionPlan("""
+            function make(ctor) {
+                return new ctor();
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_MemberTargetConstructExpressionPlan_DeclinesOutOfBoundaryReceiver()
+    {
+        // gh2690 keeps `new a.b()` declined: the member receiver chain for a construct target
+        // is outside the admitted simple-identifier construct boundary.
+        var plan = GetFunctionPlan("""
+            function make(box) {
+                return new box.Ctor();
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
+    public void Evaluate_SuperConstructExpressionPlan_DeclinesWithSuperDependency()
+    {
+        // gh2690 keeps super(...) declined: derived constructors are activation-gated, so the
+        // SuperConstruct op stays explicitly out of the production pipeline (ADR 0286).
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(x) { this.x = x; }
+            }
+            class Derived extends Base {
+                constructor(x) { super(x); }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
     }
 
     [Fact]
@@ -1221,14 +1309,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
-        function construct(ctor, value) {
-            return new ctor(value);
-        }
-        """,
-        "construct",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(
-        """
         function remove(box) {
             return delete box.value;
         }
@@ -1439,7 +1519,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
         Assert.Contains("super call", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -2041,24 +2121,110 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ForInTdzHead_DeclinesWithExplicitDriverReason()
+    public void Evaluate_ForInTdzHead_IsAdmittedWithTdzHeadInit()
     {
+        // Slice A (#2678): a lexical for-in head over a flat-slot source is now admitted.
+        // Previously declined with ForInDriverStateDependency ("TDZ head").
         var plan = GetFunctionPlan("""
-            function tdzHead() {
-                for (let key in { [key]: 1 }) {
-                    return key;
+            function collect(obj) {
+                var keys = "";
+                for (const key in obj) {
+                    keys = keys + key;
                 }
+
+                return keys;
             }
             """,
-            "tdzHead");
+            "collect");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
-        Assert.Contains("TDZ", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+    }
+
+    [Fact]
+    public void Evaluate_ForOfTdzHead_IsAdmittedWithTdzHeadInit()
+    {
+        // Slice A (#2678): a lexical for-of head over a flat-slot source is now admitted.
+        var plan = GetFunctionPlan("""
+            function sum(values) {
+                var total = 0;
+                for (const value of values) {
+                    total = total + value;
+                }
+
+                return total;
+            }
+            """,
+            "sum");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+    }
+
+    // ── AC-5 negative fallback proof (#2678): unsupported async-driver sub-shapes ──
+    // The TDZ-head admit must not leak the async-iterator kind or awaited driver
+    // sources (Slices B/C). These exercise the decline arms directly because async
+    // drivers live inside async functions, which decline before plan inspection.
+
+    [Fact]
+    public void IsSupportedIteratorInit_AsyncKind_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Await,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_AwaitedSource_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedForInInit_AwaitedSource_Declines()
+    {
+        var instruction = new ForInInitInstruction(
+            Symbol.Synthetic("__forIn_state"),
+            StateSlotIndex: 0,
+            Symbol.Synthetic("__forIn_value"),
+            ValueSlotIndex: 1,
+            Next: -1,
+            ObjectProgram: ExpressionProgram.Empty,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedForInInit(instruction, out var reason));
+        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
     }
 
     [Fact]

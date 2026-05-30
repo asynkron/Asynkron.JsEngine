@@ -1805,6 +1805,168 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    // ── Slice A (#2678): sync iterator / for-in TDZ head environments ──────────────
+    // for (const/let x in/of …) owns a per-iteration lexical head. These prove the
+    // loop both routes through the production fast path and produces correct results,
+    // including head-environment TDZ enforcement during source evaluation.
+
+    [Fact(Timeout = 5000)]
+    public async Task ForInConstHead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function collect(obj) {
+                var keys = "";
+                for (const key in obj) {
+                    keys = keys + key;
+                }
+
+                return keys;
+            }
+
+            collect({ a: 1, b: 2, c: 3 });
+            """);
+
+        Assert.Equal("abc", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=collect argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOfConstHead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sum(values) {
+                var total = 0;
+                for (const value of values) {
+                    total = total + value;
+                }
+
+                return total;
+            }
+
+            sum([10, 20, 12]);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sum argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOfLetHead_ReassignsPerIteration_OnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function doubled(values) {
+                var total = 0;
+                for (let value of values) {
+                    value = value * 2;
+                    total = total + value;
+                }
+
+                return total;
+            }
+
+            doubled([1, 2, 3]);
+            """);
+
+        Assert.Equal(12d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=doubled argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOfConstTdzHead_ThrowsReferenceError_OnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read() {
+                for (const x of [x]) {
+                    return x;
+                }
+            }
+
+            try {
+                read();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'x' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForInConstTdzHead_ThrowsReferenceError_OnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read() {
+                for (const k in k) {
+                    return k;
+                }
+            }
+
+            try {
+                read();
+                "missing";
+            } catch (e) {
+                e.name + ":" + e.message;
+            }
+            """);
+
+        Assert.Equal("ReferenceError:Cannot access 'k' before initialization", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ForOfLetHead_CapturedPerIterationBinding_DoesNotUseProductionFastPath()
+    {
+        // A closure capturing the per-iteration binding makes per-iteration freshness observable.
+        // The production path declines captured activations wholesale, so this must run on the legacy
+        // path (no fast-path log) while still producing the correct per-iteration values [1,2,3].
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function captured(values) {
+                var fns = [];
+                for (let value of values) {
+                    fns.push(function () { return value; });
+                }
+
+                var sum = 0;
+                for (var i = 0; i < fns.length; i = i + 1) {
+                    sum = sum + fns[i]();
+                }
+
+                return sum;
+            }
+
+            captured([1, 2, 3]);
+            """);
+
+        Assert.Equal(6d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=captured",
+                StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task BlockLexicalScope_UsesUnifiedBytecodeProductionFastPathAndPreservesShadowing()
     {

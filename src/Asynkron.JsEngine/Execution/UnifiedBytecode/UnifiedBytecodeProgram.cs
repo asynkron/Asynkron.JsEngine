@@ -64,6 +64,7 @@ internal enum UnifiedBytecodeOpCode : byte
     EndFinally,
     EnterWith,
     LeaveWith,
+    TdzHeadInit,
     IteratorInit,
     IteratorMoveNext,
     IteratorClose,
@@ -84,6 +85,7 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareNamedOptionalCallTarget,
     PrepareComputedOptionalCallTarget,
     CallInvocationBoundary,
+    ConstructInvocationBoundary,
     Yield,
     StoreResumeValue,
     AwaitAndDiscard,
@@ -133,6 +135,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int BreakTarget = -1,
     int NextTarget = -1,
     IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
+    ImmutableArray<int> TdzHeadSlots = default,
+    bool TdzHeadIsConst = false,
     int NameConstantIndex = -1);
 
 internal enum UnifiedBytecodeResumeMode : byte

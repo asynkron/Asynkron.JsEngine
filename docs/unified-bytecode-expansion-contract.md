@@ -273,6 +273,17 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   side-effects, then invokes through the existing callable helpers with
   receiver-as-`this`. Direct eval, construct/super spread, and optional spread
   calls stay declined.
+- Synchronous non-spread construct calls are admitted (gh2690): `new F(...)`. The
+  constructor value and each simple-operand argument are pushed left-to-right by
+  their own loads (no receiver/`this`), then a single `ConstructInvocationBoundary`
+  opcode (operand = pushed argument count) invokes `[[Construct]]` with the
+  constructor itself as `new.target`, mirroring the spec-conformant construct
+  reference helper. A non-constructor target throws `TypeError` at the boundary.
+  Spread-onto-construct (`new F(...args)`), member-target constructs (`new a.b()`),
+  non-simple argument constructs, and the super call family (`super(...)`,
+  super-member call targets) stay declined — the latter is activation-gated by the
+  derived-constructor decline in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
+  and so is unreachable (ADR 0286).
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -303,7 +314,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM
-  execution. (Synchronous spread calls are admitted as of gh2676.)
+  execution. (Synchronous spread calls are admitted as of gh2676; synchronous
+  non-spread construct calls are admitted as of gh2690.)
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -317,12 +329,18 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   target. `continue` remains a plain same-loop `Jump`.
 - Accepted sync iterator driver shapes include `IteratorInit`,
   `IteratorMoveNext`, and `IteratorClose` when the iterable source is lowered
-  to synchronous expression bytecode, the iterator kind is `Sync`, and no TDZ
-  head environment or awaited source program is required.
+  to synchronous expression bytecode, the iterator kind is `Sync`, and no
+  awaited source program is required. Slice A (#2678) also admits a TDZ head
+  environment (`for (const x of …)` / `for (let x of …)`): the compiler emits a
+  `TdzHeadInit` instruction that resolves the head bindings to flat slots, and
+  the VM marks them `JsValue.Uninitialized` before the source is evaluated so a
+  read of the head binding inside the source throws a `ReferenceError`.
 - Accepted for-in driver shapes include `ForInInit` and `ForInMoveNext` when
-  the object source is lowered to synchronous expression bytecode and no TDZ
-  head environment or awaited source program is required. The VM owns driver
-  state and skips deleted properties during enumeration.
+  the object source is lowered to synchronous expression bytecode and no awaited
+  source program is required. Slice A (#2678) also admits a TDZ head environment
+  (`for (const k in …)` / `for (let k in …)`) via the same `TdzHeadInit`
+  mechanism. The VM owns driver state and skips deleted properties during
+  enumeration.
 - Accepted array destructuring driver shapes include
   `ArrayDestructuringInit`, `ArrayDestructuringElement`,
   `ArrayDestructuringRest`, and `ArrayDestructuringClose` when the source is
@@ -341,9 +359,11 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   source or a throwing getter) closes the VM-owned driver state.
 - Object destructuring with computed/dynamic keys, defaults, nested patterns,
   or rest targets that cannot resolve to unified slots, expression-level
-  `ApplyBindingTarget` destructuring, async iterator drivers, TDZ head
-  environments, awaited driver sources, dynamic-name shapes, and targets that
-  cannot resolve to unified slots still decline before VM execution.
+  `ApplyBindingTarget` destructuring, async iterator drivers, awaited driver
+  sources, dynamic-name shapes, and targets that cannot resolve to unified
+  slots still decline before VM execution. Sync-driver TDZ head environments
+  are now admitted (Slice A, #2678); async-kind and awaited-source TDZ heads
+  remain declined.
 
 ## Production Resumable Boundary
 - Current production resumable support is a separate async/generator route with
@@ -414,15 +434,21 @@ support today.
 1. Wider call invocation remains the highest-impact unsupported bucket.
    Synchronous spread calls are now admitted (gh2676). Optional calls are
    now admitted (gh2689, ADR 0286): `box?.read(args)`, `box.read?.(args)`,
-   and `box[key]?.(args)`. Direct eval, construct/super calls,
-   spread-onto-optional, arguments-object dependencies, unsupported
-   non-with dynamic lookup, private/super member targets, complex
-   receiver/key shapes, and receiver-binding-sensitive adjacent families
-   beyond the direct activation-resolved and with-backed
+   and `box[key]?.(args)`. Synchronous non-spread construct calls
+   (`new F(...)`) are now admitted (gh2690, ADR 0286). Direct eval,
+   super calls (`super(...)` and super-member call targets, activation-gated
+   and unreachable in production), spread-onto-optional,
+   spread-onto-construct, member-target/non-simple constructs,
+   arguments-object dependencies, unsupported non-with dynamic lookup,
+   private/super member targets, complex receiver/key shapes, and
+   receiver-binding-sensitive adjacent families beyond the direct
+   activation-resolved and with-backed
    dynamic-identifier boundaries must still decline before VM execution.
-2. Driver-state widening is next. Async iterator drivers, TDZ head
-   environments, and awaited iterator/for-in sources remain outside the
-   admitted boundary and must decline before VM execution.
+2. Driver-state widening is next. Sync-driver TDZ head environments
+   (`for (const x of …)` / `for (let k in …)`) are now admitted via the
+   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0286). Async iterator
+   drivers and awaited iterator/for-in sources remain outside the admitted
+   boundary and must decline before VM execution.
 3. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
    no defaults/nested patterns, optional identifier rest). Object destructuring

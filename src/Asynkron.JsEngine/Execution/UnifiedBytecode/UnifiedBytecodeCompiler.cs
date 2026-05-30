@@ -2470,7 +2470,6 @@ internal static class UnifiedBytecodeCompiler
         {
             if (instruction is BreakableEnterInstruction
                 {
-                    Label: null,
                     ContinueTarget: var continueTarget,
                     BreakTarget: var breakTarget
                 } &&
@@ -2526,12 +2525,11 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool IsSupportedBreakableEnter(BreakableEnterInstruction breakableEnter, out string reason)
     {
-        if (breakableEnter.Label is not null)
-        {
-            reason = "Unsupported breakable construct: labels are not eligible for unified bytecode compilation.";
-            return false;
-        }
-
+        // Labeled breakable regions are admitted: loop-control targets are compiler-owned
+        // (ADR 0253), and a labeled break/continue resolves to a numeric target through the
+        // same resolved-jump path as the unlabeled case. The driver-crossing safety check
+        // (a labeled abrupt that exits an enclosing iterator/for-in/destructuring driver loop)
+        // is enforced conservatively during production eligibility, not here.
         if (breakableEnter.ConstructKind != BreakableKind.ResetsCompletionValue)
         {
             reason =

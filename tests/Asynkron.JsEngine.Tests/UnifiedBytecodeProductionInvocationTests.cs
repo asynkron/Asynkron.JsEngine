@@ -709,6 +709,129 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LabeledBlockBreak_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function labeledBlock(flag) {
+                var total = 0;
+                block: {
+                    total = total + 1;
+                    if (flag) {
+                        break block;
+                    }
+
+                    total = total + 10;
+                }
+
+                return total;
+            }
+
+            labeledBlock(true);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=labeledBlock argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledBreakInLoop_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function labeledBreak(n) {
+                outer: while (n > 0) {
+                    break outer;
+                }
+
+                return n;
+            }
+
+            labeledBreak(3);
+            """);
+
+        Assert.Equal(3d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=labeledBreak argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledContinueInLoop_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function labeledContinue(n) {
+                var total = 0;
+                outer: while (n > 0) {
+                    n = n - 1;
+                    continue outer;
+                    total = total + 1;
+                }
+
+                return total;
+            }
+
+            labeledContinue(3);
+            """);
+
+        // continue outer skips the post-continue increment on every iteration, so total stays 0.
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=labeledContinue argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledBreakOutOfForOf_ClosesDriverOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeIterable(closeValue, box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var i = 0;
+                        return {
+                            next: function() {
+                                i = i + 1;
+                                return { done: i > 5, value: i };
+                            },
+                            return: function() {
+                                box.value = box.value + closeValue;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(source, box) {
+                outer: for (var value of source) {
+                    break outer;
+                }
+
+                return box.value;
+            }
+
+            var box = { value: 0 };
+            var result = probe(makeIterable(7, box), box);
+            result + ":" + box.value;
+            """);
+
+        // Labeled break out of the for-of closes its iterator (box += 7) before probe returns.
+        Assert.Equal("7:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();
@@ -3082,20 +3205,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         {
             {
                 """
-                function labeled(n) {
-                    outer: while (n > 0) {
-                        n = n - 1;
-                    }
-
-                    return n;
-                }
-                """,
-                "labeled(2)",
-                0d,
-                "labeled"
-            },
-            {
-                """
                 function unsupportedBranchPayload(a, b, pick) {
                     if (pick) {
                         return Math.max(a, b);
@@ -3126,6 +3235,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "breakLoop(3)",
                 3d,
                 "breakLoop",
+                1
+            },
+            {
+                // Labeled loops are now admitted (loop-control targets are compiler-owned, ADR 0253):
+                // the unused outer label no longer forces a LabelControlFlow decline.
+                """
+                function labeled(n) {
+                    outer: while (n > 0) {
+                        n = n - 1;
+                    }
+
+                    return n;
+                }
+                """,
+                "labeled(2)",
+                0d,
+                "labeled",
+                1
+            },
+            {
+                // Labeled break out of a single loop routes through the owned Break opcode.
+                """
+                function labeledBreak(n) {
+                    outer: while (n > 0) {
+                        break outer;
+                    }
+
+                    return n;
+                }
+                """,
+                "labeledBreak(3)",
+                3d,
+                "labeledBreak",
+                1
+            },
+            {
+                // Labeled continue of a single loop routes through the owned Continue opcode.
+                """
+                function labeledContinue(n) {
+                    var total = 0;
+                    outer: while (n > 0) {
+                        n = n - 1;
+                        continue outer;
+                        total = total + 1;
+                    }
+
+                    return total;
+                }
+                """,
+                "labeledContinue(3)",
+                0d,
+                "labeledContinue",
                 1
             },
             {

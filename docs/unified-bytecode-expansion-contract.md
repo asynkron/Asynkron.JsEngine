@@ -125,7 +125,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync)*
+- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync, and no longer triggered on the resumable async/generator route — see Production Resumable Boundary and ADR 0283)*
 - `NewTargetDependency`
 - `CallDependency`
 - `DynamicLookupDependency`
@@ -323,7 +323,16 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   storage bodies that compile through `Yield` and `StoreResumeValue`.
 - Accepted resumable async shapes include simple awaited discard and awaited
   return bodies that compile through `AwaitAndDiscard` and `AwaitedReturn`.
-- Captured/dynamic activation, arguments objects, `this`, `new.target`, calls,
+- `this`-dependent async and generator programs are admitted (resumable-route
+  counterpart to the ordinary sync `this` support; see Production This-Binding
+  Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is
+  computed in the async and sync-generator invokers via
+  `CoerceThisValueForNonStrict` and stored on `UnifiedBytecodeResumeState` at
+  construction so it survives suspension/resume across `yield`/`await`. The
+  resumable `LoadThis` opcode pushes `state.ThisValue`. Property reads such as
+  `this.x` remain outside the resumable opcode set and decline independently of
+  the `this`-binding gate.
+- Captured/dynamic activation, arguments objects, `new.target`, calls,
   dynamic lookup, labels, iterator/destructuring drivers, unsupported
   expression payloads, and unmodeled statement families still decline before
   VM execution.

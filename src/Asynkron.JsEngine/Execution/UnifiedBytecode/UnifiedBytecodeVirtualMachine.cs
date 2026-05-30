@@ -2017,6 +2017,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadThis:
+                    stack[stackPointer++] = state.ThisValue;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     if (slots[instruction.Operand].IsUninitialized)
                     {

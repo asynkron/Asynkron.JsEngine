@@ -822,8 +822,22 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.GetNamedProperty:
-                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    if (operation.ShortCircuitOnNullishTarget)
                     {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain property reads are outside the first production property-read boundary.";
+                        return true;
+                    }
+
+                    if (operation.IsOptional)
+                    {
+                        // Simple a?.b form — admitted when the program is exactly [activation-resolved base, GetNamedPropertyOptional].
+                        if (TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                         declineReason =
                             "Optional-chain property reads are outside the first production property-read boundary.";
@@ -878,6 +892,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    if (TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -974,6 +993,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.JumpIfNullish:
                     if (isCallTargetPreparationCandidate || !operation.ReplaceWithUndefined)
+                    {
+                        break;
+                    }
+
+                    // Nullish guard of a?.[k] — admitted when the program matches the optional computed read shape.
+                    if (TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1525,6 +1550,63 @@ internal static class UnifiedBytecodeProductionEligibility
         var getComputedProperty = program.GetOperation(4);
         return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedProperty.ShortCircuitOnNullishTarget;
+    }
+
+    // Admits the simple a?.b shape: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)].
+    private static bool TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 2)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var getNamedOp = program.GetOperation(1);
+        return getNamedOp.Kind == ExpressionOpKind.GetNamedProperty &&
+               getNamedOp.IsOptional &&
+               !getNamedOp.ShortCircuitOnNullishTarget &&
+               !getNamedOp.GetString(program.StringConstants.AsSpan()).IsPrivateName();
+    }
+
+    // Admits the simple a?.[k] shape:
+    // [activation-resolved base, JumpIfNullish(ReplaceWithUndefined:true), simple key, GetComputedProperty(!ShortCircuitOnNullishTarget)].
+    private static bool TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 4)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var keyOp = program.GetOperation(2);
+        if (!IsSimpleComputedPropertyKey(keyOp, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var getComputedOp = program.GetOperation(3);
+        return getComputedOp.Kind == ExpressionOpKind.GetComputedProperty &&
+               !getComputedOp.ShortCircuitOnNullishTarget;
     }
 
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
@@ -2626,6 +2708,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.RequireObjectCoercible:
                 case UnifiedBytecodeOpCode.ResolvePropertyKey:
                 case UnifiedBytecodeOpCode.GetNamedProperty:
+                case UnifiedBytecodeOpCode.GetNamedPropertyOptional:
+                case UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined:
                 case UnifiedBytecodeOpCode.GetComputedProperty:
                 case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
                 case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:

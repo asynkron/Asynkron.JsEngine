@@ -92,6 +92,6 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] (landed, PRs #2755/#2758) Expanded compound property write coverage to `this`-base shapes and all 12 production operators; logical-assignment forms (`&&=`, `||=`, `??=`) confirmed declined (ADR 0238 batch-4).
 - [x] (landed, PR #2761) Widened unified bytecode to admit `&&`, `||`, `??` expressions via peek-semantics jump opcodes (`JumpIfShortCircuitFalse/True/NotNullish`); optional-chain short-circuit still declines as `OptionalChainDependency` (ADR 0293, rule 41).
 - [ ] (open, TBD) Widen unified bytecode to admit ternary/conditional expression (`?:`) — natural successor to `&&`/`||`/`??` short-circuit admission; requires conditional jump opcode and backpatch support.
-- [ ] (open, TBD) Widen unified bytecode to admit optional chaining (`?.`) — requires admitting `JumpIfShortCircuited`-family opcodes currently declined as `OptionalChainDependency`.
+- [x] (landed, gh2771) Widened unified bytecode to admit simple optional member access (`?.prop`, `?.[k]`) via new `GetNamedPropertyOptional` and `JumpIfNullishReplaceUndefined` opcodes; chained forms (`a?.b?.c`) remain declined pending a later slice (ADR 0294).
 
 _Generated and maintained by the recurring Roadmapper run._

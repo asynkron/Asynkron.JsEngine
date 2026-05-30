@@ -658,6 +658,44 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.GetNamedPropertyOptional:
+                    if (stack[stackPointer - 1].IsNullOrUndefined)
+                    {
+                        stack[stackPointer - 1] = JsValue.Undefined;
+                        programCounter++;
+                        break;
+                    }
+
+                    stack[stackPointer - 1] = GetNamedPropertyValue(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined:
+                    if (stack[stackPointer - 1].IsNullOrUndefined)
+                    {
+                        stack[stackPointer - 1] = JsValue.Undefined;
+                        programCounter = instruction.Operand;
+                    }
+                    else
+                    {
+                        programCounter++;
+                    }
+
+                    break;
+
                 case UnifiedBytecodeOpCode.GetComputedProperty:
                     var propertyKey = stack[--stackPointer];
                     var target = stack[stackPointer - 1];

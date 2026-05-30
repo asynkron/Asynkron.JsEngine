@@ -49,6 +49,7 @@ runner_cmd=()
 # iterations must match the corresponding profile-manifest.json entry.
 gate_entries=(
   "fib:fib.js:10"
+  "fib-iterative:fib-iterative.js:10"
   "objectcreation:objectcreation.js:20"
   "stringops:stringops.js:20"
 )
@@ -58,7 +59,7 @@ usage() {
 Usage:
   ./tools/check-nodejs-regression [--no-build] [--update] [--tolerance PCT]
 
-Measures asynkron/node timing ratios for fib, objectcreation, stringops and
+Measures asynkron/node timing ratios for fib, fib-iterative, objectcreation, stringops and
 compares them to tools/nodejs-baseline.json, failing when any ratio regresses
 beyond tolerance (default 25%).
 

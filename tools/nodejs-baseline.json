@@ -3,8 +3,9 @@
   "_generated_by": "./tools/check-nodejs-regression --update",
   "_note": "Refresh after an intentional throughput change: ./tools/check-nodejs-regression --update && git add tools/nodejs-baseline.json",
   "profiles": {
-    "fib": { "node_ms": 14.42, "asynkron_ms": 1, "ratio": 0.0693 },
-    "objectcreation": { "node_ms": 18.30, "asynkron_ms": 20, "ratio": 1.0929 },
-    "stringops": { "node_ms": 14.31, "asynkron_ms": 24, "ratio": 1.6771 }
+    "fib": { "node_ms": 14.43, "asynkron_ms": 1, "ratio": 0.0693 },
+    "fib-iterative": { "node_ms": 0.06, "asynkron_ms": 3, "ratio": 50.0000 },
+    "objectcreation": { "node_ms": 14.36, "asynkron_ms": 20, "ratio": 1.3928 },
+    "stringops": { "node_ms": 14.16, "asynkron_ms": 20, "ratio": 1.4124 }
   }
 }

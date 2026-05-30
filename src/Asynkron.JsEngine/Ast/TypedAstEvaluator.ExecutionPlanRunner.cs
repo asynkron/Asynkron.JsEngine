@@ -724,29 +724,15 @@ public static partial class TypedAstEvaluator
             }
 
             // Use JsVariable for scope-correct access (value slot is in loop scope)
-            _realmState.Logger?.LogInformation(
-                "SyncIterator StoreValue: valueVar.IsValid={Valid} currentEnv.ScopeId={CurScope} slot={Slot} value={Value}",
-                valueVar.IsValid,
-                environment.ScopeId,
-                instruction.ValueSlot.Name,
-                currentValue.Kind);
             if (valueVar.IsValid)
             {
+                // WriteSlotDirect already clears TDZ — DefineOrAssignJsValue on the same slot is redundant.
                 valueVar.Write(currentValue);
-                // Also create binding for symbol-based identifier lookup in loop body
-                valueVar.Environment.DefineOrAssignJsValue(
-                    instruction.ValueSlot, currentValue);
-                _realmState.Logger?.LogInformation(
-                    "SyncIterator StoreValue: wrote to valueVar.Environment.ScopeId={Scope}",
-                    valueVar.Environment.ScopeId);
             }
             else
             {
                 StoreValueBySlot(environment, instruction.ValueSlot,
                     instruction.ValueSlotIndex, currentValue);
-                _realmState.Logger?.LogInformation(
-                    "SyncIterator StoreValue: wrote via StoreValueBySlot to env.ScopeId={Scope}",
-                    environment.ScopeId);
             }
 
             _programCounter = instruction.Next;

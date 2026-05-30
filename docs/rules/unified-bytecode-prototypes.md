@@ -804,6 +804,40 @@ all-or-nothing until a separate routing issue proves production readiness.
 
     Additionally: when a non-simple source precedes an `ArraySpread` op in an expression program, the main `TryFindExpressionDecline` left-to-right loop will encounter the source's inner ops (e.g., a `Call` in `a.slice(0, b)`) before reaching the `ArraySpread` op and may fire a more generic decline code (`CallDependency`) instead of the intended `ObjectLiteralOrSpreadDependency`. Fix this by adding a **pre-scan** before the main loop that detects `ArraySpread` ops whose immediately-preceding op is non-simple and returns `ObjectLiteralOrSpreadDependency` immediately. The pre-scan must run before the general op-by-op loop so that the specific spread-source decline supersedes any inner-op decline from the source expression. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 wired `ArraySpread` in the span helper first but required a build-back repair to add (1) the compiler main switch case, (2) the production allowlist entry, (3) the docs contract entry, and (4) the pre-scan for non-simple spread sources. Without all four surfaces aligned, eligibility succeeds but the compiler falls through to its default error; or the compiler emits the opcode but the allowlist check rejects it at post-compile validation; or a non-simple spread source produces the wrong decline code for the caller. Confirmed by issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-389e8f1c98` / PR #2750 (the main array spread delivery), which applied all four surfaces plus standalone `ArrayPushHole` admission in a single slice with no build-back repair needed.
 
+41. When admitting expression-level short-circuit logical (`&&`, `||`) and
+    nullish-coalescing (`??`) operators to production unified bytecode, use
+    **peek-semantics** jump opcodes — not the existing pop-semantics
+    `JumpIfFalse`. The peek/pop distinction is load-bearing:
+
+    - Statement-level `JumpIfFalse` (used for `if`/`while` conditions) consumes
+      TOS on the taken branch because the condition value is not part of the
+      statement result.
+    - Expression-level short-circuit jumps must leave TOS intact on the
+      taken branch because the LHS value IS the expression result when the
+      short circuit fires (`a && b` returns `a` when `a` is falsy).
+
+    Three distinct opcodes own this: `JumpIfShortCircuitFalse` (for `&&`),
+    `JumpIfShortCircuitTrue` (for `||`), and `JumpIfShortCircuitNotNullish`
+    (for `??`). None decrement `stackPointer`. The compiler emits placeholder
+    operands for these forward jumps in `TryAppendExpressionProgramOps` and
+    backpatches the targets using an `exprPcToUnifiedPc[]` map after the full
+    expression op sequence is emitted.
+
+    `JumpIfShortCircuited` (optional chain `?.`) remains declined as
+    `OptionalChainDependency` until a future slice owns optional-chain
+    semantics end to end. Do not admit optional-chain forms by extending the
+    short-circuit jump opcodes; the semantics (nullable receiver, optional
+    member lookup, optional call) require a separate proof slice.
+
+    WHY: issue
+    `planitem-planmanual1780157100924814000-baseline-batch-5-logical-and-nullish-opera-f2c1e6c23b`
+    / PR #2761 admitted `&&`, `||`, `??` via three peek-semantics opcodes. The
+    durable lesson is that reusing `JumpIfFalse` for the expression short-circuit
+    branch would silently consume the LHS result value, producing an incorrect
+    `undefined` on the taken path. A future admission of expression-level
+    conditional logic must classify each new jump variant by its stack effect
+    before deciding whether to reuse an existing opcode or introduce a new one.
+
 ## Why
 
 Issue #2118 / PR #2137 introduced the first unified bytecode slice for
@@ -1149,3 +1183,4 @@ Related ADRs:
 - `docs/adrs/0289-admit-optional-calls-in-unified-bytecode-nullish-short-circuit-receiver-owned.md`
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`
+- `docs/adrs/0293-admit-logical-and-nullish-expressions-in-unified-bytecode-with-peek-jump-semantics.md`

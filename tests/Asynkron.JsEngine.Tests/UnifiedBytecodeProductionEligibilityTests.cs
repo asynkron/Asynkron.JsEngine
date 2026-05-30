@@ -3539,4 +3539,159 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
+
+    // This-base compound write proof pack (ADR 0238)
+
+    [Fact]
+    public void Evaluate_ThisBaseNamedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Counter {
+                add(value) {
+                    return this.count += value;
+                }
+            }
+            """,
+            "Counter",
+            "add");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal("count", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
+    public void Evaluate_ThisBaseComputedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Counter {
+                addAt(key, value) {
+                    return this[key] += value;
+                }
+            }
+            """,
+            "Counter",
+            "addAt");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("+=", (int)BinaryOperator.Add)]
+    [InlineData("-=", (int)BinaryOperator.Subtract)]
+    [InlineData("*=", (int)BinaryOperator.Multiply)]
+    [InlineData("/=", (int)BinaryOperator.Divide)]
+    [InlineData("%=", (int)BinaryOperator.Modulo)]
+    [InlineData("**=", (int)BinaryOperator.Power)]
+    [InlineData("&=", (int)BinaryOperator.BitwiseAnd)]
+    [InlineData("|=", (int)BinaryOperator.BitwiseOr)]
+    [InlineData("^=", (int)BinaryOperator.BitwiseXor)]
+    [InlineData("<<=", (int)BinaryOperator.LeftShift)]
+    [InlineData(">>=", (int)BinaryOperator.RightShift)]
+    [InlineData(">>>=", (int)BinaryOperator.UnsignedRightShift)]
+    public void Evaluate_NamedCompoundPropertyWrite_AllProductionOperators_Accept(string op, int expectedOperator)
+    {
+        var plan = GetFunctionPlan($$"""
+            function write(box, value) {
+                return box.count {{op}} value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: var operand } && operand == expectedOperator);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Theory]
+    [InlineData("+=", (int)BinaryOperator.Add)]
+    [InlineData("-=", (int)BinaryOperator.Subtract)]
+    [InlineData("*=", (int)BinaryOperator.Multiply)]
+    [InlineData("/=", (int)BinaryOperator.Divide)]
+    [InlineData("%=", (int)BinaryOperator.Modulo)]
+    [InlineData("**=", (int)BinaryOperator.Power)]
+    [InlineData("&=", (int)BinaryOperator.BitwiseAnd)]
+    [InlineData("|=", (int)BinaryOperator.BitwiseOr)]
+    [InlineData("^=", (int)BinaryOperator.BitwiseXor)]
+    [InlineData("<<=", (int)BinaryOperator.LeftShift)]
+    [InlineData(">>=", (int)BinaryOperator.RightShift)]
+    [InlineData(">>>=", (int)BinaryOperator.UnsignedRightShift)]
+    public void Evaluate_ThisBaseNamedCompoundPropertyWrite_AllProductionOperators_Accept(string op, int expectedOperator)
+    {
+        var plan = GetClassMethodPlan($$"""
+            class Counter {
+                apply(value) {
+                    return this.count {{op}} value;
+                }
+            }
+            """,
+            "Counter",
+            "apply");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: var operand } && operand == expectedOperator);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Counter {
+                addNested(value) {
+                    return this.child.count += value;
+                }
+            }
+            """,
+            "Counter",
+            "addNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+    }
 }

@@ -3376,6 +3376,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         42d)]
     [InlineData(
         """
+        function logicalAndWrite(box, value) {
+            return box.value &&= value;
+        }
+
+        logicalAndWrite({ value: 1 }, 42);
+        """,
+        "logicalAndWrite",
+        42d)]
+    [InlineData(
+        """
+        function logicalNullishWrite(box, value) {
+            return box.value ??= value;
+        }
+
+        logicalNullishWrite({ value: null }, 42);
+        """,
+        "logicalNullishWrite",
+        42d)]
+    [InlineData(
+        """
         var externalValue = 42;
         function dynamicValueWrite(box) {
             return box.value = externalValue;
@@ -3590,6 +3610,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassInstanceMethod_ThisPropertyCompoundWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Counter {
+                constructor() {
+                    this.count = 0;
+                }
+
+                add(value) {
+                    return this.count += value;
+                }
+            }
+
+            var c = new Counter();
+            c.add(40);
+            c.add(2);
+            c.count;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PlainObjectMethod_ThisPropertyCompoundWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var counter = {
+                count: 0,
+                add(value) {
+                    return this.count += value;
+                }
+            };
+
+            counter.add(40);
+            counter.add(2);
+            counter.count;
+            """);
+
+        Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=<anonymous>",

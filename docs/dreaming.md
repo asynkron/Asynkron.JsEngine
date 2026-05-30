@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-29
+Date: 2026-05-30
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -9,23 +9,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 - What: a coherent greenfield target architecture from system level down to subcomponents.
 - Why: keep semantics, runtime ownership, and evidence discipline aligned across slices.
 
-## Critique of the previous dream state
+## Critique of the current dream state (self-critique)
 
-The 2026-05-29 (earlier) dream was the strongest revision yet — it added the compilation pipeline data-flow diagram, the dual-VM execution model, the JsValue contract diagram, and promoted Evidence to a horizontal governance layer. The remaining weak points are:
+The 2026-05-29 dream — the revision this document supersedes — was the strongest yet: it added the system lifecycle diagram, the realm isolation diagram, the layered dependency topology, the seam inventory tier table, and promoted Evidence from a peer terminus to a penetrating horizontal concern. Those gains are kept. But a *greenfield* dream must be willing to critique itself, not just its predecessor. Turning the same scrutiny on the current document exposes the following weak points:
 
-1. **The "dual-VM" framing obscures a 4-tier reality.** The runtime has four distinct execution tiers, not two VMs: UnifiedBytecodeVM (Tier 0), ExpressionProgram (Tier 1), StatementIR (Tier 2), and FallbackBridge (Tier 3). Calling it "dual" frames the optimization target as moving between two peers when the real goal is collapsing all accepted shapes into Tier 0.
+1. **The 4-tier model is sold as the target when it is migration scaffolding.** The current dream says "Tier 0 is the target for all accepted shapes; Tiers 1–3 are temporary correctness bridges," but then spends most of its diagrams elaborating the four-tier structure as if it were the destination. A from-scratch system would never ship four execution engines that share an environment model but not opcode tables. The principled greenfield target is **two tiers**: one compiled VM, and one thin correctness fallback for genuinely undecidable-at-compile-time semantics. Tier 1 (ExpressionProgram) and Tier 2 (StatementIR Runner) are *historical migration strata*, not design tiers. The dream should name that explicitly so slices stop treating "move from Tier 2 to Tier 1" as progress when the only progress that matters is "reach Tier 0 or prove the shape belongs in the fallback."
 
-2. **Realm isolation has no diagram.** Cross-realm error creation, intrinsic ownership, and eval observability are mentioned in prose and ADRs but never drawn as a first-class architecture surface. Every correctness claim that crosses a realm boundary is underspecified in the dream.
+2. **The document has two contradictory tier numberings.** The greenfield sections number the UnifiedBytecodeVM as Tier 0 and the AST fallback as Tier 3. The "Tiered Execution Model (directional)" section (component 8) inverts this — it numbers the AST interpreter as Tier 0 and the unified bytecode VM as Tier 1, in V8/JSC promotion order. Two opposite numbering schemes in one north-star document is a real defect: a slice author cannot tell whether "Tier 0" means "fastest" or "fallback." This revision resolves it by separating *execution strata* (where code runs today, numbered fastest-first) from the *speculative promotion ladder* (a directional future, named without reusing the stratum numbers).
 
-3. **The system lifecycle is missing.** The path from "cold engine" to "JS program terminates + async queue drains" is not modeled. Recurring slices that touch startup, module evaluation, or async drain order have no lifecycle diagram to anchor their invariants.
+3. **Abrupt completion has no diagram.** The Shared Completion Protocol is referenced in nearly every execution diagram (`Return / Throw / Break / Continue / finally restart`) but never drawn. Exception propagation — how a `throw` unwinds through `finally` restart chains, across the VM/fallback boundary, and out to the host — is the single most semantics-sensitive control path in the engine, and it is invisible. Every correctness slice touching error handling is flying blind.
 
-4. **The Evidence layer is stated as horizontal but drawn as a peer node.** In every flowchart, Evidence appears as a terminus box with dashed "governs" arrows. A true horizontal layer would penetrate the other diagrams, not live beside them. This understates the enforcement posture.
+4. **The seam inventory has no closing condition.** The table distinguishes near-closure from structural seams, which is good, but it never states *when the dream itself is done*. A greenfield north star should describe its own terminal state: the dream is fulfilled when Tier 1 and Tier 2 are deleted, every fallback entry is either eliminated or ADR-accepted as intentional, and the execution surface is exactly two strata. Without that, the document is an inventory with no finish line.
 
-5. **The seam inventory doesn't distinguish near-closure from structural seams.** ADR 0276 (arguments.length direct read), ADR 0277 (resumable unified bytecode), and the primary sync route guard (PR #2623) represent near-closure seams that are one focused slice from elimination. The async generator bridge (Milestone C) and CommonJS host shim are structural seams that will persist for many more slices. Treating them identically misprices optimization effort.
-
-6. **The cross-module routing map is flat.** It treats Compiler, Engine, Concurrency, Platform, and Standard Library as peers connected by arrows. The real dependency topology is layered: Compiler produces artifacts consumed by Engine; Engine drives Concurrency and delegates to Standard Library; Platform wraps Engine for host behavior. A flat map cannot express the invariant that higher layers never import lower-layer internals.
-
-This revision keeps all proven constraints from the prior dream and adds: a 4-tier execution model diagram, a Realm isolation diagram, a System lifecycle diagram, a layered dependency topology, a seam inventory tier table, and Evidence drawn as a penetrating horizontal concern rather than a peer node.
+This revision keeps every proven constraint and diagram from the prior dream and adds: a **greenfield 2-tier target vs. migration 4-tier reality** section with a contrast diagram, an **abrupt-completion / exception propagation** diagram, a single consistent stratum-numbering convention, and an explicit **dream completion condition**.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -36,6 +32,50 @@ Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that
 - **seam-free by design:** every fallback seam is a temporary correctness bridge, not a permanent design choice; near-closure seams are first in the optimization queue.
 - **value-model-native:** `JsValue` is the universal runtime currency; object-overload seams are temporary compat shims.
 - **evidence-governed:** every correctness and performance claim is non-deliverable until focused proof plus canonical quality gate evidence exists.
+
+## Greenfield target vs migration reality
+
+The most important thing this dream can say is the difference between what we would *build from scratch* and what we *have today*. The four execution tiers are not a design — they are sediment left by an incremental migration from an AST interpreter toward a compiled VM. A greenfield runtime has exactly **two execution strata**:
+
+- **Stratum 0 — Compiled VM:** every statically decidable shape compiles to one opcode set and runs on one virtual machine, sync and resumable alike.
+- **Stratum F — Correctness fallback:** only genuinely undecidable-at-compile-time semantics (direct `eval` observability, dynamic `with` scope chains, proxy-intercepted scope assignment) run here. These are intentional, ADR-accepted, and permanent — not debt.
+
+ExpressionProgram and StatementIR are the *in-between* — real, useful, and currently load-bearing, but they exist only because the migration is not finished. The dream's job is to make every slice push work **out of the middle**: up into Stratum 0 if the shape is decidable, or down into Stratum F if it is genuinely dynamic. Nothing should be optimized to *stay* in the middle.
+
+```mermaid
+flowchart LR
+    subgraph Ideal["Greenfield target — 2 strata"]
+        direction TB
+        G0["Stratum 0\nCompiled VM\nsync + resumable\none opcode set"]
+        GF["Stratum F\nCorrectness fallback\neval / with / dynamic scope\nADR-accepted, permanent"]
+        G0 -. only undecidable shapes .-> GF
+    end
+
+    subgraph Now["Migration reality — 4 strata"]
+        direction TB
+        N0["Tier 0\nUnifiedBytecodeVM\n(= Stratum 0)"]
+        N1["Tier 1\nExpressionProgram VM\nmigration stratum"]
+        N2["Tier 2\nStatement IR Runner\nmigration stratum"]
+        N3["Tier 3\nFallback Bridge\n(collapses into Stratum F)"]
+        N2 --> N1
+        N2 -.-> N3
+        N1 -.-> N0
+    end
+
+    Now ==>|delete Tier 1 + Tier 2| Ideal
+
+    style G0 fill:#060,color:#fff
+    style GF fill:#653,color:#fff
+    style N0 fill:#060,color:#fff
+    style N1 fill:#363,color:#fff
+    style N2 fill:#363,color:#fff
+    style N3 fill:#c00,color:#fff
+```
+
+Reading rule for the rest of this document:
+- Where a section says **Tier 0 / 1 / 2 / 3**, it is describing migration reality (execution strata as they exist today, numbered fastest-first).
+- Where a section says **Stratum 0 / Stratum F**, it is describing the greenfield target.
+- The directional **speculative promotion ladder** (see component 8) is a *separate future axis* and deliberately does not reuse the stratum numbers, to end the numbering collision called out in the self-critique.
 
 ## Top-level system (greenfield)
 
@@ -219,6 +259,52 @@ Tier invariants:
 - Tier 3 is a correctness shim only. Near-closure seams (arguments.length, resumable bytecode) are one focused slice from elimination. Structural seams (async generator bridge, eval observability, dynamic `with`) are documented in ADRs as intentional compat boundaries.
 - Tiers 0–2 share one environment model and one completion protocol. They do not share opcode tables.
 
+## Abrupt completion and exception propagation
+
+The Shared Completion Protocol is referenced by every execution diagram but, until this revision, never drawn. Abrupt completions — `throw`, `return`, `break`, `continue` — are the most semantics-sensitive control path in the engine: they unwind through `finally` restart chains, must cross the VM/fallback boundary without losing identity, and ultimately surface to the host as either a settled rejection or a thrown .NET exception. This diagram is the anchor for every error-handling correctness slice.
+
+```mermaid
+flowchart TB
+    NORM[Normal completion\nvalue produced]
+    THR[Throw completion\nexception value + realm]
+    RET[Return completion\nvalue]
+    BRK[Break / Continue completion\ntarget label]
+
+    subgraph Unwind["Completion unwinding (shared across strata)"]
+        direction TB
+        TRY[Enclosing try region?]
+        FIN[Run finally block\nrestart chain]
+        CATCH[Bind catch parameter\nresume normal]
+        FRAME[Pop frame / restore slots]
+    end
+
+    THR --> TRY
+    RET --> TRY
+    BRK --> TRY
+    NORM --> FRAME
+
+    TRY -->|finally present| FIN
+    FIN -->|finally completes normally| TRY
+    FIN -->|finally overrides with new abrupt| Unwind
+    TRY -->|catch matches throw| CATCH
+    TRY -->|no handler in frame| FRAME
+    CATCH --> NORM
+
+    FRAME -->|caller frame exists| TRY
+    FRAME -->|top frame, throw| HOSTERR[Host boundary\nuncaught → .NET exception\nor Promise rejection]
+    FRAME -->|top frame, return| HOSTVAL[Host boundary\ncompletion value returned]
+
+    style THR fill:#c00,color:#fff
+    style HOSTERR fill:#933,color:#fff
+    style HOSTVAL fill:#060,color:#fff
+```
+
+Completion-propagation invariants:
+- A `finally` block can override the in-flight completion: a `return`/`throw` inside `finally` replaces the unwinding completion, and the restart chain must re-enter unwinding with the new completion (ADR 0139).
+- Completion identity is realm-sensitive: a thrown error carries the realm it was created in; the host boundary must not re-wrap or re-realm it (ADR 0137, ADR 0270).
+- The VM/fallback boundary is transparent to completions: a `throw` that originates in Stratum 0 and unwinds into a fallback-owned `try` must preserve the same completion record, not a re-thrown copy.
+- At the top frame, an uncaught throw becomes a host-observable error (synchronous .NET exception for sync entry, Promise rejection for async entry); a top-frame return yields the completion value. No abrupt completion silently vanishes.
+
 ## Seam inventory
 
 This table distinguishes near-closure seams from structural seams. Near-closure seams have focused ADR/PR evidence; structural seams require multi-slice work or are accepted compat boundaries.
@@ -235,6 +321,17 @@ This table distinguishes near-closure seams from structural seams. Near-closure 
 | CommonJS host shim | Platform | **Structural (host layer)** | No core-engine obligation |
 | Label-dependent control flow | T2 | **Structural** | ADR 0210 |
 | Spread / construct / super call families | T2 → T0 | **Deferred** | Expansion contract bucket |
+
+### Dream completion condition
+
+This document describes its own finish line so slices know what "done" means rather than chasing an open-ended inventory. The dream is fulfilled when **all** of the following hold:
+
+- Tier 1 (ExpressionProgram VM) and Tier 2 (Statement IR Runner) are deleted — the execution surface is exactly **Stratum 0 (compiled VM)** and **Stratum F (correctness fallback)**.
+- Every row in the seam inventory is in one of two terminal states: **eliminated** (folded into Stratum 0 by lowering-time normalization) or **ADR-accepted** (a permanent, intentional Stratum F boundary such as `eval` observability or dynamic `with`).
+- No execution path consumes the AST as a runtime argument; the AST stops at the lowering stage in all surviving strata.
+- The two-numbering collision is structurally impossible because only two strata remain.
+
+Until then, the steering rule is unchanged: push every shape **out of the migration middle** — up into Stratum 0 if decidable, down into Stratum F if genuinely dynamic — and never optimize a shape to remain in Tier 1 or Tier 2.
 
 ## Realm isolation model
 
@@ -573,36 +670,34 @@ Optimizer invariants:
 - Profile-guided optimization requires a profiler feedback loop that does not exist yet — this entire section is directional.
 - No optimization pass may alter the observable semantics guaranteed by the Standard Library and Completion Protocol.
 
-### 8. Tiered Execution Model (directional)
+### 8. Speculative promotion ladder (directional)
 
-Goal: move hot shapes from interpreted fallback to compiled bytecode tiers; deoptimize safely on shape mismatch.
+Goal: a *future* axis orthogonal to the execution strata — promote hot, monomorphic call sites from the baseline compiled VM into a speculatively optimized VM, and deoptimize safely on shape mismatch. To end the numbering collision called out in the self-critique, this ladder uses **named rungs**, not stratum numbers. The baseline rung is the same engine as Stratum 0 / Tier 0; the optimizing rung does not exist yet.
 
 ```mermaid
 flowchart TB
-    subgraph TierModel["Tiered Execution Model — directional next"]
-        T0["Tier 0: AST Interpreter\nFallback Bridge — residual seam\nall shapes accepted, no eligibility gate"]
+    subgraph Ladder["Speculative promotion ladder — directional next (named rungs, not stratum numbers)"]
+        BASE["Baseline rung\n= Stratum 0 compiled VM\neligibility-classified shapes — proven now"]
         PC["Profile Collector\ncall-site shape sampling\ntype feedback accumulation"]
-        T1["Tier 1: Unified Bytecode VM\nExplicitExecutionPlan + ExpressionProgram\neligibility-classified shapes only — proven now"]
-        T2["Tier 2: Optimizing VM — directional\nspeculative compilation\nshape-specialized fast paths"]
-        DE["Deoptimization back-edge\nguard failure → revert to Tier 1\nno observable semantic change"]
+        OPT["Optimizing rung — directional\nspeculative compilation\nshape-specialized fast paths"]
+        DE["Deoptimization back-edge\nguard failure → revert to baseline rung\nno observable semantic change"]
     end
 
-    T0 -->|eligibility passes| T1
-    T1 --> PC
-    PC -->|profile threshold met — directional| T2
-    T2 -->|guard failure| DE
-    DE -->|revert| T1
+    BASE --> PC
+    PC -->|profile threshold met — directional| OPT
+    OPT -->|guard failure| DE
+    DE -->|revert| BASE
 
-    style T0 fill:#c00,color:#fff
-    style T2 fill:#555,color:#fff
+    style BASE fill:#060,color:#fff
+    style OPT fill:#555,color:#fff
     style DE fill:#933,color:#fff
 ```
 
-Tiered execution invariants:
-- Tier 0 (fallback bridge) is the only tier that accepts all shapes; it is residual seam, not a design tier.
-- Tier 1 (unified bytecode) is the proven execution tier; eligibility classification is the admission gate.
-- Tier 2 and profile-guided promotion are entirely directional; no profiler or speculative compiler exists yet.
-- Deoptimization must revert without observable semantic change; any speculative tier must honor this invariant before claiming production status.
+Promotion-ladder invariants:
+- The ladder is an axis *above* Stratum 0, not a renumbering of the execution strata. A shape must already run on the baseline compiled VM before it is a promotion candidate.
+- Eligibility classification remains the admission gate into the baseline rung; the profile collector decides promotion, never admission.
+- The optimizing rung and profile-guided promotion are entirely directional; no profiler or speculative compiler exists yet.
+- Deoptimization must revert without observable semantic change; any speculative rung must honor this invariant before claiming production status.
 
 ### 9. GC / Memory Pressure Model
 

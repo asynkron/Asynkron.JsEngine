@@ -1287,6 +1287,20 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "accessorObject")]
+    [InlineData(
+        """
+        function computedMethodObject(key) {
+            return { [key]() { return 1; } };
+        }
+        """,
+        "computedMethodObject")]
+    [InlineData(
+        """
+        function computedAccessorObject(key) {
+            return { get [key]() { return 1; } };
+        }
+        """,
+        "computedAccessorObject")]
     public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
         string source,
         string functionName)
@@ -1300,6 +1314,42 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
         Assert.NotEmpty(result.Reason);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function namedFunctionValue() {
+            return { value: function() {} };
+        }
+        """,
+        "namedFunctionValue")]
+    [InlineData(
+        """
+        function namedArrowValue(x) {
+            return { handler: () => x };
+        }
+        """,
+        "namedArrowValue")]
+    [InlineData(
+        """
+        function computedNamedFunctionValue(key) {
+            return { [key]: function() {} };
+        }
+        """,
+        "computedNamedFunctionValue")]
+    public void Evaluate_ObjectLiteralNameInferenceShapes_AcceptWithNoneCode(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Theory]

@@ -959,10 +959,24 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.LoadClassLiteral:
+                {
+                    var nextIndex = operationIndex + 1;
+                    if (nextIndex < operationCount)
+                    {
+                        var nextOp = program.GetOperation(nextIndex);
+                        if ((nextOp.Kind == ExpressionOpKind.DefineObjectProperty ||
+                             nextOp.Kind == ExpressionOpKind.DefineComputedObjectProperty) &&
+                            nextOp.AllowNameInference)
+                        {
+                            break;
+                        }
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
                         "Class literal values are not eligible for production unified bytecode routing.";
                     return true;
+                }
 
                 case ExpressionOpKind.ArraySpread:
                 case ExpressionOpKind.DefineObjectMethod:

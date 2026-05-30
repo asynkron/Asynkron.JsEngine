@@ -131,7 +131,7 @@ public static partial class StandardLibrary
                 }
 
                 // Get prototype via PrototypeAccessor to handle non-JsObject prototypes like JsProxy
-                object? currentProto = objectLike is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }
+                IJsPropertyAccessor? currentProto = objectLike is IPrototypeAccessorProvider { PrototypeAccessor: { } protoAccessor }
                     ? protoAccessor
                     : objectLike.Prototype;
 

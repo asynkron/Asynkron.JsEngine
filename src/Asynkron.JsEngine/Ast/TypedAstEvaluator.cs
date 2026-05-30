@@ -790,7 +790,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for 'in' operator - avoids boxing.
     /// </summary>
-    private static bool InOperatorJsValue(in JsValue property, in JsValue target, EvaluationContext context)
+    internal static bool InOperatorJsValue(in JsValue property, in JsValue target, EvaluationContext context)
     {
         // Per ECMA-262 §13.10.2, the right-hand side of 'in' must be an object
         if (target.Kind != JsValueKind.Object || target.ObjectValue is not IJsPropertyAccessor accessor)
@@ -830,7 +830,7 @@ public static partial class TypedAstEvaluator
     /// <summary>
     /// JsValue overload for 'instanceof' operator - avoids boxing.
     /// </summary>
-    private static bool InstanceofOperatorJsValue(in JsValue left, in JsValue right, EvaluationContext context)
+    internal static bool InstanceofOperatorJsValue(in JsValue left, in JsValue right, EvaluationContext context)
     {
         if (right.Kind != JsValueKind.Object || right.ObjectValue is not IJsPropertyAccessor)
         {

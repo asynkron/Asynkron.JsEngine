@@ -1,4 +1,5 @@
 using System.IO;
+using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Xunit.Abstractions;
 

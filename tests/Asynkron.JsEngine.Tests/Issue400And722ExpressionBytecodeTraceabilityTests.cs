@@ -262,7 +262,7 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
     }
 
     [Fact]
-    public void RuntimeScan_FindsNoEvaluateExpressionCallersOutsideLegacyDefinition()
+    public void RuntimeScan_EvaluateLegacyAstExpressionIsCompletelyRemoved()
     {
         var repositoryRoot = FindRepositoryRoot();
         var sourceRoots = new[]
@@ -283,9 +283,7 @@ public sealed class Issue400And722ExpressionBytecodeTraceabilityTests : IAsyncLi
             })
             .ToArray();
 
-        var match = Assert.Single(matches);
-        Assert.StartsWith("src/Asynkron.JsEngine/Ast/Legacy/ExpressionNodeExtensions.cs:", match, StringComparison.Ordinal);
-        Assert.Contains("private static JsValue EvaluateLegacyAstExpression", match, StringComparison.Ordinal);
+        Assert.Empty(matches);
     }
 
     private async Task<ExecutionPlan> GetFunctionPlan(string source, string functionName)

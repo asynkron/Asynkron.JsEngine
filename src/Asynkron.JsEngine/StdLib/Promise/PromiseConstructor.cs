@@ -878,17 +878,4 @@ public sealed partial class PromiseConstructor(IJsObjectLike prototype, RealmSta
 
         return capability.promise;
     }
-
-    /// <summary>
-    /// Checks if a value is a thenable (has a callable "then" method).
-    /// </summary>
-    private static bool TryGetThenMethod(
-        JsValue item,
-        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IJsCallable? thenCallable)
-    {
-        thenCallable = null;
-        return item.TryGetObject<JsObject>(out var itemObj) &&
-               itemObj.TryGetProperty("then", out var thenMethod) &&
-               thenMethod.TryGetCallable(out thenCallable);
-    }
 }

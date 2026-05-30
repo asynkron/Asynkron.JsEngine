@@ -199,6 +199,25 @@ optimization.
     owner with a CPU profile, then pin descriptor visibility, insertion order,
     extensibility, virtual-provider/private-field exclusions, and later
     `Object.defineProperty` promotion semantics.
+10b. `objectcreation` is allocation-bound, and its per-iteration cost is spread
+     across many small items (per-object `JsObjectState` allocation, per-property
+     define checks, the `Array.prototype.push` fast path, and the growing result
+     array) with **no single contained hot path large enough to clear the 10%
+     gate**. WHY: issue `autrun-divr5yruubao-cc14c8df50` trialed a correct,
+     behavior-preserving fast path in `JsArray.HasIndexedPrototypeOverride`
+     (skip the per-push `index.ToString()` + prototype descriptor lookup when no
+     prototype owns an indexed property) but that path is only ~3-4% of the
+     measured loop; a fair clean-rebuild A/B showed ~0% timing delta (within
+     noise) and only ~1.7% lower allocation, below the gate, so the runtime edit
+     was reverted per the measurement/revert gate. A real win here needs a
+     **structural** reduction in per-object allocation (shape/hidden-class
+     property storage, or lazy-allocating the empty-for-plain-objects
+     `JsObjectState` collections — `Descriptors`, `PrivateFields`,
+     `PrivateBrands`), not another single hot-path micro-optimization. Future
+     `objectcreation` slices: do not re-trial a single contained hot-path
+     micro-opt expecting 10%; fold candidates like the prototype-override
+     pre-check into a larger allocation-focused effort. Full writeup:
+     `docs/performance/failed-objectcreation-dense-push-prototype-override-fast-path.md`.
 10a. For named-property read performance work, keep shortcuts at the runtime
      property-access and `JsObject` storage boundaries while preserving
      observable `[[Get]]` semantics. A direct `JsValueKind.Object` ->
@@ -630,6 +649,26 @@ optimization.
      argument construction.
      Related ADR:
      `docs/adrs/0216-keep-simplearithmetic-profiler-scope-comparable-before-runtime-retries.md`.
+27b. The IIFE-wrap parity gap is **not** limited to `simplearithmetic`.
+     `benchmark.sh` (via `tools/compare-jint-profiles`'
+     `profile_needs_iife_wrap`) wraps a large set —
+     `simplearithmetic`, `whileloop`, `activation-*`, `objectcreation`,
+     `arrayops`, `stringops`, `propertyaccess`, `classdef`, `destructuring`,
+     `spread`, `mapset`, `json`, `regex`, `promise`, `recursion(-lite)`,
+     `closures(-lite)` — but `tools/profile` forwards `--wrap-iife` **only**
+     for `simplearithmetic` (`tools/profile` bash branch and the Python
+     fan-out both special-case that one key). So `./tools/profile
+     objectcreation` (and every other wrapped key above) profiles an
+     **unwrapped** workload that the benchmark table never runs, mis-attributing
+     loop cost to script-scope identifier resolution. WHY: issue
+     `autrun-divr5yruubao-cc14c8df50` selected `objectcreation` and the default
+     unwrapped profile inflated identifier-resolution cost; the accurate hot
+     path only appeared when profiling `ProfileRunner.dll --wrap-iife
+     objectcreation` directly. The #2285 fix added the wrap for
+     `simplearithmetic` only and did **not** close this gap for the other
+     wrapped profiles. When profiling any `benchmark.sh`-wrapped target via
+     `tools/profile`, pass `--wrap-iife` (or invoke ProfileRunner directly with
+     it) so the profiled workload shape matches the comparison table.
 28. For simple numeric self-recursion fast paths, keep the accepted shortcut
     shape- and binding-guarded. A recurrence shortcut may be retained only when a
     current CPU profile names recursive one-argument invocation as the owner, the

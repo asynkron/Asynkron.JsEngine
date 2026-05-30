@@ -174,9 +174,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `_homeObject` is set for all class methods and object-literal methods defined
   with method-definition syntax. A class method is admitted when its plan body
   contains no super-property opcodes. The existing property-write boundary still
-  applies: `this.prop = expr_using_this_prop` (compound read-then-write) is
-  declined by `PropertyWriteDependency`; only simple assignments within the
-  existing boundary (e.g. `this.prop = slot/constant`) are admitted.
+  applies: compound read-then-write is admitted for the named-property shape
+  (activation-resolved base — `this.prop` or `box.prop`, named key, production
+  binary operator e.g. `+=`, simple RHS) via
+  `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`. Retained declines
+  include logical-assignment operators (`||=`, `&&=`, `??=`), deeper property
+  chains (`box.child.value += …`), and computed-expression keys
+  (`box[key+suffix] += …`).
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
   net for class methods that use `super`. Super-property reads, writes, and

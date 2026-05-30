@@ -196,8 +196,18 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   condition-first loop backedges, unlabeled `BreakInstruction` and
   `ContinueInstruction` target jumps, simple for-style update continue targets,
   and simple do-while consequent backedges proven by PR #2489.
-- Labeled breakable control flow still declines with `LabelControlFlow`.
-  Unsupported complex loop/control-flow shapes must decline before VM execution
+- Labeled breakable control flow is admitted (ADR 0285): labeled statements,
+  labeled loops, labeled block `break`, and labeled `break`/`continue` route
+  through the same compiler-owned resolved-target path as the unlabeled case.
+  Label resolution is not a source-syntax permission — a labeled construct
+  routes whenever its unlabeled IR topology would route.
+- The one labeled shape still declined with `LabelControlFlow` is a labeled
+  `break`/`continue` that transfers control out of an enclosing iterator/for-in
+  driver loop it is not directly targeting (driver-crossing). The VM's
+  single-level driver cleanup only closes the driver whose break target equals
+  the abrupt jump target, so an intervening inner iterator would be leaked;
+  multi-driver labeled cleanup is the next loop-control widening frontier.
+- Unsupported complex loop/control-flow shapes must decline before VM execution
   instead of falling back from inside `UnifiedBytecodeVirtualMachine`.
 - `BreakOrContinueControlFlow` remains listed above because it is still a
   decline-taxonomy enum member, but PR #2489 removed the blanket production
@@ -400,8 +410,13 @@ support today.
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
    slice above. Direct eval source execution, unresolved non-with lookup
    shapes, and captured dynamic activation still decline before VM execution.
-5. Label-dependent control flow remains outside the admitted boundary
-   (`LabelControlFlow`) and must decline before VM execution.
+5. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
+   labeled loops, labeled block `break`, and labeled `break`/`continue` route
+   through the compiler-owned resolved-target path. The remaining
+   `LabelControlFlow` decline is narrow — a labeled `break`/`continue` that
+   crosses (exits) an enclosing iterator/for-in driver loop it is not directly
+   targeting. Multi-driver labeled cleanup is the next loop-control widening
+   frontier.
 
 ## Proof Commands
 ```bash

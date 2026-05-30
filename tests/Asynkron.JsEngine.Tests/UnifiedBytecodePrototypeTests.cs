@@ -1322,8 +1322,10 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_LabeledWhileLoop_DeclinesWithLabelReason()
+    public void TryCompile_LabeledWhileLoop_Compiles()
     {
+        // Labeled breakable regions are now compiled: loop-control targets are compiler-owned
+        // (ADR 0253), and the unused label no longer forces a decline.
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function labeledSumTo(n) {
                 var total = 0;
@@ -1338,13 +1340,14 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             "labeledSumTo");
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result, reason);
     }
 
     [Fact]
-    public void TryCompile_LabeledNonLoopStatement_DeclinesWithLabelReason()
+    public void TryCompile_LabeledNonLoopStatement_Compiles()
     {
+        // Labeled block + labeled break compile to owned Jump bytecode through the resolved-target
+        // path; the label no longer forces a decline.
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function labeledBlock(flag) {
                 var total = 0;
@@ -1361,8 +1364,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             "labeledBlock");
 
         var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("labels", reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result, reason);
     }
 
     [Fact]

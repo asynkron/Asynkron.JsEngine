@@ -1,4 +1,4 @@
-# 283. Admit TDZ head environments for sync iterator and for-in drivers
+# 286. Admit TDZ head environments for sync iterator and for-in drivers
 
 - Status: Accepted
 - Date: 2026-05-30
@@ -46,7 +46,15 @@ declined.
   binding to a flat activation slot and emits a new `TdzHeadInit` instruction
   **before** the iterable/object source expression ops. If any head binding cannot be
   resolved to a flat activation slot the compiler declines, so an incompletely modeled
-  head environment is never admitted.
+  head environment is never admitted. A lexical loop head also emits a per-iteration
+  `PushEnvironment`/`PopEnvironment` pair around the loop body, with the `PopEnvironment`
+  as the loop's back-edge source. `IsSupportedPushEnvironment` admits a per-iteration
+  environment when its lexical slots resolve to flat activation slots, and the structured
+  loop-reconstruction (`IsSupportedDriverLoopBackEdgeTarget` / `TryIsLinearCanonicalWhileBody`)
+  treats those `Push`/`Pop` instructions as linear flat-slot pass-throughs — so the body
+  must still be branch-free to be admitted, preserving no-mixed-execution. Captured or
+  dynamic activations decline wholesale upstream, so the only case where per-iteration
+  freshness is observable (a closure over the loop binding) never reaches this path.
 
 - **VM.** The `TdzHeadInit` opcode marks the resolved head slots `JsValue.Uninitialized`
   (mirroring the existing `EnterScope` flat-slot TDZ path). Because the marking runs

@@ -792,12 +792,11 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case PushEnvironmentInstruction pushEnvironment:
-                        if (!pushEnvironment.PerIterationBindings.IsDefaultOrEmpty)
-                        {
-                            reason = "Loop iteration environments are not eligible for unified bytecode compilation.";
-                            return false;
-                        }
-
+                        // Per-iteration binding environments (for (const/let x in/of ...)) are compiled
+                        // as ordinary PushEnvironment instructions. The rebinding semantics are handled
+                        // by the move-next instruction writing to the synthetic value slot, the
+                        // PushEnvironment resetting the per-iteration lexical slot to Uninitialized, and
+                        // the binding statement assigning the value slot to the per-iteration slot.
                         var lexicalSlotIndices = RemapSlotIndices(
                             pushEnvironment.ScopeId,
                             pushEnvironment.LexicalSlotIndices,
@@ -923,6 +922,8 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryEmitTdzHeadInit(
                                 iteratorInit.TdzBindings,
                                 iteratorInit.TdzIsConst,
+                                iteratorInit.TdzScopeId,
+                                iteratorInit.TdzSlotIndices,
                                 slotLayout,
                                 unified,
                                 driverDescriptors,
@@ -1043,6 +1044,8 @@ internal static class UnifiedBytecodeCompiler
                         if (!TryEmitTdzHeadInit(
                                 forInInit.TdzBindings,
                                 forInInit.TdzIsConst,
+                                forInInit.TdzScopeId,
+                                forInInit.TdzSlotIndices,
                                 slotLayout,
                                 unified,
                                 driverDescriptors,
@@ -2569,8 +2572,12 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        // A per-iteration lexical head (for (const/let x in/of ...)) closes its environment with a
+        // PopEnvironment immediately before looping back to the driver's MoveNext. That PopEnvironment
+        // is a valid back-edge source: the canonical-body walk below still requires the body between
+        // the MoveNext and this Pop to be linear, so no branching control flow is admitted.
         if (instructions[sourceInstructionIndex] is not AssignmentSlotInstruction and not
-            CompoundAssignmentSlotInstruction and not JumpInstruction)
+            CompoundAssignmentSlotInstruction and not JumpInstruction and not PopEnvironmentInstruction)
         {
             return false;
         }
@@ -2627,6 +2634,15 @@ internal static class UnifiedBytecodeCompiler
                     break;
                 case SetCompletionValueInstruction setCompletion:
                     current = setCompletion.Next;
+                    break;
+                // Per-iteration lexical heads (for (const/let x in/of ...)) open and close a fresh
+                // binding environment inside the loop body. On the flat-slot production path these
+                // resolve to slot-reset/no-op opcodes, so they are linear pass-through steps here.
+                case PushEnvironmentInstruction pushEnvironment:
+                    current = pushEnvironment.Next;
+                    break;
+                case PopEnvironmentInstruction popEnvironment:
+                    current = popEnvironment.Next;
                     break;
                 case ContinueInstruction continueInstruction
                     when continueInstruction.TargetIndex == endInstructionIndex:
@@ -2774,6 +2790,8 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryEmitTdzHeadInit(
         ImmutableArray<Symbol> tdzBindings,
         bool tdzIsConst,
+        int tdzScopeId,
+        ImmutableArray<int> tdzSlotIndices,
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
@@ -2786,16 +2804,31 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var headSlots = ImmutableArray.CreateBuilder<int>(tdzBindings.Length);
-        foreach (var binding in tdzBindings)
+        for (var i = 0; i < tdzBindings.Length; i++)
         {
-            if (!TryResolveActivationSymbolSlot(binding, slotLayout, out var headSlot))
+            var binding = tdzBindings[i];
+            if (TryResolveActivationSymbolSlot(binding, slotLayout, out var headSlot))
             {
-                reason =
-                    $"Iterator/for-in driver TDZ head binding '{binding.Name}' could not be resolved to a flat activation slot.";
-                return false;
+                headSlots.Add(headSlot);
+                continue;
             }
 
-            headSlots.Add(headSlot);
+            // Per-iteration binding symbols (for (const/let x in/of ...)) live in the
+            // per-iteration scope, not the activation scope. Resolve via FlatSlotMappings
+            // using the per-iteration scope ID and the pre-resolved slot index.
+            var slotIndex = !tdzSlotIndices.IsDefaultOrEmpty && i < tdzSlotIndices.Length
+                ? tdzSlotIndices[i]
+                : -1;
+            if (tdzScopeId >= 0 && slotIndex >= 0 &&
+                TryMapSlot(tdzScopeId, slotIndex, slotLayout.FlatSlotMappings, out headSlot))
+            {
+                headSlots.Add(headSlot);
+                continue;
+            }
+
+            reason =
+                $"Iterator/for-in driver TDZ head binding '{binding.Name}' could not be resolved to a flat activation slot.";
+            return false;
         }
 
         unified.Add(new UnifiedBytecodeInstruction(

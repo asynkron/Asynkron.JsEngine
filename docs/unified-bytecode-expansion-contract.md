@@ -406,7 +406,7 @@ support today.
    dynamic-identifier boundaries must still decline before VM execution.
 2. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
-   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0283). Async iterator
+   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0286). Async iterator
    drivers and awaited iterator/for-in sources remain outside the admitted
    boundary and must decline before VM execution.
 3. Destructuring widening is still model-first. Simple array and object

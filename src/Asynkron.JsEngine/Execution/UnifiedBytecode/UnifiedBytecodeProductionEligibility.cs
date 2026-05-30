@@ -1025,8 +1025,12 @@ internal static class UnifiedBytecodeProductionEligibility
         PushEnvironmentInstruction instruction,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
     {
-        if (!instruction.PerIterationBindings.IsDefaultOrEmpty ||
-            instruction.ScopeId < 0 ||
+        // Per-iteration binding environments (for (const/let x in/of ...)) are admitted when all
+        // per-iteration slots resolve to flat activation slots. The per-iteration rebinding semantics
+        // are modeled by ForInMoveNext/IteratorMoveNext writing to __forIn_value/__iter_value, the
+        // PushEnvironment resetting the lexical slot to Uninitialized, and the binding statement
+        // assigning the value slot to the per-iteration slot — all within the flat-slot model.
+        if (instruction.ScopeId < 0 ||
             instruction.SlotCount < 0 ||
             instruction.SlotMap.IsEmpty ||
             flatSlotMappings is null ||
@@ -1861,6 +1865,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.IteratorClose:
                 case UnifiedBytecodeOpCode.ForInInit:
                 case UnifiedBytecodeOpCode.ForInMoveNext:
+                case UnifiedBytecodeOpCode.TdzHeadInit:
                 case UnifiedBytecodeOpCode.ArrayDestructuringInit:
                 case UnifiedBytecodeOpCode.ArrayDestructuringElement:
                 case UnifiedBytecodeOpCode.ArrayDestructuringRest:

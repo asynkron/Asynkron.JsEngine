@@ -516,7 +516,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null,
                     AwaitedProgram = iterInit.AwaitedProgram is { } iterableAwaitedProgram
                         ? RewriteExpressionProgram(iterableAwaitedProgram)
-                        : null
+                        : null,
+                    TdzScopeId = iterInit.TdzScopeId >= 0 ? RemapScopeId(iterInit.TdzScopeId) : -1
                 };
 
             case EnterWithInstruction enterWith:
@@ -552,7 +553,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null,
                     AwaitedProgram = forInInit.AwaitedProgram is { } objectAwaitedProgram
                         ? RewriteExpressionProgram(objectAwaitedProgram)
-                        : null
+                        : null,
+                    TdzScopeId = forInInit.TdzScopeId >= 0 ? RemapScopeId(forInInit.TdzScopeId) : -1
                 };
 
             case ArrayDestructuringInitInstruction destructuringInit:

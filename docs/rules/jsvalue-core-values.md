@@ -64,6 +64,19 @@ When working inside the core engine, keep JavaScript values represented as
    and `JsValue` values, force the element type with `new JsValue(...)` members
    or `new JsValue[] { ... }` so constructor overload resolution stays on the
    `IEnumerable<JsValue>` path.
+   When the migration is incremental — a new `JsValue` overload is added and
+   only the targeted call sites are updated in the same delivery — use
+   `[Obsolete(..., false)]` (warning=false, non-breaking soft gate) rather than
+   `error=true`. The soft gate marks intent without breaking remaining call
+   sites that are not part of the current slice. Reserve `[Obsolete(..., true)]`
+   (error=true) for slices that migrate all identified internal callers in the
+   same delivery and want the compiler to enforce that no new accidental
+   bindings are introduced. Issue `autrun-divxrxrb6w2w-534721ea07` / PR #2704
+   demonstrated the soft-gate pattern: `StringifyValue(JsValue)` was added,
+   the `ConsolePrototype` call sites were updated to the new path, and the
+   legacy `StringifyValue(object?)` and `TryGetObject(object?)` overloads were
+   marked `[Obsolete(..., false)]` as a first migration phase rather than
+   error-level quarantine.
 7. For JavaScript collection storage (`Set`, `Map`, weak collections, or
    collection-like helpers), migrate the owning storage contract as one unit.
    For collections that own equality, migrate storage and equality comparer
@@ -92,6 +105,14 @@ When working inside the core engine, keep JavaScript values represented as
    the legacy overload instead of keeping it as a speculative compatibility
    bridge. Use `[Obsolete(..., true)]` only when the overload must remain long
    enough to expose real callers or preserve an intentional boundary.
+   A soft `[Obsolete(..., false)]` (warning=false) quarantine left by an
+   incremental slice is not the final migration state — treat it as a pending
+   follow-up marker. In a subsequent delivery, either upgrade to
+   `[Obsolete(..., true)]` (error=true) to force remaining callers via the
+   compiler, or run a targeted signature search and delete the overload entirely
+   when no live internal callers remain. Do not leave warning-level obsolete
+   overloads as permanent tripwires; they suppress accidental binding without
+   proving the migration is complete.
 9. When deleting an `object?` helper cluster backed by pools, remove the whole
    dead carrier surface: helper methods, caller-side rent/return hooks, and
    private pool fields. Prove it with a targeted symbol search for both helper

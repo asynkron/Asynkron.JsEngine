@@ -612,6 +612,22 @@ internal static class UnifiedBytecodeProductionEligibility
         var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
+
+        // Pre-scan: any ArraySpread whose immediately-preceding op is non-simple must decline with
+        // ObjectLiteralOrSpreadDependency before the main loop processes the source ops (which may
+        // otherwise trigger a less-specific decline code such as CallDependency).
+        for (var i = 0; i < operationCount; i++)
+        {
+            if (program.GetOperation(i).Kind == ExpressionOpKind.ArraySpread &&
+                (i == 0 || !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots)))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                declineReason =
+                    "Array spread with non-simple source is not eligible for production unified bytecode routing.";
+                return true;
+            }
+        }
+
         var isCallTargetPreparationCandidate = TryIsFirstBoundaryCallTargetPreparationCandidate(
             program,
             identifierConstants,
@@ -2388,6 +2404,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateArray:
                 case UnifiedBytecodeOpCode.ArrayPush:
                 case UnifiedBytecodeOpCode.ArrayPushHole:
+                case UnifiedBytecodeOpCode.ArraySpread:
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:

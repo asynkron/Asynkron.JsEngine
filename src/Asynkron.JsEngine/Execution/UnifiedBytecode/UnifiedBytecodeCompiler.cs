@@ -3346,6 +3346,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPushHole));
                     break;
 
+                case ExpressionOpKind.ArraySpread:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArraySpread));
+                    break;
+
                 case ExpressionOpKind.CreateObject:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateObject));
                     break;

@@ -4242,7 +4242,10 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Compiles a simple array literal span starting at startIndex in the expression program.
-    // Emits: CreateArray, then N×[simple-operand-load, ArrayPush|ArraySpread]. No holes.
+    // Emits: CreateArray, then N elements where each element is one of:
+    //   - [simple-operand-load, ArrayPush]   — normal element
+    //   - [simple-operand-load, ArraySpread] — spread element
+    //   - ArrayPushHole                      — hole element
     private static bool TryAppendSimpleArrayLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -4265,6 +4268,14 @@ internal static class UnifiedBytecodeCompiler
         while (i < expressionProgram.OperationCount)
         {
             var elementOp = expressionProgram.GetOperation(i);
+
+            if (elementOp.Kind == ExpressionOpKind.ArrayPushHole)
+            {
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPushHole));
+                i++;
+                continue;
+            }
+
             if (!TryAppendSimpleOperandLoad(elementOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
             {
                 // Non-simple op — element scan is done; the array literal ends here.
@@ -4276,7 +4287,7 @@ internal static class UnifiedBytecodeCompiler
             if (i >= expressionProgram.OperationCount)
             {
                 spanLength = 0;
-                reason = "Expected ArrayPush after element.";
+                reason = "Expected ArrayPush or ArraySpread after element.";
                 return false;
             }
 
@@ -4292,7 +4303,7 @@ internal static class UnifiedBytecodeCompiler
             else
             {
                 spanLength = 0;
-                reason = "Array holes are not admitted in simple array literals.";
+                reason = "Expected ArrayPush or ArraySpread after array element operand.";
                 return false;
             }
 

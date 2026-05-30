@@ -1295,6 +1295,74 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.NotEmpty(result.Reason);
     }
 
+    [Fact]
+    public void Evaluate_PureSpreadArrayLiteral_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function f(a) {
+                return [...a];
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
+    }
+
+    [Fact]
+    public void Evaluate_MixedSpreadArrayLiteral_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function f(a, b, c) {
+                return [a, ...b, c];
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
+    }
+
+    [Fact]
+    public void Evaluate_HoleThenSpreadArrayLiteral_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function f(a) {
+                return [, ...a];
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CreateArray);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayPushHole);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
+    }
+
     [Theory]
     [InlineData(
         """
@@ -3130,7 +3198,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_CallWithHoleyArrayArg_DeclinesCallDependency()
+    public void Evaluate_CallWithHoleyArrayArg_Accepts()
     {
         var plan = GetFunctionPlan("""
             function sendHoley(receiver) {
@@ -3143,8 +3211,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Theory]

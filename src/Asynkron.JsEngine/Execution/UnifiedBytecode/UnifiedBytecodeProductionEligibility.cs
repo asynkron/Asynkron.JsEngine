@@ -1013,7 +1013,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
-                        "Literal spread, object methods, and object accessors are not eligible for production unified bytecode routing.";
+                        "Object methods, object accessors, and object spread are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.DefineObjectProperty:
@@ -1875,8 +1875,11 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple array literal starting at startIndex.
-    // Admitted shape: CreateArray followed by N×[simple-operand, ArrayPush|ArraySpread] (N ≥ 0).
-    // ArrayPushHole and nested complex elements are declined (spanLength=0, return false).
+    // Admitted shapes (CreateArray followed by N ≥ 0 elements, each one of):
+    //   Normal:  [simple-operand, ArrayPush]
+    //   Spread:  [simple-operand, ArraySpread]
+    //   Hole:    ArrayPushHole (standalone)
+    // Non-simple operands and any other ops terminate the element scan (end of literal).
     private static bool TryMeasureSimpleArrayLiteralSpan(
         ExpressionProgram program,
         int startIndex,
@@ -1894,6 +1897,13 @@ internal static class UnifiedBytecodeProductionEligibility
         while (i < program.OperationCount)
         {
             var elementOp = program.GetOperation(i);
+
+            if (elementOp.Kind == ExpressionOpKind.ArrayPushHole)
+            {
+                i++;
+                continue;
+            }
+
             if (!IsSimpleOperand(elementOp, identifierConstants, activationSlots))
             {
                 // Non-simple op terminates the element scan — the array literal ends here.
@@ -1910,7 +1920,6 @@ internal static class UnifiedBytecodeProductionEligibility
             var pushOp = program.GetOperation(i);
             if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
             {
-                // ArrayPushHole or any other op — decline; holes are not admitted.
                 spanLength = 0;
                 return false;
             }

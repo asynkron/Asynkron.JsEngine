@@ -3514,4 +3514,66 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 1
             }
         };
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithThisArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                value: 42,
+                invoke(val) {
+                    return val === this ? 42 : -1;
+                }
+            };
+
+            box.run = function runMethod() {
+                return this.invoke(this);
+            };
+
+            box.run();
+            """);
+
+        var logs = CurrentLogger!.Collector.Snapshot();
+        foreach (var log in logs)
+        {
+            output.WriteLine(log.Message);
+        }
+
+        Assert.Equal(42d, result);
+        Assert.Contains(logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=runMethod argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PropertyWriteWithThis_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                self: null
+            };
+
+            box.setSelf = function setSelfMethod() {
+                this.self = this;
+                return this.self === this;
+            };
+
+            box.setSelf();
+            """);
+
+        var logs = CurrentLogger!.Collector.Snapshot();
+        foreach (var log in logs)
+        {
+            output.WriteLine(log.Message);
+        }
+
+        Assert.Equal(true, result);
+        Assert.Contains(logs,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=setSelfMethod argc=0",
+                StringComparison.Ordinal));
+    }
 }

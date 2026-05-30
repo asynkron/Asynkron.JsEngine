@@ -2905,6 +2905,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryPropertyReadBinaryExpression(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertyRead(
                 expressionProgram,
                 activationSlots,
@@ -3518,7 +3534,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationIdentifierLoad(
+        if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
@@ -4085,6 +4101,81 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryAppendFirstBoundaryPropertyReadBinaryExpression(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        // Handles: [ActivationResolvedValue, GetNamedProperty+, SimpleOperand, ProductionBinary]
+        // e.g., this.prop === value or obj.a.b + 1
+        if (expressionProgram.OperationCount < 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var lastOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.Binary || !IsSupportedBinaryOperator(lastOp.Operator))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        for (var i = 1; i < expressionProgram.OperationCount - 2; i++)
+        {
+            var op = expressionProgram.GetOperation(i);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (op.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            if (op.IsOptional || op.ShortCircuitOnNullishTarget)
+            {
+                reason = "Optional named property reads are not supported.";
+                return false;
+            }
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < expressionProgram.OperationCount - 2; i++)
+        {
+            var propertyRead = expressionProgram.GetOperation(i);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
+        var rhsOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
+        if (!TryAppendSimpleOperandLoad(rhsOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)lastOp.Operator));
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryAppendFirstBoundaryComputedPropertyRead(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -4200,6 +4291,16 @@ internal static class UnifiedBytecodeCompiler
                 var literalIndex = literalConstants.Count;
                 literalConstants.Add(literal);
                 unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadThis:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadNewTarget:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
                 reason = string.Empty;
                 return true;
 

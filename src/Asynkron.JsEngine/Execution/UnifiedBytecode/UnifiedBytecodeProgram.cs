@@ -93,6 +93,7 @@ internal enum UnifiedBytecodeOpCode : byte
     AwaitAndDiscard,
     AwaitedReturn,
     YieldStar,
+    EnsureHasName
 }
 
 internal readonly record struct UnifiedBytecodeInstruction(

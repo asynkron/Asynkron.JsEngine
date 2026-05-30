@@ -1698,6 +1698,18 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.EnsureHasName:
+                    {
+                        var targetName = program.StringConstants[instruction.Operand];
+                        if (stack[stackPointer - 1] is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget ensureNameTarget })
+                        {
+                            ensureNameTarget.EnsureHasName(targetName);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 default:
                     throw new InvalidOperationException($"Unsupported unified opcode '{instruction.OpCode}'.");
                 }

@@ -3095,6 +3095,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryPropertyReadShortCircuitExpression(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertyRead(
                 expressionProgram,
                 activationSlots,
@@ -5157,6 +5173,112 @@ internal static class UnifiedBytecodeCompiler
         }
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)lastOp.Operator));
+        reason = string.Empty;
+        return true;
+    }
+
+    // Handles: [ActivationResolvedValue, GetNamedProperty+, JumpIfFalse|JumpIfTrue|JumpIfNotNullish, Pop, simple-rhs]
+    // Mirrors TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate in the eligibility checker.
+    private static bool TryAppendFirstBoundaryPropertyReadShortCircuitExpression(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 5)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        var shortCircuitStart = -1;
+        for (var i = 1; i < expressionProgram.OperationCount - 1; i++)
+        {
+            var op = expressionProgram.GetOperation(i);
+            if (op.Kind == ExpressionOpKind.GetNamedProperty &&
+                !op.GetString(expressionStringConstants).IsPrivateName() &&
+                !op.IsOptional &&
+                !op.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (i < 2)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            shortCircuitStart = i;
+            break;
+        }
+
+        if (shortCircuitStart < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var jumpOp = expressionProgram.GetOperation(shortCircuitStart);
+        if (jumpOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var popIndex = shortCircuitStart + 1;
+        var rhsStart = shortCircuitStart + 2;
+
+        if (rhsStart >= expressionProgram.OperationCount ||
+            expressionProgram.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            jumpOp.Target != expressionProgram.OperationCount ||
+            rhsStart != expressionProgram.OperationCount - 1)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var baseOp = expressionProgram.GetOperation(0);
+        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, unified, out reason))
+        {
+            return false;
+        }
+
+        for (var i = 1; i < shortCircuitStart; i++)
+        {
+            var propertyRead = expressionProgram.GetOperation(i);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(propertyRead.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
+        var jumpOpCode = jumpOp.Kind switch
+        {
+            ExpressionOpKind.JumpIfFalse => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
+            ExpressionOpKind.JumpIfTrue => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
+            _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
+        };
+
+        var jumpUnifiedIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(rhsStart),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, unified.Count);
         reason = string.Empty;
         return true;
     }

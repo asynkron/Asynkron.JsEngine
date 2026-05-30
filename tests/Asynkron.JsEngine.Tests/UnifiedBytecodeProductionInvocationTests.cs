@@ -3876,4 +3876,101 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=setSelfMethod argc=0",
                 StringComparison.Ordinal));
     }
+
+    // Array-literal and object-literal operand widening (gh2705)
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithArrayLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendPair(receiver, a, b) {
+                return receiver([a, b]);
+            }
+
+            sendPair(function(arr) { return arr[0] + arr[1]; }, 40, 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendPair argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithObjectLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendConfig(receiver, x, y) {
+                return receiver({ a: x, b: y });
+            }
+
+            sendConfig(function(obj) { return obj.a + obj.b; }, 40, 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendConfig argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithEmptyArrayArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendEmpty(receiver) {
+                return receiver([]);
+            }
+
+            sendEmpty(function(arr) { return arr.length; });
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendEmpty argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithEmptyObjectArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendEmptyObj(receiver) {
+                return receiver({});
+            }
+
+            sendEmptyObj(function(obj) { return Object.keys(obj).length; });
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendEmptyObj argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithMixedScalarAndArrayLiteralArgs_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendMixed(receiver, a, b, c) {
+                return receiver(a, [b, c]);
+            }
+
+            sendMixed(function(x, arr) { return x + arr[0] + arr[1]; }, 10, 12, 20);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendMixed argc=4",
+                StringComparison.Ordinal));
+    }
 }

@@ -259,10 +259,12 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   activation-resolved identifier calls, direct named member calls whose
   optional-free named receiver chain is activation-resolved, and direct computed
   member calls whose receiver chain remains inside the shallow computed-call
-  boundary. Arguments must be simple literal or slot operands; computed member
-  keys must also be simple literal or slot operands. For accepted member
-  receiver chains, the call receiver is the final resolved receiver object, not
-  the root object.
+  boundary. Arguments may be simple literal or slot operands, or simple
+  array/object literal spans (`[a, b]`, `{x: a, y: b}`) with no spread elements,
+  no holes, no computed keys, no methods, no accessors, and no name inference
+  (gh2705, ADR 0290). Computed member keys must also be simple literal or slot
+  operands. For accepted member receiver chains, the call receiver is the final
+  resolved receiver object, not the root object.
 - Synchronous spread calls are admitted (gh2676): `f(...args)`, `f(...a, ...b)`,
   `obj.method(...args)`, and mixed `f(a, ...b, c)`. Each argument (positional or
   spread) lowers to one value-producing load; the `CallInvocationBoundary`
@@ -435,9 +437,12 @@ support today.
    Synchronous spread calls are now admitted (gh2676). Optional calls are
    now admitted (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`,
    and `box[key]?.(args)`. Synchronous non-spread construct calls
-   (`new F(...)`) are now admitted (gh2690, ADR 0286). Direct eval,
-   super calls (`super(...)` and super-member call targets, activation-gated
-   and unreachable in production), spread-onto-optional,
+   (`new F(...)`) are now admitted (gh2690, ADR 0286). Simple array and
+   object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
+   (gh2705, ADR 0290); holey arrays, spread elements, computed keys,
+   methods, accessors, name inference, and private names continue to decline.
+   Direct eval, super calls (`super(...)` and super-member call targets,
+   activation-gated and unreachable in production), spread-onto-optional,
    spread-onto-construct, member-target/non-simple constructs,
    arguments-object dependencies, unsupported non-with dynamic lookup,
    private/super member targets, complex receiver/key shapes, and

@@ -3551,6 +3551,7 @@ internal static class UnifiedBytecodeCompiler
                 slotLayout,
                 unified,
                 literalConstants,
+                stringConstants,
                 argsStartIndex: 1,
                 call,
                 out reason);
@@ -3572,6 +3573,7 @@ internal static class UnifiedBytecodeCompiler
             slotLayout,
             unified,
             literalConstants,
+            stringConstants,
             argsStartIndex: 1,
             call,
             out reason);
@@ -3680,6 +3682,7 @@ internal static class UnifiedBytecodeCompiler
             slotLayout,
             unified,
             literalConstants,
+            stringConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -3730,21 +3733,31 @@ internal static class UnifiedBytecodeCompiler
             IsOptionalReceiverCheck: true));
 
         // Operand packs: lower 16 bits = callTargetConstantIndex, upper 16 bits = jump target PC.
-        // Jump target is the instruction after CallInvocationBoundary: +1 (this opcode) + argCount + 1 (boundary).
-        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        // Backpatch: record the index, emit placeholder, then fix after arguments are compiled
+        // so that multi-op literal arguments (gh2705) are counted correctly.
+        var prepareIndex = unified.Count;
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
-            callTargetConstantIndex | (jumpTarget << 16)));
+            callTargetConstantIndex));
 
-        return TryAppendCallArguments(
-            expressionProgram,
-            slotLayout,
-            unified,
-            literalConstants,
-            callTargetIndexInProgram + 1,
-            call,
-            callIndex,
-            out reason);
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[prepareIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (unified.Count << 16));
+        return true;
     }
 
     private static bool TryAppendCalleeOptionalNamedCallTarget(
@@ -3788,21 +3801,30 @@ internal static class UnifiedBytecodeCompiler
             NameConstantIndex: nameIndex,
             IsOptionalReceiverCheck: false));
 
-        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        var prepareIndex = unified.Count;
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
-            callTargetConstantIndex | (jumpTarget << 16)));
+            callTargetConstantIndex));
 
         // Args start after the JumpIfNullish (at callTargetIndexInProgram + 2).
-        return TryAppendCallArguments(
-            expressionProgram,
-            slotLayout,
-            unified,
-            literalConstants,
-            callTargetIndexInProgram + 2,
-            call,
-            callIndex,
-            out reason);
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 2,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[prepareIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (unified.Count << 16));
+        return true;
     }
 
     private static bool TryAppendComputedMemberCallTargetPreparation(
@@ -3887,6 +3909,7 @@ internal static class UnifiedBytecodeCompiler
             slotLayout,
             unified,
             literalConstants,
+            stringConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -3936,20 +3959,29 @@ internal static class UnifiedBytecodeCompiler
             UnifiedBytecodeCallTargetKind.ComputedMember,
             IsOptionalReceiverCheck: false));
 
-        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        var prepareIndex = unified.Count;
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
-            callTargetConstantIndex | (jumpTarget << 16)));
+            callTargetConstantIndex));
 
-        return TryAppendCallArguments(
-            expressionProgram,
-            slotLayout,
-            unified,
-            literalConstants,
-            callTargetIndexInProgram + 2,
-            call,
-            callIndex,
-            out reason);
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 2,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[prepareIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
+            callTargetConstantIndex | (unified.Count << 16));
+        return true;
     }
 
     private static bool TryAppendNamedReceiverOperations(
@@ -4038,6 +4070,7 @@ internal static class UnifiedBytecodeCompiler
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         int argsStartIndex,
         PackedExpressionOp call,
         out string reason)
@@ -4047,6 +4080,7 @@ internal static class UnifiedBytecodeCompiler
             slotLayout,
             unified,
             literalConstants,
+            stringConstants,
             argsStartIndex,
             call,
             expressionProgram.OperationCount - 1,
@@ -4058,33 +4092,62 @@ internal static class UnifiedBytecodeCompiler
         UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         int argsStartIndex,
         PackedExpressionOp call,
         int callIndex,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
-        if (callIndex - argsStartIndex != call.ArgumentCount)
+
+        // Span-walk: each logical argument is a single simple operand or a multi-op
+        // array/object literal span. Validate argument count via span-walk (gh2705).
+        var argCount = 0;
+        var operationIndex = argsStartIndex;
+        while (operationIndex < callIndex)
         {
-            reason = "Call arguments must be simple one-op operands in the call-target preparation boundary.";
-            return false;
+            var op = expressionProgram.GetOperation(operationIndex);
+            if (op.Kind == ExpressionOpKind.CreateArray)
+            {
+                if (!TryAppendSimpleArrayLiteralSpan(
+                        expressionProgram, operationIndex, activationSlots,
+                        unified, literalConstants, out var arraySpanLen, out reason))
+                {
+                    return false;
+                }
+
+                operationIndex += arraySpanLen;
+            }
+            else if (op.Kind == ExpressionOpKind.CreateObject)
+            {
+                if (!TryAppendSimpleObjectLiteralSpan(
+                        expressionProgram, operationIndex, activationSlots,
+                        unified, literalConstants, stringConstants, out var objSpanLen, out reason))
+                {
+                    return false;
+                }
+
+                operationIndex += objSpanLen;
+            }
+            else
+            {
+                // Spread arguments push the iterable value; flattening happens at the
+                // invocation boundary using the registered spread mask (gh2676).
+                if (!TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out reason))
+                {
+                    return false;
+                }
+
+                operationIndex++;
+            }
+
+            argCount++;
         }
 
-        // Each argument (positional or spread) is lowered as exactly one value-producing
-        // load. Spread arguments push the iterable value; flattening happens at the
-        // invocation boundary using the registered spread mask (gh2676).
-        for (var operationIndex = argsStartIndex; operationIndex < callIndex; operationIndex++)
+        if (argCount != call.ArgumentCount)
         {
-            if (!TryAppendSimpleOperandLoad(
-                    expressionProgram.GetOperation(operationIndex),
-                    expressionProgram,
-                    activationSlots,
-                    unified,
-                    literalConstants,
-                    out reason))
-            {
-                return false;
-            }
+            reason = "Logical argument count does not match call.ArgumentCount in the call-target preparation boundary.";
+            return false;
         }
 
         var spreadIndices = call.GetSpreadIndices(expressionProgram.SpreadMaskConstants.AsSpan());
@@ -4095,6 +4158,125 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
             EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex)));
+        reason = string.Empty;
+        return true;
+    }
+
+    // Compiles a simple array literal span starting at startIndex in the expression program.
+    // Emits: CreateArray, then N×[simple-operand-load, ArrayPush]. No holes or spread.
+    private static bool TryAppendSimpleArrayLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.CreateArray)
+        {
+            spanLength = 0;
+            reason = $"Expected CreateArray at index {startIndex}.";
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateArray));
+
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            var elementOp = expressionProgram.GetOperation(i);
+            if (!TryAppendSimpleOperandLoad(elementOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            {
+                // Non-simple op — element scan is done; the array literal ends here.
+                // Undo the failed load (TryAppendSimpleOperandLoad adds nothing on failure).
+                break;
+            }
+
+            i++;
+            if (i >= expressionProgram.OperationCount)
+            {
+                spanLength = 0;
+                reason = "Expected ArrayPush after element.";
+                return false;
+            }
+
+            var pushOp = expressionProgram.GetOperation(i);
+            if (pushOp.Kind != ExpressionOpKind.ArrayPush)
+            {
+                spanLength = 0;
+                reason = "Array holes and spread elements are not admitted in simple array literals.";
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ArrayPush));
+            i++;
+        }
+
+        spanLength = i - startIndex;
+        reason = string.Empty;
+        return true;
+    }
+
+    // Compiles a simple object literal span starting at startIndex in the expression program.
+    // Emits: CreateObject, then N×[simple-operand-load, DefineObjectProperty(non-private, no name inference)].
+    private static bool TryAppendSimpleObjectLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.CreateObject)
+        {
+            spanLength = 0;
+            reason = $"Expected CreateObject at index {startIndex}.";
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateObject));
+
+        var exprStringConstants = expressionProgram.StringConstants.AsSpan();
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            var valueOp = expressionProgram.GetOperation(i);
+            if (!TryAppendSimpleOperandLoad(valueOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            {
+                // Non-simple op — property scan is done; the object literal ends here.
+                break;
+            }
+
+            i++;
+            if (i >= expressionProgram.OperationCount)
+            {
+                spanLength = 0;
+                reason = "Expected DefineObjectProperty after value.";
+                return false;
+            }
+
+            var defineOp = expressionProgram.GetOperation(i);
+            if (defineOp.Kind != ExpressionOpKind.DefineObjectProperty ||
+                defineOp.GetString(exprStringConstants).IsPrivateName() ||
+                defineOp.AllowNameInference)
+            {
+                spanLength = 0;
+                reason = "Computed keys, private names, and name inference are not admitted in simple object literals.";
+                return false;
+            }
+
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(defineOp.GetString(exprStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.DefineObjectProperty,
+                EncodeDefineObjectPropertyOperand(propertyNameIndex, defineOp)));
+            i++;
+        }
+
+        spanLength = i - startIndex;
         reason = string.Empty;
         return true;
     }
@@ -4562,8 +4744,9 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        // Handles: [ActivationResolvedValue, GetNamedProperty+, SimpleOperand, ProductionBinary]
-        // e.g., this.prop === value or obj.a.b + 1
+        // Handles: [ActivationResolvedValue, GetNamedProperty+, RHS, ProductionBinary]
+        // RHS may be a single simple operand or a simple array/object literal span (gh2705).
+        // Validate the entire shape before emitting anything (mirrors the eligibility checker).
         if (expressionProgram.OperationCount < 4)
         {
             reason = string.Empty;
@@ -4578,28 +4761,62 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
-        for (var i = 1; i < expressionProgram.OperationCount - 2; i++)
+
+        // Validation pass — find the GetNamedProperty chain end and the RHS start.
+        var rhsStart = -1;
+        for (var i = 1; i < expressionProgram.OperationCount - 1; i++)
         {
             var op = expressionProgram.GetOperation(i);
-            if (op.Kind != ExpressionOpKind.GetNamedProperty)
+            if (op.Kind == ExpressionOpKind.GetNamedProperty &&
+                !op.GetString(expressionStringConstants).IsPrivateName() &&
+                !op.IsOptional &&
+                !op.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (i < 2)
             {
                 reason = string.Empty;
                 return false;
             }
 
-            if (op.GetString(expressionStringConstants).IsPrivateName())
+            rhsStart = i;
+            break;
+        }
+
+        if (rhsStart < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var rhsEnd = expressionProgram.OperationCount - 2;
+        if (rhsStart > rhsEnd)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        // Validate base (read-only, mirrors TryAppendActivationValueLoad without emitting).
+        var baseOp = expressionProgram.GetOperation(0);
+        if (baseOp.Kind != ExpressionOpKind.LoadThis && baseOp.Kind != ExpressionOpKind.LoadNewTarget)
+        {
+            if (baseOp.Kind != ExpressionOpKind.LoadIdentifier || baseOp.IsArguments)
             {
-                reason = "Private named property reads are not supported.";
+                reason = string.Empty;
                 return false;
             }
 
-            if (op.IsOptional || op.ShortCircuitOnNullishTarget)
+            var baseIdentifier = baseOp.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+            if (!TryResolveActivationSlot(baseIdentifier, activationSlots, out _))
             {
-                reason = "Optional named property reads are not supported.";
+                reason = string.Empty;
                 return false;
             }
         }
 
+        // Emission pass — only reached when all validation passes.
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -4610,7 +4827,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        for (var i = 1; i < expressionProgram.OperationCount - 2; i++)
+        for (var i = 1; i < rhsStart; i++)
         {
             var propertyRead = expressionProgram.GetOperation(i);
             var propertyNameIndex = stringConstants.Count;
@@ -4618,10 +4835,51 @@ internal static class UnifiedBytecodeCompiler
             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
         }
 
-        var rhsOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
-        if (!TryAppendSimpleOperandLoad(rhsOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        if (rhsStart == rhsEnd)
         {
-            return false;
+            // Single-op RHS.
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(rhsStart),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Multi-op RHS — simple array or object literal span.
+            var rhsOp = expressionProgram.GetOperation(rhsStart);
+            if (rhsOp.Kind == ExpressionOpKind.CreateArray)
+            {
+                if (!TryAppendSimpleArrayLiteralSpan(
+                        expressionProgram, rhsStart, activationSlots, unified, literalConstants,
+                        out var arraySpanLen, out reason) ||
+                    rhsStart + arraySpanLen - 1 != rhsEnd)
+                {
+                    reason = reason.Length == 0 ? "Array literal RHS span does not match expected boundary." : reason;
+                    return false;
+                }
+            }
+            else if (rhsOp.Kind == ExpressionOpKind.CreateObject)
+            {
+                if (!TryAppendSimpleObjectLiteralSpan(
+                        expressionProgram, rhsStart, activationSlots, unified, literalConstants, stringConstants,
+                        out var objSpanLen, out reason) ||
+                    rhsStart + objSpanLen - 1 != rhsEnd)
+                {
+                    reason = reason.Length == 0 ? "Object literal RHS span does not match expected boundary." : reason;
+                    return false;
+                }
+            }
+            else
+            {
+                reason = string.Empty;
+                return false;
+            }
         }
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)lastOp.Operator));

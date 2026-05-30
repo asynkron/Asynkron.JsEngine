@@ -1794,19 +1794,153 @@ internal static class UnifiedBytecodeProductionEligibility
         PackedExpressionOp call,
         int callIndex)
     {
-        if (callIndex - argsStartIndex != call.ArgumentCount)
+        // Span-walk: each logical argument is either a single simple operand or a
+        // multi-op array/object literal span. Count logical arguments and verify the
+        // total matches call.ArgumentCount.
+        var argCount = 0;
+        var operationIndex = argsStartIndex;
+        while (operationIndex < callIndex)
         {
-            return false;
-        }
+            var op = program.GetOperation(operationIndex);
+            if (op.Kind == ExpressionOpKind.CreateArray)
+            {
+                if (!TryMeasureSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots, out var spanLen))
+                {
+                    return false;
+                }
 
-        for (var operationIndex = argsStartIndex; operationIndex < callIndex; operationIndex++)
-        {
-            if (!IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots))
+                operationIndex += spanLen;
+            }
+            else if (op.Kind == ExpressionOpKind.CreateObject)
+            {
+                if (!TryMeasureSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots, out var spanLen))
+                {
+                    return false;
+                }
+
+                operationIndex += spanLen;
+            }
+            else if (IsSimpleOperand(op, identifierConstants, activationSlots))
+            {
+                operationIndex++;
+            }
+            else
             {
                 return false;
             }
+
+            argCount++;
         }
 
+        return argCount == call.ArgumentCount;
+    }
+
+    // Measures the op span for a simple array literal starting at startIndex.
+    // Admitted shape: CreateArray followed by N×[simple-operand, ArrayPush] (N ≥ 0).
+    // ArrayPushHole, ArraySpread, and nested complex elements are declined (spanLength=0, return false).
+    private static bool TryMeasureSimpleArrayLiteralSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (program.GetOperation(startIndex).Kind != ExpressionOpKind.CreateArray)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var i = startIndex + 1;
+        while (i < program.OperationCount)
+        {
+            var elementOp = program.GetOperation(i);
+            if (!IsSimpleOperand(elementOp, identifierConstants, activationSlots))
+            {
+                // Non-simple op terminates the element scan — the array literal ends here.
+                break;
+            }
+
+            i++;
+            if (i >= program.OperationCount)
+            {
+                spanLength = 0;
+                return false;
+            }
+
+            var pushOp = program.GetOperation(i);
+            if (pushOp.Kind != ExpressionOpKind.ArrayPush)
+            {
+                // ArrayPushHole or any other op — decline; holes are not admitted.
+                spanLength = 0;
+                return false;
+            }
+
+            i++;
+        }
+
+        spanLength = i - startIndex;
+        return true;
+    }
+
+    // Measures the op span for a simple object literal starting at startIndex.
+    // Admitted shape: CreateObject followed by N×[simple-operand, DefineObjectProperty(non-private, no name inference)] (N ≥ 0).
+    // DefineComputedObjectProperty, DefineObjectMethod, ObjectSpread, private names, and name inference are declined.
+    private static bool TryMeasureSimpleObjectLiteralSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (program.GetOperation(startIndex).Kind != ExpressionOpKind.CreateObject)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var i = startIndex + 1;
+        while (i < program.OperationCount)
+        {
+            var valueOp = program.GetOperation(i);
+            if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+            {
+                // Non-simple value op terminates the property scan — the object literal ends here.
+                break;
+            }
+
+            i++;
+            if (i >= program.OperationCount)
+            {
+                spanLength = 0;
+                return false;
+            }
+
+            var defineOp = program.GetOperation(i);
+            if (defineOp.Kind != ExpressionOpKind.DefineObjectProperty)
+            {
+                // DefineComputedObjectProperty or any other op — decline; computed keys are not admitted.
+                spanLength = 0;
+                return false;
+            }
+
+            if (defineOp.GetString(stringConstants).IsPrivateName())
+            {
+                spanLength = 0;
+                return false;
+            }
+
+            if (defineOp.AllowNameInference)
+            {
+                spanLength = 0;
+                return false;
+            }
+
+            i++;
+        }
+
+        spanLength = i - startIndex;
         return true;
     }
 
@@ -1936,9 +2070,9 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     /// <summary>
-    ///     Admits the shape: [ActivationResolvedValue, GetNamedProperty+, SimpleOperand, ProductionBinary].
-    ///     Covers expressions like <c>this.prop === value</c> where the LHS is a named property chain
-    ///     rooted at an activation-resolved value and the RHS is a simple operand.
+    ///     Admits the shape: [ActivationResolvedValue, GetNamedProperty+, RHS, ProductionBinary].
+    ///     The RHS may be a single simple operand or a simple array/object literal span (gh2705).
+    ///     Covers expressions like <c>this.prop === value</c> and <c>this.prop === [a, b]</c>.
     /// </summary>
     private static bool TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate(
         ExpressionProgram program,
@@ -1957,31 +2091,65 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var rhsOp = program.GetOperation(program.OperationCount - 2);
-        if (!IsSimpleOperand(rhsOp, identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
         if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
 
         var stringConstants = program.StringConstants.AsSpan();
-        for (var i = 1; i < program.OperationCount - 2; i++)
+
+        // Walk the GetNamedProperty chain from index 1. At least one GetNamedProperty is required.
+        var rhsStart = -1;
+        for (var i = 1; i < program.OperationCount - 1; i++)
         {
             var op = program.GetOperation(i);
-            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
-                op.GetString(stringConstants).IsPrivateName() ||
-                op.IsOptional ||
-                op.ShortCircuitOnNullishTarget)
+            if (op.Kind == ExpressionOpKind.GetNamedProperty &&
+                !op.GetString(stringConstants).IsPrivateName() &&
+                !op.IsOptional &&
+                !op.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            // First non-GetNamedProperty op marks the RHS start. Require at least one GetNamedProperty.
+            if (i < 2)
             {
                 return false;
             }
+
+            rhsStart = i;
+            break;
         }
 
-        return true;
+        if (rhsStart < 0)
+        {
+            return false;
+        }
+
+        var rhsEnd = program.OperationCount - 2;
+        if (rhsStart > rhsEnd)
+        {
+            return false;
+        }
+
+        if (rhsStart == rhsEnd)
+        {
+            // Single-op RHS — simple operand.
+            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+        }
+
+        // Multi-op RHS — must be a simple array or object literal span that exactly fills [rhsStart..rhsEnd].
+        if (TryMeasureSimpleArrayLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var arraySpanLen))
+        {
+            return rhsStart + arraySpanLen - 1 == rhsEnd;
+        }
+
+        if (TryMeasureSimpleObjectLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var objSpanLen))
+        {
+            return rhsStart + objSpanLen - 1 == rhsEnd;
+        }
+
+        return false;
     }
 
     private static bool IsSimpleOperand(

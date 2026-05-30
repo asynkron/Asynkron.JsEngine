@@ -773,6 +773,26 @@ optimization.
     because neither benchmark workload exercises the `UnifiedBytecodeVirtualMachine`
     generator path.
 
+33. For async paths that can complete synchronously (cached module already
+    evaluated, resolved promise, already-computed result), return
+    `ValueTask<JsValue>` instead of `Task<JsValue>` to avoid Gen 0 `Task`
+    allocation on the completed path. A `ValueTask<JsValue>` that wraps a
+    synchronous `JsValue` result has no heap allocation; `Task.FromResult(...)`
+    allocates a new task object on every call even when the result is
+    immediately available.
+    Scope this to paths that profiling confirms are frequently synchronously
+    complete. Do not convert all async paths wholesale; mixed async/await
+    chains that always reach an actual async boundary see no benefit and can
+    see overhead from `ValueTask` struct boxing on error paths.
+    Treat a `Task<JsValue>` return on a proven-synchronous path as an
+    allocation regression equivalent to a `JsValue[]` backing-array
+    allocation: it should appear on the `benchmark.sh --allocations` gate.
+    WHY: `docs/dreaming.md` rev 3 `.NET Platform Advantage` table named
+    `ValueTask<JsValue>` zero-alloc async as a binding obligation: "async
+    paths that complete synchronously must return `ValueTask<JsValue>` to
+    avoid Gen 0 `Task` allocation." Issue `autrun-diw47qzvz96o-ae49286019`
+    / PR #2725 formalized this constraint.
+
 ## Why
 
 Issue

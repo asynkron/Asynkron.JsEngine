@@ -166,3 +166,39 @@ shape and user-mutated observable prototype state are distinct: prototype-query
 operations must read the backing state when `null` is observable, while default
 construction helpers may still use the convenience accessor where rehydration is
 intended.
+
+## Embedding API Stability Contract
+
+When changing or extending the public surface of `JsEngine`, keep the host
+integration contract intact:
+
+1. `JsEngine.CreateRealm()` is the single-call entry point for host developers.
+   Code that requires callers to construct `Realm`, `JsEnvironment`, or other
+   internal engine types directly is a leaky abstraction; the public API must
+   not require knowledge of internal type hierarchy.
+2. Host code must not construct internal engine types directly. Any public API
+   surface that exposes an internal type (`JsEnvironment`, `JsObject`, raw
+   `Realm`, etc.) as a parameter or return type is a stability violation. Use
+   typed wrapper surfaces or value conversion contracts at the API boundary.
+3. `EvaluateAsync` is the primary async entry point returning
+   `Task<JsValue>` or `ValueTask<JsValue>`. Synchronous `Evaluate` overloads
+   are convenience wrappers only; the async path owns the official contract.
+4. Value conversion at the `HostFunction` bridge must be explicit and
+   allocation-conscious. A host function returning `JsValue` must not box the
+   result through `object?` when the value already fits in the `JsValue` struct.
+   Keep `HostFunction` delegate signatures on the `JsValue` path end to end.
+5. The module loader hook is the only sanctioned host-side specifier-resolution
+   surface. Do not expose internal module resolution types or intermediate
+   `ModuleEntry` state at the hook boundary.
+
+WHY: `docs/dreaming.md` Component 11 (Embedding/Host API, rev 3) named
+embedding API stability as one of four positive dream completion conditions.
+The invariant — host code must not construct internal engine types directly,
+any divergence is a leaky abstraction — is a binding constraint that governs
+every future public API change. Without this rule, each PR touching `JsEngine`'s
+public surface has no authoritative reference for what counts as internal leakage.
+Issue `autrun-diw47qzvz96o-ae49286019` / PR #2725 formalized this constraint.
+
+Note: Two ADRs for the register-based VM commitment and this embedding API
+contract were assessed as warranted from this delivery. ADR creation is deferred
+pending `faktorial-api adr-next` availability for monotonic ID allocation.

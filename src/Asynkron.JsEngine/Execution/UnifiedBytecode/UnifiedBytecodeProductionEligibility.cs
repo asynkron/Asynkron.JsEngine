@@ -670,14 +670,10 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // Synchronous spread calls are admitted (gh2676); the call-target
+                    // preparation candidate check accepts them. Anything reaching here is
+                    // an out-of-boundary call shape.
                     declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
-                    if (operation.SpreadMaskConstantIndex >= 0)
-                    {
-                        declineReason =
-                            "Spread call arguments are not eligible for production unified bytecode routing.";
-                        return true;
-                    }
-
                     if (operation.IsDirectEval)
                     {
                         declineReason =
@@ -1219,10 +1215,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var callIndex = program.OperationCount - 1;
         var call = program.GetOperation(callIndex);
+        // Synchronous spread calls are admitted (gh2676); spread args are flattened at
+        // the invocation boundary. Direct eval stays out of scope.
         if (call.Kind != ExpressionOpKind.Call ||
             !call.HasExplicitThis ||
-            call.IsDirectEval ||
-            call.SpreadMaskConstantIndex >= 0)
+            call.IsDirectEval)
         {
             return false;
         }

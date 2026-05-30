@@ -229,4 +229,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeScopeDescriptor> ScopeDescriptors,
     ImmutableArray<UnifiedBytecodeTryDescriptor> TryDescriptors,
     ImmutableArray<UnifiedBytecodeCatchDescriptor> CatchDescriptors,
-    ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors);
+    ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors,
+    ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default);

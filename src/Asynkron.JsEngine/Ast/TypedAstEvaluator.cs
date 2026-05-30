@@ -441,7 +441,9 @@ public static partial class TypedAstEvaluator
     }
 
     // SpreadElement runtime semantics (ECMA-262 §12.2.5.2) use GetIterator on the operand.
-    private static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
+    // Internal so UnifiedBytecodeVirtualMachine can reuse spread flattening for
+    // synchronous spread calls (gh2676) instead of duplicating iterator semantics.
+    internal static IEnumerable<JsValue> EnumerateSpread(JsValue value, EvaluationContext context)
     {
         if (value.TryGetObject<JsArray>(out var jsArray))
         {

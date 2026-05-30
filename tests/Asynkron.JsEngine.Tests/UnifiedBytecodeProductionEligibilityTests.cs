@@ -376,6 +376,129 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_SpreadIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2676: synchronous spread call f(...args) is admitted to the production pipeline.
+        var plan = GetFunctionPlan("""
+            function invoke(fn, args) {
+                return fn(...args);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
+    public void Evaluate_MultiSpreadIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2676: f(...a, ...b).
+        var plan = GetFunctionPlan("""
+            function invoke(fn, left, right) {
+                return fn(...left, ...right);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
+    public void Evaluate_MixedSpreadIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2676: mixed positional/spread f(a, ...b, c).
+        var plan = GetFunctionPlan("""
+            function invoke(fn, head, tail) {
+                return fn(head, ...tail, 1);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
+    public void Evaluate_NamedMemberSpreadCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2676: obj.method(...args).
+        var plan = GetFunctionPlan("""
+            function invoke(box, args) {
+                return box.read(...args);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
+    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithCallDependency()
+    {
+        // gh2676 keeps spread construct declined.
+        var plan = GetFunctionPlan("""
+            function invoke(ctor, args) {
+                return new ctor(...args);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency()
+    {
+        // gh2676 keeps optional spread calls declined.
+        var plan = GetFunctionPlan("""
+            function invoke(fn, args) {
+                return fn?.(...args);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyReadCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -1072,14 +1195,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(
-        """
-        function invokeSpread(helper, values) {
-            return helper(...values);
-        }
-        """,
-        "invokeSpread",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
         function invokeEval(source) {

@@ -25,7 +25,31 @@ internal static class UnifiedBytecodeCompiler
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> FlatSlotMappings,
         ImmutableArray<int> ParameterSlotIndices,
         ImmutableArray<int> LexicalSlotIndices,
-        ImmutableArray<string?> SlotNames);
+        ImmutableArray<string?> SlotNames)
+    {
+        // Spread-call masks discovered while compiling synchronous spread invocations
+        // (gh2676). Each entry holds the spread argument positions for one
+        // CallInvocationBoundary; the boundary operand references it by index+1.
+        public List<ImmutableArray<int>> CallSpreadMasks { get; } = [];
+
+        public int RegisterSpreadMask(ImmutableArray<int> spreadIndices)
+        {
+            var index = CallSpreadMasks.Count;
+            CallSpreadMasks.Add(spreadIndices);
+            return index;
+        }
+    }
+
+    // CallInvocationBoundary operand packing for spread calls (gh2676):
+    // low 16 bits hold the pushed argument value count, the high bits hold
+    // spreadMaskIndex + 1 (0 means "no spread").
+    private const int CallBoundaryArgumentMask = 0xFFFF;
+    private const int CallBoundarySpreadShift = 16;
+
+    private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex) =>
+        spreadMaskIndex < 0
+            ? argumentValueCount
+            : (argumentValueCount & CallBoundaryArgumentMask) | ((spreadMaskIndex + 1) << CallBoundarySpreadShift);
 
     public static bool TryCompile(
         ExecutionPlan plan,
@@ -114,7 +138,10 @@ internal static class UnifiedBytecodeCompiler
             scopeDescriptors.ToImmutable(),
             tryDescriptors.ToImmutable(),
             catchDescriptors.ToImmutable(),
-            driverDescriptors.ToImmutable());
+            driverDescriptors.ToImmutable(),
+            slotLayout.CallSpreadMasks.Count == 0
+                ? ImmutableArray<ImmutableArray<int>>.Empty
+                : [.. slotLayout.CallSpreadMasks]);
         reason = string.Empty;
         return true;
     }
@@ -3017,7 +3044,6 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         out string reason)
     {
-        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 2)
         {
             reason = string.Empty;
@@ -3037,12 +3063,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (call.SpreadMaskConstantIndex >= 0)
-        {
-            reason = "Spread call arguments are outside the call-target preparation boundary.";
-            return false;
-        }
-
+        // Synchronous spread calls are admitted (gh2676); spread flattening happens
+        // at the invocation boundary using the registered spread mask. Direct eval
+        // stays out of scope.
         if (call.IsDirectEval)
         {
             reason = "Direct eval invocation semantics are outside the call-target preparation boundary.";
@@ -3070,7 +3093,7 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendNamedMemberCallTargetPreparation(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3088,7 +3111,7 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendComputedMemberCallTargetPreparation(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3151,7 +3174,7 @@ internal static class UnifiedBytecodeCompiler
 
             return TryAppendCallArguments(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 argsStartIndex: 1,
@@ -3172,7 +3195,7 @@ internal static class UnifiedBytecodeCompiler
 
         return TryAppendCallArguments(
             expressionProgram,
-            activationSlots,
+            slotLayout,
             unified,
             literalConstants,
             argsStartIndex: 1,
@@ -3182,7 +3205,7 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendNamedMemberCallTargetPreparation(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -3190,6 +3213,7 @@ internal static class UnifiedBytecodeCompiler
         PackedExpressionOp call,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadNamedCallTarget);
         if (callTargetIndexInProgram < 0)
         {
@@ -3235,7 +3259,7 @@ internal static class UnifiedBytecodeCompiler
 
         return TryAppendCallArguments(
             expressionProgram,
-            activationSlots,
+            slotLayout,
             unified,
             literalConstants,
             callTargetIndexInProgram + 1,
@@ -3245,7 +3269,7 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendComputedMemberCallTargetPreparation(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -3253,6 +3277,7 @@ internal static class UnifiedBytecodeCompiler
         PackedExpressionOp call,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadComputedCallTarget);
         if (callTargetIndexInProgram < 0)
         {
@@ -3298,7 +3323,7 @@ internal static class UnifiedBytecodeCompiler
 
         return TryAppendCallArguments(
             expressionProgram,
-            activationSlots,
+            slotLayout,
             unified,
             literalConstants,
             callTargetIndexInProgram + 1,
@@ -3389,13 +3414,14 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendCallArguments(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         int argsStartIndex,
         PackedExpressionOp call,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         var callIndex = expressionProgram.OperationCount - 1;
         if (callIndex - argsStartIndex != call.ArgumentCount)
         {
@@ -3403,6 +3429,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Each argument (positional or spread) is lowered as exactly one value-producing
+        // load. Spread arguments push the iterable value; flattening happens at the
+        // invocation boundary using the registered spread mask (gh2676).
         for (var operationIndex = argsStartIndex; operationIndex < callIndex; operationIndex++)
         {
             if (!TryAppendSimpleOperandLoad(
@@ -3417,9 +3446,14 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        var spreadIndices = call.GetSpreadIndices(expressionProgram.SpreadMaskConstants.AsSpan());
+        var spreadMaskIndex = spreadIndices.IsDefaultOrEmpty
+            ? -1
+            : slotLayout.RegisterSpreadMask(spreadIndices);
+
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
-            call.ArgumentCount));
+            EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex)));
         reason = string.Empty;
         return true;
     }

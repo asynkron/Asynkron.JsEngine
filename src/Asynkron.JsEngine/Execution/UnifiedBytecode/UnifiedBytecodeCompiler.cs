@@ -9,7 +9,6 @@ internal static class UnifiedBytecodeCompiler
 {
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
-    private const int StoreSlotNameInferenceFlag = unchecked((int)0x80000000);
     private const int DynamicStoreAllowNameInferenceFlag = 1;
 
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;

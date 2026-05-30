@@ -968,6 +968,16 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.JumpIfNullish:
+                    if (isCallTargetPreparationCandidate || !operation.ReplaceWithUndefined)
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                    declineReason =
+                        "Optional-chain short-circuiting is outside the first production property-read boundary.";
+                    return true;
+
                 case ExpressionOpKind.JumpIfShortCircuited:
                     if (isCallTargetPreparationCandidate)
                     {

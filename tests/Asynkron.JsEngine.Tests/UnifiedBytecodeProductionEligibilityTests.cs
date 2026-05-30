@@ -1287,6 +1287,20 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "accessorObject")]
+    [InlineData(
+        """
+        function computedMethodObject(key) {
+            return { [key]() { return 1; } };
+        }
+        """,
+        "computedMethodObject")]
+    [InlineData(
+        """
+        function computedAccessorObject(key) {
+            return { get [key]() { return 1; } };
+        }
+        """,
+        "computedAccessorObject")]
     public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
         string source,
         string functionName)

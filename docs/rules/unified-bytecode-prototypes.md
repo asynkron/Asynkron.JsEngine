@@ -323,7 +323,8 @@ all-or-nothing until a separate routing issue proves production readiness.
     computed member calls with shallow activation-resolved receiver chains may
     execute through the VM-owned
     `CallInvocationBoundary` when their arguments are simple literal/slot
-    operands and computed member keys are also simple literal/slot operands.
+    operands or span-measured simple array/object literals (since gh2705,
+    ADR 0290), and computed member keys are also simple literal/slot operands.
     Issue #2676 / PR #2685 widened all admitted shapes to accept **spread
     arguments** (`f(...args)`, `obj.m(...args)`, mixed positional+spread
     `f(a, ...b, c)`): the `CallInvocationBoundary` operand is extended with a
@@ -409,6 +410,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     to decline at their existing guards and are not affected by the spread
     admission. Non-spread plain-constructor calls (`new F(...)`) were admitted
     separately in issue #2690 / PR #2697 (rule #37).
+    Issue #2705 / PR #2719 widened admitted call argument expressions to
+    include **span-measured simple array and object literals** (`fn([a, b])`,
+    `fn({x: 1})`, `fn(a, [b, c])`). The `HasSimpleCallArguments` 1-op-per-
+    argument pre-check (`callIndex - argsStartIndex == call.ArgumentCount`) is
+    replaced with a span-walk that consumes each logical argument as either a
+    single simple op or a measured literal span, verifying the logical argument
+    count against `call.ArgumentCount` at the end (ADR 0290). The durable
+    **backpatch lesson**: `PrepareNamedOptionalCallTarget` and
+    `PrepareComputedOptionalCallTarget` encode the nullish short-circuit jump
+    target in the upper 16 bits of the operand. Before this slice the target
+    was precomputed ahead of argument emission as a fixed-offset formula
+    (`unified.Count + ArgumentCount + 2`). With variable-length argument spans
+    the post-argument PC is unknowable before emission; the fix is to emit the
+    prepare opcode with a zero upper-half placeholder, compile arguments, then
+    backpatch `unified[prepareIndex]` with
+    `callTargetConstantIndex | (unified.Count << 16)`. Any future argument-form
+    widening that admits variable-op spans must apply the same backpatch pattern
+    for all optional call prepare opcodes; a fixed-offset formula will silently
+    produce the wrong jump target when the actual argument span length differs
+    from `ArgumentCount`.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -1029,3 +1050,5 @@ Related ADRs:
 - `docs/adrs/0286-accept-unified-bytecode-construct-calls-and-decline-super-calls.md`
 - `docs/adrs/0287-accept-unified-bytecode-spread-calls-spreadmask-indexed-and-receiver-owned.md`
 - `docs/adrs/0288-admit-tdz-head-environments-for-sync-iterator-and-for-in-drivers.md`
+- `docs/adrs/0289-admit-optional-calls-in-unified-bytecode-nullish-short-circuit-receiver-owned.md`
+- `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`

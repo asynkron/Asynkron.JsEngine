@@ -53,6 +53,14 @@ path that can evaluate the assignment.
    semantics remain on generic assignment-reference paths. Cite the maintained
    performance note and ADR guardrails instead of implying a new benchmark,
    Test262, or runtime win unless the current slice actually re-proved it.
+10. When admitting a new compound property write shape to the unified-bytecode
+    production path, simultaneously update the boundary description in
+    `docs/unified-bytecode-expansion-contract.md`. Name the newly admitted shape,
+    its constraints (activation-resolved base, named key, production binary
+    operator, simple RHS), and the retained declines (logical-assignment operators,
+    deeper chains, computed-expression keys). Do not leave the old blanket
+    "is declined" statement intact — stale decline descriptions mislead agents
+    into thinking a shape is still excluded when it was already admitted.
 
 ## Why
 
@@ -105,3 +113,11 @@ by naming the optimized static-slot path, the preserved dynamic lookup boundary,
 and the existing proof surfaces (`docs/performance/ir-arithmetic-self-assignment-compound-slot.md`,
 ADR 0107, and ADR 0108) without claiming new verification from a maintenance
 slice that did not run runtime proofs.
+
+Issue `planitem-planmanual1780157100924814000-baseline-batch-4-compound-property-writes` /
+PR #2756 corrected a stale sentence in `docs/unified-bytecode-expansion-contract.md`
+that described compound read-then-write as "declined by `PropertyWriteDependency`"
+after the named-property shape had already been admitted by
+`TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`. The doc was accurate when
+originally written but became stale when eligibility expanded. The durable
+constraint is rule 10 below.

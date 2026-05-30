@@ -38,6 +38,7 @@ scan this index and read **only** the rule files whose scope matches your task.
 | `expression-bytecode-meta-bindings.md` | Expression Bytecode Meta Bindings |
 | `expression-bytecode-packing.md` | Expression Bytecode Packing |
 | `function-activation-proof-pack.md` | Function Activation Proof Pack |
+| `generator-execution-path-parity.md` | Generator Execution Path Parity |
 | `host-function-observable-shape.md` | Host Function Observable Shape |
 | `ir-control-flow-cleanup.md` | IR Control-Flow Cleanup |
 | `js-spec-property-access.md` | JavaScript Spec Property Access in C# Helpers |

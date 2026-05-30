@@ -405,8 +405,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     boundary operand encoding rather than requiring a new opcode, provided the
     spread flattening reuses a shared helper (`EnumerateSpread`) and the no-mixed-
     execution rule is respected — no AST/IR fallback for the spread path.
-    Optional calls, construct/super, and direct eval continue to decline at
-    their existing guards and are not affected by the spread admission.
+    Optional calls, spread-onto-construct, super calls, and direct eval continue
+    to decline at their existing guards and are not affected by the spread
+    admission. Non-spread plain-constructor calls (`new F(...)`) were admitted
+    separately in issue #2690 / PR #2697 (rule #37).
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
@@ -532,11 +534,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     calls became the first remaining lane, computed member calls second, and
     constructor/super, spread/direct eval, dynamic lookup,
     iterator/destructuring, and label families stayed deferred. Issue #2530 /
-    PR #2534 has since landed named member calls, and issue #2531 / PR #2535
-    has since landed direct computed member calls, so future plan edits must
-    treat constructor/super, spread/direct eval, dynamic lookup,
-    iterator/destructuring, and label families as remaining lanes unless
-    current `main` proves an even newer call slice has landed.
+    PR #2534 has since landed named member calls, issue #2531 / PR #2535 has
+    since landed direct computed member calls, issue #2679 / PR #2683 has
+    since admitted labeled control flow (rule #36), and issue #2690 / PR #2697
+    has since admitted non-spread plain-constructor calls (rule #37). Future
+    plan edits must treat spread-onto-construct, super calls, member-target
+    constructs, direct eval, dynamic lookup, and iterator/destructuring as
+    remaining lanes unless current `main` proves an even newer slice has
+    landed.
 32. When preserving or widening with-backed dynamic names on the production
     unified bytecode route, keep the accepted program activation-hoist aligned
     and receiver-owned. The sync bridge must define function-scoped var bindings
@@ -690,6 +695,42 @@ all-or-nothing until a separate routing issue proves production readiness.
     narrow soundness decline; (2) the single-level VM cleanup model — not the
     label itself — is the real boundary, and a PC-based multi-driver shortcut is
     unsound under lazy target compilation.
+
+37. When admitting synchronous non-spread construct calls (`new F(...)`) to
+    production unified bytecode, keep the `ConstructInvocationBoundary` opcode
+    receiver-free and mirror the spec-conformant construct reference helper
+    (`ExecuteProgramConstruct`). The construct model differs from call: the
+    constructor is pushed as a plain value load with no receiver or call-target
+    preparation, and `[[Construct]]` is invoked with the constructor as both the
+    target and `new.target`. Spread-onto-construct (`new F(...args)`) must
+    decline as `ObjectLiteralOrSpreadDependency`; member-target constructs
+    (`new obj.F()`) and non-simple argument expressions must decline at their
+    existing guards, matching the parallel restrictions on call targets. Keep the
+    super call family (`SuperConstruct`, `LoadNamedSuperCallTarget`,
+    `LoadComputedSuperCallTarget`) explicitly declined as
+    `SuperPropertyDependency` — do not implement them in the flat-slot VM. The
+    activation gate in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
+    already blocks derived class constructors (`IsClassConstructor`,
+    `_superConstructor`, `_lexicalThisEnvironment`, `newTarget`, etc.) before
+    expression eligibility runs, making any `SuperConstruct` expression
+    unreachable in production. Implementing the ~170-line super construction
+    machinery (super binding resolution, `ThisInitialized` guard,
+    `MarkThisInitialized`, class-field initializers) in the VM would be
+    untestable, unprovable dead code — a direct contradiction of the proof-pack
+    requirement that every admitted shape be demonstrable. The principle is:
+    **activation-gate unreachability is a proof-pack blocker**. If the
+    activation layer already prevents a function kind from routing through
+    unified bytecode, implementing VM semantics for ops that appear only in those
+    function kinds cannot be proven through the normal proof pack and must not be
+    added until the activation gate itself is widened and the matching VM
+    semantics are demonstrable. Pair construct admission with proof-pack
+    coverage for `new.target` propagation, zero/many-arg construct, argument
+    order, not-a-constructor `TypeError`, and the spread/member-target/super
+    negative declines. WHY: issue #2690 / PR #2697 admitted `Construct` with ADR
+    0286. The super family analysis confirmed that gate-layer decisions upstream
+    of expression eligibility determine what can be demonstrably proven in the
+    flat-slot VM; future widening of the activation gate must pair with matching
+    VM semantics proof before the expression-level decline is removed.
 
 ## Why
 
@@ -983,3 +1024,4 @@ Related ADRs:
 - `docs/adrs/0279-accept-this-dependent-ordinary-sync-in-unified-bytecode.md`
 - `docs/adrs/0283-accept-this-dependent-async-generator-in-resumable-unified-bytecode.md`
 - `docs/adrs/0285-admit-labeled-control-flow-in-unified-bytecode-and-decline-driver-crossing.md`
+- `docs/adrs/0286-accept-unified-bytecode-construct-calls-and-decline-super-calls.md`

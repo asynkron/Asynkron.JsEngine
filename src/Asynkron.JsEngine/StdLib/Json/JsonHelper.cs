@@ -858,8 +858,93 @@ public static class JsonHelper
 
     #region Legacy StringifyValue (kept for backward compatibility)
 
+    internal static string StringifyValue(JsValue value, int depth = 0)
+    {
+        if (depth > 100)
+        {
+            return "null";
+        }
+
+        if (value.IsNullOrUndefined)
+        {
+            return "null";
+        }
+
+        switch (value.Kind)
+        {
+            case JsValueKind.Boolean:
+                return value.NumberValue != 0 ? "true" : "false";
+
+            case JsValueKind.Number:
+            {
+                var d = value.NumberValue;
+                if (double.IsNaN(d) || double.IsInfinity(d))
+                {
+                    return "null";
+                }
+
+                return d.ToString(CultureInfo.InvariantCulture);
+            }
+
+            case JsValueKind.String:
+                return JsonSerializer.Serialize(value.AsString());
+
+            case JsValueKind.Object:
+            {
+                if (value.TryGetObject<JsArray>(out var arr))
+                {
+                    var arrItems = new List<string>();
+                    foreach (var item in arr.Items)
+                    {
+                        arrItems.Add(StringifyValue(item, depth + 1));
+                    }
+
+                    return "[" + string.Join(',', arrItems) + "]";
+                }
+
+                if (value.TryGetObject<JsObject>(out var obj))
+                {
+                    var objProps = new List<string>();
+                    foreach (var key in obj.GetOwnEnumerablePropertyKeysInOrder(false))
+                    {
+                        if (key.StartsWith('_'))
+                        {
+                            continue;
+                        }
+
+                        if (!obj.TryGetProperty(key, out var propVal))
+                        {
+                            continue;
+                        }
+
+                        if (propVal.TryGetObject<IJsCallable>(out _))
+                        {
+                            continue;
+                        }
+
+                        objProps.Add($"{JsonSerializer.Serialize(key)}:{StringifyValue(propVal, depth + 1)}");
+                    }
+
+                    return "{" + string.Join(',', objProps) + "}";
+                }
+
+                if (value.TryGetObject<IJsCallable>(out _))
+                {
+                    return "undefined";
+                }
+
+                return "null";
+            }
+
+            default:
+                return "null";
+        }
+    }
+
+    [Obsolete("Use StringifyValue(JsValue) instead.", false)]
     internal static string StringifyValue(object? value, int depth = 0)
     {
+#pragma warning disable CS0618
         while (true)
         {
             if (depth > 100)
@@ -945,6 +1030,7 @@ public static class JsonHelper
                     return JsonSerializer.Serialize(value?.ToString() ?? "");
             }
         }
+#pragma warning restore CS0618
     }
 
     #endregion

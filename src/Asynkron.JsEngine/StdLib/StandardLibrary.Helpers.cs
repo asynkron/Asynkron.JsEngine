@@ -16,6 +16,7 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
+    [Obsolete("Legacy object? overload. Use TryGetObject(JsValue, ...) instead.", false)]
     internal static bool TryGetObject(object? candidate, RealmState realm, out IJsObjectLike accessor)
     {
         while (true)

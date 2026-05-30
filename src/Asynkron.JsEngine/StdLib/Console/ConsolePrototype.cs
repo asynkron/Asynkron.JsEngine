@@ -58,22 +58,22 @@ public sealed partial class ConsolePrototype
             {
                 parts.Add(s);
             }
-            else if (arg.TryGetObject<JsArray>(out var arr))
+            else if (arg.TryGetObject<JsArray>(out _))
             {
                 try
                 {
-                    parts.Add(StringifyValue(arr));
+                    parts.Add(StringifyValue(arg));
                 }
                 catch
                 {
                     parts.Add("[Array]");
                 }
             }
-            else if (arg.TryGetObject<JsObject>(out var obj))
+            else if (arg.TryGetObject<JsObject>(out _))
             {
                 try
                 {
-                    parts.Add(StringifyValue(obj));
+                    parts.Add(StringifyValue(arg));
                 }
                 catch
                 {

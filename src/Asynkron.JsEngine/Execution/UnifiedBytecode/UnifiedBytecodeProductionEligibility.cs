@@ -2449,13 +2449,23 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Multiply or
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
+            BinaryOperator.Power or
             BinaryOperator.Equal or
+            BinaryOperator.NotEqual or
             BinaryOperator.StrictEqual or
             BinaryOperator.StrictNotEqual or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
-            BinaryOperator.GreaterThanOrEqual;
+            BinaryOperator.GreaterThanOrEqual or
+            BinaryOperator.BitwiseAnd or
+            BinaryOperator.BitwiseOr or
+            BinaryOperator.BitwiseXor or
+            BinaryOperator.LeftShift or
+            BinaryOperator.RightShift or
+            BinaryOperator.UnsignedRightShift or
+            BinaryOperator.In or
+            BinaryOperator.InstanceOf;
 
     private static string FormatBinaryOperator(BinaryOperator binaryOperator) =>
         binaryOperator switch
@@ -2465,13 +2475,23 @@ internal static class UnifiedBytecodeProductionEligibility
             BinaryOperator.Multiply => "*",
             BinaryOperator.Divide => "/",
             BinaryOperator.Modulo => "%",
+            BinaryOperator.Power => "**",
             BinaryOperator.Equal => "==",
+            BinaryOperator.NotEqual => "!=",
             BinaryOperator.StrictEqual => "===",
             BinaryOperator.StrictNotEqual => "!==",
             BinaryOperator.LessThan => "<",
             BinaryOperator.LessThanOrEqual => "<=",
             BinaryOperator.GreaterThan => ">",
             BinaryOperator.GreaterThanOrEqual => ">=",
+            BinaryOperator.BitwiseAnd => "&",
+            BinaryOperator.BitwiseOr => "|",
+            BinaryOperator.BitwiseXor => "^",
+            BinaryOperator.LeftShift => "<<",
+            BinaryOperator.RightShift => ">>",
+            BinaryOperator.UnsignedRightShift => ">>>",
+            BinaryOperator.In => "in",
+            BinaryOperator.InstanceOf => "instanceof",
             _ => binaryOperator.ToString()
         };
 }

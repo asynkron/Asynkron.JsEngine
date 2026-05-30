@@ -848,19 +848,19 @@ public static partial class TypedAstEvaluator
     }
 
     /// <summary>
-    /// Public wrapper for the 'in' operator.
+    /// Public wrapper for the 'in' operator (property in target).
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    internal static JsValue In(in JsValue property, in JsValue target, EvaluationContext ctx)
+    internal static JsValue InOperatorValue(in JsValue property, in JsValue target, EvaluationContext ctx)
     {
         return InOperatorJsValue(property, target, ctx) ? JsValue.True : JsValue.False;
     }
 
     /// <summary>
-    /// Public wrapper for the 'instanceof' operator.
+    /// Public wrapper for the 'instanceof' operator (left instanceof right).
     /// </summary>
     [MethodImpl(JsEngineConstants.Inlining)]
-    internal static JsValue InstanceOf(in JsValue left, in JsValue right, EvaluationContext ctx)
+    internal static JsValue InstanceOfOperatorValue(in JsValue left, in JsValue right, EvaluationContext ctx)
     {
         return InstanceofOperatorJsValue(left, right, ctx) ? JsValue.True : JsValue.False;
     }

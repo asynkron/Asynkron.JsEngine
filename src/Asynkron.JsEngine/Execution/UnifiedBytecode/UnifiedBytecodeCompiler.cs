@@ -5175,13 +5175,23 @@ internal static class UnifiedBytecodeCompiler
             BinaryOperator.Multiply or
             BinaryOperator.Divide or
             BinaryOperator.Modulo or
+            BinaryOperator.Power or
             BinaryOperator.Equal or
+            BinaryOperator.NotEqual or
             BinaryOperator.StrictEqual or
             BinaryOperator.StrictNotEqual or
             BinaryOperator.LessThan or
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
-            BinaryOperator.GreaterThanOrEqual;
+            BinaryOperator.GreaterThanOrEqual or
+            BinaryOperator.BitwiseAnd or
+            BinaryOperator.BitwiseOr or
+            BinaryOperator.BitwiseXor or
+            BinaryOperator.LeftShift or
+            BinaryOperator.RightShift or
+            BinaryOperator.UnsignedRightShift or
+            BinaryOperator.In or
+            BinaryOperator.InstanceOf;
 
     private static bool TryResolveInstructionSlot(
         Symbol symbol,

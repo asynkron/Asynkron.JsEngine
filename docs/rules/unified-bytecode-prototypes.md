@@ -941,7 +941,7 @@ all-or-nothing until a separate routing issue proves production readiness.
 
     WHY: issue gh2771 / PR #2777 admitted simple optional member reads,
     building on the property-read production eligibility boundary (rules 12,
-    13, ADR 0294). The durable lesson is that optional-chain admission is not
+    13, ADR 0296). The durable lesson is that optional-chain admission is not
     a single gate lift. The IR flags `IsOptional` and
     `ShortCircuitOnNullishTarget` are independent: admitting
     `IsOptional:true, ShortCircuitOnNullishTarget:false` keeps the first-hop
@@ -949,6 +949,44 @@ all-or-nothing until a separate routing issue proves production readiness.
     separate slice. A future slice admitting chained forms must own
     sentinel-value propagation through the full chain before removing the
     `ShortCircuitOnNullishTarget:true` decline.
+
+43. When admitting `ConditionalExpression` (`cond ? a : b`) to production
+    unified bytecode, the **only new compiler surface** is
+    `ExpressionOpKind.Jump` in `TryAppendExpressionProgramOps`. No new VM
+    opcodes are needed: the existing `Jump`, `JumpIfShortCircuitFalse`, and
+    `Pop` opcodes already cover the ternary execution model.
+
+    The expression-program compiler emits ternary as:
+    ```
+    [test ops]
+    JumpIfFalse(alternateStart)   ← already handled
+    Pop
+    [consequent ops]
+    Jump(endTarget)               ← ExpressionOpKind.Jump — the only new case
+    Pop
+    [alternate ops]
+    [endTarget]
+    ```
+
+    Wire `ExpressionOpKind.Jump` with the same `exprPcToUnifiedPc[]` backpatch
+    pattern used by `JumpIfFalse/True/NotNullish` (ADR 0293): emit
+    `UnifiedBytecodeOpCode.Jump(0)` as a placeholder, record a patch entry,
+    and backpatch the operand after all ops are emitted. Also add
+    `case ExpressionOpKind.Jump:` to `TryFindExpressionDecline`'s allowed-op
+    set as documentation and a guard against future `default:` arm regressions.
+
+    Note: optional-call expression programs (`box.read?.()`) also contain
+    `ExpressionOpKind.Jump` but are attached to
+    `CallInvocationBoundaryInstruction`, which `TryGetExpressionProgram` does
+    not handle. The eligibility op scan is never reached for those programs, so
+    the admitted `Jump` case does not accidentally pass optional-call shapes.
+
+    WHY: issue gh2770 / PR #2772 found that ternary was declined with
+    `UnsupportedPlanShape` because `TryAppendExpressionProgramOps` had no
+    `case ExpressionOpKind.Jump:` — the compiler fell through to its
+    `default:` arm and returned `UnsupportedExpressionOp`. The fix is a single
+    new `case` with a placeholder-emit-then-backpatch. No new opcodes, no VM
+    changes, no resumable-path changes. ADR 0297.
 
 ## Why
 
@@ -1296,5 +1334,6 @@ Related ADRs:
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0293-admit-logical-and-nullish-expressions-in-unified-bytecode-with-peek-jump-semantics.md`
-- `docs/adrs/0294-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0295-admit-property-read-short-circuit-expressions-simple-rhs-owned.md`
+- `docs/adrs/0296-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
+- `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`

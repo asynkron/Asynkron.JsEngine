@@ -1,4 +1,4 @@
-# ADR 0294: Admit optional member access in unified bytecode with null-check opcodes
+# ADR 0296: Admit optional member access in unified bytecode with null-check opcodes
 
 ## Status
 

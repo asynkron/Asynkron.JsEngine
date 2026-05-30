@@ -20,6 +20,12 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - [Git worktree workflow](agents/how-to-worktrees.md)
 - [How to deduplicate "almost duplicate" code](agents/how-to-deduplicate-code.md)
 
+## Experimental Memory Evaluation
+- Mem0 CLI is available for evaluation via the local skill at [`.agents/skills/mem0-cli/SKILL.md`](.agents/skills/mem0-cli/SKILL.md) and [`.claude/skills/mem0-cli/SKILL.md`](.claude/skills/mem0-cli/SKILL.md).
+- Use it only when the task explicitly needs Mem0 memory operations or the user asks to evaluate `mem0`/`mem0-cli`; GitHub issues and repo docs remain the durable project memory by default.
+- Prefer structured output for agent use: `rtk mem0 ... --json` or `rtk mem0 ... --agent`.
+- For evaluation setup, use agent mode such as `rtk mem0 init --agent --agent-caller <agent-name> --json`; never commit API keys, `.env`, or `~/.mem0/config.json`.
+
 ## JsValue and Performance Patterns
 - [JsValue usage and evaluator overload pattern](agents/how-to-jsvalue-usage.md)
 - [Comparing to Jint (do/don't language)](agents/how-to-compare-jint.md)

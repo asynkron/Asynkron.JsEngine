@@ -807,6 +807,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -1702,7 +1707,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var firstOperation = program.GetOperation(0);
-        if (!TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(firstOperation, identifierConstants, activationSlots))
         {
             return false;
         }
@@ -1901,6 +1906,55 @@ internal static class UnifiedBytecodeProductionEligibility
         return program.GetOperation(2).Kind == ExpressionOpKind.UpdateComputedProperty &&
                TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
                IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
+    }
+
+    /// <summary>
+    ///     Admits the shape: [ActivationResolvedValue, GetNamedProperty+, SimpleOperand, ProductionBinary].
+    ///     Covers expressions like <c>this.prop === value</c> where the LHS is a named property chain
+    ///     rooted at an activation-resolved value and the RHS is a simple operand.
+    /// </summary>
+    private static bool TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, rhs, Binary] = 4 ops
+        if (program.OperationCount < 4)
+        {
+            return false;
+        }
+
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.Binary || !IsProductionBinaryOperator(lastOp.Operator))
+        {
+            return false;
+        }
+
+        var rhsOp = program.GetOperation(program.OperationCount - 2);
+        if (!IsSimpleOperand(rhsOp, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var i = 1; i < program.OperationCount - 2; i++)
+        {
+            var op = program.GetOperation(i);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+                op.GetString(stringConstants).IsPrivateName() ||
+                op.IsOptional ||
+                op.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsSimpleOperand(

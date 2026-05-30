@@ -374,6 +374,22 @@ When working inside the core engine, keep JavaScript values represented as
     bridge alive. Related ADR:
     `docs/adrs/0223-keep-typedarray-constructor-result-jsvalue-native.md`.
 
+26. When a Tier 0 call path is fixed-arity (all argument positions statically
+    known at the call site), pass arguments as `ReadOnlySpan<JsValue>` or as
+    explicit named parameters rather than materializing a `JsValue[]` backing
+    array. A fixed-arity built-in call that allocates a `new JsValue[]` for a
+    transient argument list is a `.NET Platform Advantage` violation: the
+    `Span<JsValue>` argument contract avoids the backing allocation entirely
+    on Tier 0 hot paths.
+    Keep variadic/unknown-arity calls on the existing pooled `JsValue[]` path;
+    do not widen the span contract to runtime-unknown arities without a
+    separate focused proof that the caller can materialize a span of the
+    correct length at call time.
+    WHY: `docs/dreaming.md` rev 3 `.NET Platform Advantage` table row for
+    `Span<JsValue>` argument passing named this as a binding obligation:
+    "fixed-arity calls must not allocate a `JsValue[]` backing array." Issue
+    `autrun-diw47qzvz96o-ae49286019` / PR #2725 formalized this constraint.
+
 ## Why
 
 Issue `autrun-diqzx0r7ibgg-35b8604f32` / PR #1697 migrated

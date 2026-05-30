@@ -31,6 +31,18 @@ optimization.
 3. Preserve `PERF_PROFILES` override behavior when changing aggregate profiler
    defaults. Default guardrails may expand, but operators must still be able to
    run a narrowed profile set.
+3a. For cold-start latency (`startup` profile) and microtask drain latency
+    (`microtask` profile), guard regressions via `./tools/check-slo-gate`
+    (Makefile target: `slo-gate`). The gate uses 200% tolerance by default
+    because CPU timing is hardware-dependent and noisier than allocation bytes.
+    When an intentional change moves these numbers, refresh the baseline:
+    `./tools/check-slo-gate --update && git add tools/perf-slo-baseline.md`.
+    Do not interpret an SLO gate failure as an allocation regression; use
+    `check-allocation-regression` and allocation profiles separately.
+    WHY: issue #2711 / PR #2716 introduced the startup/microtask SLO gate and
+    committed the first baseline. See `docs/rules/tooling-shell-wrappers.md`
+    "Performance SLO Gate Consistency" for the three-step atomic update rule
+    when adding new profiles to the gate.
 4. Keep activation guardrails as profiler/tooling surfaces unless the issue
    explicitly asks for runtime optimization. Do not modify invoker,
    environment, arguments-object, or parameter-binding code without current

@@ -108,3 +108,44 @@ WHY: issue #2706 / PR #2715 review caught that `fib-iterative` was added to
 The two-line fix (add entry, run `--update`) was straightforward, but the review
 cycle would have been avoided by treating all three steps as a single atomic
 operation.
+
+## Performance SLO Gate Consistency
+
+`tools/check-slo-gate` has a `slo_profiles` array that controls which
+profiles the timing SLO gate measures. Whenever a new profile should be guarded
+by the SLO gate, all three surfaces must be updated together:
+
+1. Add the profile script to `tools/profile-scripts/`.
+2. Add the profile name to `slo_profiles` in `tools/check-slo-gate`.
+3. Regenerate the committed baseline: `./tools/check-slo-gate --update`
+   and commit `tools/perf-slo-baseline.md`.
+
+Omitting step 2 means the new profile is never measured by the gate even though
+it appears in the manifest; omitting step 3 means the gate has no baseline to
+compare against and will report `NO BASELINE` for the new profile.
+
+WHY: issue #2711 / PR #2716 introduced the timing SLO gate with the `startup`
+and `microtask` profiles. The three-step atomic pattern mirrors the Node.js gate
+entry consistency rule above and avoids the same class of "added to manifest but
+not guarded" defect caught in issue #2706 / PR #2715.
+
+Note: the SLO gate uses 200% tolerance by default (gate fails only when
+measurement exceeds 3× the baseline) because CPU timing is hardware-dependent
+and noisier than allocation bytes. The committed `tools/perf-slo-baseline.md` is
+machine-specific; regenerate it with `--update` when switching developer hardware.
+
+## Usage Heredoc Path Drift
+
+When creating a new gate or wrapper script by mirroring an existing one, grep
+for all path references — including those inside `usage()` heredocs and
+`cat <<'USAGE'` blocks — and update them to match the new file locations.
+
+Usage text is not executed and is easy to overlook during a template copy. A
+stale path in a `usage()` heredoc misleads future maintainers about where the
+committed baseline lives and makes the `--help` output incorrect.
+
+WHY: issue #2711 / PR #2716 build fix corrected `.testrunner/perf-slo-baseline.md`
+→ `tools/perf-slo-baseline.md` in the `check-slo-gate` `usage()` block. The
+script was created by mirroring `check-allocation-regression`, which stores its
+baseline at a different location; the usage heredoc was not updated to match the
+new path.

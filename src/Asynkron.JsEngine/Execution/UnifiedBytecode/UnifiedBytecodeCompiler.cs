@@ -3079,6 +3079,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryOptionalNamedPropertyRead(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryPropertyReadBinaryExpression(
                 expressionProgram,
                 activationSlots,
@@ -3245,9 +3260,9 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.GetNamedProperty:
-                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    if (operation.ShortCircuitOnNullishTarget)
                     {
-                        reason = "Optional named property reads are not supported in the general expression loop.";
+                        reason = "Optional named property reads with short-circuit target are not supported in the general expression loop.";
                         return false;
                     }
 
@@ -3259,7 +3274,11 @@ internal static class UnifiedBytecodeCompiler
 
                     var namedPropNameIndex = stringConstants.Count;
                     stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, namedPropNameIndex));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        operation.IsOptional
+                            ? UnifiedBytecodeOpCode.GetNamedPropertyOptional
+                            : UnifiedBytecodeOpCode.GetNamedProperty,
+                        namedPropNameIndex));
                     break;
 
                 case ExpressionOpKind.LoadNewTarget:
@@ -3460,6 +3479,16 @@ internal static class UnifiedBytecodeCompiler
                     patches ??= [];
                     patches.Add((unified.Count, operation.Target));
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish, 0));
+                    break;
+
+                case ExpressionOpKind.JumpIfNullish when operation.ReplaceWithUndefined:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+                    break;
+
+                case ExpressionOpKind.GetComputedProperty when !operation.ShortCircuitOnNullishTarget:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
                     break;
 
                 default:
@@ -4993,7 +5022,7 @@ internal static class UnifiedBytecodeCompiler
 
             if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
             {
-                reason = "Optional named property reads are not supported.";
+                reason = string.Empty;
                 return false;
             }
         }
@@ -5011,6 +5040,45 @@ internal static class UnifiedBytecodeCompiler
             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
         }
 
+        reason = string.Empty;
+        return true;
+    }
+
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)]
+    // Emits: LoadSlot, GetNamedPropertyOptional
+    private static bool TryAppendFirstBoundaryOptionalNamedPropertyRead(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var baseLoad = expressionProgram.GetOperation(0);
+        var getNamedOp = expressionProgram.GetOperation(1);
+
+        if (getNamedOp.Kind != ExpressionOpKind.GetNamedProperty ||
+            !getNamedOp.IsOptional ||
+            getNamedOp.ShortCircuitOnNullishTarget ||
+            getNamedOp.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(getNamedOp.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedPropertyOptional, propertyNameIndex));
         reason = string.Empty;
         return true;
     }

@@ -54,6 +54,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `RequireObjectCoercible`
 - `ResolvePropertyKey`
 - `GetNamedProperty`
+- `GetNamedPropertyOptional`
 - `GetComputedProperty`
 - `GetNamedPropertyForCompoundSet`
 - `GetComputedPropertyForCompoundSet`
@@ -86,6 +87,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `JumpIfShortCircuitFalse`
 - `JumpIfShortCircuitTrue`
 - `JumpIfShortCircuitNotNullish`
+- `JumpIfNullishReplaceUndefined`
 - `Return`
 - `ReturnUndefined`
 - `Throw`

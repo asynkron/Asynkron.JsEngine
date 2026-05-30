@@ -449,9 +449,10 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
-                    if (slots[instruction.Operand].IsUninitialized)
+                    var storeSlotIndex = instruction.Operand & 0x7FFFFFFF;
+                    if (slots[storeSlotIndex].IsUninitialized)
                     {
-                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        SetUninitializedSlotReferenceError(program, storeSlotIndex, context);
                         if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
@@ -461,8 +462,15 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     var storedValue = stack[--stackPointer];
-                    slots[instruction.Operand] = storedValue;
-                    SyncSlotEnvironment(slotEnvironments, instruction.Operand, storedValue);
+                    if (instruction.Operand < 0 &&
+                        storedValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget storeSlotNameTarget } &&
+                        GetSlotName(program, storeSlotIndex) is { } storeSlotInferredName)
+                    {
+                        storeSlotNameTarget.EnsureHasName(storeSlotInferredName);
+                    }
+
+                    slots[storeSlotIndex] = storedValue;
+                    SyncSlotEnvironment(slotEnvironments, storeSlotIndex, storedValue);
 
                     programCounter++;
                     break;
@@ -2179,14 +2187,23 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.StoreSlot:
-                    if (slots[instruction.Operand].IsUninitialized)
+                    var storeSlotIdx = instruction.Operand & 0x7FFFFFFF;
+                    if (slots[storeSlotIdx].IsUninitialized)
                     {
-                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        SetUninitializedSlotReferenceError(program, storeSlotIdx, context);
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
-                    slots[instruction.Operand] = stack[--stackPointer];
+                    var storedSlotValue = stack[--stackPointer];
+                    if (instruction.Operand < 0 &&
+                        storedSlotValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget storeSlotStepNameTarget } &&
+                        GetSlotName(program, storeSlotIdx) is { } storeSlotStepInferredName)
+                    {
+                        storeSlotStepNameTarget.EnsureHasName(storeSlotStepInferredName);
+                    }
+
+                    slots[storeSlotIdx] = storedSlotValue;
                     programCounter++;
                     break;
 

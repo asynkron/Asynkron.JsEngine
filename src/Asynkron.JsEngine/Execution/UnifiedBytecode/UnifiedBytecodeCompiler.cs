@@ -10,6 +10,7 @@ internal static class UnifiedBytecodeCompiler
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
     private const int DynamicStoreAllowNameInferenceFlag = 1;
+    private const int StoreSlotNameInferenceFlag = unchecked((int)0x80000000);
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
@@ -682,7 +683,10 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, assignmentSlot));
+                        var storeSlotOperand = assignment.AllowNameInference
+                            ? assignmentSlot | StoreSlotNameInferenceFlag
+                            : assignmentSlot;
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlotOperand));
                         maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,

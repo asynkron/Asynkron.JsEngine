@@ -28,25 +28,28 @@ name inference tied to the syntax form that owns the binding name.
    the issue-listed `language/statements/let/fn-name-*` rows or
    `Name=Statements_let`, before widening into broader Test262 or runtime
    changes.
-6. When admitting `DefineObjectProperty` with `AllowNameInference` set to the
-   unified bytecode production VM, handle the flag with a VM-side `EnsureHasName`
-   call on the property value result — mirror the `StoreDynamicIdentifierValue`
-   pattern. `EnsureHasName` is a safe no-op when the value is not an
-   `IFunctionNameTarget`, so the call is correct for both identifier-reference
-   and non-reference values. The eligibility and compiler `AllowNameInference`
-   guards in `DefineObjectProperty` are unreachable when `LoadFunctionLiteral`
-   already declines first for function-literal value cases; removing them as
-   defensive cleanup is safe and must be paired with the VM `EnsureHasName`
+6. When admitting `DefineObjectProperty` or `DefineComputedObjectProperty` with
+   `AllowNameInference` set to the unified bytecode production VM, handle the
+   flag with a VM-side `EnsureHasName` call on the property value result —
+   mirror the `StoreDynamicIdentifierValue` pattern. `EnsureHasName` is a safe
+   no-op when the value is not an `IFunctionNameTarget`, so the call is correct
+   for identifier-reference, non-reference, and function-literal values alike.
+   Once `LoadFunctionLiteral` is in the allowed-opcode subset (not the decline
+   block), the eligibility and compiler `AllowNameInference` guards on
+   `DefineObjectProperty` and `DefineComputedObjectProperty` become dead code
+   and must be removed; removing them must be paired with the VM `EnsureHasName`
    addition in the same slice. Note: `TryMeasureSimpleObjectLiteralSpan`
    (ADR 0290) keeps a separate `AllowNameInference` decline for the call-argument
    span-measurement context — that is an independent, narrower contract (simple
    non-name-inferring values only as arguments) and must not be conflated with
    the full production object literal return path. WHY: issue
    `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-e0f8cc5711`
-   / PR #2738 found that shorthand object literal properties `{ a, b }` in a
-   return expression were blocked by an unreachable `AllowNameInference` guard
-   in the eligibility and compiler, while the VM needed `EnsureHasName` to handle
-   the semantic correctly without throwing.
+   / PR #2738 unblocked shorthand properties `{ a, b }` while `LoadFunctionLiteral`
+   still declined; issue
+   `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`
+   / PR #2740 completed the picture by admitting `LoadFunctionLiteral` and
+   confirming that the `AllowNameInference` eligibility/compiler guards are
+   unreachable in both the shorthand and function-literal-valued property shapes.
 
 ## Why
 

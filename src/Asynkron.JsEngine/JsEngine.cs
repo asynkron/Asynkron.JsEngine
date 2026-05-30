@@ -780,10 +780,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return Evaluate(program, cancellationToken, null);
     }
 
-    private static object? UnwrapResult(object? result)
+    private static object? UnwrapResult(JsValue result)
     {
 #pragma warning disable CS0618 // Public API boundary: must return object? for external callers
-        return result is JsValue jsValue ? jsValue.ToObject() : result;
+        return result.ToObject();
 #pragma warning restore CS0618
     }
 
@@ -881,13 +881,13 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     public object? EvaluateSync(string source, CancellationToken cancellationToken = default)
     {
         var program = ParseProgramOrThrowSyntaxError(source);
-        return EvaluateSyncInternal(program, cancellationToken);
+        return EvaluateSyncInternal(program, cancellationToken).ToObject();
     }
 
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>
-    private object? EvaluateSyncInternal(
+    private JsValue EvaluateSyncInternal(
         ProgramNode program,
         CancellationToken cancellationToken = default,
         string? sourcePath = null,
@@ -900,7 +900,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             EnsureImportMetaAllowed(program, isModule);
             if (!isModule)
             {
-                return UnwrapResult(ExecuteProgram(program, GlobalEnvironment, combinedToken));
+                return ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
 
             var entry = GetOrCreateModuleEntry(program, sourcePath);
@@ -913,7 +913,8 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             }
 
             EnsureModuleEvaluated(entry);
-            return ConvertJsValueToLegacyObject(entry.LastValue);
+            return entry.LastValue;
+#pragma warning restore CS0618
         }
         finally
         {
@@ -943,7 +944,9 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Already running on the event loop thread; execute synchronously to avoid deadlocks
             try
             {
-                return await Task.FromResult(EvaluateInline(program, cancellationToken, sourcePath, forceModule));
+#pragma warning disable CS0618 // Public API boundary: must return object? for external callers
+                return await Task.FromResult<object?>(EvaluateInline(program, cancellationToken, sourcePath, forceModule).ToObject());
+#pragma warning restore CS0618
             }
             catch (Exception ex)
             {
@@ -956,7 +959,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         try
         {
             // Step 1: Execute the code synchronously first (no event loop)
-            object? result;
+            JsValue result;
             var isModule = forceModule || HasModuleStatements(program);
             if (isModule)
             {
@@ -979,7 +982,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 }
 
                 return await CompleteEvaluationAfterSynchronousExecution(
-                    ConvertJsValueToLegacyObject(entry.LastValue),
+                    entry.LastValue,
                     combinedToken,
                     timeoutCts);
             }
@@ -987,7 +990,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             _isExecutingSynchronousEvaluation = true;
             try
             {
-                result = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
+                result = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             }
             finally
             {
@@ -1011,7 +1014,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         {
             await EnsureModuleEvaluatedAsync(entry, cancellationToken: combinedToken).ConfigureAwait(false);
             return await CompleteEvaluationAfterSynchronousExecution(
-                    ConvertJsValueToLegacyObject(entry.LastValue),
+                    entry.LastValue,
                     combinedToken,
                     timeoutCts)
                 .ConfigureAwait(false);
@@ -1023,7 +1026,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     }
 
     private async Task<object?> CompleteEvaluationAfterSynchronousExecution(
-        object? result,
+        JsValue result,
         CancellationToken combinedToken,
         CancellationTokenSource? timeoutCts)
     {
@@ -1058,7 +1061,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     }
 
     private async Task<object?> DrainPendingEventLoopAndCompleteAsync(
-        object? result,
+        JsValue result,
         CancellationToken combinedToken,
         CancellationTokenSource? timeoutCts)
     {
@@ -1164,7 +1167,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return Task.FromException<object?>(exception);
     }
 
-    private object? EvaluateInline(
+    private JsValue EvaluateInline(
         ProgramNode program,
         CancellationToken cancellationToken,
         string? sourcePath = null,
@@ -1194,12 +1197,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 }
 
                 DrainMicrotasks(cancellationToken: combinedToken);
-                return UnwrapResult(ConvertJsValueToLegacyObject(entry.LastValue));
+                return entry.LastValue;
             }
 
-            var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken).ToObject();
+            var scriptResult = ExecuteProgram(program, GlobalEnvironment, combinedToken);
             DrainMicrotasks(cancellationToken: combinedToken);
-            return UnwrapResult(scriptResult);
+            return scriptResult;
         }
         finally
         {
@@ -1922,17 +1925,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task<object?> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true,
+    private async Task<JsValue> EnsureModuleEvaluatedAsync(ModuleEntry entry, bool waitForAsync = true,
         CancellationToken cancellationToken = default)
     {
         if (entry.Evaluated)
         {
             if (entry.EvaluationTask is not null)
             {
-                return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
+                return await entry.EvaluationTask.ConfigureAwait(false);
             }
 
-            return ConvertJsValueToLegacyObject(entry.LastValue);
+            return entry.LastValue;
         }
 
         EnsureModuleInstantiated(entry);
@@ -1945,10 +1948,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             {
                 if (entry.EvaluationTask is not null)
                 {
-                    return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
+                    return await entry.EvaluationTask.ConfigureAwait(false);
                 }
 
-                return ConvertJsValueToLegacyObject(entry.LastValue);
+                return entry.LastValue;
             }
 
             entry.Evaluating = true;
@@ -1958,10 +1961,10 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 entry.Evaluated = true;
                 if (entry.EvaluationTask is not null)
                 {
-                    return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
+                    return await entry.EvaluationTask.ConfigureAwait(false);
                 }
 
-                return ConvertJsValueToLegacyObject(entry.LastValue);
+                return entry.LastValue;
             }
             finally
             {
@@ -1979,18 +1982,17 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         if (!waitForAsync)
         {
-            return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
+            return await entry.EvaluationTask.ConfigureAwait(false);
         }
 
         if (_eventLoopThreadId == Environment.CurrentManagedThreadId)
         {
             // Never attempt to pump the event queue from within the event loop thread.
             // Callers running on the event loop must observe completion asynchronously.
-            return ConvertJsValueToLegacyObject(await entry.EvaluationTask.ConfigureAwait(false));
+            return await entry.EvaluationTask.ConfigureAwait(false);
         }
 
-        return ConvertJsValueToLegacyObject(
-            await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken).ConfigureAwait(false));
+        return await AwaitModuleEvaluationAsync(entry.EvaluationTask, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<JsValue> AwaitModuleEvaluationAsync(Task<JsValue> evaluationTask,
@@ -2029,10 +2031,19 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return await evaluationTask.ConfigureAwait(false);
     }
 
+
+    /// <summary>
+    ///     Registers a value in the global scope (object overload for internal use).
+    /// </summary>
+    private void SetGlobal(string name, object? value, bool isGlobalConstant = false, bool registerBinding = false)
+    {
+        SetGlobal(name, JsValue.FromObjectUnsafe(value), isGlobalConstant, registerBinding);
+    }
+
     /// <summary>
     ///     Registers a value in the global scope.
     /// </summary>
-    private void SetGlobal(string name, object? value, bool isGlobalConstant = false, bool registerBinding = false)
+    private void SetGlobal(string name, JsValue value, bool isGlobalConstant = false, bool registerBinding = false)
     {
         var symbol = Symbol.Intern(name);
         if (registerBinding)
@@ -2040,13 +2051,14 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             // Only register a binding when explicitly requested (e.g., host-added globals).
             // Built-ins defined during engine initialization are exposed as global object
             // properties so they don't block later lexical declarations (let/const).
-            GlobalEnvironment.DefineJsValue(symbol, JsValue.FromObjectUnsafe(value), isGlobalConstant: isGlobalConstant,
+            GlobalEnvironment.DefineJsValue(symbol, value, isGlobalConstant: isGlobalConstant,
                 isLexicalBinding: false);
         }
 
         // Also mirror globals onto the global object so that code using
         // `this.foo` or `global.foo` can see host-provided bindings.
-        if (value is HostFunction hostFunction)
+        var obj = value.ToObject();
+        if (obj is HostFunction hostFunction)
         {
             if (hostFunction.Realm is null)
             {
@@ -2065,7 +2077,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                 hostFunction.Properties.SetPrototype(RealmState.FunctionPrototype);
             }
         }
-        else if (value is JsObject { RealmState: null } jsObject)
+        else if (obj is JsObject { RealmState: null } jsObject)
         {
             jsObject.RealmState = RealmState;
         }
@@ -2132,7 +2144,7 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
     /// </summary>
     public void SetGlobalValue(string name, object? value)
     {
-        SetGlobal(name, value, registerBinding: true);
+        SetGlobal(name, JsValue.FromObjectUnsafe(value), registerBinding: true);
     }
 
     /// <summary>
@@ -4779,22 +4791,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
             executionKind: ExecutionKind.Script, createStrictEnvironment: createStrictEnvironment,
             functionNameHint: functionNameHint,
             drainAwaitMicrotasks: drainAwaitMicrotasks);
-    }
-
-    private static object? ConvertJsValueToLegacyObject(JsValue result)
-    {
-        if (result.IsUnit || result.IsUndefined)
-        {
-            return Symbol.Undefined;
-        }
-
-        return result.Kind switch
-        {
-            JsValueKind.Null => null,
-            JsValueKind.Boolean => result.NumberValue != 0,
-            JsValueKind.Number => result.NumberValue,
-            _ => result.ObjectValue
-        };
     }
 
     //-------

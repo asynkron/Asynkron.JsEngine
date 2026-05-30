@@ -11,6 +11,7 @@ Scope: Shared contract for parallel unified-bytecode lane work.
 - Statement diagnostics support surface: `src/Asynkron.JsEngine/Execution/StatementInstructionDiagnosticsCodec.cs` (`IsSupportedKind`)
 - Expression bytecode capability map: `docs/expression-bytecode-coverage.md`
 - Current production routing evidence: `docs/performance/unified-bytecode-branch-production-routing.md`
+- Primary sync route coverage: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 
 ## No-Mixed-Execution Rule
 Production-eligible unified programs are all-or-nothing VM execution. Accepted
@@ -30,6 +31,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   programs attempt `UnifiedBytecodeVirtualMachine` before generic IR fallback.
   This is a selector coverage estimate, not a full ECMAScript function-surface
   claim; unsupported buckets below remain pre-VM declines.
+
+- Coverage evidence: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 
 ## Current Support Matrix
 
@@ -118,7 +121,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `ThisDependency`
+- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync)*
 - `NewTargetDependency`
 - `CallDependency`
 - `DynamicLookupDependency`
@@ -155,6 +158,32 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - Unary, binary, and conversion operations
 - Control flow, stack mechanics, and invocation
 - Stateful iterator, for-in, and array destructuring driver operations
+
+## Production This-Binding Boundary
+- Ordinary sync functions that reference `this` are admitted to the production
+  unified-bytecode path. The `_homeObject is not null` blanket rejection was
+  removed from `CanUseProductionUnifiedBytecodeFastPath` in PR #2633 (ADR 0279).
+- `_homeObject` is set for all class methods and object-literal methods defined
+  with method-definition syntax. A class method is admitted when its plan body
+  contains no super-property opcodes. The existing property-write boundary still
+  applies: `this.prop = expr_using_this_prop` (compound read-then-write) is
+  declined by `PropertyWriteDependency`; only simple assignments within the
+  existing boundary (e.g. `this.prop = slot/constant`) are admitted.
+- The plan-level `SuperPropertyDependency` decline in
+  `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
+  net for class methods that use `super`. Super-property reads, writes, and
+  updates (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
+  `SetNamedSuperProperty`, `SetComputedSuperProperty`,
+  `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`,
+  `EnsureSuperReference`) still decline before VM execution.
+- Sloppy-mode `this` coercion is handled before VM entry: `boundThis` is
+  computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
+  so the VM's `LoadThis` opcode always receives the correctly coerced value.
+- Arrow functions still decline via the `IsArrowFunction` and
+  `_lexicalThisEnvironment is not null` pre-gates.
+- `HasThisDependency` in `UnifiedBytecodeProductionActivationDescriptor` is
+  never set for ordinary sync functions (defaults to `false`). It is kept as an
+  explicit gate for future shapes where `this` must be declined.
 
 ## Production Loop-Control Boundary
 - Current production control-flow support is compiler-owned, not

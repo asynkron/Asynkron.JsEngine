@@ -4415,6 +4415,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LogicalAnd_LiteralRhs_ShortCircuitsOnFalsy()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function f(a) {
+                return a && 99;
+            }
+
+            [f(null), f(1)];
+            """);
+
+        Assert.True(((dynamic)result)[0] == null);
+        Assert.Equal(99d, ((dynamic)result)[1]);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=f argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LogicalOr_ShortCircuitsOnTruthyLeft_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -4449,6 +4469,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=orOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalOr_LiteralFallback_ShortCircuitsOnTruthy()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function f(a) {
+                return a || 99;
+            }
+
+            [f(0), f(7)];
+            """);
+
+        Assert.Equal(99d, ((dynamic)result)[0]);
+        Assert.Equal(7d, ((dynamic)result)[1]);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=f argc=1",
                 StringComparison.Ordinal));
     }
 
@@ -4506,6 +4546,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=nullishOp argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishCoalescing_LiteralFallback_ShortCircuitsOnNonNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function f(a) {
+                return a ?? 99;
+            }
+
+            [f(null), f(undefined), f(0), f("hello")];
+            """);
+
+        Assert.Equal(99d, ((dynamic)result)[0]);
+        Assert.Equal(99d, ((dynamic)result)[1]);
+        Assert.Equal(0d, ((dynamic)result)[2]);
+        Assert.Equal("hello", (string)((dynamic)result)[3]);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=f argc=1",
                 StringComparison.Ordinal));
     }
 }

@@ -2269,6 +2269,24 @@ internal static class UnifiedBytecodeVirtualMachine
                         : instruction.Operand;
                     break;
 
+                case UnifiedBytecodeOpCode.JumpIfFalsePreserve:
+                    programCounter = !stack[stackPointer - 1].IsTruthy
+                        ? instruction.Operand
+                        : programCounter + 1;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfTruePreserve:
+                    programCounter = stack[stackPointer - 1].IsTruthy
+                        ? instruction.Operand
+                        : programCounter + 1;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfNotNullish:
+                    programCounter = !stack[stackPointer - 1].IsNullish
+                        ? instruction.Operand
+                        : programCounter + 1;
+                    break;
+
                 case UnifiedBytecodeOpCode.Yield:
                     var yieldedValue = stackPointer > 0 ? stack[--stackPointer] : JsValue.Undefined;
                     state.ProgramCounter = programCounter + 1;

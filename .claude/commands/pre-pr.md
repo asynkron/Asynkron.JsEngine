@@ -1,6 +1,6 @@
 ---
 description: Run mandatory pre-PR checks before creating a pull request
-allowed-tools: Bash(roslynator:*), Bash(dotnet:*), Bash(quickdup:*), Bash(gh:*)
+allowed-tools: Bash(roslynator:*), Bash(dotnet:*), Bash(quickdup:*), Bash(gh:*), Bash(./tools/check-allocation-regression:*)
 ---
 
 # Pre-PR Checklist
@@ -50,7 +50,27 @@ quickdup --path src/Asynkron.JsEngine --ext .cs --select 0..20 --min 2 --exclude
 dotnet format src/Asynkron.JsEngine
 ```
 
-### Step 5: Final Verification
+### Step 5: Allocation Regression Gate
+
+Guard the evaluator hot-path allocation wins against silent regression:
+```bash
+./tools/check-allocation-regression
+```
+
+This re-measures Asynkron managed allocations for the benchmark smoke set and
+compares them to the committed `tools/allocation-baseline.txt`. It exits
+non-zero with a per-profile diff if any profile regresses beyond tolerance.
+
+**If it reports a regression:**
+- Unintended regression → investigate and reduce allocations before proceeding.
+- Intentional change that legitimately moves the numbers → refresh and commit
+  the baseline:
+  ```bash
+  ./tools/check-allocation-regression --update
+  git add tools/allocation-baseline.txt
+  ```
+
+### Step 6: Final Verification
 
 Confirm all checks passed:
 - [ ] Roslynator fix applied
@@ -58,8 +78,9 @@ Confirm all checks passed:
 - [ ] All unit tests pass
 - [ ] No new code duplications
 - [ ] Code formatted
+- [ ] No allocation regression (or baseline intentionally refreshed)
 
-### Step 6: Create PR
+### Step 7: Create PR
 
 Only after ALL checks pass:
 ```bash

@@ -119,6 +119,8 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `AwaitAndDiscard`
 - `AwaitedReturn`
 - `YieldStar`
+- `LoadFunctionLiteral`
+- `EnsureHasName`
 
 ### Production Decline Families (current)
 - `None`

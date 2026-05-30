@@ -1882,8 +1882,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
     // Measures the op span for a simple object literal starting at startIndex.
     // Admitted shapes (CreateObject followed by N ≥ 0 property triples):
-    //   Static:   [simple-operand, DefineObjectProperty(non-private, no name inference)]
-    //   Computed: [simple-key-operand, simple-value-operand, DefineComputedObjectProperty(no name inference)]
+    //   Static:   [simple-value-operand, DefineObjectProperty(non-private, no name inference)]
+    //   Computed: [simple-key-operand, ResolvePropertyKey, simple-value-operand, DefineComputedObjectProperty(no name inference)]
     // DefineObjectMethod, ObjectSpread, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
         ExpressionProgram program,
@@ -1934,9 +1934,23 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 i++;
             }
-            else if (IsSimpleOperand(secondOp, identifierConstants, activationSlots))
+            else if (secondOp.Kind == ExpressionOpKind.ResolvePropertyKey)
             {
-                // Computed property: firstOp = key, secondOp = value; expect DefineComputedObjectProperty next.
+                // Computed property: firstOp = key, secondOp = ResolvePropertyKey; expect value then DefineComputedObjectProperty.
+                i++;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var valueOp = program.GetOperation(i);
+                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
                 i++;
                 if (i >= program.OperationCount)
                 {
@@ -2406,6 +2420,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
+                case UnifiedBytecodeOpCode.EnsureHasName:
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:

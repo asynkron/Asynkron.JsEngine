@@ -26,9 +26,13 @@ helpers were the only remaining gap.
 
 ## Decision
 
-Extend both span helpers to admit the three-op computed-property triple
-`[simple-key-operand, simple-value-operand, DefineComputedObjectProperty]` in
-addition to the existing two-op static-property pair.
+Extend both span helpers to admit the four-op computed-property sequence
+`[simple-key-operand, ResolvePropertyKey, simple-value-operand, DefineComputedObjectProperty]`
+in addition to the existing two-op static-property pair.
+
+The `ResolvePropertyKey` op is always emitted by the expression program compiler
+between the key expression and the value expression for computed properties
+(`{ [expr]: value }`), so the full four-op sequence is the canonical compiled form.
 
 ### Admission boundary for computed keys
 
@@ -40,7 +44,8 @@ forms to:
 
 Complex key expressions — binary ops, call expressions, `new`, template literals,
 optional chains, and anything not recognized by `IsSimpleOperand` — cause the
-computed-key triple to fail the `IsSimpleOperand(secondOp)` check and the span
+computed-key sequence to fail the `IsSimpleOperand(firstOp)` check at the key
+position (or produce a non-`ResolvePropertyKey` op as secondOp), and the span
 scanner terminates normally, letting the call fall through to the prototype path.
 
 `AllowNameInference` on `DefineComputedObjectProperty` is required to be `false`.

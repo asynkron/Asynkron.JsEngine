@@ -10,7 +10,7 @@ internal static class UnifiedBytecodeCompiler
     private const int UpdateIncrementFlag = 1;
     private const int UpdatePrefixFlag = 2;
     private const int DynamicStoreAllowNameInferenceFlag = 1;
-    private const int StoreSlotNameInferenceFlag = unchecked((int)0x80000000);
+
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
@@ -601,6 +601,13 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
+                        if (declaration.AllowNameInference)
+                        {
+                            var nameInferenceIndex = stringConstants.Count;
+                            stringConstants.Add(declarationTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureHasName, nameInferenceIndex));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
@@ -683,10 +690,14 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        var storeSlotOperand = assignment.AllowNameInference
-                            ? assignmentSlot | StoreSlotNameInferenceFlag
-                            : assignmentSlot;
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, storeSlotOperand));
+                        if (assignment.AllowNameInference)
+                        {
+                            var nameInferenceIndex = stringConstants.Count;
+                            stringConstants.Add(assignmentTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureHasName, nameInferenceIndex));
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, assignmentSlot));
                         maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
@@ -4271,8 +4282,8 @@ internal static class UnifiedBytecodeCompiler
 
     // Compiles a simple object literal span starting at startIndex in the expression program.
     // Emits: CreateObject, then N property triples:
-    //   Static:   [simple-operand-load, DefineObjectProperty(non-private, no name inference)]
-    //   Computed: [simple-key-load, simple-value-load, DefineComputedObjectProperty(no name inference)]
+    //   Static:   [simple-value-load, DefineObjectProperty(non-private, no name inference)]
+    //   Computed: [simple-key-load, ResolvePropertyKey, simple-value-load, DefineComputedObjectProperty(no name inference)]
     private static bool TryAppendSimpleObjectLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -4329,14 +4340,31 @@ internal static class UnifiedBytecodeCompiler
                     EncodeDefineObjectPropertyOperand(propertyNameIndex, secondOp)));
                 i++;
             }
-            else if (TryAppendSimpleOperandLoad(secondOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            else if (secondOp.Kind == ExpressionOpKind.ResolvePropertyKey)
             {
-                // Computed property: firstOp = key (already loaded), secondOp = value (now loaded).
+                // Computed property: firstOp = key (already loaded), secondOp = ResolvePropertyKey; load value then define.
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
                 i++;
                 if (i >= expressionProgram.OperationCount)
                 {
                     spanLength = 0;
-                    reason = "Expected DefineComputedObjectProperty after computed key and value.";
+                    reason = "Expected value operand after ResolvePropertyKey.";
+                    return false;
+                }
+
+                var valueOp = expressionProgram.GetOperation(i);
+                if (!TryAppendSimpleOperandLoad(valueOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+                {
+                    spanLength = 0;
+                    reason = "Complex value expressions are not admitted in simple computed object properties.";
+                    return false;
+                }
+
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected DefineComputedObjectProperty after key, ResolvePropertyKey, and value.";
                     return false;
                 }
 

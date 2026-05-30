@@ -3091,4 +3091,24 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_ObjectLiteralShorthandProperties_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function build(a, b) {
+                return { a, b };
+            }
+            """,
+            "build");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
 }

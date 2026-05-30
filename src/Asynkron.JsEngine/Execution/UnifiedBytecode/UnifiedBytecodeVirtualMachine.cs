@@ -4336,10 +4336,10 @@ internal static class UnifiedBytecodeVirtualMachine
             return;
         }
 
-        if (DecodeDefineObjectPropertyAllowNameInference(operand))
+        if (DecodeDefineObjectPropertyAllowNameInference(operand) &&
+            propertyValue is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
         {
-            throw new InvalidOperationException(
-                "Object literal name inference is not supported by unified bytecode.");
+            nameTarget.EnsureHasName(propertyName);
         }
 
         if (DecodeDefineObjectPropertyIsKnownNewProperty(operand))

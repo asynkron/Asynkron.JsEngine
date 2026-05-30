@@ -541,4 +541,12 @@ public static partial class TypedAstEvaluator
 
         return callable;
     }
+
+    internal static IJsCallable CreateFunctionValueFromLiteral(
+        FunctionExpression functionExpression,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isConstructorFunction,
+        FunctionExecutionPlanSeed planSeed) =>
+        functionExpression.CreateFunctionValue(environment, context, isConstructorFunction, planSeed: planSeed);
 }

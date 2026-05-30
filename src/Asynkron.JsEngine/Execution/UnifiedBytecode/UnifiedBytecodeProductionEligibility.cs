@@ -958,11 +958,10 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Optional-chain short-circuiting is outside the first production property-read boundary.";
                     return true;
 
-                case ExpressionOpKind.LoadFunctionLiteral:
                 case ExpressionOpKind.LoadClassLiteral:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
-                        "Function/class literal values are not eligible for production unified bytecode routing.";
+                        "Class literal values are not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.ArraySpread:
@@ -988,14 +987,6 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.DefineComputedObjectProperty:
-                    if (operation.AllowNameInference)
-                    {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                        declineReason =
-                            "Computed object literal name inference is not eligible for production unified bytecode routing.";
-                        return true;
-                    }
-
                     break;
 
                 case ExpressionOpKind.PrivateFieldIn:
@@ -2375,6 +2366,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:

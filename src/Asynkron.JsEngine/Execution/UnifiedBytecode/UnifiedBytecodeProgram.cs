@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 
 namespace Asynkron.JsEngine.Execution.UnifiedBytecode;
 
@@ -90,7 +91,8 @@ internal enum UnifiedBytecodeOpCode : byte
     StoreResumeValue,
     AwaitAndDiscard,
     AwaitedReturn,
-    YieldStar
+    YieldStar,
+    LoadFunctionLiteral
 }
 
 internal readonly record struct UnifiedBytecodeInstruction(
@@ -252,4 +254,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeTryDescriptor> TryDescriptors,
     ImmutableArray<UnifiedBytecodeCatchDescriptor> CatchDescriptors,
     ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors,
-    ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default);
+    ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
+    ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default);

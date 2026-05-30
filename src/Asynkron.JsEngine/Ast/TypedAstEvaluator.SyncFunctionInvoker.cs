@@ -3082,7 +3082,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                     UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
                     UnifiedBytecodeOpCode.EnterWith or
-                    UnifiedBytecodeOpCode.LeaveWith)
+                    UnifiedBytecodeOpCode.LeaveWith or
+                    UnifiedBytecodeOpCode.LoadFunctionLiteral)
                 {
                     return true;
                 }

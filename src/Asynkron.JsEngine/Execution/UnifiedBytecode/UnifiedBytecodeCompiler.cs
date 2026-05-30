@@ -89,6 +89,7 @@ internal static class UnifiedBytecodeCompiler
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
         var stringConstants = ImmutableArray.CreateBuilder<string>();
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
         var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
         var catchDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeCatchDescriptor>();
@@ -114,6 +115,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -141,7 +143,10 @@ internal static class UnifiedBytecodeCompiler
             driverDescriptors.ToImmutable(),
             slotLayout.CallSpreadMasks.Count == 0
                 ? ImmutableArray<ImmutableArray<int>>.Empty
-                : [.. slotLayout.CallSpreadMasks]);
+                : [.. slotLayout.CallSpreadMasks],
+            functionLiteralConstants.Count == 0
+                ? ImmutableArray<FunctionLiteralDescriptor>.Empty
+                : functionLiteralConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -460,6 +465,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -557,6 +563,7 @@ internal static class UnifiedBytecodeCompiler
                                     literalConstants,
                                     stringConstants,
                                     callTargetConstants,
+                                    functionLiteralConstants,
                                     out reason))
                             {
                                 return false;
@@ -587,6 +594,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -631,6 +639,7 @@ internal static class UnifiedBytecodeCompiler
                                     literalConstants,
                                     stringConstants,
                                     callTargetConstants,
+                                    functionLiteralConstants,
                                     out reason))
                             {
                                 return false;
@@ -667,6 +676,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -717,6 +727,7 @@ internal static class UnifiedBytecodeCompiler
                                     literalConstants,
                                     stringConstants,
                                     callTargetConstants,
+                                    functionLiteralConstants,
                                     out reason))
                             {
                                 return false;
@@ -757,6 +768,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -887,6 +899,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -967,6 +980,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1015,6 +1029,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1089,6 +1104,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1135,6 +1151,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1162,6 +1179,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1332,6 +1350,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1500,6 +1519,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1522,6 +1542,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1544,6 +1565,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1581,6 +1603,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1626,6 +1649,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1648,6 +1672,7 @@ internal static class UnifiedBytecodeCompiler
                             literalConstants,
                             stringConstants,
                             callTargetConstants,
+                            functionLiteralConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1702,6 +1727,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1739,6 +1765,7 @@ internal static class UnifiedBytecodeCompiler
                                      literalConstants,
                                      stringConstants,
                                      callTargetConstants,
+                                     functionLiteralConstants,
                                      scopeDescriptors,
                                      tryDescriptors,
                                      catchDescriptors,
@@ -1761,6 +1788,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 scopeDescriptors,
                                 tryDescriptors,
                                 catchDescriptors,
@@ -1783,6 +1811,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1807,6 +1836,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1826,6 +1856,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1857,6 +1888,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1935,6 +1967,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -1997,6 +2030,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -2016,6 +2050,7 @@ internal static class UnifiedBytecodeCompiler
                                 literalConstants,
                                 stringConstants,
                                 callTargetConstants,
+                                functionLiteralConstants,
                                 out reason))
                         {
                             return false;
@@ -2071,6 +2106,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2108,6 +2144,7 @@ internal static class UnifiedBytecodeCompiler
             literalConstants,
             stringConstants,
             callTargetConstants,
+            functionLiteralConstants,
             scopeDescriptors,
             tryDescriptors,
             catchDescriptors,
@@ -2128,6 +2165,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2151,6 +2189,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2174,6 +2213,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2197,6 +2237,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2299,6 +2340,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2338,6 +2380,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2360,6 +2403,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2388,6 +2432,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2447,6 +2492,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2888,6 +2934,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
@@ -2899,6 +2946,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 out reason))
         {
             return true;
@@ -3307,14 +3355,9 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.DefineComputedObjectProperty:
-                    if (operation.AllowNameInference)
-                    {
-                        reason = "Computed object literal name inference is not supported.";
-                        return false;
-                    }
-
                     unified.Add(new UnifiedBytecodeInstruction(
-                        UnifiedBytecodeOpCode.DefineComputedObjectProperty));
+                        UnifiedBytecodeOpCode.DefineComputedObjectProperty,
+                        operation.AllowNameInference ? DefineObjectPropertyAllowNameInferenceFlag : 0));
                     break;
 
                 case ExpressionOpKind.Construct:
@@ -3332,6 +3375,15 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.ConstructInvocationBoundary,
                         operation.ArgumentCount));
+                    break;
+
+                case ExpressionOpKind.LoadFunctionLiteral:
+                    var functionLiteralIndex = functionLiteralConstants.Count;
+                    functionLiteralConstants.Add(
+                        operation.GetObject<FunctionLiteralDescriptor>(expressionProgram.ObjectConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadFunctionLiteral,
+                        EncodeLoadFunctionLiteralOperand(functionLiteralIndex, operation.IsConstructorFunction)));
                     break;
 
                 default:
@@ -3352,6 +3404,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         out string reason)
     {
         reason = string.Empty;
@@ -5055,6 +5108,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         out string reason)
     {
         if (declaration.VarKind != VariableKind.Var ||
@@ -5077,6 +5131,7 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 stringConstants,
                 callTargetConstants,
+                functionLiteralConstants,
                 out reason))
         {
             return false;
@@ -5466,6 +5521,11 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots) =>
         identifier.ScopeId < 0 &&
         activationSlots.MaterializedBindingNames.Contains(identifier.Name);
+
+    private const int LoadFunctionLiteralIsConstructorFlag = 1;
+
+    private static int EncodeLoadFunctionLiteralOperand(int constantIndex, bool isConstructorFunction) =>
+        (constantIndex << 1) | (isConstructorFunction ? LoadFunctionLiteralIsConstructorFlag : 0);
 
     private static bool TryResolveActivationSymbolSlot(
         Symbol symbol,

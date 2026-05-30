@@ -55,7 +55,7 @@ Usage:
   ./tools/check-slo-gate [--no-build] [--update] [--tolerance PCT]
 
 Re-measures ProfileRunner avg-ms-per-iteration for the SLO profile set and
-compares them to .testrunner/perf-slo-baseline.md, failing on regressions
+compares them to tools/perf-slo-baseline.md, failing on regressions
 beyond the tolerance (default 200% — fails only when measurement exceeds 3×
 the baseline value).
 

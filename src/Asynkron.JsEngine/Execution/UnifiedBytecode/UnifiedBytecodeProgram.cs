@@ -196,15 +196,25 @@ internal readonly record struct UnifiedBytecodeStepResult(
 
 internal sealed class UnifiedBytecodeResumeState
 {
-    public UnifiedBytecodeResumeState(UnifiedBytecodeProgram program, JsTypes.JsValue[] slots)
+    public UnifiedBytecodeResumeState(
+        UnifiedBytecodeProgram program,
+        JsTypes.JsValue[] slots,
+        JsTypes.JsValue thisValue = default)
     {
         Program = program;
         Slots = slots;
+        ThisValue = thisValue;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
     }
 
     public UnifiedBytecodeProgram Program { get; }
     public JsTypes.JsValue[] Slots { get; }
+
+    /// <summary>
+    ///     The strict/sloppy-coerced <c>this</c> binding for the resumable activation. Captured at
+    ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
+    /// </summary>
+    public JsTypes.JsValue ThisValue { get; }
     public JsTypes.JsValue[] OperandStack { get; }
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }

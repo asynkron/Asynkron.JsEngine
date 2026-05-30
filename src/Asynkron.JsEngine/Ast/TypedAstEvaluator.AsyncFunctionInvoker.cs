@@ -119,7 +119,6 @@ public static partial class TypedAstEvaluator
                 IsGenerator: false,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
                 HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function),
-                HasThisDependency: !thisValue.IsUndefined,
                 HasNewTargetDependency: false,
                 HasCallDependency: false);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
@@ -133,7 +132,11 @@ public static partial class TypedAstEvaluator
             Array.Fill(slots, JsValue.Undefined);
             InitializeLexicalSlots(slots, program);
             PopulateParameterSlots(arguments, slots, program);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots);
+            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis);
 
             _realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",

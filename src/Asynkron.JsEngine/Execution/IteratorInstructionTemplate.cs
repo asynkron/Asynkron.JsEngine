@@ -61,7 +61,9 @@ internal static class IteratorInstructionTemplate
                 AwaitedProgram: awaitedProgram,
                 TdzBindings: tdzBindings,
                 TdzIsConst: tdzIsConst,
-                IterableSource: plan.Iterable.Source));
+                IterableSource: plan.Iterable.Source,
+                TdzScopeId: tdzBindings.IsDefaultOrEmpty ? -1 : plan.IterationScopeId,
+                TdzSlotIndices: tdzBindings.IsDefaultOrEmpty ? default : plan.PerIterationSlotIndices));
         }
         else
         {
@@ -78,7 +80,9 @@ internal static class IteratorInstructionTemplate
                 IterableProgram: compiledIterableProgram,
                 TdzBindings: tdzBindings,
                 TdzIsConst: tdzIsConst,
-                IterableSource: plan.Iterable.Source));
+                IterableSource: plan.Iterable.Source,
+                TdzScopeId: tdzBindings.IsDefaultOrEmpty ? -1 : plan.IterationScopeId,
+                TdzSlotIndices: tdzBindings.IsDefaultOrEmpty ? default : plan.PerIterationSlotIndices));
         }
 
         var moveNextIndex = instructions.Count;

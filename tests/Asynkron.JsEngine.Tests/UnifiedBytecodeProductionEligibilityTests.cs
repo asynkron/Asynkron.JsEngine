@@ -1,5 +1,8 @@
+using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Xunit.Abstractions;
 
@@ -8,6 +11,7 @@ namespace Asynkron.JsEngine.Tests;
 [Category(TestCategories.Debugging)]
 public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+
     [Fact]
     public void Evaluate_LinearSlotLiteralReturnPlan_Accepts()
     {
@@ -2117,24 +2121,110 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ForInTdzHead_DeclinesWithExplicitDriverReason()
+    public void Evaluate_ForInTdzHead_IsAdmittedWithTdzHeadInit()
     {
+        // Slice A (#2678): a lexical for-in head over a flat-slot source is now admitted.
+        // Previously declined with ForInDriverStateDependency ("TDZ head").
         var plan = GetFunctionPlan("""
-            function tdzHead() {
-                for (let key in { [key]: 1 }) {
-                    return key;
+            function collect(obj) {
+                var keys = "";
+                for (const key in obj) {
+                    keys = keys + key;
                 }
+
+                return keys;
             }
             """,
-            "tdzHead");
+            "collect");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ForInDriverStateDependency, result.Code);
-        Assert.Contains("TDZ", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+    }
+
+    [Fact]
+    public void Evaluate_ForOfTdzHead_IsAdmittedWithTdzHeadInit()
+    {
+        // Slice A (#2678): a lexical for-of head over a flat-slot source is now admitted.
+        var plan = GetFunctionPlan("""
+            function sum(values) {
+                var total = 0;
+                for (const value of values) {
+                    total = total + value;
+                }
+
+                return total;
+            }
+            """,
+            "sum");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TdzHeadInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+    }
+
+    // ── AC-5 negative fallback proof (#2678): unsupported async-driver sub-shapes ──
+    // The TDZ-head admit must not leak the async-iterator kind or awaited driver
+    // sources (Slices B/C). These exercise the decline arms directly because async
+    // drivers live inside async functions, which decline before plan inspection.
+
+    [Fact]
+    public void IsSupportedIteratorInit_AsyncKind_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Await,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_AwaitedSource_Declines()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: ExpressionProgram.Empty,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
+        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedForInInit_AwaitedSource_Declines()
+    {
+        var instruction = new ForInInitInstruction(
+            Symbol.Synthetic("__forIn_state"),
+            StateSlotIndex: 0,
+            Symbol.Synthetic("__forIn_value"),
+            ValueSlotIndex: 1,
+            Next: -1,
+            ObjectProgram: ExpressionProgram.Empty,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedForInInit(instruction, out var reason));
+        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
     }
 
     [Fact]

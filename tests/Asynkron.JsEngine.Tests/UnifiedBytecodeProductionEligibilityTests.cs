@@ -3262,4 +3262,130 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_CallWithTemplateLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function log(receiver, name) {
+                return receiver(`hello ${name}`);
+            }
+            """,
+            "log");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithPureTextTemplateLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function logStatic(receiver) {
+                return receiver(`hello world`);
+            }
+            """,
+            "logStatic");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithMultiSubstitutionTemplateLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function logFull(receiver, first, last) {
+                return receiver(`hello ${first} ${last}!`);
+            }
+            """,
+            "logFull");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function logExpr(receiver, a, b) {
+                return receiver(`result: ${a + b}`);
+            }
+            """,
+            "logExpr");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NamedPropertyWriteWithTemplateLiteralRhs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function setLabel(box, name) {
+                return box.label = `hello ${name}`;
+            }
+            """,
+            "setLabel");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PropertyReadBinaryExpressionWithTemplateLiteralRhs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function checkLabel(box, name) {
+                return box.label === `hello ${name}`;
+            }
+            """,
+            "checkLabel");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NamedCompoundPropertyWriteWithTemplateLiteralRhs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function appendLabel(box, suffix) {
+                return box.label += ` ${suffix}`;
+            }
+            """,
+            "appendLabel");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
 }

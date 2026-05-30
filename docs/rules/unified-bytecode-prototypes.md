@@ -906,6 +906,50 @@ all-or-nothing until a separate routing issue proves production readiness.
     in use for boundary-candidate probes that are not standalone short-circuit
     return expressions; this helper pair does not replace it. See ADR 0295.
 
+42. When admitting simple (non-chained) optional member reads to production
+    unified bytecode, use **dedicated null-check opcodes** and constrain
+    admission to exact op-count shapes. The two admitted forms:
+
+    - **`a?.b` (named, 2 ops total)**: `GetNamedPropertyOptional` encodes the
+      null-check inline with the property read. Eligibility requires
+      `IsOptional:true`, `ShortCircuitOnNullishTarget:false` (not a second
+      hop in a chain), non-private, and an activation-resolved base.
+    - **`a?.[k]` (computed, 4 ops total)**: `JumpIfNullishReplaceUndefined` +
+      simple key load + `GetComputedProperty` implements the jump-over
+      pattern. Eligibility requires `ReplaceWithUndefined:true`,
+      `ShortCircuitOnNullishTarget:false` on the final computed op, and an
+      activation-resolved base.
+
+    `JumpIfNullishReplaceUndefined` is not the same as `JumpIfShortCircuited`
+    (the optional-chain chaining sentinel used in forms like `a?.b?.c` where
+    the second hop carries `ShortCircuitOnNullishTarget:true`).
+    `JumpIfNullishReplaceUndefined` replaces TOS with `undefined` and jumps
+    atomically; both the taken branch and the fall-through branch leave
+    exactly one value on the operand stack.
+
+    Chained optional forms (`a?.b?.c`, `a?.[k]?.b`) use
+    `ShortCircuitOnNullishTarget:true` on the second hop. Admitting these
+    requires either a sentinel-value propagation scheme or an owned
+    `JumpIfShortCircuited` opcode — both are separate future slices.
+    `OptionalChainDependency` is **narrowed, not removed**: the simple
+    admitted shapes lift the decline; multi-hop chains, assignment targets,
+    and super-optional forms retain the decline reason.
+
+    Apply dual-dispatch completeness (rule #41): new opcodes must appear in
+    both the sync `Execute` switch and the `ExecuteResumable` switch;
+    omitting either causes `InvalidOperationException` at runtime.
+
+    WHY: issue gh2771 / PR #2777 admitted simple optional member reads,
+    building on the property-read production eligibility boundary (rules 12,
+    13, ADR 0294). The durable lesson is that optional-chain admission is not
+    a single gate lift. The IR flags `IsOptional` and
+    `ShortCircuitOnNullishTarget` are independent: admitting
+    `IsOptional:true, ShortCircuitOnNullishTarget:false` keeps the first-hop
+    simple case VM-owned while the second-hop chaining sentinel remains a
+    separate slice. A future slice admitting chained forms must own
+    sentinel-value propagation through the full chain before removing the
+    `ShortCircuitOnNullishTarget:true` decline.
+
 ## Why
 
 Issue #2118 / PR #2137 introduced the first unified bytecode slice for
@@ -1252,4 +1296,5 @@ Related ADRs:
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0293-admit-logical-and-nullish-expressions-in-unified-bytecode-with-peek-jump-semantics.md`
+- `docs/adrs/0294-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0295-admit-property-read-short-circuit-expressions-simple-rhs-owned.md`

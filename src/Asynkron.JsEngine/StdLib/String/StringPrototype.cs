@@ -1668,26 +1668,6 @@ public sealed partial class StringPrototype
         return argument.TryGetObject<JsRegExp>(out _);
     }
 
-    private static bool TryResolveRegExp(JsValue candidate, out JsRegExp regex)
-    {
-        if (candidate.TryGetObject<JsRegExp>(out var direct))
-        {
-            regex = direct;
-            return true;
-        }
-
-        if (candidate.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty("__regex__", out var regexValue) &&
-            regexValue.TryGetObject<JsRegExp>(out var stored))
-        {
-            regex = stored;
-            return true;
-        }
-
-        regex = null!;
-        return false;
-    }
-
     private IJsCallable? GetMethod(JsValue value, string methodKey, string opName)
     {
         if (!JsOps.TryGetPropertyValue(value, methodKey, out var method))
@@ -1706,48 +1686,6 @@ public sealed partial class StringPrototype
         }
 
         return callable;
-    }
-
-    private JsRegExp ToRegExpValue(JsValue candidate, string defaultFlags, bool requireGlobal)
-    {
-        if (candidate.TryGetObject<JsRegExp>(out var direct))
-        {
-            if (requireGlobal && !direct.Global)
-            {
-                throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
-            }
-
-            return direct;
-        }
-
-        if (candidate.TryGetObject<JsObject>(out var obj) &&
-            obj.TryGetProperty("__regex__", out var regexValue) &&
-            regexValue.TryGetObject<JsRegExp>(out var stored))
-        {
-            if (requireGlobal && !stored.Global)
-            {
-                throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
-            }
-
-            return stored;
-        }
-
-        var ctx = Realm?.CreateContext();
-        var pattern = candidate.IsUndefined
-            ? string.Empty
-            : JsOps.ToJsString(candidate, ctx, Realm);
-        if (ctx?.IsThrow == true)
-        {
-            throw new ThrowSignal(ctx.FlowValue);
-        }
-
-        var created = new JsRegExp(pattern, defaultFlags ?? string.Empty, Realm);
-        if (requireGlobal && !created.Global)
-        {
-            throw ThrowTypeError("RegExp.prototype.matchAll requires a global RegExp", realm: Realm);
-        }
-
-        return created;
     }
 
     /// <summary>

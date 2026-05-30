@@ -1,4 +1,4 @@
-# 286. Admit TDZ head environments for sync iterator and for-in drivers
+# 288. Admit TDZ head environments for sync iterator and for-in drivers
 
 - Status: Accepted
 - Date: 2026-05-30

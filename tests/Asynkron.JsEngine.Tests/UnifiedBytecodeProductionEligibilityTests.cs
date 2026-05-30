@@ -2576,13 +2576,23 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             { "multiply", "*", (int)BinaryOperator.Multiply },
             { "divide", "/", (int)BinaryOperator.Divide },
             { "modulo", "%", (int)BinaryOperator.Modulo },
+            { "power", "**", (int)BinaryOperator.Power },
             { "equal", "==", (int)BinaryOperator.Equal },
+            { "notEqual", "!=", (int)BinaryOperator.NotEqual },
             { "strictEqual", "===", (int)BinaryOperator.StrictEqual },
             { "strictNotEqual", "!==", (int)BinaryOperator.StrictNotEqual },
             { "lessThan", "<", (int)BinaryOperator.LessThan },
             { "lessThanOrEqual", "<=", (int)BinaryOperator.LessThanOrEqual },
             { "greaterThan", ">", (int)BinaryOperator.GreaterThan },
-            { "greaterThanOrEqual", ">=", (int)BinaryOperator.GreaterThanOrEqual }
+            { "greaterThanOrEqual", ">=", (int)BinaryOperator.GreaterThanOrEqual },
+            { "bitwiseAnd", "&", (int)BinaryOperator.BitwiseAnd },
+            { "bitwiseOr", "|", (int)BinaryOperator.BitwiseOr },
+            { "bitwiseXor", "^", (int)BinaryOperator.BitwiseXor },
+            { "leftShift", "<<", (int)BinaryOperator.LeftShift },
+            { "rightShift", ">>", (int)BinaryOperator.RightShift },
+            { "unsignedRightShift", ">>>", (int)BinaryOperator.UnsignedRightShift },
+            { "inOp", "in", (int)BinaryOperator.In },
+            { "instanceOf", "instanceof", (int)BinaryOperator.InstanceOf }
         };
 
     public static TheoryData<string, string, int[], int[]>

@@ -3973,4 +3973,244 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=sendMixed argc=4",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task PowerOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function power(a, b) {
+                return a ** b;
+            }
+
+            power(2, 8);
+            """);
+
+        Assert.Equal(256d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=power argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NotEqualOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function notEqual(a, b) {
+                return a != b;
+            }
+
+            notEqual(1, 2);
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=notEqual argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BitwiseAndOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bitwiseAnd(a, b) {
+                return a & b;
+            }
+
+            bitwiseAnd(5, 3);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bitwiseAnd argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BitwiseOrOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bitwiseOr(a, b) {
+                return a | b;
+            }
+
+            bitwiseOr(5, 3);
+            """);
+
+        Assert.Equal(7d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bitwiseOr argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BitwiseXorOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bitwiseXor(a, b) {
+                return a ^ b;
+            }
+
+            bitwiseXor(5, 3);
+            """);
+
+        Assert.Equal(6d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bitwiseXor argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LeftShiftOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function leftShift(a, b) {
+                return a << b;
+            }
+
+            leftShift(1, 3);
+            """);
+
+        Assert.Equal(8d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=leftShift argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RightShiftOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function rightShift(a, b) {
+                return a >> b;
+            }
+
+            rightShift(8, 1);
+            """);
+
+        Assert.Equal(4d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=rightShift argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task UnsignedRightShiftOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function unsignedRightShift(a, b) {
+                return a >>> b;
+            }
+
+            unsignedRightShift(-1, 28);
+            """);
+
+        Assert.Equal(15d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=unsignedRightShift argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function hasKey(key, obj) {
+                return key in obj;
+            }
+
+            hasKey("x", { x: 1 });
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=hasKey argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InstanceOfOperator_ProducesCorrectResult_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function isInstance(value, ctor) {
+                return value instanceof ctor;
+            }
+
+            isInstance([], Array);
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=isInstance argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InOperator_ThrowsTypeError_WhenRhsIsPrimitive_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function testIn(key, target) {
+                return key in target;
+            }
+
+            var caught = false;
+            try {
+                testIn("x", 42);
+            } catch (e) {
+                caught = e instanceof TypeError;
+            }
+            caught;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=testIn argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InstanceOfOperator_ThrowsTypeError_WhenRhsIsPrimitive_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function testInstanceOf(value, target) {
+                return value instanceof target;
+            }
+
+            var caught = false;
+            try {
+                testInstanceOf({}, 42);
+            } catch (e) {
+                caught = e instanceof TypeError;
+            }
+            caught;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=testInstanceOf argc=2",
+                StringComparison.Ordinal));
+    }
 }

@@ -182,6 +182,8 @@ rtk dotnet run --project examples/PromiseDemo
 rtk dotnet run --project examples/EventQueueDemo
 rtk dotnet run --project examples/NpmPackageDemo
 rtk dotnet run --project examples/NodeHostDemo
+rtk dotnet run --project examples/SExpressionDemo
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo
 ```
 
 ## Test262 regression session

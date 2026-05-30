@@ -690,3 +690,82 @@ internal sealed record ArrayDestructuringCloseInstruction(
     int IteratorSlotIndex,
     int Next)
     : ExecutionInstruction(InstructionKind.ArrayDestructuringClose, Next);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Object Destructuring Instructions
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+///     Initializes object destructuring by evaluating the source expression and
+///     coercing it to an object (RequireObjectCoercible + ToObject). Stores the
+///     destructuring state (source object + consumed keys) in a slot.
+/// </summary>
+/// <param name="SourceSlot">Symbol for storing the destructuring state.</param>
+/// <param name="SourceSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="Next">Jump target after initialization (first property instruction).</param>
+/// <param name="SourceProgram">Lowered bytecode representation of the source expression.</param>
+internal sealed record ObjectDestructuringInitInstruction(
+    Symbol SourceSlot,
+    int SourceSlotIndex,
+    int Next,
+    ExpressionProgram SourceProgram)
+    : ExecutionInstruction(InstructionKind.ObjectDestructuringInit, Next)
+{
+    public ExpressionNode? SourceExpression => null;
+}
+
+/// <summary>
+///     Reads a single statically-named property from the destructuring source and
+///     binds it to a target symbol. Records the property name so a trailing rest
+///     element can exclude it.
+/// </summary>
+/// <param name="SourceSlot">Symbol for the destructuring state.</param>
+/// <param name="SourceSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="PropertyName">The static property key to read from the source.</param>
+/// <param name="TargetSymbol">The target identifier to bind to.</param>
+/// <param name="TargetSlotIndex">Pre-resolved slot index for target (-1 if not resolved).</param>
+/// <param name="VarKind">The variable declaration kind (var/let/const).</param>
+/// <param name="Next">Jump target after this property.</param>
+internal sealed record ObjectDestructuringPropertyInstruction(
+    Symbol SourceSlot,
+    int SourceSlotIndex,
+    string PropertyName,
+    Symbol TargetSymbol,
+    int TargetSlotIndex,
+    VariableKind VarKind,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ObjectDestructuringProperty, Next);
+
+/// <summary>
+///     Collects all remaining own enumerable properties (excluding the keys already
+///     consumed by preceding property instructions) into a new object and binds it
+///     to the rest target.
+/// </summary>
+/// <param name="SourceSlot">Symbol for the destructuring state.</param>
+/// <param name="SourceSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="RestSymbol">The rest target identifier to bind to.</param>
+/// <param name="RestSlotIndex">Pre-resolved slot index for rest target (-1 if not resolved).</param>
+/// <param name="VarKind">The variable declaration kind (var/let/const).</param>
+/// <param name="Next">Jump target after rest collection.</param>
+internal sealed record ObjectDestructuringRestInstruction(
+    Symbol SourceSlot,
+    int SourceSlotIndex,
+    Symbol RestSymbol,
+    int RestSlotIndex,
+    VariableKind VarKind,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ObjectDestructuringRest, Next);
+
+/// <summary>
+///     Releases the object destructuring state after destructuring is complete.
+///     Object destructuring has no iterator to close; this clears the state slot to
+///     mirror the array-destructuring driver lifecycle.
+/// </summary>
+/// <param name="SourceSlot">Symbol for the destructuring state.</param>
+/// <param name="SourceSlotIndex">Pre-resolved slot index for fast state access (-1 if not resolved).</param>
+/// <param name="Next">Jump target after closing.</param>
+internal sealed record ObjectDestructuringCloseInstruction(
+    Symbol SourceSlot,
+    int SourceSlotIndex,
+    int Next)
+    : ExecutionInstruction(InstructionKind.ObjectDestructuringClose, Next);

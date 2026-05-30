@@ -73,6 +73,10 @@ internal enum UnifiedBytecodeOpCode : byte
     ArrayDestructuringElement,
     ArrayDestructuringRest,
     ArrayDestructuringClose,
+    ObjectDestructuringInit,
+    ObjectDestructuringProperty,
+    ObjectDestructuringRest,
+    ObjectDestructuringClose,
     PrepareIdentifierCallTarget,
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
@@ -125,7 +129,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int TargetSlot = -1,
     int BreakTarget = -1,
     int NextTarget = -1,
-    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync);
+    IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
+    int NameConstantIndex = -1);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {

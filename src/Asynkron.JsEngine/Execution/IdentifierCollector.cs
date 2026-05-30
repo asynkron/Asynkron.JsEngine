@@ -366,6 +366,18 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 RegisterDeclaration(destructuringRest.VarKind, destructuringRest.RestSymbol);
                 return;
 
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                VisitExpressionProgram(objectDestructuringInit.SourceProgram);
+                return;
+
+            case ObjectDestructuringPropertyInstruction objectDestructuringProperty:
+                RegisterDeclaration(objectDestructuringProperty.VarKind, objectDestructuringProperty.TargetSymbol);
+                return;
+
+            case ObjectDestructuringRestInstruction objectDestructuringRest:
+                RegisterDeclaration(objectDestructuringRest.VarKind, objectDestructuringRest.RestSymbol);
+                return;
+
             case CompoundAssignmentSlotInstruction compoundAssign:
                 VisitExpressionProgram(compoundAssign.AwaitedProgram ?? compoundAssign.RhsProgram!.Value);
                 return;

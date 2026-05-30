@@ -47,7 +47,13 @@ internal enum InstructionKind : byte
     ArrayDestructuringInit,
     ArrayDestructuringElement,
     ArrayDestructuringRest,
-    ArrayDestructuringClose
+    ArrayDestructuringClose,
+
+    // Object destructuring
+    ObjectDestructuringInit,
+    ObjectDestructuringProperty,
+    ObjectDestructuringRest,
+    ObjectDestructuringClose
 }
 
 /// <summary>

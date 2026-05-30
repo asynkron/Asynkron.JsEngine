@@ -66,6 +66,11 @@ public static partial class TypedAstEvaluator
             handlers[(int)InstructionKind.ArrayDestructuringElement] = HandleArrayDestructuringElement;
             handlers[(int)InstructionKind.ArrayDestructuringRest] = HandleArrayDestructuringRest;
             handlers[(int)InstructionKind.ArrayDestructuringClose] = HandleArrayDestructuringClose;
+            // Object destructuring
+            handlers[(int)InstructionKind.ObjectDestructuringInit] = HandleObjectDestructuringInit;
+            handlers[(int)InstructionKind.ObjectDestructuringProperty] = HandleObjectDestructuringProperty;
+            handlers[(int)InstructionKind.ObjectDestructuringRest] = HandleObjectDestructuringRest;
+            handlers[(int)InstructionKind.ObjectDestructuringClose] = HandleObjectDestructuringClose;
             return handlers;
         }
 

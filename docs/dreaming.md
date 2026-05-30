@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-30 (rev 2)
+Date: 2026-05-30 (rev 3)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -25,6 +25,20 @@ The 2026-05-29 revision kept every proven constraint and added: a **greenfield 2
 
 This revision keeps all of those and addresses five further gaps: (1) **stronger greenfield-first framing** in the product dream (2-stratum target replaces the "4-tier execution" bullet); (2) a **full event loop lifecycle diagram** that distinguishes microtask drain from host macrotask scheduling; (3) a **Shape / IC system** component (directional) for hidden-class and inline-cache property access; (4) an **active GC allocation budget** table with per-site Gen targets and reduction rules; and (5) a **Performance SLOs** section with measurable targets and governance rules so "Node.js-competitive" has a finish line, not just a direction.
 
+Applying the same scrutiny to that rev 2 document exposes six further gaps that this rev 3 addresses:
+
+1. **No .NET Platform Advantage section.** The document argues for a Node.js-competitive runtime but never explains *why .NET* is the right host platform. `JsValue` as a struct, `Span<JsValue>` argument passing, NativeAOT cold-start, `ValueTask<JsValue>` zero-alloc async, meta-JIT (the .NET JIT compiles the dispatch loop), and SIMD intrinsics are all structural advantages — and structural obligations. They are invisible in rev 2.
+
+2. **No Component 11: Embedding / Host API.** The component map jumps from Shape (10) to Developer Tooling (12), skipping 11 entirely. The host-developer experience — `JsEngine.CreateRealm()`, `HostFunction` delegate bridge, module loader hook, async entry point, capability grant surface — is the primary integration surface for consumers of the engine and was completely absent.
+
+3. **No VM architecture commitment.** Rev 2 describes a "typed value stack" for Tier 0 without committing to whether the VM is register-based or stack-based. These are materially different design choices with different allocation profiles. The Execution Engine component should name the choice explicitly and explain why register-based maps better to .NET JIT optimization.
+
+4. **Component numbering gap (10 → 12, skipping 11).** The missing Component 11 creates a gap that is immediately visible in the component map and misleads readers about the total number of architectural components.
+
+5. **Positive dream completion conditions missing.** The "Dream completion condition" in the seam inventory names only *negative* criteria (delete Tier 1 + Tier 2, eliminate seams). A greenfield north star should also name *positive* measured outcomes: cold-start < 5 ms measured, Tier 0 covers ≥95% of real programs, embedding API stable, Test262 < 10 true failures.
+
+6. **Proven-now vs directional-next table is missing rows for these three areas.** The table did not reflect .NET Platform Advantage, Embedding / Host API, or VM register model — leaving three significant architectural commitments without a stated current reality or forward direction.
+
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
 
@@ -36,6 +50,21 @@ Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that
 - **shape-aware:** object property access should exploit shape (hidden-class) identity for fast IC (inline-cache) dispatch once the compiled VM layer is proven; shape transitions and IC invalidation are first-class concerns at the VM layer.
 - **allocation-budgeted:** short-lived per-call allocations must stay in Gen 0; call-frame boxing, argument array creation, and value-stack spills are tracked allocation sites with explicit reduction targets.
 - **evidence-governed:** every correctness and performance claim is non-deliverable until focused proof plus canonical quality gate evidence exists.
+
+## .NET Platform Advantage
+
+This runtime is built on .NET for a reason. The platform offers structural advantages that map directly to the JsEngine performance targets. Each advantage is also an obligation: if the platform enables a zero-allocation pattern, using a heap-allocating alternative is a regression that must be tracked.
+
+| Advantage | Mechanism | Engine obligation |
+|---|---|---|
+| `JsValue` as a struct | Value type — no heap boxing when passed by value or stored in typed arrays | Every fast-path helper must accept and return `JsValue`; `object?` overloads are obsolete compat shims |
+| `Span<JsValue>` argument passing | Stack-slice semantics — arguments transmitted without creating a heap-backed array | Fixed-arity Tier 0 calls must not allocate a `JsValue[]` backing array; `ReadOnlySpan<JsValue>` is the target parameter type |
+| NativeAOT cold-start | Ahead-of-time native compilation — no JIT warmup, no runtime assembly loading at startup | Cold-start < 5 ms p95 target is achievable; NativeAOT compatibility constraints (no reflection-heavy intrinsics at startup) are a design gate |
+| `ValueTask<JsValue>` zero-alloc async | `ValueTask<T>` avoids a heap-allocated `Task<T>` on the already-completed path | Async fast paths that complete synchronously (cached module, already-resolved promise) must return `ValueTask<JsValue>` to avoid Gen 0 pressure |
+| Meta-JIT (JIT compiles the dispatch loop) | The .NET JIT sees the VM opcode dispatch loop as a tight switch or indirect branch target chain; it applies inlining, register allocation, and branch prediction | Tier 0 hot path runs near-native without a separate JIT tier; the dispatch loop must not defeat JIT inlining with unnecessary virtual dispatch or allocations inside the switch body |
+| SIMD intrinsics | `System.Runtime.Intrinsics` — vector operations on JsValue arrays, string buffers, and hash maps | RegExp execution, string interning, and property-key hashing can exploit hardware SIMD; these are directional optimization targets once Tier 0 dominance is proven |
+
+These advantages are realized only when the implementation honors them. A `JsValue` struct stored in a `List<object>` is not a struct advantage. A meta-JIT that cannot inline because of virtual dispatch inside every opcode is not a meta-JIT advantage. The obligation row in each table entry is the binding constraint.
 
 ## Greenfield target vs migration reality
 
@@ -329,14 +358,23 @@ This table distinguishes near-closure seams from structural seams. Near-closure 
 
 ### Dream completion condition
 
-This document describes its own finish line so slices know what "done" means rather than chasing an open-ended inventory. The dream is fulfilled when **all** of the following hold:
+This document describes its own finish line so slices know what "done" means rather than chasing an open-ended inventory. The dream is fulfilled when **all** of the following hold.
+
+**Structural (negative) conditions** — migration debt fully retired:
 
 - Tier 1 (ExpressionProgram VM) and Tier 2 (Statement IR Runner) are deleted — the execution surface is exactly **Stratum 0 (compiled VM)** and **Stratum F (correctness fallback)**.
 - Every row in the seam inventory is in one of two terminal states: **eliminated** (folded into Stratum 0 by lowering-time normalization) or **ADR-accepted** (a permanent, intentional Stratum F boundary such as `eval` observability or dynamic `with`).
 - No execution path consumes the AST as a runtime argument; the AST stops at the lowering stage in all surviving strata.
 - The two-numbering collision is structurally impossible because only two strata remain.
 
-Until then, the steering rule is unchanged: push every shape **out of the migration middle** — up into Stratum 0 if decidable, down into Stratum F if genuinely dynamic — and never optimize a shape to remain in Tier 1 or Tier 2.
+**Positive (measured) conditions** — observable runtime targets met:
+
+- **Cold-start < 5 ms p95** (measured by ProfileRunner `startup` benchmark on commodity hardware; NativeAOT build). Not a directional target — a measured, ProfileRunner-baseline-committed result.
+- **Tier 0 covers ≥ 95% of real programs** — defined as: ≥ 95% of Test262 Language + BuiltIns test cases attempt Tier 0 before any fallback, measured by an instrumented routing trace, not claimed by inspection.
+- **Embedding API stable** — `JsEngine.CreateRealm()`, `HostFunction` delegate bridge, module loader hook, and `EvaluateAsync` are all in a stable public API surface with no `internal`-type leakage; host code does not need to reference engine internals.
+- **Test262 true correctness failures < 10** in Language + BuiltIns suites (measured by the testrunner baseline, excluding excluded features listed in `Test262Harness.settings.json`).
+
+Until all eight conditions hold, the steering rule is unchanged: push every shape **out of the migration middle** — up into Stratum 0 if decidable, down into Stratum F if genuinely dynamic — and never optimize a shape to remain in Tier 1 or Tier 2.
 
 ## Realm isolation model
 
@@ -650,6 +688,7 @@ flowchart TD
 ```
 
 - Subcomponents: instruction dispatch, optional-chain short-circuit state, lexical/object environment composition, return/throw/break/continue/finally restart semantics, resumable state model.
+- **VM architecture: register-based (not stack-based).** The UnifiedBytecodeVM uses explicit register operands in its instruction encoding. Each opcode names its source and destination registers; there is no implicit push/pop operand stack. The registers are .NET local variables inside the dispatch loop, which the .NET JIT maps to hardware registers — eliminating the per-opcode stack-frame allocation that a pure operand-stack design requires. A register-based VM has more bytes per instruction but fewer memory round-trips on the hot path. This is the committed Tier 0 architecture; designs that introduce an operand stack at Tier 0 contradict this commitment and require an explicit ADR override.
 
 ### 3. Concurrency Runtime
 
@@ -842,6 +881,45 @@ Shape system relationship to today's code:
 - Today JsObject uses a property bag (`Dictionary<string, PropertyDescriptor>`) with no shape concept. Implementing shape tracking requires a new object header layout and a shape allocator.
 - The first step is a Shape proof-of-concept under an ADR (not a production migration). Until that ADR lands, this section is purely directional.
 
+### 11. Embedding / Host API
+
+Goal: make the engine trivially consumable from .NET host applications; the host developer experience is the primary integration surface for all consumers outside the engine itself.
+
+The Embedding / Host API is the boundary between the engine and the outside world. A greenfield runtime that is difficult to embed is not competitive regardless of its execution speed. Every host developer needs: one call to create a realm, a way to expose .NET functions as JS callables, a hook to resolve module specifiers, an async-aware entry point, and a surface to grant or revoke capabilities.
+
+```mermaid
+flowchart LR
+    subgraph HostAPI["Embedding / Host API"]
+        CR["JsEngine.CreateRealm()\nsingle-call realm entry point\nrealm factory — proven now at engine layer"]
+        HF["HostFunction delegate bridge\n.NET delegate → JsFunction\nvalue conversion round-trip"]
+        ML["Module loader hook\nhost provides module resolution strategy\nresolve + load + cache lifecycle"]
+        AE["Async entry point\nEvaluateAsync → Task<JsValue>\nhost-awaitable async execution"]
+        CG["Capability grant surface\nwhat the script may call\ngranular permission — directional"]
+    end
+
+    subgraph Contract["Integration contract"]
+        VC["Value conversion\nJsValue ↔ .NET type\nno reflection; explicit converters"]
+        ER["Error surface\nJS exceptions → .NET exceptions\nor Task faulted state"]
+    end
+
+    CR --> HF
+    HF --> ML
+    ML --> AE
+    AE --> CG
+    CR --> VC
+    VC --> ER
+
+    style CG fill:#555,color:#fff
+```
+
+Embedding invariants:
+- `JsEngine.CreateRealm()` is the single-call entry point; host code must not need to construct internal engine types directly. Any divergence from this is a leaky abstraction.
+- The `HostFunction` delegate bridge performs value conversion at the boundary; the engine must not see raw .NET objects inside the execution tier. Conversion is an explicit, typed contract.
+- The module loader hook allows the host to own module resolution without forking the engine. The engine calls the hook for specifier resolution; the hook returns a module source or raises a resolution error.
+- `EvaluateAsync` returns `Task<JsValue>` (or `ValueTask<JsValue>` on the fast path); it is the primary entry point for host-driven async execution. Synchronous `Evaluate` is a convenience wrapper.
+- The capability grant surface (what the script may call, read, or write via host-exposed objects) is the security boundary between the script realm and the host environment. Granular capability control is directional; the current contract is all-or-nothing at the `HostFunction` bridge.
+- Value conversion (JsValue ↔ .NET types) must be explicit and allocation-conscious: returning a `JsValue` from a host function must not box through `object?` if the target type fits in a `JsValue` struct.
+
 ### 12. Developer Tooling / Inspector Protocol (directional)
 
 Goal: expose bytecode-level source attribution and a standard debug protocol surface; keep tooling concerns out of the hot execution path.
@@ -944,6 +1022,9 @@ Boundary contract rules:
 | Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
 | Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
 | Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. Cold-start latency and microtask drain latency have a committed ProfileRunner baseline (`startup`, `microtask` profiles in `profile-manifest.json`; `tools/perf-slo-baseline.md`; `make slo-gate`). | Full Jint allocation comparison; tightening SLO timing targets to < 5 ms p95 for cold-start and < 1 ms per 1 000 microtasks. |
+| .NET Platform Advantage | `JsValue` is a struct (no heap boxing on value-passing fast paths); `Span<JsValue>` parameter contract exists in Tier 0 call-site helpers; meta-JIT applies to the dispatch loop. | NativeAOT cold-start build; SIMD intrinsics for string/hash operations; `ValueTask<JsValue>` zero-alloc async fast path; full `Span<JsValue>`-native argument passing without `JsValue[]` backing arrays on fixed-arity calls. |
+| Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
+| VM register model | UnifiedBytecodeVM dispatch loop uses .NET locals as the operand storage, which the JIT maps to hardware registers on the fast path. | Formal register-based instruction encoding (explicit source/destination register operands in opcode format); elimination of any remaining implicit stack-push/pop patterns in the Tier 0 instruction set. |
 
 ## Architecture constraints (current reality)
 

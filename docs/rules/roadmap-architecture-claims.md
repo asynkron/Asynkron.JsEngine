@@ -89,6 +89,35 @@ boundary-explicit.
     not reattribute a real PR's work to an unrelated claim. A plausible-looking
     `#NNNN` near the current head is not evidence; the resolved commit and its
     diff are.
+16. When `docs/dreaming.md` names both a "2-stratum greenfield target" and a
+    "4-tier routing model", keep the two concepts explicitly separated. The
+    2-stratum target (Stratum 0 = UnifiedBytecodeVM; Stratum 1 = eventual JIT)
+    is the design endpoint for the greenfield engine. The 4 routing tiers
+    (Tier 0 = UnifiedBytecodeVM, Tier 1 = Mixed, Tier 2 = Legacy, Tier 3 =
+    Interpreted fallback) are migration scaffolding that bridges today's
+    interpreter toward that target. Do not conflate the two: the 4-tier model
+    is not the design; it is the migration path. Any Dreamer or architecture
+    pass that adds tier or stratum wording must state which system it belongs
+    to and confirm that "Tier 0 = hottest route" stays consistent with prior
+    routing-tier uses (see rule #14 for the dual numbering disambiguation).
+17. When `docs/dreaming.md` adds or revises Performance SLOs, enforce the
+    three-state evidence lifecycle (Candidate → Prototyped → ProvenScoped) and
+    require ProfileRunner matrix evidence (baseline + final signal via
+    `./benchmark.sh` and `./benchmark.sh --allocations`) before any SLO
+    advances past Candidate. Specific obligations:
+    - **Candidate**: SLO is named but never measured. No ProfileRunner run
+      exists. Do not claim it as a current target without at least one
+      baseline signal.
+    - **Prototyped**: A baseline exists but no post-change final signal is
+      attached. Do not present this as proof of delivery.
+    - **ProvenScoped**: Both baseline and final signals are attached to a
+      merged ADR or PR. Only this state may be cited as evidence that an
+      SLO is met.
+    - "Faster than before" is not sufficient for Node.js parity SLOs; a
+      comparison benchmark against a reference Jint run at the same input
+      is required.
+    - No SLO may be removed from the table without an ADR documenting why
+      the target was dropped or superseded.
 
 ## Why
 
@@ -192,6 +221,20 @@ which then reads as proof. Rule 15 forces each PR/commit citation to be resolved
 to a real commit and its diff before it can be written as evidence — the same
 evidence-gating discipline the rest of this file applies to capability claims,
 extended to provenance citations.
+
+Faktorial issue `autrun-divxrxpa2qd4-72ecf28022` / PR #2698 added five
+architectural enhancements to `docs/dreaming.md`: greenfield-first "2-stratum
+target" framing, full event loop lifecycle diagram, Shape/IC system component,
+active GC allocation budget table, and a Performance SLOs section with a
+Candidate → Prototyped → ProvenScoped evidence lifecycle. WHY for rule 16: the
+same document now contains both the 4-tier routing model (migration scaffolding)
+and the 2-stratum greenfield target (the design); without explicit labeling,
+future Dreamer agents will conflate migration scaffolding with the architectural
+endpoint, leading to framing drift similar to the Tier-0 dual-numbering problem
+captured in rule 14. WHY for rule 17: the SLO section introduces a new
+governance contract that no prior Dreamer run had; without a rule pinning the
+evidence lifecycle, future agents will add SLOs or promote their status without
+ProfileRunner proof, making the finish-line concrete-sounding but unmeasured.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

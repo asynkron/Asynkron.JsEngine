@@ -233,8 +233,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     awaited iterator/for-in sources, object destructuring, expression-level
     `ApplyBindingTarget` destructuring, dynamic-name destructuring targets, and
     non-slot/unified-slot failures that still decline before VM execution;
-    label-dependent control flow; dynamic lookup) until dedicated ownership
-    slices land. Keep the drift guard in
+    dynamic lookup) until dedicated ownership slices land. Label-dependent
+    control flow is no longer an unsupported bucket: ADR 0285 / issue #2679
+    admitted it (see rule #36); only the narrow driver-crossing labeled-abrupt
+    residue still declines as `LabelControlFlow`. Keep the drift guard in
     `ExpressionProgramCoverageMapTests` covering required headings plus current
     `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
     Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
@@ -432,8 +434,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     bytecode-PC map used for ordinary jumps. Prove forward breaks, continue
     backedges, for-style update continue targets, and do-while branch
     consequent backedges with selector eligibility and public route-log tests.
-    Keep labeled breakable control flow declined through `LabelControlFlow`,
-    and keep unsupported complex loop/control-flow shapes as pre-VM declines.
+    Labeled breakable control flow is now admitted (ADR 0285 / issue #2679, rule
+    #36); `LabelControlFlow` no longer blanket-declines labels and now scopes
+    only the driver-crossing labeled-abrupt residue. Keep unsupported complex
+    loop/control-flow shapes as pre-VM declines.
     After widening compile support, update prototype expectations that used to
     assert old decline behavior so `make quality` catches drift before merge.
     WHY: issue
@@ -621,6 +625,53 @@ all-or-nothing until a separate routing issue proves production readiness.
     lifetime are different from the sync route's single pre-gate; a future
     resumable widening (e.g. `this.x` reads, new.target) must clear both gates
     and pick the resume-state lifetime, not the per-step VM-parameter lifetime.
+
+36. When admitting label-dependent control flow to production unified bytecode,
+    treat labels as compiler-owned targets, not a source-syntax permission, and
+    bound the admission by the VM's single-level driver cleanup. There are two
+    blanket gates and both move together: remove the
+    `BreakableEnterInstruction { Label: not null }` → `LabelControlFlow` decline
+    in `UnifiedBytecodeProductionEligibility`, AND relax the compiler's
+    `IsSupportedBreakableEnter` (plus `HasLoopContinueTarget` for labeled
+    loop continue/break metadata) so labeled breakable enters accept. A labeled
+    construct routes whenever its *unlabeled* IR topology would route — the
+    canonical-loop topology checks (condition-first backedge, for-style update
+    continue, do-while consequent, single-pass driver loops) still gate which
+    shapes are eligible. Labels resolve to numeric targets in the plan builder
+    (`ControlFlowEmitter`), so the compiler already sees a fully resolved jump
+    target through `TryAppendResolvedJump` regardless of label presence; the VM
+    needs no new opcode. The correctness boundary is **driver cleanup**: the VM
+    closes only the single driver whose descriptor `BreakTarget` equals the
+    abrupt jump target (`CleanupDriverStatesForBreakTarget`). A labeled
+    `break`/`continue` that exits *several* nested iterator/for-in driver loops
+    at once would leak the intervening inner iterators. So keep the VM
+    fallback-free and single-level, and decline before VM execution the one
+    shape it cannot serve — a labeled abrupt that crosses an enclosing driver
+    loop it is not directly targeting — via per-driver structured body-region
+    analysis (`IsLabeledAbruptCrossingDriver`), still reusing the
+    `LabelControlFlow` decline code (now scoped to this residue, not all
+    labels). Do **not** substitute a program-counter ordering heuristic for
+    multi-driver cleanup: it was prototyped and empirically rejected here
+    because the compiler's lazy target compilation does not guarantee an inner
+    loop's exit PC precedes its enclosing loop's exit PC, so PC-ordering closed
+    the wrong driver set (outer closed, inner leaked). Multi-driver labeled
+    cleanup is the next loop-control frontier and needs nesting metadata on
+    driver descriptors, not a PC heuristic. Move stale prototype decline
+    expectations in the same delivery (labeled while/non-loop `TryCompile` cases
+    now assert success; the `UnsupportedControlFlowFunctions` labeled entry moves
+    to `SupportedLoopControlFunctions`) so `make quality` stays meaningful, and
+    sync the expansion contract bucket #5 + Production Loop-Control Boundary and
+    roadmap in the same slice (rule #21). Pair proof: selector acceptance for
+    labeled loop / labeled break-out-of-for-of / labeled single-loop continue,
+    labeled block/loop route-log invocation proofs, driver-close-on-labeled-break
+    proof, and negative driver-crossing decline proofs for both labeled `break`
+    and labeled `continue`. WHY: issue #2679 / PR #2683 cleared the contract's
+    "Ranked Next Unsupported Buckets" #5. The durable lesson is twofold: (1)
+    label decline was a source-syntax veto layered over an already-resolved
+    numeric-target path, so admitting it is mostly removing two gates plus one
+    narrow soundness decline; (2) the single-level VM cleanup model — not the
+    label itself — is the real boundary, and a PC-based multi-driver shortcut is
+    unsound under lazy target compilation.
 
 ## Why
 
@@ -913,3 +964,4 @@ Related ADRs:
 - `docs/adrs/0277-keep-resumable-unified-bytecode-state-bounded-and-yield-star-declined.md`
 - `docs/adrs/0279-accept-this-dependent-ordinary-sync-in-unified-bytecode.md`
 - `docs/adrs/0283-accept-this-dependent-async-generator-in-resumable-unified-bytecode.md`
+- `docs/adrs/0285-admit-labeled-control-flow-in-unified-bytecode-and-decline-driver-crossing.md`

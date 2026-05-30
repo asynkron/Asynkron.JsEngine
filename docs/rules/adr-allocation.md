@@ -58,3 +58,17 @@ merging `main`**, not only after allocation — a merge can import a sibling's A
 number into your branch even when your number was clean when you wrote it. When
 a collision is found, renumber the *newer* ADR (keep the one already merged to
 `main` stable) and update its heading plus every cross-reference.
+
+Issue #2679 / PR #2683 is a second occurrence of the exact #2677 pattern,
+confirming it is systemic rather than a one-off. The build stage again authored
+its labeled-control-flow ADR as `0283` by scanning instead of allocating;
+meanwhile #2675's resumable this-binding ADR already held `0283` and #2677's
+renumbered object-destructuring ADR held `0284`, both pulled in by a merge from
+`main`. The learn pass detected the now triple-contended prefix and renamed this
+PR's ADR to the free `0285` (heading + roadmap + the two contract
+cross-references), leaving the #2675 `0283` async-generator references intact.
+The takeaways from #2677 stand and are reinforced: build-stage ADR numbers are
+provisional, the duplicate-prefix check must run after merging `main`, and the
+*newer* ADR is the one to renumber. The standing fix is for ADR-authoring
+stages (including build) to reserve via `rtk faktorial-api adr-next` rather than
+scan `docs/adrs`, which is what keeps regenerating this collision.

@@ -2429,12 +2429,14 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    // Accepts: [activation-resolved, GetNamedProperty+, JumpIfFalse|JumpIfTrue|JumpIfNotNullish, Pop, simple-rhs]
+    // i.e. this.prop && b / this.prop || b / this.prop ?? b
     private static bool TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        // Minimum: [base, GetNamedProperty, JumpIf*, Pop, rhs] = 5 ops
+        // Minimum: [base, GetNamedProperty, JumpIfX, Pop, rhs] = 5 ops
         if (program.OperationCount < 5)
         {
             return false;
@@ -2445,82 +2447,50 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
-
-        // Walk the GetNamedProperty chain from index 1. At least one GetNamedProperty is required.
-        var jumpIndex = -1;
+        var shortCircuitStart = -1;
         for (var i = 1; i < program.OperationCount - 1; i++)
         {
             var op = program.GetOperation(i);
             if (op.Kind == ExpressionOpKind.GetNamedProperty &&
-                !op.GetString(stringConstants).IsPrivateName() &&
+                !op.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
                 !op.IsOptional &&
                 !op.ShortCircuitOnNullishTarget)
             {
                 continue;
             }
 
-            // Require at least one GetNamedProperty before the short-circuit jump.
             if (i < 2)
             {
                 return false;
             }
 
-            jumpIndex = i;
+            shortCircuitStart = i;
             break;
         }
 
-        if (jumpIndex < 0)
+        if (shortCircuitStart < 0)
         {
             return false;
         }
 
-        var jumpOp = program.GetOperation(jumpIndex);
-        if (jumpOp.Kind != ExpressionOpKind.JumpIfFalse &&
-            jumpOp.Kind != ExpressionOpKind.JumpIfTrue &&
-            jumpOp.Kind != ExpressionOpKind.JumpIfNotNullish)
+        var jumpOp = program.GetOperation(shortCircuitStart);
+        if (jumpOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish))
         {
             return false;
         }
 
-        // &&/||/?? emit a Pop after the short-circuit jump to discard the left value
-        // when the right branch is taken. Skip it before measuring the RHS.
-        var afterJump = jumpIndex + 1;
-        if (afterJump < program.OperationCount && program.GetOperation(afterJump).Kind == ExpressionOpKind.Pop)
-        {
-            afterJump++;
-        }
+        var popIndex = shortCircuitStart + 1;
+        var rhsStart = shortCircuitStart + 2;
 
-        var rhsStart = afterJump;
-        var rhsEnd = program.OperationCount - 1;
-
-        if (rhsStart > rhsEnd)
+        if (rhsStart >= program.OperationCount ||
+            program.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            jumpOp.Target != program.OperationCount ||
+            rhsStart != program.OperationCount - 1)
         {
             return false;
         }
 
-        if (rhsStart == rhsEnd)
-        {
-            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
-        }
-
-        // Multi-op RHS — must be a simple array, object, or template-literal span.
-        if (TryMeasureSimpleArrayLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var arraySpanLen))
-        {
-            return rhsStart + arraySpanLen - 1 == rhsEnd;
-        }
-
-        if (TryMeasureSimpleObjectLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var objSpanLen))
-        {
-            return rhsStart + objSpanLen - 1 == rhsEnd;
-        }
-
-        if (TryMeasureSimpleTemplateLiteralSpan(program, rhsStart, identifierConstants, activationSlots, out var templateSpanLen) && templateSpanLen > 1)
-        {
-            return rhsStart + templateSpanLen - 1 == rhsEnd;
-        }
-
-        return false;
+        return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
     }
 
     private static bool IsSimpleOperand(

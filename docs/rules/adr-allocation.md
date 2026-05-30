@@ -1,6 +1,6 @@
 # ADR Allocation
 
-When creating a new ADR from Faktorial learn or knowledge-artifact work, reserve
+When creating a new ADR at any stage (learn, build, or knowledge-artifact work), reserve
 the ADR ID from the host runtime first:
 
 ```bash
@@ -17,6 +17,12 @@ or guessing from nearby PRs.
 
 After writing or renaming ADRs, run a duplicate-prefix check over `docs/adrs` and
 record the clean result in the issue or stage summary.
+
+Build-stage ADR numbers are provisional until the learn pass confirms them. Run
+the duplicate-prefix check again after merging `main` into the branch, because a
+sibling PR landing in that window can import a conflicting ADR prefix. When a
+collision is found, renumber the newer ADR (keep the one already merged to `main`
+stable) and update its heading plus every cross-reference.
 
 ## Why
 

@@ -65,3 +65,46 @@ future agents need to distinguish wrapper availability from command construction
 errors, because misdiagnosing the wrapper can hide the repo's required command
 contract and cause later evidence to be gathered through inconsistent shell
 forms.
+
+## Node.js vm.Script Execution Context
+
+When measuring a JS profile script N times using Node.js `vm.Script` in a
+**shared context**, wrap the script body in an IIFE before compiling:
+
+```js
+var code = '(function(){\n' + raw + '\n}());';
+var s = new vm.Script(code);
+```
+
+Without the IIFE, top-level `let`, `const`, and `class` declarations throw a
+redeclaration `SyntaxError` when the same `vm.Script` runs more than once
+against the same `vm.createContext()`. The IIFE scopes each declaration
+per-call, so the warmup and measured iterations all succeed.
+
+WHY: issue #2706 / PR #2715 built the `check-nodejs-regression` gate. The IIFE
+wrap is the key correctness fix for the multi-iteration shared-context design in
+`measure_node_ms()`; without it any profile script that uses `let`/`const` at
+the top level fails on the second run.
+
+## Node.js Gate Entry Consistency
+
+`tools/check-nodejs-regression` has a `gate_entries` array that controls which
+profiles the gate measures. Whenever a new profile is added to
+`tools/profile-manifest.json` **and** it should be tracked by the Node.js
+throughput gate, all three surfaces must be updated together:
+
+1. Add the profile script to `tools/profile-scripts/`.
+2. Add a `"key:script_filename:iterations"` entry to `gate_entries` in
+   `tools/check-nodejs-regression`.
+3. Regenerate the committed baseline: `./tools/check-nodejs-regression --update`
+   and commit `tools/nodejs-baseline.json`.
+
+Omitting step 2 means the new profile is never measured or guarded even though
+it appears in the manifest; omitting step 3 means the gate has no baseline to
+compare against and will report `NO BASELINE` for the new profile.
+
+WHY: issue #2706 / PR #2715 review caught that `fib-iterative` was added to
+`profile-manifest.json` but omitted from `gate_entries` and the baseline JSON.
+The two-line fix (add entry, run `--update`) was straightforward, but the review
+cycle would have been avoided by treating all three steps as a single atomic
+operation.

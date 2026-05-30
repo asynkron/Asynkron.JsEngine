@@ -745,12 +745,20 @@ public static partial class TypedAstEvaluator
         /// In non-strict mode, primitives are boxed to objects and null/undefined become globalThis.
         /// </summary>
         [MethodImpl(JsEngineConstants.Inlining)]
-        private JsValue CoerceThisValueForNonStrict(JsValue thisValue)
+        private JsValue CoerceThisValueForNonStrict(JsValue thisValue) =>
+            CoerceThisValueForNonStrict(thisValue, RealmState);
+
+        /// <summary>
+        ///     Coerces a non-strict <c>this</c> binding per ECMA-262 (OrdinaryCallBindThis): null/undefined
+        ///     become <c>globalThis</c> and primitives are boxed. Shared by the sync production route and the
+        ///     resumable (async/generator) routes so <c>this</c> coercion stays identical across both.
+        /// </summary>
+        internal static JsValue CoerceThisValueForNonStrict(JsValue thisValue, RealmState realmState)
         {
             // Null/undefined → globalThis
             if (thisValue.IsNullish)
             {
-                return RealmState.Engine is { GlobalObject: { } globalObj }
+                return realmState.Engine is { GlobalObject: { } globalObj }
                     ? (JsValue)globalObj
                     : JsValue.Undefined;
             }
@@ -759,30 +767,30 @@ public static partial class TypedAstEvaluator
             if (thisValue.IsNumber)
             {
                 return JsValue.FromJsObject(NumberHelper.CreateNumberWrapper(thisValue.AsDouble(),
-                    realm: RealmState));
+                    realm: realmState));
             }
 
             if (thisValue.IsString)
             {
                 return JsValue.FromJsObject(StringHelper.CreateStringWrapper(thisValue.AsString(),
-                    realm: RealmState));
+                    realm: realmState));
             }
 
             if (thisValue.IsBoolean)
             {
                 return JsValue.FromJsObject(
-                    BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: RealmState));
+                    BooleanHelper.CreateBooleanWrapper(thisValue.AsBoolean(), realm: realmState));
             }
 
             if (thisValue.IsBigInt)
             {
                 return JsValue.FromJsObject(BigIntHelper.CreateBigIntWrapper(thisValue.AsBigInt(),
-                    realm: RealmState));
+                    realm: realmState));
             }
 
             if (thisValue.IsSymbol && thisValue.TryUnwrap<JsSymbol>(out var typedSymbol))
             {
-                return JsValue.FromJsObject(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: RealmState));
+                return JsValue.FromJsObject(SymbolHelper.CreateSymbolWrapper(typedSymbol, realm: realmState));
             }
 
             // Already an object

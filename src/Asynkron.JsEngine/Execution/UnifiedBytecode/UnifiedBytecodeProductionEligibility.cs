@@ -197,13 +197,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing.");
         }
 
-        if (activation.HasThisDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.ThisDependency,
-                "'this' dependency is not eligible for resumable unified bytecode routing.");
-        }
-
+        // 'this'-dependent resumable programs are accepted: the strict/sloppy-coerced binding is
+        // threaded through UnifiedBytecodeResumeState and pushed by the ExecuteResumable LoadThis
+        // case (mirrors the production sync route landed in #2633/#2643). new.target, captured/dynamic
+        // activation, arguments-object, call, and dynamic-lookup shapes still decline below.
         if (activation.HasNewTargetDependency)
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
@@ -518,6 +515,7 @@ internal static class UnifiedBytecodeProductionEligibility
             if (instruction.OpCode is
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
+                UnifiedBytecodeOpCode.LoadThis or
                 UnifiedBytecodeOpCode.StoreSlot or
                 UnifiedBytecodeOpCode.InitializeSlot or
                 UnifiedBytecodeOpCode.Binary or

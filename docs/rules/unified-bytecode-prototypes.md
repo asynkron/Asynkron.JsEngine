@@ -585,6 +585,43 @@ all-or-nothing until a separate routing issue proves production readiness.
     boundary as two further durable guardrails for future `this`-using method
     admissions.
 
+35. When admitting `this`-dependent async/generator functions to the
+    **resumable** unified bytecode route, clear both gates and own the `this`
+    lifetime on resume state. The resumable route declines `this` in two
+    independent places, and both must move together: remove the
+    `HasThisDependency` decline from
+    `UnifiedBytecodeProductionEligibility.EvaluateResumable`, AND add
+    `UnifiedBytecodeOpCode.LoadThis` to the resumable-supported opcode set in
+    `TryFindUnsupportedResumableOpcode`. (The async invoker sets
+    `HasThisDependency`, so the eligibility decline blocks async methods with a
+    receiver; the sync generator invoker never sets it, so the opcode allowlist
+    is the only gate keeping `this`-using generators safe — clearing one without
+    the other leaves a half-open boundary.) `this` must live on the long-lived
+    `UnifiedBytecodeResumeState` (captured at construction, alongside slots /
+    operand stack / program counter), NOT as a per-step VM parameter like the
+    non-resumable `Execute`, because it has to survive suspension/resume across
+    `yield`/`await`. Add a `case LoadThis:` to `ExecuteResumable` that pushes
+    `state.ThisValue`, mirroring the non-resumable `Execute` `LoadThis`. Coerce
+    in the invoker before VM entry via the shared static
+    `CoerceThisValueForNonStrict` (promoted out of `SyncFunctionInvoker`) so
+    strict/sloppy `this` is byte-for-byte identical to the sync route, and the
+    resumable `LoadThis` always loads the pre-coerced value. Keep
+    `LoadNewTarget` out of the resumable allowlist and keep new.target,
+    captured/dynamic activation, arguments-object, call, dynamic-lookup, and
+    async-generator shapes declining before VM execution. Only bare `this`
+    flowing through resumable-supported opcodes (`LoadThis`, `Yield`, `Binary`,
+    `Return`) is admitted; `this.x` property reads and `typeof this` stay
+    outside the resumable opcode set and decline independently. Prove
+    strict/sloppy primitive `this` fidelity, `this` after both `yield` and
+    `await` suspension, and adjacent new.target / arguments-object declines
+    (async + generator). WHY: issue #2675 / PR #2680 widened the resumable route
+    as the counterpart to the sync `this` support (rule #34, #2633/#2643). The
+    durable lesson is that the resumable route's two-gate structure
+    (eligibility-decline + opcode-allowlist) and the resume-state `this`
+    lifetime are different from the sync route's single pre-gate; a future
+    resumable widening (e.g. `this.x` reads, new.target) must clear both gates
+    and pick the resume-state lifetime, not the per-step VM-parameter lifetime.
+
 ## Why
 
 Issue #2118 / PR #2137 introduced the first unified bytecode slice for
@@ -875,3 +912,4 @@ Related ADRs:
 - `docs/adrs/0271-keep-unified-bytecode-exception-regions-vm-owned-and-driver-cleanup-topology-guarded.md`
 - `docs/adrs/0277-keep-resumable-unified-bytecode-state-bounded-and-yield-star-declined.md`
 - `docs/adrs/0279-accept-this-dependent-ordinary-sync-in-unified-bytecode.md`
+- `docs/adrs/0283-accept-this-dependent-async-generator-in-resumable-unified-bytecode.md`

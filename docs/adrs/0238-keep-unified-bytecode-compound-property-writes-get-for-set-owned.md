@@ -85,6 +85,16 @@ get-for-set opcodes and exact selector/compiler shapes.
 - Review-stage verification reran the focused test pack with 118 tests passing,
   ran `rtk dotnet build` with 11 projects, 0 errors, and 0 warnings, and found
   no review issues.
+- Coverage expansion PR #2758 (issue
+  `planitem-planmanual1780157100924814000-baseline-batch-4-compound-property-writes-1c79427542`)
+  added 29 tests covering `this`-base compound write eligibility and invocation
+  and explicit per-operator coverage across all 12 production binary operators
+  (`+`, `-`, `*`, `/`, `%`, `**`, `&`, `|`, `^`, `<<`, `>>`, `>>>`). Negative
+  coverage for logical-assignment operators (`&&=`, `||=`, `??=`) and multi-hop
+  chains confirmed the decline boundaries. All 7 acceptance criteria passed at
+  review. The eligibility path treats `LoadThis` identically to
+  `LoadActivationObject` — both are activation-resolved bases accepted by
+  `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`.
 
 ## Related
 

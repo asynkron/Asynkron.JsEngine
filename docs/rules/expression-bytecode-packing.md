@@ -47,6 +47,21 @@ channel.
    assumptions. When changing the encoded operation storage, update the decoded
    `PackedExpressionOp` view, allocation-stable runner access, printable
    diagnostics, and `EstimatedEncodedOperationBytes` accounting together.
+9. When extending span-scanner helpers (`TryMeasureSimpleObjectLiteralSpan`,
+   `TryAppendSimpleObjectLiteralSpan`, or future object-literal span scanners)
+   to admit a new compiled op pattern, verify the actual op sequence emitted by
+   `ExpressionProgramCompiler` for the target syntax by reading the compiler
+   source. Do not derive the sequence from AST structure alone. For computed
+   properties `{ [expr]: value }`, the compiler always inserts `ResolvePropertyKey`
+   between the key expression and the value expression, making the canonical
+   compiled sequence four ops: `[key-load, ResolvePropertyKey, value-load,
+   DefineComputedObjectProperty]`. The three-op form is never emitted. Using the
+   wrong form causes the span scanner to silently decline, and tests fail on
+   missing fast-path evidence rather than exceptions. WHY: issue #2742 build stage
+   initial implementation used the 3-op form; first verification pass caught
+   multiple `UnifiedBytecodeProductionEligibilityTests` failures. Fix: read the
+   compiler, confirm `ResolvePropertyKey` insertion, apply the 4-op pattern. ADR
+   0291 documents the correct canonical sequence.
 
 ## Why
 
@@ -89,3 +104,21 @@ is that operation compaction belongs inside `ExpressionProgram`, while all
 runtime and diagnostic callers should decode through that owner boundary rather
 than learning the encoded arrays directly. Related ADR:
 `docs/adrs/0097-keep-expression-program-operation-storage-owner-encoded.md`.
+
+Issue #2742 / PR #2746 widened the unified-bytecode span scanner to admit
+computed-key object literal properties. The build-stage initial implementation
+used a three-op pattern `[key-load, value-load, DefineComputedObjectProperty]`
+because that matches the semantic AST structure. This was wrong: the expression
+compiler always inserts a `ResolvePropertyKey` op between the key expression and
+the value expression for every computed property `{ [expr]: value }`, making
+the canonical compiled sequence four ops. The wrong pattern caused the span
+scanner to silently decline all computed-key shapes (the value-load was read as
+`secondOp` and passed `IsSimpleOperand`, but the following
+`DefineComputedObjectProperty` was read as `computedDefineOp` against a
+`secondOp` that wasn't `ResolvePropertyKey`, so the scanner branched to
+decline). The failure mode was silent wrong routing — tests failed on missing
+fast-path log evidence, not exceptions. The fix confirmed the correct form by
+reading the `ExpressionProgramCompiler` source. ADR 0291 documents the
+canonical four-op sequence. The durable lesson: always verify the actual
+compiled op sequence in `ExpressionProgramCompiler` before implementing a span
+scanner pattern; do not derive the sequence from AST structure alone.

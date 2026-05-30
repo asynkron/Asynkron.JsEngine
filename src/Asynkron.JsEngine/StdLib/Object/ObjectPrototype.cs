@@ -356,7 +356,7 @@ public sealed partial class ObjectPrototype
         return realm?.ObjectPrototype;
     }
 
-    private static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
+    private static bool TryGetPrototype(IJsObjectLike? candidate, out IJsObjectLike? prototype)
     {
         prototype = null;
 
@@ -474,7 +474,7 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
-        object? cursor = obj;
+        IJsObjectLike? cursor = obj;
         while (cursor is not null)
         {
             if (cursor is IJsPropertyAccessor accessor)
@@ -516,7 +516,7 @@ public sealed partial class ObjectPrototype
             return JsValue.Undefined;
         }
 
-        object? cursor = obj;
+        IJsObjectLike? cursor = obj;
         while (cursor is not null)
         {
             if (cursor is IJsPropertyAccessor accessor)
@@ -572,7 +572,7 @@ public sealed partial class ObjectPrototype
             throw new ThrowSignal(JsValue.FromObjectUnsafe(error));
         }
 
-        object? cursor = objectLike;
+        IJsObjectLike? cursor = objectLike;
         while (TryGetPrototype(cursor, out var proto))
         {
             if (thisValue.TryGetObject<object>(out var thisObj) && ReferenceEquals(proto, thisObj))
@@ -585,7 +585,7 @@ public sealed partial class ObjectPrototype
 
         return JsValue.False;
 
-        static bool TryGetPrototype(object? candidate, out IJsObjectLike? prototype)
+        static bool TryGetPrototype(IJsObjectLike? candidate, out IJsObjectLike? prototype)
         {
             prototype = null;
 

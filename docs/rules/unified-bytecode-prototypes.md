@@ -1082,6 +1082,8 @@ summary missed. WHY: guard-removal analysis that stops at three visible blocks
 misses a fourth structural gap (unsupported opcode), which the build stage must
 then repair, adding latency and context switch.
 
+Issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 admitted `ArraySpread` as the first production-eligible spread opcode in array literals. The span helper (`TryAppendSimpleArrayLiteralSpan`) was extended to emit `ArraySpread` for spread elements whose source is `IsSimpleOperand` (activation-resolved), and `TryMeasureSimpleArrayLiteralSpan` was widened to accept `ArraySpread` alongside `ArrayPush`. Non-simple spread sources decline with `ObjectLiteralOrSpreadDependency` (a pre-scan in `TryFindExpressionDecline` detects this before the source ops are processed by the general loop). The initial implementation only wired the span helper; a fix commit added the four missing secondary sites. The durable lesson is rule #40: the span helper is not self-contained — it has four dependent infrastructure layers (main compiler switch, production opcode allowlist, decline pre-scan, and expansion contract) that must each be updated in the same slice.
+
 Faktorial issue
 `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-389e8f1c98`
 and PR #2750 completed the array spread in array literals admission (Batch 3),

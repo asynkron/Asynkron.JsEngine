@@ -317,6 +317,25 @@ public static partial class TypedAstEvaluator
         protected abstract JsObject? GetGeneratorPrototype();
 
         /// <summary>
+        /// Resolves the [[Prototype]] for a generator instance produced by calling this function.
+        /// Per OrdinaryCreateFromConstructor, this is the function's own <c>prototype</c> property when
+        /// it is an object (so <c>Object.getPrototypeOf(g()) === g.prototype</c> and
+        /// <c>g() instanceof g</c> hold), falling back to the intrinsic %GeneratorPrototype% otherwise.
+        /// Mirrors <c>ExecutionPlanRunner.ResolveGeneratorPrototype</c> so the unified-bytecode
+        /// resumable path and the runner path agree.
+        /// </summary>
+        protected JsObject? ResolveInstanceGeneratorPrototype()
+        {
+            if (TryGetProperty("prototype", out var protoValue) &&
+                protoValue.TryGetObject<JsObject>(out var prototypeObject))
+            {
+                return prototypeObject;
+            }
+
+            return GetGeneratorPrototype();
+        }
+
+        /// <summary>
         /// Called after the prototype object is created, allowing subclasses to add additional properties.
         /// Default implementation does nothing.
         /// </summary>

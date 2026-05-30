@@ -104,7 +104,7 @@ public static partial class TypedAstEvaluator
                 _function.Name?.Name ?? "<anonymous>",
                 arguments.Count);
 
-            var prototype = GetGeneratorPrototype();
+            var prototype = ResolveInstanceGeneratorPrototype();
             var createdIterator = CreateGeneratorIteratorObject(
                 args => ExecuteUnifiedBytecodeGeneratorStep(
                     state,
@@ -158,9 +158,9 @@ public static partial class TypedAstEvaluator
             return step.Kind switch
             {
                 UnifiedBytecodeStepKind.Yield =>
-                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false)),
+                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false, context)),
                 UnifiedBytecodeStepKind.Completed =>
-                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true)),
+                    JsValue.FromJsObject(UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true, context)),
                 UnifiedBytecodeStepKind.Throw => throw new ThrowSignal(step.Value),
                 _ => throw new NotSupportedException(
                     $"Unified bytecode generator step '{step.Kind}' is not supported by synchronous generators.")

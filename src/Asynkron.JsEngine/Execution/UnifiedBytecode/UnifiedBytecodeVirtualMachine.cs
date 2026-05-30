@@ -2471,9 +2471,16 @@ internal static class UnifiedBytecodeVirtualMachine
         };
     }
 
-    public static JsObject CreateIteratorResult(JsValue value, bool done)
+    public static JsObject CreateIteratorResult(JsValue value, bool done, EvaluationContext context)
     {
+        // Per CreateIterResultObject: the result is an ordinary object inheriting from
+        // %Object.prototype% with own data properties "value" and "done".
         var result = new JsObject();
+        if (context.RealmState?.ObjectPrototype is { } objectPrototype)
+        {
+            result.SetPrototype(objectPrototype);
+        }
+
         result.SetProperty("value", value);
         result.SetProperty("done", done ? JsValue.True : JsValue.False);
         return result;

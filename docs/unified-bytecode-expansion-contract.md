@@ -76,6 +76,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `CreateArray`
 - `ArrayPush`
 - `ArrayPushHole`
+- `ArraySpread`
 - `CreateObject`
 - `DefineObjectProperty`
 - `DefineComputedObjectProperty`

@@ -46,6 +46,7 @@ internal enum UnifiedBytecodeOpCode : byte
     CreateArray,
     ArrayPush,
     ArrayPushHole,
+    ArraySpread,
     CreateObject,
     DefineObjectProperty,
     DefineComputedObjectProperty,

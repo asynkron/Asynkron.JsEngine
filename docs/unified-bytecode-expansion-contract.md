@@ -196,7 +196,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   condition-first loop backedges, unlabeled `BreakInstruction` and
   `ContinueInstruction` target jumps, simple for-style update continue targets,
   and simple do-while consequent backedges proven by PR #2489.
-- Labeled breakable control flow is admitted (ADR 0283): labeled statements,
+- Labeled breakable control flow is admitted (ADR 0285): labeled statements,
   labeled loops, labeled block `break`, and labeled `break`/`continue` route
   through the same compiler-owned resolved-target path as the unlabeled case.
   Label resolution is not a source-syntax permission — a labeled construct
@@ -410,7 +410,7 @@ support today.
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
    slice above. Direct eval source execution, unresolved non-with lookup
    shapes, and captured dynamic activation still decline before VM execution.
-5. Label-dependent control flow is now admitted (ADR 0283): labeled statements,
+5. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
    labeled loops, labeled block `break`, and labeled `break`/`continue` route
    through the compiler-owned resolved-target path. The remaining
    `LabelControlFlow` decline is narrow — a labeled `break`/`continue` that

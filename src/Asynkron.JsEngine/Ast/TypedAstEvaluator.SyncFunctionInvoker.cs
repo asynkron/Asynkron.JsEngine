@@ -188,8 +188,14 @@ public static partial class TypedAstEvaluator
                 DynamicScopeDetector.ContainsDirectEval(_function.Body);
             _hasClosureWithObject = closure.HasWithObjectInChain();
             _allowIdentifierCache = AllowsIdentifierCaching(_function) && !_hasClosureWithObject;
-            _usesArguments = !IsArrowFunction && UsesArgumentsIdentifier(_function);
-            _needsArgumentsBinding = !IsArrowFunction && NeedsArgumentsBinding(_function);
+
+            // Use cached static analysis — these are pure AST properties, safe to cache per FunctionExpression.
+            // Retrieved early so _usesArguments/_needsArgumentsBinding can read from the cache instead of
+            // repeating AST traversals that also fire on every call in ExecutionPlanRunner.CreateExecutionEnvironment.
+            var invokerStatics = ((IAstCacheable<FunctionInvokerStaticPlan>)_function).GetOrCreateCache();
+            _usesArguments = !IsArrowFunction && invokerStatics.UsesArguments;
+            _needsArgumentsBinding = !IsArrowFunction && invokerStatics.NeedsArgumentsBinding;
+
             _hasCapturedActivationInClosure = HasCapturedActivationInClosure(closure);
             _functionScopeId = ResolveFunctionScopeId(function);
             _activationMinimumCapacity = ComputeActivationMinimumCapacity();
@@ -237,8 +243,6 @@ public static partial class TypedAstEvaluator
             _parameterNames = parameterNames;
             _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
 
-            // Use cached static analysis — these are pure AST properties, safe to cache per FunctionExpression.
-            var invokerStatics = ((IAstCacheable<FunctionInvokerStaticPlan>)_function).GetOrCreateCache();
             _hasFunctionDeclarationParameterConflict = invokerStatics.HasFunctionDeclarationParameterConflict;
             _hasParameterVarDeclarationWithoutInitializer = invokerStatics.HasParameterVarDeclarationWithoutInitializer;
             _hasNonParameterCalleeCall = invokerStatics.HasNonParameterCalleeCall;
@@ -3097,6 +3101,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan,
             out UnifiedBytecodeProgram program)
         {
+            // Fast path: plan-level structural decline is permanent across all SyncFunctionInvoker
+            // instances for the same FunctionExpression — skip the full eligibility re-evaluation.
+            if (plan.IsProductionEligibilityPermanentDecline)
+            {
+                program = default!;
+                return false;
+            }
+
             if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
                 _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
             {
@@ -3107,6 +3119,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var result = UnifiedBytecodeProductionEligibility.Evaluate(
                 plan,
                 CreateProductionUnifiedBytecodeActivationDescriptor());
+
+            if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
+            {
+                // Plan structure will never satisfy production unified-bytecode — mark permanently
+                // so future SyncFunctionInvoker instances for this plan skip re-evaluation.
+                plan.MarkProductionEligibilityPermanentDecline();
+            }
+
             _unifiedBytecodeProductionEligibilityPlan = plan;
             _unifiedBytecodeProductionEligibility = result.IsEligible
                 ? UnifiedBytecodeEligibilityAccepted
@@ -3115,6 +3135,26 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             program = result.Program;
             return result.IsEligible;
+        }
+
+        private static bool IsPlanStructuralDecline(UnifiedBytecodeProductionDeclineCode code)
+        {
+            // A decline is plan-structural when it is determined purely by the function's instruction
+            // set and is the same for every invocation regardless of the calling closure's runtime state.
+            // These declines can be cached on the ExecutionPlan to skip re-evaluation on every IIFE call.
+            //
+            // After CanUseProductionUnifiedBytecodeFastPath has passed:
+            //   • DynamicLookupDependency: HasDynamicLookupDependency is gated out by fast-path guard
+            //     (!_allowIdentifierCache && !canUseDynamic), so any DynamicLookupDependency from
+            //     Evaluate is plan-structural (e.g. a global like Math not in activation slots).
+            //   • CallDependency: HasCallDependency (_hasNonParameterCalleeCall) is also gated out.
+            return code is not (
+                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction or
+                UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
+                UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation or
+                UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
+                UnifiedBytecodeProductionDeclineCode.ThisDependency or
+                UnifiedBytecodeProductionDeclineCode.NewTargetDependency);
         }
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)

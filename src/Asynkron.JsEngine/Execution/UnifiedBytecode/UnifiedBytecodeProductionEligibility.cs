@@ -718,7 +718,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     // Synchronous spread calls are admitted (gh2676); the call-target
                     // preparation candidate check accepts them. Anything reaching here is
                     // an out-of-boundary call shape.
-                    declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+                    //
+                    // Use CallInvocationBoundary (not CallDependency) for this plan-structural
+                    // decline so IsPlanStructuralDecline can distinguish it from the
+                    // descriptor-level HasCallDependency decline and cache it permanently.
+                    declineCode = operation.IsDirectEval
+                        ? UnifiedBytecodeProductionDeclineCode.CallDependency  // direct eval is context-sensitive
+                        : UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary;
                     if (operation.IsDirectEval)
                     {
                         declineReason =

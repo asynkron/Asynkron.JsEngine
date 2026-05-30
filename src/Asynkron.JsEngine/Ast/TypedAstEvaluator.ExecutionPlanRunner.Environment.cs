@@ -28,7 +28,8 @@ public static partial class TypedAstEvaluator
 
             var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)_function).GetOrCreateCache()
                 .ParameterNames;
-            var needsArgumentsBinding = !_function.IsArrow && NeedsArgumentsBinding(_function);
+            var invokerStatics = ((IAstCacheable<FunctionInvokerStaticPlan>)_function).GetOrCreateCache();
+            var needsArgumentsBinding = !_function.IsArrow && invokerStatics.NeedsArgumentsBinding;
             HashSet<Symbol>? blockedFunctionVarNames = null;
             if (!_isStrict && hoistPlan.HasFunctionDeclarations)
             {

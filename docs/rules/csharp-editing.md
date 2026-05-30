@@ -47,6 +47,37 @@ repair changed those checks to typed assertions in
 `DurationFormatDebugTest` and `JsOpsTests`, reducing warning drift without
 weakening the behavioral assertions.
 
+## Prototype Chain Traversal Cursor Types
+
+In prototype-chain traversal helpers, type cursor and current-proto locals to
+the most specific available interface rather than `object?`:
+
+- Use `IJsObjectLike? cursor` (not `object? cursor`) for `LookupGetter`,
+  `LookupSetter`, and similar walkers where every assignment site is
+  `IJsObjectLike?`-compatible.
+- Use `IJsPropertyAccessor? currentProto` (not `object? currentProto`) in
+  `HasProperty` and similar helpers where both ternary branches produce
+  `IJsPropertyAccessor?`.
+- Use `IJsObjectLike? candidate` (not `object? candidate`) for `TryGetPrototype`
+  parameter types when all call sites pass `IJsObjectLike?`-compatible values.
+
+When all ternary branches and loop reassignments are typed to a single interface,
+that interface is the correct declared type. Reserve `object?` for genuine
+host-object heterogeneity: public facade parameters, `IDictionary<string, object?>`
+storage contracts, and debug/trace APIs where the declared type is intentionally
+broad.
+
+Classifying the 41-file, 117-occurrence `object?` inventory (issue #2783 /
+PR #2783): the six cursor/proto locals above were narrowable; the remainder fell
+into intentional categories (public facade, storage contracts, debug APIs, or
+JsValue boxing helpers already tracked by the Data Property Helper Value Carriers
+rule in `js-spec-property-access.md`).
+
+WHY: Issue #2783 narrowed 6 `object?` cursor/proto sites after investigation
+found that all were provably interface-typed. Tighter cursor types eliminate
+implicit casts in switch/match arms and make future `IJsObjectLike` / `JsProxy`
+hierarchy changes safer.
+
 ## Example Workflow
 
 1. Edit `src/Foo.cs` to add new method

@@ -1,4 +1,4 @@
-# ADR 0294: Admit conditional (ternary) expressions in unified bytecode
+# ADR 0297: Admit conditional (ternary) expressions in unified bytecode
 
 ## Status
 

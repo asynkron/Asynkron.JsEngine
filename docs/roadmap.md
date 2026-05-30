@@ -91,7 +91,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] (landed, PR #2750) Widened unified bytecode to admit array spread in array literals (`[...x]`, mixed, hole+spread); `ArraySpread` opcode added, rule 40 four-surface coupling checklist confirmed.
 - [x] (landed, PRs #2755/#2758) Expanded compound property write coverage to `this`-base shapes and all 12 production operators; logical-assignment forms (`&&=`, `||=`, `??=`) confirmed declined (ADR 0238 batch-4).
 - [x] (landed, PR #2761) Widened unified bytecode to admit `&&`, `||`, `??` expressions via peek-semantics jump opcodes (`JumpIfShortCircuitFalse/True/NotNullish`); optional-chain short-circuit still declines as `OptionalChainDependency` (ADR 0293, rule 41).
-- [ ] (open, TBD) Widen unified bytecode to admit ternary/conditional expression (`?:`) — natural successor to `&&`/`||`/`??` short-circuit admission; requires conditional jump opcode and backpatch support.
-- [x] (landed, gh2771) Widened unified bytecode to admit simple optional member access (`?.prop`, `?.[k]`) via new `GetNamedPropertyOptional` and `JumpIfNullishReplaceUndefined` opcodes; chained forms (`a?.b?.c`) remain declined pending a later slice (ADR 0294).
+- [x] (landed, gh2770 / PR #2772) Widened unified bytecode to admit ternary/conditional expression (`?:`) via `ExpressionOpKind.Jump` backpatch in `TryAppendExpressionProgramOps`; no new opcodes required (ADR 0297).
+- [x] (landed, gh2771) Widened unified bytecode to admit simple optional member access (`?.prop`, `?.[k]`) via new `GetNamedPropertyOptional` and `JumpIfNullishReplaceUndefined` opcodes; chained forms (`a?.b?.c`) remain declined pending a later slice (ADR 0296).
 
 _Generated and maintained by the recurring Roadmapper run._

@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Roadmap
 
-_Last updated: 2026-05-30_
+_Last updated: 2026-05-30 (PRs #2750, #2755, #2758, #2761)_
 
 ## Current State
 
@@ -38,6 +38,12 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 
 - **`docs/dreaming.md` rev 3 expands architecture direction** (commit `9308b48f`, PR #2725). Additions: `.NET Platform Advantage` section (JsValue struct, Span<JsValue>, NativeAOT, ValueTask zero-alloc async, meta-JIT, SIMD intrinsics); `Component 11 — Embedding / Host API` (CreateRealm, HostFunction bridge, first-class embedding contract); register-based VM directional note; positive completion conditions for each component.
 
+- **Unified-bytecode production routing widened to admit array spread in array literals** (`[...x]`, `[a, ...x]`, `[, ...x]`). New `ArraySpread` opcode iterates the spread source via `EnumerateSpread` and pushes each element; `ArrayPushHole` standalone admission added for hole-before-spread patterns (`[, ...x]`). Holey and spread arrays are now accepted in call-argument and expression-value positions. Rule 40 (four-surface coupling checklist) documents the required update sites (PR #2750).
+
+- **Compound property write eligibility and invocation coverage expanded** to `this`-base shapes and all 12 arithmetic/bitwise compound-assignment operators (+=, -=, *=, /=, %=, **=, &=, |=, ^=, <<=, >>=, >>>=). Theory tests added for both named and computed property paths with `this`-base; logical-assignment forms (`&&=`, `||=`, `??=`) confirmed declined with `PropertyWriteDependency`. Evidence recorded as ADR 0238 batch-4 deliverable (PRs #2755, #2758).
+
+- **Unified-bytecode production routing widened to admit `&&`, `||`, and `??` expressions** via three new peek-semantics jump opcodes (`JumpIfShortCircuitFalse`, `JumpIfShortCircuitTrue`, `JumpIfShortCircuitNotNullish`). The compiler re-maps expression-IR `JumpIfFalse`/`JumpIfTrue`/`JumpIfNotNullish` ops to their unified counterparts via a backpatch map; the VM peeks TOS without consuming it, enabling spec-conformant short-circuit evaluation. Optional-chain `JumpIfShortCircuited` still declines as `OptionalChainDependency`. Decision recorded in ADR 0293 and rule 41 (PR #2761).
+
 Architecture direction is tracked in docs rather than as runtime parity claims: unified-bytecode primary sync-route coverage is recorded (PR #2644), the ordinary sync `this`-binding route is recorded in ADR 0279 (issue #2633), its resumable async/generator counterpart accepting `this`-dependent suspendable functions is recorded in ADR 0283 (issue #2675), and the typed-AST/"dreaming" target is refined in `docs/dreaming.md` — a 4-tier execution model (PR #2647) followed by a self-critique revision (PR #2663), with tier-numbering disambiguation captured as rule 14 (PR #2650). These describe a staged migration with allocation budgets and escape hatches, not current parity.
 
 Conformance against Test262 is tracked via a custom testrunner with baselines in `.testrunner/`. Most reported failures are crash collateral rather than true correctness gaps; real correctness failures are typically under 20.
@@ -51,6 +57,9 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] Skip AnnexB blocked-names `HashSet` allocation when body has no function declarations; 37% `simplearithmetic` improvement (PR #2702).
 - [x] Widen unified bytecode to cover array/object literal argument and property-shorthand shapes (PR #2719, #2738; issue gh2705 landed); simple computed-key object literal properties admitted as call args and binary-expression RHS (gh2742).
 - [x] Widen unified bytecode to cover template literal expression shapes (PR #2741 landed).
+- [x] Widen unified bytecode to admit array spread in array literals including hole+spread patterns; rule 40 four-surface coupling (PR #2750).
+- [x] Expand compound property write test coverage to this-base shapes and all 12 production operators; ADR 0238 batch-4 evidence (PRs #2755, #2758).
+- [x] Widen unified bytecode to admit &&, ||, ?? expressions via peek-semantics jump opcodes; ADR 0293 and rule 41 (PR #2761).
 - [ ] Reduce allocations in async/generator resumption paths (active GC budget target: Gen 0 only per resumption cycle — see `docs/dreaming.md` allocation budget table).
 - [ ] Continue reducing allocations in the evaluator hot paths (call frames, argument arrays).
 - [ ] Expand `JsValue` struct adoption to remaining boxed numeric/string paths (follow `[Obsolete]` markers added in PR #2704).
@@ -79,5 +88,10 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] (open, gh2712) Reduce allocations in the unified-bytecode resumable generator resumption path — profile and reduce per-cycle Gen 1/2 escapes under `forofiteration`; target Gen 0 only per resume cycle per `docs/dreaming.md` allocation budget table.
 - [x] (landed, gh2741) Widen unified bytecode to cover template literal expression shapes — natural follow-on to array/object literal widening (gh2705).
 - [x] (landed, gh2742) Widened unified bytecode span scanner to admit simple-computed-key object literal properties (`{ [k]: v }`, `{ ["name"]: v }`, `{ [0]: v }`) in call-argument and binary-expression-RHS positions; complex key expressions remain declined (ADR 0291).
+- [x] (landed, PR #2750) Widened unified bytecode to admit array spread in array literals (`[...x]`, mixed, hole+spread); `ArraySpread` opcode added, rule 40 four-surface coupling checklist confirmed.
+- [x] (landed, PRs #2755/#2758) Expanded compound property write coverage to `this`-base shapes and all 12 production operators; logical-assignment forms (`&&=`, `||=`, `??=`) confirmed declined (ADR 0238 batch-4).
+- [x] (landed, PR #2761) Widened unified bytecode to admit `&&`, `||`, `??` expressions via peek-semantics jump opcodes (`JumpIfShortCircuitFalse/True/NotNullish`); optional-chain short-circuit still declines as `OptionalChainDependency` (ADR 0293, rule 41).
+- [ ] (open, TBD) Widen unified bytecode to admit ternary/conditional expression (`?:`) — natural successor to `&&`/`||`/`??` short-circuit admission; requires conditional jump opcode and backpatch support.
+- [ ] (open, TBD) Widen unified bytecode to admit optional chaining (`?.`) — requires admitting `JumpIfShortCircuited`-family opcodes currently declined as `OptionalChainDependency`.
 
 _Generated and maintained by the recurring Roadmapper run._

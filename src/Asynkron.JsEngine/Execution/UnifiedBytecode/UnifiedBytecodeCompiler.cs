@@ -3481,6 +3481,12 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish, 0));
                     break;
 
+                case ExpressionOpKind.Jump:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+                    break;
+
                 case ExpressionOpKind.JumpIfNullish when operation.ReplaceWithUndefined:
                     patches ??= [];
                     patches.Add((unified.Count, operation.Target));

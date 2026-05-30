@@ -4899,4 +4899,44 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
+
+    // Conditional (ternary) expression — ADR 0294
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_TruthyCondition_ReturnsConsequent_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pick(cond, a, b) {
+                return cond ? a : b;
+            }
+
+            pick(1, 10, 20);
+            """);
+
+        Assert.Equal(10d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_FalsyCondition_ReturnsAlternate_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pick(cond, a, b) {
+                return cond ? a : b;
+            }
+
+            pick(0, 10, 20);
+            """);
+
+        Assert.Equal(20d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick argc=3",
+                StringComparison.Ordinal));
+    }
 }

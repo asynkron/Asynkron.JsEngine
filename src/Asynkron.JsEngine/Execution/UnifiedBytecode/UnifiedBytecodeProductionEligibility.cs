@@ -1000,6 +1000,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.JumpIfFalse:
                 case ExpressionOpKind.JumpIfTrue:
                 case ExpressionOpKind.JumpIfNotNullish:
+                case ExpressionOpKind.Jump:
                     break;
 
                 case ExpressionOpKind.JumpIfNullish:

@@ -4270,7 +4270,9 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Compiles a simple object literal span starting at startIndex in the expression program.
-    // Emits: CreateObject, then N×[simple-operand-load, DefineObjectProperty(non-private, no name inference)].
+    // Emits: CreateObject, then N property triples:
+    //   Static:   [simple-operand-load, DefineObjectProperty(non-private, no name inference)]
+    //   Computed: [simple-key-load, simple-value-load, DefineComputedObjectProperty(no name inference)]
     private static bool TryAppendSimpleObjectLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -4294,10 +4296,10 @@ internal static class UnifiedBytecodeCompiler
         var i = startIndex + 1;
         while (i < expressionProgram.OperationCount)
         {
-            var valueOp = expressionProgram.GetOperation(i);
-            if (!TryAppendSimpleOperandLoad(valueOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            var firstOp = expressionProgram.GetOperation(i);
+            if (!TryAppendSimpleOperandLoad(firstOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
             {
-                // Non-simple op — property scan is done; the object literal ends here.
+                // Non-simple first op — property scan is done; the object literal ends here.
                 break;
             }
 
@@ -4305,26 +4307,57 @@ internal static class UnifiedBytecodeCompiler
             if (i >= expressionProgram.OperationCount)
             {
                 spanLength = 0;
-                reason = "Expected DefineObjectProperty after value.";
+                reason = "Expected DefineObjectProperty or value operand after first operand.";
                 return false;
             }
 
-            var defineOp = expressionProgram.GetOperation(i);
-            if (defineOp.Kind != ExpressionOpKind.DefineObjectProperty ||
-                defineOp.GetString(exprStringConstants).IsPrivateName() ||
-                defineOp.AllowNameInference)
+            var secondOp = expressionProgram.GetOperation(i);
+            if (secondOp.Kind == ExpressionOpKind.DefineObjectProperty)
+            {
+                // Static property: firstOp = value (already loaded), secondOp = DefineObjectProperty.
+                if (secondOp.GetString(exprStringConstants).IsPrivateName() || secondOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    reason = "Private names and name inference are not admitted in simple object literals.";
+                    return false;
+                }
+
+                var propertyNameIndex = stringConstants.Count;
+                stringConstants.Add(secondOp.GetString(exprStringConstants));
+                unified.Add(new UnifiedBytecodeInstruction(
+                    UnifiedBytecodeOpCode.DefineObjectProperty,
+                    EncodeDefineObjectPropertyOperand(propertyNameIndex, secondOp)));
+                i++;
+            }
+            else if (TryAppendSimpleOperandLoad(secondOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            {
+                // Computed property: firstOp = key (already loaded), secondOp = value (now loaded).
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected DefineComputedObjectProperty after computed key and value.";
+                    return false;
+                }
+
+                var computedDefineOp = expressionProgram.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    reason = "Complex computed keys and name-inferred computed properties are not admitted in simple object literals.";
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectProperty, 0));
+                i++;
+            }
+            else
             {
                 spanLength = 0;
                 reason = "Computed keys, private names, and name inference are not admitted in simple object literals.";
                 return false;
             }
-
-            var propertyNameIndex = stringConstants.Count;
-            stringConstants.Add(defineOp.GetString(exprStringConstants));
-            unified.Add(new UnifiedBytecodeInstruction(
-                UnifiedBytecodeOpCode.DefineObjectProperty,
-                EncodeDefineObjectPropertyOperand(propertyNameIndex, defineOp)));
-            i++;
         }
 
         spanLength = i - startIndex;

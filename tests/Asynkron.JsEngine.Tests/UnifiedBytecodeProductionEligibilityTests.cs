@@ -3117,15 +3117,55 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
     }
 
-    [Fact]
-    public void Evaluate_CallWithComputedKeyObjectArg_DeclinesCallDependency()
+    [Theory]
+    [InlineData("""
+        function sendComputedIdKey(receiver, k, v) {
+            return receiver({ [k]: v });
+        }
+        """, "sendComputedIdKey")]
+    [InlineData("""
+        function sendComputedStringKey(receiver, v) {
+            return receiver({ ["name"]: v });
+        }
+        """, "sendComputedStringKey")]
+    [InlineData("""
+        function sendComputedNumKey(receiver, v) {
+            return receiver({ [0]: v });
+        }
+        """, "sendComputedNumKey")]
+    [InlineData("""
+        function sendMixedStaticAndComputed(receiver, k, x, y) {
+            return receiver({ a: x, [k]: y });
+        }
+        """, "sendMixedStaticAndComputed")]
+    public void Evaluate_CallWithSimpleComputedKeyObjectArg_Accepts(string source, string functionName)
     {
-        var plan = GetFunctionPlan("""
-            function sendComputed(receiver, k, v) {
-                return receiver({ [k]: v });
-            }
-            """,
-            "sendComputed");
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
+    [Theory]
+    [InlineData("""
+        function sendBinaryExprKey(receiver, a, b, v) {
+            return receiver({ [a + b]: v });
+        }
+        """, "sendBinaryExprKey")]
+    [InlineData("""
+        function sendCallExprKey(receiver, fn, v) {
+            return receiver({ [fn()]: v });
+        }
+        """, "sendCallExprKey")]
+    public void Evaluate_CallWithComplexComputedKeyObjectArg_DeclinesCallDependency(string source, string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,

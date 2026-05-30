@@ -4234,4 +4234,64 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=build argc=2",
                 StringComparison.Ordinal));
     }
+
+    // gh2742: computed-key object literals in call-argument position
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithComputedIdentifierKeyObjectArg_UsesUnifiedBytecodeProductionFastPathAndStoresValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendComputed(receiver, k, v) {
+                return receiver({ [k]: v });
+            }
+
+            sendComputed(function(obj) { return obj.result; }, "result", 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendComputed argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithComputedStringLiteralKeyObjectArg_UsesUnifiedBytecodeProductionFastPathAndStoresValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNamed(receiver, v) {
+                return receiver({ ["answer"]: v });
+            }
+
+            sendNamed(function(obj) { return obj.answer; }, 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNamed argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithMixedStaticAndComputedKeyObjectArg_UsesUnifiedBytecodeProductionFastPathAndPreservesOrder()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendMixed(receiver, k, x, y) {
+                return receiver({ a: x, [k]: y });
+            }
+
+            var o = sendMixed(function(obj) { return obj; }, "b", 40, 2);
+            o.a + o.b;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendMixed argc=4",
+                StringComparison.Ordinal));
+    }
 }

@@ -1881,8 +1881,10 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple object literal starting at startIndex.
-    // Admitted shape: CreateObject followed by N×[simple-operand, DefineObjectProperty(non-private, no name inference)] (N ≥ 0).
-    // DefineComputedObjectProperty, DefineObjectMethod, ObjectSpread, private names, and name inference are declined.
+    // Admitted shapes (CreateObject followed by N ≥ 0 property triples):
+    //   Static:   [simple-operand, DefineObjectProperty(non-private, no name inference)]
+    //   Computed: [simple-key-operand, simple-value-operand, DefineComputedObjectProperty(no name inference)]
+    // DefineObjectMethod, ObjectSpread, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
         ExpressionProgram program,
         int startIndex,
@@ -1900,10 +1902,10 @@ internal static class UnifiedBytecodeProductionEligibility
         var i = startIndex + 1;
         while (i < program.OperationCount)
         {
-            var valueOp = program.GetOperation(i);
-            if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+            var firstOp = program.GetOperation(i);
+            if (!IsSimpleOperand(firstOp, identifierConstants, activationSlots))
             {
-                // Non-simple value op terminates the property scan — the object literal ends here.
+                // Non-simple first op terminates the property scan — the object literal ends here.
                 break;
             }
 
@@ -1914,27 +1916,50 @@ internal static class UnifiedBytecodeProductionEligibility
                 return false;
             }
 
-            var defineOp = program.GetOperation(i);
-            if (defineOp.Kind != ExpressionOpKind.DefineObjectProperty)
+            var secondOp = program.GetOperation(i);
+            if (secondOp.Kind == ExpressionOpKind.DefineObjectProperty)
             {
-                // DefineComputedObjectProperty or any other op — decline; computed keys are not admitted.
+                // Static property: firstOp = value, secondOp = DefineObjectProperty.
+                if (secondOp.GetString(stringConstants).IsPrivateName())
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                if (secondOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+            }
+            else if (IsSimpleOperand(secondOp, identifierConstants, activationSlots))
+            {
+                // Computed property: firstOp = key, secondOp = value; expect DefineComputedObjectProperty next.
+                i++;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var computedDefineOp = program.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+            }
+            else
+            {
+                // Not a static or simple-computed property — decline.
                 spanLength = 0;
                 return false;
             }
-
-            if (defineOp.GetString(stringConstants).IsPrivateName())
-            {
-                spanLength = 0;
-                return false;
-            }
-
-            if (defineOp.AllowNameInference)
-            {
-                spanLength = 0;
-                return false;
-            }
-
-            i++;
         }
 
         spanLength = i - startIndex;

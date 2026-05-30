@@ -49,7 +49,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] Fix generator instance prototype and iterator-result prototype in the resumable unified-bytecode route (commit `69707f8d`).
 - [x] Gate resumable generator route on `HasOnlySimpleIdentifierParameters` to restore spec-conformant `FunctionDeclarationInstantiation` for destructuring/default/rest params (commit `330c1eb0`).
 - [x] Skip AnnexB blocked-names `HashSet` allocation when body has no function declarations; 37% `simplearithmetic` improvement (PR #2702).
-- [x] Widen unified bytecode to cover array/object literal argument and property-shorthand shapes (PR #2719, #2738; issue gh2705 landed).
+- [x] Widen unified bytecode to cover array/object literal argument and property-shorthand shapes (PR #2719, #2738; issue gh2705 landed); simple computed-key object literal properties admitted as call args and binary-expression RHS (gh2742).
 - [ ] Continue widening unified bytecode to cover template literal expression shapes.
 - [ ] Reduce allocations in async/generator resumption paths (active GC budget target: Gen 0 only per resumption cycle — see `docs/dreaming.md` allocation budget table).
 - [ ] Continue reducing allocations in the evaluator hot paths (call frames, argument arrays).
@@ -78,6 +78,6 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] (open, gh2711) Establish performance SLO baseline measurements in ProfileRunner/CI — instrument the SLO targets defined in `docs/dreaming.md` (startup latency, allocation per hot loop, microtask drain, Test262 failures, Tier 0 coverage) and wire into the CI gate.
 - [ ] (open, gh2712) Reduce allocations in the unified-bytecode resumable generator resumption path — profile and reduce per-cycle Gen 1/2 escapes under `forofiteration`; target Gen 0 only per resume cycle per `docs/dreaming.md` allocation budget table.
 - [ ] (open, gh2741) Widen unified bytecode to cover template literal expression shapes — natural follow-on to array/object literal widening (gh2705).
-- [ ] (open, gh2742) Widen unified bytecode to cover object literal computed property keys (`{ [expr]: value }`) — extends beyond property shorthand (PR #2738) to dynamic key assignment forms.
+- [x] (landed, gh2742) Widened unified bytecode span scanner to admit simple-computed-key object literal properties (`{ [k]: v }`, `{ ["name"]: v }`, `{ [0]: v }`) in call-argument and binary-expression-RHS positions; complex key expressions remain declined (ADR 0291).
 
 _Generated and maintained by the recurring Roadmapper run._

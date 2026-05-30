@@ -18,6 +18,16 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 
 - Unified-bytecode production routing widened to admit **`this`-based named-receiver chains and binary expressions**. `LoadThis`/`LoadNewTarget` base nodes are now accepted by the boundary-property-read classifier (`TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate`), allowing call sites like `this.method(this)` and guard expressions like `this.prop === value` to compile through the unified route (commit `64a914f6`).
 
+- Unified-bytecode resumable generator route **corrected for spec-conformant generator instances and iterator results**. Two correctness fixes: (1) `TryCreateUnifiedBytecodeGenerator` now resolves the generator function's own `.prototype` property via `ResolveInstanceGeneratorPrototype` so `g() instanceof g` holds; (2) `CreateIteratorResult` threads the `EvaluationContext` and sets `%Object.prototype%` on each `{value, done}` result, per `CreateIterResultObject`. Fixes Test262 generators `has-instance`, `prototype-value`, `Symbol.toStringTag`, and `GeneratorPrototype/next/result-prototype` (commit `69707f8d`).
+
+- Unified-bytecode resumable generator route **gated on simple-identifier parameters**. Generator functions with destructuring, default, or rest parameters were silently skipping `FunctionDeclarationInstantiation` — parameter errors (e.g. `TypeError` for `*m([[x]]){}` called with `[null]`) were never thrown. `TryCreateUnifiedBytecodeGenerator` now gates on `HasOnlySimpleIdentifierParameters`, falling back to the runner path which evaluates `FunctionDeclarationInstantiation` eagerly. Fixes ~520 Test262 `gen-meth` destructuring regressions (commit `330c1eb0`).
+
+- **AnnexB blocked-names HashSet skipped when body has no function declarations** (commit `8be3852f`, PR #2702). `CreateExecutionEnvironment` formerly allocated a `HashSet<Symbol>` on every non-strict function call to track Annex B B.3.3 var-scope hoisting. That set is only used by `HandleFunctionDeclaration`, which never fires when no block-level function declarations exist. Guarding on `hoistPlan.HasFunctionDeclarations` eliminates the allocation in the common case: `simplearithmetic` −37% (447→281 ms), `classdef` −43%.
+
+- **`StringifyValue(JsValue)` overload added to `JsonHelper`; legacy `object?` path marked `[Obsolete]`** (PR #2704). `ConsolePrototype` call sites updated to use the `JsValue`-native overload directly. `TryGetObject(object?, ...)` in `StandardLibrary.Helpers` also marked `[Obsolete]`, advancing the JsValue migration boundary described in ADR 0281 / rule 20.
+
+- **`docs/dreaming.md` expanded with shape/IC system, event loop lifecycle, performance SLOs, and active GC allocation budget** (commit `80514626`, PR #2698). Added: component 10 (Shape/IC — hidden-class layout, transition table, mono/poly/mega IC, IC invalidation); full event-loop lifecycle diagram distinguishing microtask drain from host macrotask scheduling; Performance SLOs section with measurable targets (startup latency, allocation per hot loop, microtask drain, Test262 failures, Tier 0 coverage); active GC allocation budget table with per-site Gen 0/1/2 targets and boxing-avoidance rules. Component numbers renumbered (DevTools → 12, Security → 13).
+
 Architecture direction is tracked in docs rather than as runtime parity claims: unified-bytecode primary sync-route coverage is recorded (PR #2644), the ordinary sync `this`-binding route is recorded in ADR 0279 (issue #2633), its resumable async/generator counterpart accepting `this`-dependent suspendable functions is recorded in ADR 0283 (issue #2675), and the typed-AST/"dreaming" target is refined in `docs/dreaming.md` — a 4-tier execution model (PR #2647) followed by a self-critique revision (PR #2663), with tier-numbering disambiguation captured as rule 14 (PR #2650). These describe a staged migration with allocation budgets and escape hatches, not current parity.
 
 Conformance against Test262 is tracked via a custom testrunner with baselines in `.testrunner/`. Most reported failures are crash collateral rather than true correctness gaps; real correctness failures are typically under 20.
@@ -26,12 +36,16 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 
 - [x] Skip redundant arguments guard in simple-IR closure-activation fast path (PR #2646).
 - [x] Add allocation-regression benchmark gate to CI to guard evaluator hot-path gains (gh2668).
+- [x] Fix generator instance prototype and iterator-result prototype in the resumable unified-bytecode route (commit `69707f8d`).
+- [x] Gate resumable generator route on `HasOnlySimpleIdentifierParameters` to restore spec-conformant `FunctionDeclarationInstantiation` for destructuring/default/rest params (commit `330c1eb0`).
+- [x] Skip AnnexB blocked-names `HashSet` allocation when body has no function declarations; 37% `simplearithmetic` improvement (PR #2702).
 - [ ] Continue widening unified bytecode to cover additional expression shapes (array/object literals, template literals).
-- [ ] Reduce allocations in async/generator resumption paths.
+- [ ] Reduce allocations in async/generator resumption paths (active GC budget target: Gen 0 only per resumption cycle — see `docs/dreaming.md` allocation budget table).
 - [ ] Continue reducing allocations in the evaluator hot paths (call frames, argument arrays).
-- [ ] Expand `JsValue` struct adoption to remaining boxed numeric/string paths.
-- [ ] Improve Test262 pass rate by triaging real correctness failures (target: <10 true failures).
-- [ ] Land the typed-AST evaluator migration described in the dreaming docs, gated by allocation budgets.
+- [ ] Expand `JsValue` struct adoption to remaining boxed numeric/string paths (follow `[Obsolete]` markers added in PR #2704).
+- [ ] Improve Test262 pass rate by triaging real correctness failures (target: <10 true failures — SLO defined in `docs/dreaming.md`).
+- [ ] Establish performance SLO baseline measurements in the ProfileRunner matrix (startup latency, allocation per hot loop, microtask drain — targets defined in `docs/dreaming.md`).
+- [ ] Land the typed-AST evaluator migration described in the dreaming docs, gated by allocation budgets (2-stratum target: delete Tier 1 + Tier 2).
 
 ## Long-Term Goals
 
@@ -40,6 +54,8 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] Achieve startup-time/compile-time parity with comparable .NET-hosted runtimes on representative workloads.
 - [ ] Achieve high Test262 conformance (>95% on Language + BuiltIns suites).
 - [ ] Offer ahead-of-time / cached compilation of hot scripts for faster warm starts.
+- [ ] Reach the 2-stratum greenfield target (delete Tier 1 ExpressionProgram VM + Tier 2 Statement IR Runner; retain only Stratum 0 Compiled VM and Stratum F correctness fallback — see `docs/dreaming.md`).
+- [ ] Implement Shape/IC system (directional): hidden-class property layout, shape transition table, and mono/poly/megamorphic inline-cache dispatch at the compiled VM layer, once Stratum 0 coverage is proven — see component 10 in `docs/dreaming.md`.
 
 ## Next Steps
 
@@ -48,5 +64,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] (open, gh2678) Continue the unified-bytecode driver-state widening: Slice A (TDZ head environments for sync iterator/for-in drivers) landed via `TdzHeadInit` and ADR 0288; Slice B (awaited iterator/for-in sources) and Slice C (async iterator driver kind) remain declined.
 - [ ] (open, gh2705) Expand unified bytecode to cover array-literal and object-literal expression shapes — next logical widening step after `this`-based expressions.
 - [ ] (open, gh2706) Add Node.js comparison benchmark suite (`fibonacci`, `object-creation`, `string-ops`) to CI — aligned with long-term Node.js-competitor goal.
+- [ ] (open, gh2711) Establish performance SLO baseline measurements in ProfileRunner/CI — instrument the SLO targets defined in `docs/dreaming.md` (startup latency, allocation per hot loop, microtask drain, Test262 failures, Tier 0 coverage) and wire into the CI gate.
+- [ ] (open, gh2712) Reduce allocations in the unified-bytecode resumable generator resumption path — profile and reduce per-cycle Gen 1/2 escapes under `forofiteration`; target Gen 0 only per resume cycle per `docs/dreaming.md` allocation budget table.
 
 _Generated and maintained by the recurring Roadmapper run._

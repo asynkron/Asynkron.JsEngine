@@ -104,6 +104,10 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `ArrayDestructuringElement`
 - `ArrayDestructuringRest`
 - `ArrayDestructuringClose`
+- `ObjectDestructuringInit`
+- `ObjectDestructuringProperty`
+- `ObjectDestructuringRest`
+- `ObjectDestructuringClose`
 - `PrepareIdentifierCallTarget`
 - `PrepareDynamicIdentifierCallTarget`
 - `PrepareNamedCallTarget`
@@ -304,10 +308,21 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   lowered to expression bytecode and element/rest targets resolve to unified
   flat slots. Normal and abrupt cleanup close the destructuring iterator from
   VM-owned driver state.
-- Object destructuring, expression-level `ApplyBindingTarget` destructuring,
-  async iterator drivers, TDZ head environments, awaited driver sources,
-  dynamic-name shapes, and targets that cannot resolve to unified slots still
-  decline before VM execution.
+- Accepted object destructuring driver shapes include
+  `ObjectDestructuringInit`, `ObjectDestructuringProperty`,
+  `ObjectDestructuringRest`, and `ObjectDestructuringClose` when the source is
+  lowered to expression bytecode, all property keys are static identifiers (no
+  computed keys), there are no defaults or nested patterns, and every property
+  and rest target resolves to a unified flat slot. The VM coerces the source
+  with `ToObject`, reads properties in source order (observable getter side
+  effects preserved), and a trailing rest target collects the remaining own
+  enumerable keys minus the consumed ones. Abrupt completion (a non-coercible
+  source or a throwing getter) closes the VM-owned driver state.
+- Object destructuring with computed/dynamic keys, defaults, nested patterns,
+  or rest targets that cannot resolve to unified slots, expression-level
+  `ApplyBindingTarget` destructuring, async iterator drivers, TDZ head
+  environments, awaited driver sources, dynamic-name shapes, and targets that
+  cannot resolve to unified slots still decline before VM execution.
 
 ## Production Resumable Boundary
 - Current production resumable support is a separate async/generator route with
@@ -359,6 +374,17 @@ support today.
   `ArrayDestructuringCloseInstruction` are eligible only for the lowered
   direct-slot array destructuring model described above. Unsupported
   destructuring shapes still decline with `DestructuringDependency`.
+- `ObjectDestructuringInitInstruction`,
+  `ObjectDestructuringPropertyInstruction`,
+  `ObjectDestructuringRestInstruction`, and
+  `ObjectDestructuringCloseInstruction` are eligible only for the lowered
+  direct-slot object destructuring model described above (static keys,
+  identifier targets, no defaults, no nested patterns, optional identifier
+  rest). Computed/dynamic-name keys, defaults, nested patterns, and non-slot
+  targets keep the generic `BindingVariableDeclarationInstruction` path and
+  still decline with `DestructuringDependency`. ADR
+  [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
+  records the model-first decision and admit/decline boundary.
 - Decision for this lane: model-first. Any future widening must preserve
   explicit driver-state descriptors and pre-VM declines for shapes that would
   require mixed IR/AST execution.
@@ -373,10 +399,13 @@ support today.
 2. Driver-state widening is next. Async iterator drivers, TDZ head
    environments, and awaited iterator/for-in sources remain outside the
    admitted boundary and must decline before VM execution.
-3. Destructuring widening is still model-first. Object destructuring,
-   expression-level `ApplyBindingTarget` destructuring, dynamic-name
-   destructuring shapes, and targets that cannot resolve to unified slots
-   remain outside the admitted boundary (`DestructuringDependency`).
+3. Destructuring widening is still model-first. Simple array and object
+   destructuring driver shapes are admitted (static keys, identifier targets,
+   no defaults/nested patterns, optional identifier rest). Object destructuring
+   with computed/dynamic-name keys, defaults, or nested patterns,
+   expression-level `ApplyBindingTarget` destructuring, and targets that cannot
+   resolve to unified slots remain outside the admitted boundary
+   (`DestructuringDependency`).
 4. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
    slice above. Direct eval source execution, unresolved non-with lookup

@@ -54,6 +54,177 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleObjectDestructuring_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readAb(source) {
+                var { a, b } = source;
+                return a + b;
+            }
+
+            readAb({ a: 40, b: 2 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readAb argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectDestructuring_PreservesPropertyReadOrder_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var order = [];
+            function readAb(source) {
+                var { a, b } = source;
+                return a + b;
+            }
+
+            var src = {};
+            Object.defineProperty(src, "a", {
+                get: function () { order.push("a"); return 1; },
+                enumerable: true
+            });
+            Object.defineProperty(src, "b", {
+                get: function () { order.push("b"); return 2; },
+                enumerable: true
+            });
+
+            var sum = readAb(src);
+            [sum, order.join(",")];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(3d, steps.Items[0].AsDouble());
+        Assert.Equal("a,b", steps.Items[1].AsString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readAb argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectDestructuringRest_CollectsRemainingProperties_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readRest(source) {
+                var { a, ...rest } = source;
+                return rest.c;
+            }
+
+            readRest({ a: 1, b: 2, c: 3 });
+            """);
+
+        Assert.Equal(3d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readRest argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectDestructuringNullSource_ThrowsTypeError_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readAb(source) {
+                var { a } = source;
+                return a;
+            }
+
+            var captured = false;
+            try {
+                readAb(null);
+            } catch (error) {
+                captured = error instanceof TypeError;
+            }
+
+            captured;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readAb argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectDestructuringGetterThrow_PropagatesAndCleansUp_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readAb(source) {
+                var { a, b } = source;
+                return a + b;
+            }
+
+            var src = {
+                a: 1,
+                get b() { throw new RangeError("boom"); }
+            };
+
+            var message = null;
+            try {
+                readAb(src);
+            } catch (error) {
+                message = error instanceof RangeError ? error.message : "wrong";
+            }
+
+            message;
+            """);
+
+        Assert.Equal("boom", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readAb argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData(
+        """
+        function readObjectDefault(source) {
+            var { a = 5 } = source;
+            return a;
+        }
+
+        readObjectDefault({});
+        """,
+        "readObjectDefault",
+        5d)]
+    [InlineData(
+        """
+        function readObjectComputed(source, key) {
+            var { [key]: value } = source;
+            return value;
+        }
+
+        readObjectComputed({ picked: 7 }, "picked");
+        """,
+        "readObjectComputed",
+        7d)]
+    public async Task UnsupportedObjectDestructuringShapes_DeclineUnifiedBytecodeAndFallBack(
+        string source,
+        string functionName,
+        object expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleGeneratorYieldSend_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();

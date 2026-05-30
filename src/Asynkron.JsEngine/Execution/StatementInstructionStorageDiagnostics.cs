@@ -279,7 +279,11 @@ internal static class StatementInstructionStorageDiagnostics
                 InstructionKind.ArrayDestructuringInit or
                 InstructionKind.ArrayDestructuringElement or
                 InstructionKind.ArrayDestructuringRest or
-                InstructionKind.ArrayDestructuringClose => "with-and-destructuring",
+                InstructionKind.ArrayDestructuringClose or
+                InstructionKind.ObjectDestructuringInit or
+                InstructionKind.ObjectDestructuringProperty or
+                InstructionKind.ObjectDestructuringRest or
+                InstructionKind.ObjectDestructuringClose => "with-and-destructuring",
 
                 InstructionKind.IncrementSlot or
                 InstructionKind.LogicalCompoundAssignmentSlot or

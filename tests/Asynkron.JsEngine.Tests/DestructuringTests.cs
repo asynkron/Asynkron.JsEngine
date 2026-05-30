@@ -70,9 +70,12 @@ public sealed class DestructuringTests(ITestOutputHelper output) : InternalTestB
     public async Task ObjectBindingTargetProgramsCarrySlotMetadata()
     {
         await using var engine = CreateEngine();
+        // Use a default so the binding stays on the generic ObjectBindingTargetProgram
+        // path (simple object destructuring now lowers to ObjectDestructuring* driver
+        // instructions instead).
         var program = engine.ParseProgram("""
             function bind(values) {
-                const { x, y } = values;
+                const { x, y = 0 } = values;
                 return x + y;
             }
             """);

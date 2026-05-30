@@ -146,25 +146,12 @@ internal struct ForInLoopDriver : ILoopDriver
                 return false;
             }
 
-            _initIndex = ctx.Append(new ForInInitInstruction(
-                _stateSymbol, _stateSlotIndex,
-                _valueSymbol, _valueSlotIndex,
-                Next: -1,
-                AwaitStateKey: ((IAstCacheable<Symbol>)awaitObject).GetOrCreateCache(),
-                AwaitedProgram: awaitedProgram,
-                TdzBindings: _tdzBindings,
-                TdzIsConst: _tdzIsConst,
-                ObjectSource: _objectExpression.Source,
-                TdzScopeId: _tdzScopeId,
-                TdzSlotIndices: _tdzSlotIndices));
-
-            _moveNextIndex = ctx.Append(new ForInMoveNextInstruction(
-                _stateSymbol, _valueSymbol,
-                _stateSlotIndex, _valueSlotIndex,
-                -1, -1));
-
-            moveNextEntry = _moveNextIndex;
-            moveNextBranch = _moveNextIndex;
+            AppendInitAndMoveNext(ctx,
+                objectProgram: null,
+                awaitStateKey: ((IAstCacheable<Symbol>)awaitObject).GetOrCreateCache(),
+                awaitedProgram: awaitedProgram,
+                out moveNextEntry,
+                out moveNextBranch);
             return true;
         }
 
@@ -176,11 +163,30 @@ internal struct ForInLoopDriver : ILoopDriver
             return false;
         }
 
+        AppendInitAndMoveNext(ctx,
+            objectProgram: objectProgram,
+            awaitStateKey: null,
+            awaitedProgram: null,
+            out moveNextEntry,
+            out moveNextBranch);
+        return true;
+    }
+
+    private void AppendInitAndMoveNext(
+        EmitContext ctx,
+        ExpressionProgram? objectProgram,
+        Symbol? awaitStateKey,
+        ExpressionProgram? awaitedProgram,
+        out int moveNextEntry,
+        out int moveNextBranch)
+    {
         _initIndex = ctx.Append(new ForInInitInstruction(
             _stateSymbol, _stateSlotIndex,
             _valueSymbol, _valueSlotIndex,
             Next: -1,
             ObjectProgram: objectProgram,
+            AwaitStateKey: awaitStateKey,
+            AwaitedProgram: awaitedProgram,
             TdzBindings: _tdzBindings,
             TdzIsConst: _tdzIsConst,
             ObjectSource: _objectExpression.Source,
@@ -194,7 +200,6 @@ internal struct ForInLoopDriver : ILoopDriver
 
         moveNextEntry = _moveNextIndex;
         moveNextBranch = _moveNextIndex;
-        return true;
     }
 
     public void WireMoveNext(EmitContext ctx, int moveNextBranch, int bodyTarget, int exitTarget)

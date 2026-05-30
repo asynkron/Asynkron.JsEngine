@@ -86,6 +86,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `JumpIfShortCircuitFalse`
 - `JumpIfShortCircuitTrue`
 - `JumpIfShortCircuitNotNullish`
+  *(Note: `Jump` was already in the inventory; `ConditionalExpression` (`?:`) is now admitted via ADR 0294 using the existing `Jump`, `JumpIfShortCircuitFalse`, and `Pop` opcodes without new additions.)*
 - `Return`
 - `ReturnUndefined`
 - `Throw`

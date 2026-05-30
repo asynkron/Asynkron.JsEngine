@@ -3428,6 +3428,12 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish, 0));
                     break;
 
+                case ExpressionOpKind.Jump:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+                    break;
+
                 default:
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;

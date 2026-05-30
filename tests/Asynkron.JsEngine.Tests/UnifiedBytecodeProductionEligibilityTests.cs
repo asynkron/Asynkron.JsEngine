@@ -3997,4 +3997,64 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
+
+    // Conditional (ternary) expression admission — ADR 0294
+
+    [Fact]
+    public void Evaluate_ConditionalExpression_SlotCondition_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function ternary(a, b, c) {
+                return a ? b : c;
+            }
+            """,
+            "ternary");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+    }
+
+    [Fact]
+    public void Evaluate_ConditionalExpression_LiteralConsequentAndAlternate_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function clamp(a) {
+                return a > 0 ? 1 : 0;
+            }
+            """,
+            "clamp");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_ConditionalExpression_WithOptionalChainBranch_StillDeclinesWithOptionalChainDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function ternaryOpt(a, obj) {
+                return a ? obj?.value : 0;
+            }
+            """,
+            "ternaryOpt");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
 }

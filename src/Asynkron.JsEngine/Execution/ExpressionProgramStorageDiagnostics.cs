@@ -341,6 +341,10 @@ internal static class ExpressionProgramStorageDiagnostics
                         AddProgram(arrayDestructuringInit.SourceProgram);
                         break;
 
+                    case ObjectDestructuringInitInstruction objectDestructuringInit:
+                        AddProgram(objectDestructuringInit.SourceProgram);
+                        break;
+
                     case EnterCatchInstruction { CatchBindingProgram: not null } enterCatch:
                         VisitBindingTargetProgram(enterCatch.CatchBindingProgram);
                         break;

@@ -319,6 +319,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
             }
 
+            if (instruction is ObjectDestructuringInitInstruction or
+                ObjectDestructuringPropertyInstruction or
+                ObjectDestructuringRestInstruction or
+                ObjectDestructuringCloseInstruction)
+            {
+                if (!IsSupportedObjectDestructuringInstruction(instruction, out declineReason))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
+                    return true;
+                }
+            }
+
             if (instruction is EnterWithInstruction { AwaitedProgram: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
@@ -1095,6 +1107,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
     }
 
+    private static bool IsSupportedObjectDestructuringInstruction(
+        ExecutionInstruction instruction,
+        out string reason)
+    {
+        switch (instruction)
+        {
+            case ObjectDestructuringInitInstruction { SourceProgram.IsEmpty: false }:
+            case ObjectDestructuringPropertyInstruction:
+            case ObjectDestructuringRestInstruction:
+            case ObjectDestructuringCloseInstruction:
+                reason = string.Empty;
+                return true;
+
+            default:
+                reason =
+                    "Only object destructuring driver instructions with lowered expression bytecode are eligible for production unified bytecode routing.";
+                return false;
+        }
+    }
+
     private static bool TryGetActivationResolvedIdentifier(
         PackedExpressionOp operation,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -1582,6 +1614,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = arrayDestructuringInit.SourceProgram;
                 return true;
 
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                program = objectDestructuringInit.SourceProgram;
+                return true;
+
             case ReturnInstruction { AwaitedProgram: null, ReturnProgram: { } returnProgram }:
                 program = returnProgram;
                 return true;
@@ -1662,6 +1698,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ArrayDestructuringElement:
                 case UnifiedBytecodeOpCode.ArrayDestructuringRest:
                 case UnifiedBytecodeOpCode.ArrayDestructuringClose:
+                case UnifiedBytecodeOpCode.ObjectDestructuringInit:
+                case UnifiedBytecodeOpCode.ObjectDestructuringProperty:
+                case UnifiedBytecodeOpCode.ObjectDestructuringRest:
+                case UnifiedBytecodeOpCode.ObjectDestructuringClose:
                     break;
 
                 case UnifiedBytecodeOpCode.Binary:

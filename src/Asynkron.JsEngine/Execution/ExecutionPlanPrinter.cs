@@ -234,6 +234,18 @@ internal static class ExecutionPlanPrinter
             ArrayDestructuringInitInstruction arrayDestructuringInit =>
                 $"ARRAY_DESTRUCT_INIT {FormatExpression(null, arrayDestructuringInit.SourceProgram)} (iter: {arrayDestructuringInit.IteratorSlot.Name}) → [{arrayDestructuringInit.Next}]",
 
+            ObjectDestructuringInitInstruction objectDestructuringInit =>
+                $"OBJECT_DESTRUCT_INIT {FormatExpression(null, objectDestructuringInit.SourceProgram)} (src: {objectDestructuringInit.SourceSlot.Name}) → [{objectDestructuringInit.Next}]",
+
+            ObjectDestructuringPropertyInstruction objectDestructuringProperty =>
+                $"OBJECT_DESTRUCT_PROP {objectDestructuringProperty.PropertyName} → {objectDestructuringProperty.TargetSymbol.Name} (src: {objectDestructuringProperty.SourceSlot.Name}) → [{objectDestructuringProperty.Next}]",
+
+            ObjectDestructuringRestInstruction objectDestructuringRest =>
+                $"OBJECT_DESTRUCT_REST ...{objectDestructuringRest.RestSymbol.Name} (src: {objectDestructuringRest.SourceSlot.Name}) → [{objectDestructuringRest.Next}]",
+
+            ObjectDestructuringCloseInstruction objectDestructuringClose =>
+                $"OBJECT_DESTRUCT_CLOSE (src: {objectDestructuringClose.SourceSlot.Name}) → [{objectDestructuringClose.Next}]",
+
             EnterWithInstruction enterWith =>
                 $"ENTER_WITH {FormatExpression(null, enterWith.AwaitedProgram ?? enterWith.ObjectProgram)} → [{enterWith.Next}]",
 

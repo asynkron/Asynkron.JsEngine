@@ -89,6 +89,18 @@ declined before the resumable VM by the standard resumable
 
 - Delivery PR #2761 merged as commit
   `c91728b7 feat: admit &&, ||, ?? expressions to production unified bytecode VM (ADR 0238 batch-5)`.
+- Build-back repair PR #2762 (issue
+  `planitem-planmanual1780157100924814000-baseline-batch-5-logical-and-nullish-opera-e15078d09e`)
+  fixed two quality-gate failures caught by the automated verification run:
+  (1) the three new opcodes were added to `ExecuteResumable` but missed from
+  the sync `Execute` dispatch switch, causing `InvalidOperationException` at
+  runtime on the production fast path; (2) six initial invocation tests used
+  `((dynamic)result)[N]` on `JsArray` which does not support integer indexing
+  via dynamic binding — converted to `Assert.IsType<JsTypes.JsArray>(result).Items[N]`.
+  PR #2762 also extended coverage with literal, this-property, and
+  optional-chain-as-operand eligibility and invocation shapes (445 additional
+  test lines). See rule #41 in `docs/rules/unified-bytecode-prototypes.md` for
+  the durable dual-dispatch and test-indexing lessons.
 - Build-stage baseline signal before delivery: `JumpIfShortCircuitFalse/True/NotNullish`
   opcodes in `UnifiedBytecodeProgram.cs` = 0.
 - Build-stage final signal after delivery: three new opcodes present in enum;

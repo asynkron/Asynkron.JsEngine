@@ -3756,6 +3756,42 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LogicalAnd_LiteralOperand_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function f(a) {
+                return a && 42;
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NullishCoalescing_LiteralFallback_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function f(a) {
+                return a ?? 0;
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_OptionalChainExpression_StillDeclinesWithOptionalChainDependency()
     {
         var plan = GetFunctionPlan("""

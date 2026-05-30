@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-30 (rev 3)
+Date: 2026-05-30 (rev 4)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,33 +11,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-The 2026-05-29 dream — the revision this document supersedes — was the strongest yet: it added the system lifecycle diagram, the realm isolation diagram, the layered dependency topology, the seam inventory tier table, and promoted Evidence from a peer terminus to a penetrating horizontal concern. Those gains are kept. But a *greenfield* dream must be willing to critique itself, not just its predecessor. Turning the same scrutiny on the current document exposes the following weak points:
+Rev 3 kept all architectural commitments from prior revisions: 2-stratum target, register-based VM, event loop lifecycle, Shape/IC system, performance SLOs, .NET Platform Advantage, and Embedding/Host API. This rev 4 addresses six remaining gaps identified when applying the same scrutiny to that document:
 
-1. **The 4-tier model is sold as the target when it is migration scaffolding.** The current dream says "Tier 0 is the target for all accepted shapes; Tiers 1–3 are temporary correctness bridges," but then spends most of its diagrams elaborating the four-tier structure as if it were the destination. A from-scratch system would never ship four execution engines that share an environment model but not opcode tables. The principled greenfield target is **two tiers**: one compiled VM, and one thin correctness fallback for genuinely undecidable-at-compile-time semantics. Tier 1 (ExpressionProgram) and Tier 2 (StatementIR Runner) are *historical migration strata*, not design tiers. The dream should name that explicitly so slices stop treating "move from Tier 2 to Tier 1" as progress when the only progress that matters is "reach Tier 0 or prove the shape belongs in the fallback."
+1. **No JsValue struct layout diagram.** The `.NET Platform Advantage` section commits to `JsValue` as a no-boxing struct, but never shows the discriminant layout, inline vs. managed field split, or the 24-byte size. A maintainer reviewing a new allocation slice cannot verify struct layout intent without reading source code.
 
-2. **The document has two contradictory tier numberings.** The greenfield sections number the UnifiedBytecodeVM as Tier 0 and the AST fallback as Tier 3. The "Tiered Execution Model (directional)" section (component 8) inverts this — it numbers the AST interpreter as Tier 0 and the unified bytecode VM as Tier 1, in V8/JSC promotion order. Two opposite numbering schemes in one north-star document is a real defect: a slice author cannot tell whether "Tier 0" means "fastest" or "fallback." This revision resolves it by separating *execution strata* (where code runs today, numbered fastest-first) from the *speculative promotion ladder* (a directional future, named without reusing the stratum numbers).
+2. **No bytecode instruction format specification.** The Execution Engine section commits to a register-based VM but never shows the instruction encoding: opcode width, operand field layout, register indexing, or constant pool encoding scheme. A slice author cannot tell whether a proposed change respects the instruction contract.
 
-3. **Abrupt completion has no diagram.** The Shared Completion Protocol is referenced in nearly every execution diagram (`Return / Throw / Break / Continue / finally restart`) but never drawn. Exception propagation — how a `throw` unwinds through `finally` restart chains, across the VM/fallback boundary, and out to the host — is the single most semantics-sensitive control path in the engine, and it is invisible. Every correctness slice touching error handling is flying blind.
+3. **Components 3, 4, 5, and 6 lack Mermaid diagrams.** Components 1, 2, and 7–13 all have component diagrams. The Concurrency Runtime (3), Platform Layer (4), Standard Library (5), and Evidence layer (6) have only prose descriptions — inconsistent with the rest of the document and harder to reason about at a glance.
 
-4. **The seam inventory has no closing condition.** The table distinguishes near-closure from structural seams, which is good, but it never states *when the dream itself is done*. A greenfield north star should describe its own terminal state: the dream is fulfilled when Tier 1 and Tier 2 are deleted, every fallback entry is either eliminated or ADR-accepted as intentional, and the execution surface is exactly two strata. Without that, the document is an inventory with no finish line.
+4. **No Worker / Realm Fabric model.** The product dream claims "Node.js-competitive" for concurrent workloads, but the component map has no Worker isolation component. The isolation boundary, structured-clone communication contract, and Worker lifecycle are invisible to any slice author working toward that goal.
 
-The 2026-05-29 revision kept every proven constraint and added: a **greenfield 2-tier target vs. migration 4-tier reality** section with a contrast diagram, an **abrupt-completion / exception propagation** diagram, a single consistent stratum-numbering convention, and an explicit **dream completion condition**.
+5. **No Compilation Artifact Cache.** The Performance SLOs section targets cold-start < 5 ms p95, but the component map has no cache component. The artifact cache is the primary architectural enabler for repeated-script fast paths and is entirely absent from the architecture picture.
 
-This revision keeps all of those and addresses five further gaps: (1) **stronger greenfield-first framing** in the product dream (2-stratum target replaces the "4-tier execution" bullet); (2) a **full event loop lifecycle diagram** that distinguishes microtask drain from host macrotask scheduling; (3) a **Shape / IC system** component (directional) for hidden-class and inline-cache property access; (4) an **active GC allocation budget** table with per-site Gen targets and reduction rules; and (5) a **Performance SLOs** section with measurable targets and governance rules so "Node.js-competitive" has a finish line, not just a direction.
-
-Applying the same scrutiny to that rev 2 document exposes six further gaps that this rev 3 addresses:
-
-1. **No .NET Platform Advantage section.** The document argues for a Node.js-competitive runtime but never explains *why .NET* is the right host platform. `JsValue` as a struct, `Span<JsValue>` argument passing, NativeAOT cold-start, `ValueTask<JsValue>` zero-alloc async, meta-JIT (the .NET JIT compiles the dispatch loop), and SIMD intrinsics are all structural advantages — and structural obligations. They are invisible in rev 2.
-
-2. **No Component 11: Embedding / Host API.** The component map jumps from Shape (10) to Developer Tooling (12), skipping 11 entirely. The host-developer experience — `JsEngine.CreateRealm()`, `HostFunction` delegate bridge, module loader hook, async entry point, capability grant surface — is the primary integration surface for consumers of the engine and was completely absent.
-
-3. **No VM architecture commitment.** Rev 2 describes a "typed value stack" for Tier 0 without committing to whether the VM is register-based or stack-based. These are materially different design choices with different allocation profiles. The Execution Engine component should name the choice explicitly and explain why register-based maps better to .NET JIT optimization.
-
-4. **Component numbering gap (10 → 12, skipping 11).** The missing Component 11 creates a gap that is immediately visible in the component map and misleads readers about the total number of architectural components.
-
-5. **Positive dream completion conditions missing.** The "Dream completion condition" in the seam inventory names only *negative* criteria (delete Tier 1 + Tier 2, eliminate seams). A greenfield north star should also name *positive* measured outcomes: cold-start < 5 ms measured, Tier 0 covers ≥95% of real programs, embedding API stable, Test262 < 10 true failures.
-
-6. **Proven-now vs directional-next table is missing rows for these three areas.** The table did not reflect .NET Platform Advantage, Embedding / Host API, or VM register model — leaving three significant architectural commitments without a stated current reality or forward direction.
+6. **Self-critique section had grown into a changelog.** Prior revisions appended narrative rather than replacing it; the section read as a running audit trail. This revision replaces the accumulated multi-paragraph narrative with the six forward-looking gaps above.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -373,8 +359,10 @@ This document describes its own finish line so slices know what "done" means rat
 - **Tier 0 covers ≥ 95% of real programs** — defined as: ≥ 95% of Test262 Language + BuiltIns test cases attempt Tier 0 before any fallback, measured by an instrumented routing trace, not claimed by inspection.
 - **Embedding API stable** — `JsEngine.CreateRealm()`, `HostFunction` delegate bridge, module loader hook, and `EvaluateAsync` are all in a stable public API surface with no `internal`-type leakage; host code does not need to reference engine internals.
 - **Test262 true correctness failures < 10** in Language + BuiltIns suites (measured by the testrunner baseline, excluding excluded features listed in `Test262Harness.settings.json`).
+- **Compilation artifact cache is operational** — defined as: ≥ 95% of repeated-script evaluations in the ProfileRunner matrix skip re-parse and hit the artifact cache, measured by `make slo-gate`. A directional gate; not a today-blocking condition.
+- **Worker fabric baseline exists** — defined as: at least one Worker isolation proof-of-concept under a committed ADR. Not production-ready — a directional gate. The Worker fabric is not a current correctness obligation.
 
-Until all eight conditions hold, the steering rule is unchanged: push every shape **out of the migration middle** — up into Stratum 0 if decidable, down into Stratum F if genuinely dynamic — and never optimize a shape to remain in Tier 1 or Tier 2.
+Until all ten conditions hold, the steering rule is unchanged: push every shape **out of the migration middle** — up into Stratum 0 if decidable, down into Stratum F if genuinely dynamic — and never optimize a shape to remain in Tier 1 or Tier 2.
 
 ## Realm isolation model
 
@@ -449,6 +437,44 @@ Value contract rules:
 - Fast-path helpers must accept and return `JsValue`, not `object?`. Object-overload variants are obsolete compat shims and must be removed.
 - Descriptor semantics, brand validation, and cross-realm error creation are Standard Library obligations, not Execution Engine bypasses.
 - The rope string model controls flattening ownership; consumers drive flattening, the runtime does not eagerly flatten.
+
+### JsValue struct layout
+
+The struct uses a tagged-union layout with a discriminant `Kind` field. Primitives are stored inline with no managed heap reference; reference types carry a managed pointer in `ObjectValue`.
+
+```
+ ┌────────────────────────────────────────────┐
+ │  JsValue  —  24 bytes on 64-bit .NET        │
+ ├────────────┬────────────┬───────────────────┤
+ │  Kind      │ [padding]  │  NumberValue      │
+ │  4 bytes   │  4 bytes   │  8 bytes (double) │
+ │  JsValue   │ (align to  │  inline Number /  │
+ │  Kind enum │  8 bytes)  │  Boolean (0/1)    │
+ ├────────────┴────────────┴───────────────────┤
+ │  ObjectValue  —  8 bytes (managed ref)       │
+ │  null for inline kinds; non-null for String, │
+ │  BigInt, Symbol, Object                      │
+ └─────────────────────────────────────────────┘
+```
+
+| Kind (tag) | Value | NumberValue | ObjectValue |
+|---|---|---|---|
+| Undefined | 0 | 0.0 (unused) | null |
+| Null | 1 | 0.0 (unused) | null |
+| Boolean | 2 | 0.0 = false / 1.0 = true | null |
+| Number | 3 | IEEE 754 double | null |
+| BigInt | 4 | 0.0 (unused) | → JsBigInt |
+| String | 5 | 0.0 (unused) | → string |
+| Symbol | 6 | 0.0 (unused) | → Symbol |
+| Object | 7 | 0.0 (unused) | → JsObject (or JsArray, JsFunction, …) |
+| Unit | 8 | 0.0 (unused) | null (internal: no-completion-value marker) |
+| Uninitialized | 9 | 0.0 (unused) | null (internal: TDZ sentinel) |
+
+Layout invariants:
+- `Kind` uses a 4-byte `int`-sized enum (not a `byte`) for CPU branch-prediction performance on the dispatch switch.
+- 4-byte padding follows `Kind` to align `NumberValue` on an 8-byte boundary; this is a .NET runtime layout decision, not a waste.
+- `Unit` and `Uninitialized` are internal sentinels; they must not appear on the host-visible embedding surface.
+- Directional: NaN-boxing (encoding the tag in the unused mantissa bits of a NaN double, collapsing the struct to 8 bytes) is a possible future optimization. It requires an ADR before any wire-format or serialization change.
 
 ## Async concurrency model
 
@@ -687,12 +713,48 @@ flowchart TD
     T2 -.near-closure and structural seams.-> T3
 ```
 
+#### Bytecode instruction format (committed direction — requires ADR before wire-format freeze)
+
+The UnifiedBytecodeVM is register-based. The committed directional encoding is a fixed 32-bit instruction word:
+
+```
+ 31      24 23      16 15       8 7        0
+ ┌─────────┬──────────┬──────────┬──────────┐
+ │ Opcode  │   Dest   │   Src1   │   Src2   │
+ │  8 bits │  8 bits  │  8 bits  │  8 bits  │
+ └─────────┴──────────┴──────────┴──────────┘
+```
+
+Design constraints for the directional wire format:
+- Max 256 registers (8-bit register index per operand).
+- Literal / constant loads: Src1+Src2 combined as a 16-bit index into the per-function constant pool.
+- Wide-instruction escape: `Opcode = 0x00` carries a 24-bit extended operand; the following instruction reads it as its primary operand for large slot indices or jump targets.
+
+**Current reality:** The production instruction struct is `UnifiedBytecodeInstruction(UnifiedBytecodeOpCode OpCode, int Operand = 0)` — a byte-enum opcode plus a 32-bit integer operand. This captures the register-model intent; the formal fixed 32-bit wire encoding with explicit Dest/Src1/Src2 fields is directional and requires an ADR before wire-format freeze.
+
 - Subcomponents: instruction dispatch, optional-chain short-circuit state, lexical/object environment composition, return/throw/break/continue/finally restart semantics, resumable state model.
 - **VM architecture: register-based (not stack-based).** The UnifiedBytecodeVM uses explicit register operands in its instruction encoding. Each opcode names its source and destination registers; there is no implicit push/pop operand stack. The registers are .NET local variables inside the dispatch loop, which the .NET JIT maps to hardware registers — eliminating the per-opcode stack-frame allocation that a pure operand-stack design requires. A register-based VM has more bytes per instruction but fewer memory round-trips on the hot path. This is the committed Tier 0 architecture; designs that introduce an operand stack at Tier 0 contradict this commitment and require an explicit ADR override.
 
 ### 3. Concurrency Runtime
 
 Goal: deterministic async behavior; scheduling and resume ownership are explicit, not implicit.
+
+```mermaid
+flowchart TD
+    subgraph CR["Concurrency Runtime"]
+        MQ[Microtask Queue\nPromise jobs\nqueueMicrotask]
+        AW[Await Suspension Point\nopcode emitted by Tier 0]
+        RS[Resume Routing\nrestore slot state + restart PC]
+        AG[Async Generator State Machine\nyield / next / return / throw]
+        HW[Host Wakeup Bridge\ncallback enqueue into MQ]
+    end
+
+    AW -->|suspension opcode| MQ
+    MQ -->|drain job| RS
+    RS -->|re-enter VM at saved PC| AW
+    HW -->|host callback| MQ
+    AG -->|suspension point| AW
+```
 
 - Components: microtask queue, async function machinery, async generator state machine, await/resume routing, host wakeup bridge.
 - Subcomponents: scheduler contracts, resume-mode carriers, callback ownership boundaries, continuation state.
@@ -703,6 +765,24 @@ Goal: deterministic async behavior; scheduling and resume ownership are explicit
 
 Goal: Node-competitive interoperability without blurring engine vs host responsibility.
 
+```mermaid
+flowchart LR
+    subgraph PLT["Platform Layer"]
+        ESM[ESM Lifecycle\nparse → link → evaluate\ntop-level await aware]
+        DYN[Dynamic Import Pipeline\nPhase 2 deferred execution]
+        REG[Module Registry\nspecifier + realm keyed]
+        HCB[Host Callable Bridge\n.NET delegate → JsFunction]
+        RLM[Realm Factory\nglobal object + intrinsics]
+        ADP[Compatibility Adapters\nJSON modules\nCommonJS shim boundary]
+    end
+
+    RLM --> ESM
+    ESM -->|evaluated module| REG
+    DYN --> REG
+    RLM --> HCB
+    HCB --> ADP
+```
+
 - Components: ESM lifecycle runtime, dynamic import pipeline, module registry, host callable bridge, realm factory, compatibility adapters.
 - Subcomponents: `import.meta` ownership, JSON module boundaries, top-level await integration, host error translation.
 - Non-goal (until proven): CommonJS parity at the engine level. CJS behavior lives in the host adapter layer.
@@ -711,6 +791,23 @@ Goal: Node-competitive interoperability without blurring engine vs host responsi
 
 Goal: high-fidelity built-ins with runtime-owned semantics and JsValue-native fast paths.
 
+```mermaid
+flowchart TD
+    subgraph STD["Standard Library"]
+        JSV[JsValue / JsObject Core\nstruct value model + object graph]
+        DSC[Descriptor System\ndata / accessor\nconfigurable / writable / enumerable]
+        PRC[Prototype Chain + Built-ins\nArray, String, Object, Function\nError, Intl, Temporal]
+        SPC[Specialized Storage\nJsArray dense, JsRegExp\nTypedArray, Map, Set, WeakRef]
+        SHP[Shape / IC System\nhidden-class + inline cache\ndirectional]
+    end
+
+    JSV --> DSC
+    JSV --> PRC
+    DSC -->|governs property semantics| PRC
+    PRC --> SPC
+    SPC -.directional.-> SHP
+```
+
 - Components: JsValue/JsObject core model, prototype chain + constructors, descriptor system, specialized storage (JsArray, RegExp, Intl, Temporal).
 - Subcomponents: descriptor semantics, strictness behavior, cross-realm/brand validation, JsValue-native hot-path helpers.
 - Key invariant: object-overload variants are obsolete compat shims; JsValue-native is the target.
@@ -718,6 +815,26 @@ Goal: high-fidelity built-ins with runtime-owned semantics and JsValue-native fa
 ### 6. Evidence and Governance (horizontal layer)
 
 Goal: keep every correctness and performance claim provable, repeatable, and traceable.
+
+```mermaid
+flowchart LR
+    subgraph EV["Evidence — horizontal governance"]
+        T62[Test262 + Focused Packs\nLanguage + BuiltIns\nnarrow semantics packs]
+        PRF[ProfileRunner Matrix\nCPU + allocation benchmarks\nbaseline + final signal]
+        QGT["Canonical Quality Gate\nmake quality\nbuild-internal + test-internal"]
+        ADR[ADR + Roadmap Governance\ntraceability\ncompletion conditions]
+    end
+
+    T62 -->|correctness coverage| QGT
+    PRF -->|performance signal| QGT
+    QGT -->|gate result| ADR
+
+    EV -.governs.-> LC[Language Compiler]
+    EV -.governs.-> EE[Execution Engine]
+    EV -.governs.-> CR[Concurrency Runtime]
+    EV -.governs.-> PL[Platform Layer]
+    EV -.governs.-> SL[Standard Library]
+```
 
 - Components: Test262 + focused proof packs, ProfileRunner matrix, canonical `make quality` gate, ADR/roadmap governance.
 - Subcomponents: narrow proof packs, recurring profile loops (baseline + final signal), seam-scan queries, architecture traceability checks.
@@ -972,6 +1089,78 @@ Security invariants:
 - Eval observability boundaries are explicit and tested; dynamic code construction paths (`eval`, `Function()`, `new Function()`) are tracked.
 - Permission model, capability gating, and resource quota enforcement are directional; no quota enforcer exists today.
 
+### 14. Worker / Realm Fabric (directional)
+
+Goal: credible Node.js-competitive concurrency — each Worker is a fully isolated engine instance; communication uses only structured-clone or explicit `SharedArrayBuffer` opt-in.
+
+Each Worker owns a dedicated `JsEngine` instance (its own realm, globals, module registry, and microtask queue). There is no cross-Worker object sharing via the object graph; values sent between Workers are serialized as structured-clone copies. The host owns Worker lifecycle (create, terminate, message dispatch). The Worker Fabric is the routing layer that delivers messages without exposing raw engine internals across Worker boundaries.
+
+```mermaid
+flowchart LR
+    HOST[Host Application]
+    WF[Worker Fabric\nrouting layer\nhost-owned lifecycle]
+
+    subgraph WA["Worker A"]
+        EA[JsEngine instance A\nrealm A + MQ A]
+    end
+
+    subgraph WB["Worker B"]
+        EB[JsEngine instance B\nrealm B + MQ B]
+    end
+
+    SC[Structured Clone boundary\npostMessage serialization\nno raw object references cross]
+    SAB[SharedArrayBuffer\nopt-in side channel\nhost capability grant required]
+
+    HOST --> WF
+    WF -->|structured-clone message| EA
+    WF -->|structured-clone message| EB
+    EA --> SC --> EB
+    EA -.opt-in.-> SAB
+    EB -.opt-in.-> SAB
+
+    style SC fill:#363,color:#fff
+    style SAB fill:#555,color:#fff
+```
+
+Worker fabric invariants (all directional):
+- Each Worker is a full `JsEngine` instance; there is no shared object graph across Workers.
+- `postMessage` serializes the value payload via structured clone; no JS object reference crosses the Worker boundary.
+- `SharedArrayBuffer` is opt-in and requires explicit host capability grant; it is not available by default.
+- The host owns Worker lifecycle; the engine does not manage thread creation or OS-level concurrency.
+- This entire component is directional; no Worker-aware code exists in the current engine.
+
+### 15. Compilation Artifact Cache (directional)
+
+Goal: skip full re-compilation for repeated-script evaluations; a cache hit bypasses lexer → parser → lowering → eligibility and returns a pre-built artifact directly to the VM. This is the primary architectural enabler for the cold-start < 5 ms p95 SLO on repeated-script workloads.
+
+Cache key: SHA-256(source text + realm fingerprint). The realm fingerprint includes strict-mode flag and module/script context. A cache hit returns the stored `UnifiedBytecodeProgram` (plus slot layout and debug source map). A cache miss runs full compilation, stores the result, then evaluates.
+
+```mermaid
+flowchart LR
+    SRC[Source text]
+    KEY[Cache key\nSHA-256 of\nsource + realm fingerprint]
+    LKP{Cache lookup}
+    HIT[Cache hit\npre-compiled artifact\nskip parse + lower + classify]
+    MISS[Cache miss\nfull compile path\nLexer → Parser → Lowering → Eligibility]
+    EMIT[Emit to cache\nUnifiedBytecodeProgram\n+ slot layout + source map]
+    VM[VM execution]
+
+    SRC --> KEY --> LKP
+    LKP -->|hit| HIT --> VM
+    LKP -->|miss| MISS --> EMIT --> VM
+
+    style HIT fill:#060,color:#fff
+    style MISS fill:#555,color:#fff
+```
+
+Cache invariants (all directional):
+- Cache key is realm-sensitive: strict-mode flag, module vs. script context, and host-supplied compilation options are part of the key.
+- Cache is content-addressed, not filename-addressed: two scripts with identical source text and realm fingerprint share a single cache entry.
+- Cache hit path reaches the VM with zero parser/compiler allocations; cache miss follows the normal compilation pipeline unchanged.
+- The cache stores only the final compiled artifact (UnifiedBytecodeProgram + slot layout); AST nodes are never cached.
+- Cache invalidation is by key only; there is no partial invalidation. A changed source byte produces a new key and a cold miss.
+- This entire component is directional; no artifact cache exists in the current engine.
+
 ## Cross-module routing map
 
 When a recurring slice starts, use this map to find the primary owner and avoid blurring boundaries.
@@ -1025,6 +1214,10 @@ Boundary contract rules:
 | .NET Platform Advantage | `JsValue` is a struct (no heap boxing on value-passing fast paths); `Span<JsValue>` parameter contract exists in Tier 0 call-site helpers; meta-JIT applies to the dispatch loop. | NativeAOT cold-start build; SIMD intrinsics for string/hash operations; `ValueTask<JsValue>` zero-alloc async fast path; full `Span<JsValue>`-native argument passing without `JsValue[]` backing arrays on fixed-arity calls. |
 | Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
 | VM register model | UnifiedBytecodeVM dispatch loop uses .NET locals as the operand storage, which the JIT maps to hardware registers on the fast path. | Formal register-based instruction encoding (explicit source/destination register operands in opcode format); elimination of any remaining implicit stack-push/pop patterns in the Tier 0 instruction set. |
+| JsValue struct layout | Tagged-union struct: `Kind` discriminant (4-byte int enum, tag values 0–9), `NumberValue` (8-byte IEEE 754 double; also stores Boolean as 0.0/1.0), `ObjectValue` (8-byte managed reference for String/BigInt/Symbol/Object). Total: 24 bytes on 64-bit .NET. Undefined/Null/Boolean/Number are fully inline (no heap allocation). | NaN-boxing optimization (encode tag in unused NaN mantissa bits, collapse struct to 8 bytes); `Unit` and `Uninitialized` kinds removed from public embedding surface once TDZ and statement-completion models are fully formalized. |
+| Bytecode instruction format | Register-based opcode model: .NET locals as operand storage, JIT maps to hardware registers on the hot path. `UnifiedBytecodeInstruction` carries `UnifiedBytecodeOpCode` (byte enum) + 32-bit integer operand per instruction. | Fixed 32-bit wire encoding: `[Opcode: 8][Dest: 8][Src1: 8][Src2: 8]` with wide-instruction escape prefix for large operands; max 256 registers; Src1+Src2 as 16-bit constant pool index for literal loads. Requires ADR before wire-format freeze. |
+| Worker / Realm Fabric | None — entirely directional. | Each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` as opt-in side channel requiring host capability grant; host-owned Worker lifecycle. |
+| Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of pre-compiled `UnifiedBytecodeProgram` artifacts keyed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
 
 ## Architecture constraints (current reality)
 

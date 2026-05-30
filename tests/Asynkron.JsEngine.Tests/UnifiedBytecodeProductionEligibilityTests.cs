@@ -1303,6 +1303,42 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
+    [InlineData(
+        """
+        function namedFunctionValue() {
+            return { value: function() {} };
+        }
+        """,
+        "namedFunctionValue")]
+    [InlineData(
+        """
+        function namedArrowValue(x) {
+            return { handler: () => x };
+        }
+        """,
+        "namedArrowValue")]
+    [InlineData(
+        """
+        function computedNamedFunctionValue(key) {
+            return { [key]: function() {} };
+        }
+        """,
+        "computedNamedFunctionValue")]
+    public void Evaluate_ObjectLiteralNameInferenceShapes_AcceptWithNoneCode(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Theory]
     [MemberData(nameof(AcceptedPropertyWriteAndUpdatePrograms))]
     public void Evaluate_AcceptedPropertyWriteAndUpdatePrograms_StayWithinOwnedOpcodeSubset(
         string source,

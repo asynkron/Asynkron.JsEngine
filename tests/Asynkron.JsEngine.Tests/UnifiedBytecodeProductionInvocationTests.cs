@@ -4426,8 +4426,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             [f(null), f(1)];
             """);
 
-        Assert.True(((dynamic)result)[0] == null);
-        Assert.Equal(99d, ((dynamic)result)[1]);
+        var arr1 = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(arr1.Items[0].IsNull);
+        Assert.Equal(99d, arr1.Items[1].AsDouble());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=f argc=1",
@@ -4484,8 +4485,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             [f(0), f(7)];
             """);
 
-        Assert.Equal(99d, ((dynamic)result)[0]);
-        Assert.Equal(7d, ((dynamic)result)[1]);
+        var arr3 = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(99d, arr3.Items[0].AsDouble());
+        Assert.Equal(7d, arr3.Items[1].AsDouble());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=f argc=1",
@@ -4561,10 +4563,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             [f(null), f(undefined), f(0), f("hello")];
             """);
 
-        Assert.Equal(99d, ((dynamic)result)[0]);
-        Assert.Equal(99d, ((dynamic)result)[1]);
-        Assert.Equal(0d, ((dynamic)result)[2]);
-        Assert.Equal("hello", (string)((dynamic)result)[3]);
+        var arr5 = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(99d, arr5.Items[0].AsDouble());
+        Assert.Equal(99d, arr5.Items[1].AsDouble());
+        Assert.Equal(0d, arr5.Items[2].AsDouble());
+        Assert.Equal("hello", arr5.Items[3].AsString());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=f argc=1",

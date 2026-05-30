@@ -2269,19 +2269,19 @@ internal static class UnifiedBytecodeVirtualMachine
                         : instruction.Operand;
                     break;
 
-                case UnifiedBytecodeOpCode.JumpIfFalsePreserve:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitFalse:
                     programCounter = !stack[stackPointer - 1].IsTruthy
                         ? instruction.Operand
                         : programCounter + 1;
                     break;
 
-                case UnifiedBytecodeOpCode.JumpIfTruePreserve:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitTrue:
                     programCounter = stack[stackPointer - 1].IsTruthy
                         ? instruction.Operand
                         : programCounter + 1;
                     break;
 
-                case UnifiedBytecodeOpCode.JumpIfNotNullish:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish:
                     programCounter = !stack[stackPointer - 1].IsNullish
                         ? instruction.Operand
                         : programCounter + 1;

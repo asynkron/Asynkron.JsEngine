@@ -3878,13 +3878,23 @@ internal static class UnifiedBytecodeVirtualMachine
             BinaryOperator.Multiply => TypedAstEvaluator.MultiplyValue(left, right, context),
             BinaryOperator.Divide => TypedAstEvaluator.DivideValue(left, right, context),
             BinaryOperator.Modulo => TypedAstEvaluator.ModuloValue(left, right, context),
+            BinaryOperator.Power => TypedAstEvaluator.Power(left, right, context),
             BinaryOperator.Equal => JsOps.LooseEquals(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.NotEqual => JsOps.LooseEquals(left, right, context) ? JsValue.False : JsValue.True,
             BinaryOperator.StrictEqual => JsOps.StrictEquals(left, right) ? JsValue.True : JsValue.False,
             BinaryOperator.StrictNotEqual => JsOps.StrictEquals(left, right) ? JsValue.False : JsValue.True,
             BinaryOperator.LessThan => JsOps.LessThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.LessThanOrEqual => JsOps.LessThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThan => JsOps.GreaterThan(left, right, context) ? JsValue.True : JsValue.False,
             BinaryOperator.GreaterThanOrEqual => JsOps.GreaterThanOrEqual(left, right, context) ? JsValue.True : JsValue.False,
+            BinaryOperator.BitwiseAnd => TypedAstEvaluator.BitwiseAnd(left, right, context),
+            BinaryOperator.BitwiseOr => TypedAstEvaluator.BitwiseOr(left, right, context),
+            BinaryOperator.BitwiseXor => TypedAstEvaluator.BitwiseXor(left, right, context),
+            BinaryOperator.LeftShift => TypedAstEvaluator.LeftShift(left, right, context),
+            BinaryOperator.RightShift => TypedAstEvaluator.RightShift(left, right, context),
+            BinaryOperator.UnsignedRightShift => TypedAstEvaluator.UnsignedRightShift(left, right, context),
+            BinaryOperator.In => TypedAstEvaluator.In(left, right, context),
+            BinaryOperator.InstanceOf => TypedAstEvaluator.InstanceOf(left, right, context),
             _ => throw new InvalidOperationException($"Unsupported unified binary operator '{op}'.")
         };
     }

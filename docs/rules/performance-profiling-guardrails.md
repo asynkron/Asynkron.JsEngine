@@ -205,6 +205,29 @@ optimization.
     indexed descriptors, defaults, rest elements, nested targets, custom array
     iterators, and generator/suspending contexts must stay on the semantic
     iterator path so abrupt completion still performs `IteratorClose`.
+9b. For `spread` execution-loop optimizations, the array-spread bulk-copy path
+    is near-optimal once resize churn and per-spread iterator allocation are
+    removed; the irreducible floor is the spec-mandated element copy. A correct,
+    low-risk pre-sized bulk-copy (`JsArray.TryAppendDenseArraySpread`) combined
+    with `CreateArrayWithCapacity` pre-sizing collapsed resize churn from 75.9%
+    to 7.5% of `ExecuteInstructionLoop` cost and eliminated the per-spread
+    iterator allocation, but wall-clock barely moved: the `spread` benchmark is
+    dominated by per-iteration engine setup (`JsEngine.ctor` / `ParseProgram` /
+    plan-build), not the execution loop. Like `simplearithmetic` (rule 27a), a
+    10% wall-clock win on `spread` requires attacking parse/plan/ctor reuse, not
+    the array-spread execution loop. Do not retry the array-spread bulk-copy or
+    array-literal pre-sizing approach expecting a benchmark win; if revisited as
+    a pure allocation-reduction (not a benchmark win), the approach is correct,
+    low-risk, and preserves `EnumerateSpread` array semantics exactly. When
+    profiling `spread` via `tools/profile spread`, pass `--wrap-iife` (see rule
+    27b) so the profiled workload matches the comparison table shape. WHY: issue
+    `autrun-diw47r18vl3k-788d45b06d` / PR #2727 trialed `CreateArrayWithCapacity`
+    + `TryAppendDenseArraySpread`, confirmed the hot path improved, but a
+    rigorous stash/rebuild A/B showed only ~5–7% min/median wall-clock reduction
+    against a 10% gate (min: 822→782 ms, median: ~900→837 ms). The runtime edit
+    was reverted and only `docs/performance/failed-spread-dense-array-bulk-copy.md`
+    was retained.
+
 10. For object-literal default data-property optimizations, keep the shortcut at
     the `JsObject` storage boundary and preserve the ordinary descriptor
     fallback. Future `objectcreation` or object-literal work must prove the hot

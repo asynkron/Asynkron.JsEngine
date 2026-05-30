@@ -829,6 +829,22 @@ all-or-nothing until a separate routing issue proves production readiness.
     short-circuit jump opcodes; the semantics (nullable receiver, optional
     member lookup, optional call) require a separate proof slice.
 
+    **Dual-dispatch completeness**: When adding new VM opcodes, they must appear
+    in BOTH the sync `Execute` dispatch switch AND the `ExecuteResumable` dispatch
+    switch. Omitting a case from either switch causes `InvalidOperationException`
+    at runtime for any function kind that routes through the omitted path. The
+    quality gate catches this — but the structural check to avoid it is to grep
+    for the opcode name in `UnifiedBytecodeVirtualMachine.cs` after adding it and
+    confirm two `case` entries exist (one in each switch). Optional-chain-as-LHS
+    shapes (e.g. `a?.b && c`) must decline via `OptionalChainDependency` during
+    eligibility; they are not admitted by the short-circuit jump opcodes.
+
+    **JsArray result indexing in invocation tests**: When asserting array elements
+    from a JS return value in invocation tests, do not use `((dynamic)result)[N]`
+    — `JsArray` does not expose an integer indexer via dynamic binding and the
+    assertion silently fails or throws. Use the canonical pattern:
+    `Assert.IsType<JsTypes.JsArray>(result).Items[N]`.
+
     WHY: issue
     `planitem-planmanual1780157100924814000-baseline-batch-5-logical-and-nullish-opera-f2c1e6c23b`
     / PR #2761 admitted `&&`, `||`, `??` via three peek-semantics opcodes. The
@@ -837,6 +853,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     `undefined` on the taken path. A future admission of expression-level
     conditional logic must classify each new jump variant by its stack effect
     before deciding whether to reuse an existing opcode or introduce a new one.
+    Issue
+    `planitem-planmanual1780157100924814000-baseline-batch-5-logical-and-nullish-opera-e15078d09e`
+    / PR #2762 then surfaced two build-back repairs: the three new opcodes were
+    added to `ExecuteResumable` but missed from the sync `Execute` switch
+    (causing `InvalidOperationException` on production invocations), and six
+    initial invocation tests used `((dynamic)result)[N]` which `JsArray` does
+    not support via dynamic integer indexing.
 
 ## Why
 

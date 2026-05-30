@@ -123,7 +123,7 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   or a live failure snapshot, and define what any displayed counts measure
   before agents use those counts for maintenance scoping.
 - For recurring-child context reads, follow
-  `.claude/rules/agent-context-issues.md` for Faktorial precedence and bounded
+  `docs/rules/agent-context-issues.md` for Faktorial precedence and bounded
   evidence gathering. Keep recurring-child behavior explicit: use supplied
   Source Context first, then full issue/dashboard API details, then compact
   `/api/logs/<issue>/summary`, and use narrow line-capped
@@ -142,7 +142,7 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   source-host reads.
 - When the slice touches ADR creation guidance, include the cheap duplicate
   prefix signal as evidence, but keep ADR ID allocation aligned with
-  `.claude/rules/adr-allocation.md`, which is the allocator authority:
+  `docs/rules/adr-allocation.md`, which is the allocator authority:
   Faktorial learn or knowledge-artifact work must reserve IDs through the
   runtime allocator, not by guessing from a directory scan.
 - When the slice does not create an ADR, skip the allocator call entirely. If
@@ -190,9 +190,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   repo, commands that an agent is expected to run should show the `rtk` prefix
   and normal verification should point at `rtk make quality`, while repository
   executable targets themselves must stay wrapper-free per
-  `.claude/rules/pre-pr-required.md`. Treat `rtk make quality` as local
+  `docs/rules/pre-pr-required.md`. Treat `rtk make quality` as local
   build/test evidence only; it does not replace the mandatory pre-PR checklist
-  in `.claude/rules/pre-pr-required.md`. For piped command examples, check each
+  in `docs/rules/pre-pr-required.md`. For piped command examples, check each
   agent-run command segment too: search/filter helpers after `|` should use
   the current `rtk`-wrapped form, such as `| rtk rg ...`, rather than a bare
   `grep`.
@@ -435,7 +435,7 @@ without maintaining two full copies.
 Issue #2098 / PR #2105 closed the follow-up ownership-pointer gap in that same
 top-level README entrypoint. `README.md` pointed at the operational
 maintenance-child checklist and evidence shape, but it did not explicitly name
-`.claude/rules/recurring-maintenance-child-runs.md` as the recurring-child
+`docs/rules/recurring-maintenance-child-runs.md` as the recurring-child
 policy and durable-compaction home. Future entrypoint docs should preserve that
 split: point runnable checklist/template ownership at
 `agents/how-to-build-and-test.md`, point semantic policy ownership here, and
@@ -554,7 +554,7 @@ then-used compact summary helper no longer had history (for example #1403 or
 #1365). The durable lesson is to record the unavailable summary attempt as
 baseline evidence, then continue from maintained ADR/rule artifacts already
 capturing the completed work (for example ADR 0095 and
-`.claude/rules/expression-bytecode-packing.md`) instead of blocking.
+`docs/rules/expression-bytecode-packing.md`) instead of blocking.
 
 Issue #1548 closed the remaining context-retrieval gap for recurring-child
 agents: compact helpers and dashboard/API summary endpoints can both be
@@ -663,7 +663,7 @@ record final absence evidence.
 Issue #1814 / PR #1819 applied that compaction pattern to overlapping
 `JsValue` object-carrier guidance. The accepted ADRs for array length helpers,
 Array prototype result helpers, and number receiver extraction already owned
-their helper-specific boundaries, while `.claude/rules/jsvalue-core-values.md`
+their helper-specific boundaries, while `docs/rules/jsvalue-core-values.md`
 owned the cross-cutting migration policy. The durable lesson is to clarify that
 ownership split in the existing rule and leave accepted ADR detail intact,
 rather than creating another ADR or duplicating every helper-specific decision
@@ -825,16 +825,16 @@ after the branch already satisfies the concrete acceptance criteria.
 Issue `autrun-dirzat33gjzc-e6a91380e8` / PR #1910 refreshed the roadmap with
 ADR 0137, ADR 0138, and ADR 0139 boundaries after those decisions and their
 domain rules already existed. The learn-stage lesson was not another ADR; it
-was to verify `.claude/rules/ecmascript-proxy-realm-errors.md`,
-`.claude/rules/ecmascript-labeled-statements.md`, and
-`.claude/rules/proper-tail-calls.md` first, then keep the knowledge pass scoped
+was to verify `docs/rules/ecmascript-proxy-realm-errors.md`,
+`docs/rules/ecmascript-labeled-statements.md`, and
+`docs/rules/proper-tail-calls.md` first, then keep the knowledge pass scoped
 to compaction instead of duplicating the accepted proxy, control-flow, and
 tail-call rules.
 
 Issue `autrun-dis251iagv80-00c9769c91` / PR #1933 repeated that roadmap-link
 pattern for ADR 0140, ADR 0141, and ADR 0142. The accepted semantic homes were
-already `.claude/rules/performance-profiling-guardrails.md` for trampoline and
-destructuring profile lessons, plus `.claude/rules/jsvalue-core-values.md` for
+already `docs/rules/performance-profiling-guardrails.md` for trampoline and
+destructuring profile lessons, plus `docs/rules/jsvalue-core-values.md` for
 HTMLDDA string-coercion precedence. Future learn passes for roadmap refreshes
 should record that overlap and avoid creating duplicate ADR/rule artifacts when
 the delivery only surfaced already-accepted evidence in `docs/roadmap.md`.
@@ -843,7 +843,7 @@ Issue `autrun-dit71yapajf4-92057cb61e` / PR #2284 repeated the same compaction
 boundary for failed performance trials: the roadmap refresh linked the
 `simplearithmetic` and `classdef` failed-trial evidence plus follow-up issues
 #2281 and #2282, while ADR 0214, ADR 0216, and
-`.claude/rules/performance-profiling-guardrails.md` already owned the durable
+`docs/rules/performance-profiling-guardrails.md` already owned the durable
 negative-trial lessons. Future learn passes should record that overlap instead
 of creating another ADR or one-off rule just because the roadmap gained
 follow-up links.

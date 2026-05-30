@@ -295,6 +295,101 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:
+                {
+                    var optNamedCallTargetIdx = instruction.Operand & 0xFFFF;
+                    var optNamedJumpTarget = instruction.Operand >> 16;
+                    var optNamedCallTarget = program.CallTargetConstants[optNamedCallTargetIdx];
+
+                    if (optNamedCallTarget.IsOptionalReceiverCheck)
+                    {
+                        // Case 1: box?.read() — check receiver; if nullish, short-circuit to undefined.
+                        var optReceiver = stack[stackPointer - 1];
+                        if (optReceiver.IsNullOrUndefined)
+                        {
+                            stack[stackPointer - 1] = JsValue.Undefined;
+                            programCounter = optNamedJumpTarget;
+                            break;
+                        }
+
+                        stack[stackPointer++] = GetNamedPropertyValue(
+                            optReceiver,
+                            program.StringConstants[optNamedCallTarget.NameConstantIndex],
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+                    }
+                    else
+                    {
+                        // Case 2: box.read?.() — load method; if nullish, short-circuit to undefined.
+                        var calleeReceiver = stack[stackPointer - 1];
+                        var callee = GetNamedPropertyValue(
+                            calleeReceiver,
+                            program.StringConstants[optNamedCallTarget.NameConstantIndex],
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+
+                        if (callee.IsNullOrUndefined)
+                        {
+                            stack[stackPointer - 1] = JsValue.Undefined;
+                            programCounter = optNamedJumpTarget;
+                            break;
+                        }
+
+                        stack[stackPointer++] = callee;
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget:
+                {
+                    // Case 3: box[key]?.() — pop key, load method; if nullish, short-circuit to undefined.
+                    var optComputedCallTargetIdx = instruction.Operand & 0xFFFF;
+                    var optComputedJumpTarget = instruction.Operand >> 16;
+                    _ = program.CallTargetConstants[optComputedCallTargetIdx];
+
+                    var optComputedKey = stack[--stackPointer];
+                    var optComputedReceiver = stack[stackPointer - 1];
+                    var optComputedCallee = GetComputedCallTargetValue(optComputedReceiver, optComputedKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    if (optComputedCallee.IsNullOrUndefined)
+                    {
+                        stack[stackPointer - 1] = JsValue.Undefined;
+                        programCounter = optComputedJumpTarget;
+                        break;
+                    }
+
+                    stack[stackPointer++] = optComputedCallee;
+                    programCounter++;
+                    break;
+                }
+
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     stackPointer = ExecutePreparedCall(
                         DecodeCallBoundaryArgumentCount(instruction.Operand),

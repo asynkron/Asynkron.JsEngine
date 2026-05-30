@@ -4872,32 +4872,6 @@ internal static class UnifiedBytecodeCompiler
         var flags = update.IsIncrement ? UpdateIncrementFlag : 0;
         return update.IsPrefix ? flags | UpdatePrefixFlag : flags;
     }
-
-    private static bool TryAppendActivationIdentifierLoad(
-        PackedExpressionOp operation,
-        ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
-        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
-        out string reason)
-    {
-        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
-        {
-            reason = $"Unsupported property-read base op '{operation.Kind}'.";
-            return false;
-        }
-
-        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-        if (!TryResolveActivationSlot(identifier, activationSlots, out var slotIndex))
-        {
-            reason = $"Unsupported identifier '{identifier.Name.Name}' at dynamic property-read boundary.";
-            return false;
-        }
-
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
-        reason = string.Empty;
-        return true;
-    }
-
     private static bool TryAppendActivationValueLoad(
         PackedExpressionOp operation,
         ExpressionProgram expressionProgram,

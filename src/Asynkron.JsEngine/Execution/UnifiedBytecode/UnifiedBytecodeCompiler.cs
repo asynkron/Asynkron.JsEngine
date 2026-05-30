@@ -3216,82 +3216,135 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         out string reason)
     {
+        reason = string.Empty;
         if (expressionProgram.OperationCount < 2)
         {
-            reason = string.Empty;
             return false;
         }
 
-        var call = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
-        if (call.Kind != ExpressionOpKind.Call)
-        {
-            reason = string.Empty;
-            return false;
-        }
+        var lastOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
 
-        if (!call.HasExplicitThis)
+        // Standard path: last op is Call (covers all non-optional and receiver-optional calls).
+        if (lastOp.Kind == ExpressionOpKind.Call)
         {
-            reason = "Only direct identifier and member calls with explicit receiver records are supported.";
-            return false;
-        }
+            var call = lastOp;
+            if (!call.HasExplicitThis)
+            {
+                reason = "Only direct identifier and member calls with explicit receiver records are supported.";
+                return false;
+            }
 
-        // Synchronous spread calls are admitted (gh2676); spread flattening happens
-        // at the invocation boundary using the registered spread mask. Direct eval
-        // stays out of scope.
-        if (call.IsDirectEval)
-        {
-            reason = "Direct eval invocation semantics are outside the call-target preparation boundary.";
-            return false;
-        }
+            // Synchronous spread calls are admitted (gh2676); spread flattening happens
+            // at the invocation boundary using the registered spread mask. Direct eval
+            // stays out of scope.
+            if (call.IsDirectEval)
+            {
+                reason = "Direct eval invocation semantics are outside the call-target preparation boundary.";
+                return false;
+            }
 
-        if (TryAppendIdentifierCallTargetPreparation(
-                expressionProgram,
-                slotLayout,
-                unified,
-                literalConstants,
-                stringConstants,
-                callTargetConstants,
-                call,
-                allowsDynamicIdentifiers,
-                out reason))
-        {
-            return true;
-        }
+            if (TryAppendIdentifierCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    allowsDynamicIdentifiers,
+                    out reason))
+            {
+                return true;
+            }
 
-        if (!string.IsNullOrEmpty(reason))
-        {
-            return false;
-        }
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return false;
+            }
 
-        if (TryAppendNamedMemberCallTargetPreparation(
-                expressionProgram,
-                slotLayout,
-                unified,
-                literalConstants,
-                stringConstants,
-                callTargetConstants,
-                call,
-                out reason))
-        {
-            return true;
-        }
+            if (TryAppendNamedMemberCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    expressionProgram.OperationCount - 1,
+                    out reason))
+            {
+                return true;
+            }
 
-        if (!string.IsNullOrEmpty(reason))
-        {
-            return false;
-        }
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return false;
+            }
 
-        if (TryAppendComputedMemberCallTargetPreparation(
-                expressionProgram,
-                slotLayout,
-                unified,
-                literalConstants,
-                stringConstants,
-                callTargetConstants,
-                call,
-                out reason))
+            if (TryAppendComputedMemberCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    expressionProgram.OperationCount - 1,
+                    out reason))
+            {
+                return true;
+            }
+        }
+        else if (lastOp.Kind == ExpressionOpKind.Pop)
         {
-            return true;
+            // Callee-optional path: trailing structure is ..., Call, Jump, SwapTopTwo, Pop.
+            // The Call is at OperationCount - 4.
+            var callIndex = expressionProgram.OperationCount - 4;
+            if (callIndex < 1)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            var call = expressionProgram.GetOperation(callIndex);
+            if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (TryAppendNamedMemberCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    out reason))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return false;
+            }
+
+            if (TryAppendComputedMemberCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    out reason))
+            {
+                return true;
+            }
         }
 
         if (string.IsNullOrEmpty(reason))
@@ -3383,6 +3436,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         PackedExpressionOp call,
+        int callIndex,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
@@ -3397,6 +3451,49 @@ internal static class UnifiedBytecodeCompiler
         {
             reason = "Named member call targets require a receiver expression.";
             return false;
+        }
+
+        // Case 1: receiver-optional named call — box?.read(args)
+        // Pattern: [Receiver..., JumpIfNullish, LoadNamedCallTarget, args..., Call]
+        if (callTargetIndexInProgram >= 2)
+        {
+            var maybeReceiverJump = expressionProgram.GetOperation(callTargetIndexInProgram - 1);
+            if (maybeReceiverJump is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true })
+            {
+                return TryAppendReceiverOptionalNamedCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
+        }
+
+        // Case 2: callee-optional named call — box.read?.()
+        // Pattern: [Receiver..., LoadNamedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
+        if (callTargetIndexInProgram + 1 < callIndex)
+        {
+            var maybeCalleeJump = expressionProgram.GetOperation(callTargetIndexInProgram + 1);
+            if (maybeCalleeJump is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } &&
+                callIndex == expressionProgram.OperationCount - 4)
+            {
+                return TryAppendCalleeOptionalNamedCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
         }
 
         if (!TryAppendNamedReceiverOperations(
@@ -3436,6 +3533,126 @@ internal static class UnifiedBytecodeCompiler
             literalConstants,
             callTargetIndexInProgram + 1,
             call,
+            callIndex,
+            out reason);
+    }
+
+    private static bool TryAppendReceiverOptionalNamedCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        // Receiver chain ends just before the JumpIfNullish.
+        var receiverEnd = callTargetIndexInProgram - 1;
+        if (!TryAppendNamedReceiverOperations(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                receiverEnd,
+                allowDeepChain: true,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var propertyName = callTarget.GetString(expressionProgram.StringConstants.AsSpan());
+        if (propertyName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(propertyName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: nameIndex,
+            IsOptionalReceiverCheck: true));
+
+        // Operand packs: lower 16 bits = callTargetConstantIndex, upper 16 bits = jump target PC.
+        // Jump target is the instruction after CallInvocationBoundary: +1 (this opcode) + argCount + 1 (boundary).
+        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (jumpTarget << 16)));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            callTargetIndexInProgram + 1,
+            call,
+            callIndex,
+            out reason);
+    }
+
+    private static bool TryAppendCalleeOptionalNamedCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        if (!TryAppendNamedReceiverOperations(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                callTargetIndexInProgram,
+                allowDeepChain: true,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var propertyName = callTarget.GetString(expressionProgram.StringConstants.AsSpan());
+        if (propertyName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(propertyName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: nameIndex,
+            IsOptionalReceiverCheck: false));
+
+        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (jumpTarget << 16)));
+
+        // Args start after the JumpIfNullish (at callTargetIndexInProgram + 2).
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            callTargetIndexInProgram + 2,
+            call,
+            callIndex,
             out reason);
     }
 
@@ -3447,6 +3664,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         PackedExpressionOp call,
+        int callIndex,
         out string reason)
     {
         var activationSlots = slotLayout.ActivationSlots;
@@ -3461,6 +3679,28 @@ internal static class UnifiedBytecodeCompiler
         {
             reason = "Computed member call targets require receiver and key operands.";
             return false;
+        }
+
+        // Case 3: callee-optional computed call — box[key]?.()
+        // Pattern: [Receiver, Key, LoadComputedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
+        if (callTargetIndexInProgram + 1 < callIndex &&
+            callIndex == expressionProgram.OperationCount - 4)
+        {
+            var maybeCalleeJump = expressionProgram.GetOperation(callTargetIndexInProgram + 1);
+            if (maybeCalleeJump is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true })
+            {
+                return TryAppendCalleeOptionalComputedCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
         }
 
         var keyIndex = callTargetIndexInProgram - 1;
@@ -3500,6 +3740,66 @@ internal static class UnifiedBytecodeCompiler
             literalConstants,
             callTargetIndexInProgram + 1,
             call,
+            callIndex,
+            out reason);
+    }
+
+    private static bool TryAppendCalleeOptionalComputedCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var keyIndex = callTargetIndexInProgram - 1;
+
+        if (!TryAppendNamedReceiverOperations(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                keyIndex,
+                allowDeepChain: false,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(keyIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.ComputedMember,
+            IsOptionalReceiverCheck: false));
+
+        var jumpTarget = unified.Count + call.ArgumentCount + 2;
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
+            callTargetConstantIndex | (jumpTarget << 16)));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            callTargetIndexInProgram + 2,
+            call,
+            callIndex,
             out reason);
     }
 
@@ -3593,8 +3893,28 @@ internal static class UnifiedBytecodeCompiler
         PackedExpressionOp call,
         out string reason)
     {
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            argsStartIndex,
+            call,
+            expressionProgram.OperationCount - 1,
+            out reason);
+    }
+
+    private static bool TryAppendCallArguments(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        int callIndex,
+        out string reason)
+    {
         var activationSlots = slotLayout.ActivationSlots;
-        var callIndex = expressionProgram.OperationCount - 1;
         if (callIndex - argsStartIndex != call.ArgumentCount)
         {
             reason = "Call arguments must be simple one-op operands in the call-target preparation boundary.";

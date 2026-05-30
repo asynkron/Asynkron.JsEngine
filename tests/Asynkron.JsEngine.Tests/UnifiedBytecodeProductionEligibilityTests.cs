@@ -1258,7 +1258,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeOptionalReceiver",
-        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function invokeOptionalCallee(box) {
@@ -1266,7 +1266,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeOptionalCallee",
-        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function invokeOptionalComputedCallee(box, key) {
@@ -1274,7 +1274,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeOptionalComputedCallee",
-        (int)UnifiedBytecodeProductionDeclineCode.OptionalChainDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readLiteral(box) {

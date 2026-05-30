@@ -81,6 +81,8 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,
+    PrepareNamedOptionalCallTarget,
+    PrepareComputedOptionalCallTarget,
     CallInvocationBoundary,
     Yield,
     StoreResumeValue,
@@ -103,7 +105,8 @@ internal enum UnifiedBytecodeCallTargetKind : byte
 internal readonly record struct UnifiedBytecodeCallTarget(
     UnifiedBytecodeCallTargetKind Kind,
     int SlotIndex = -1,
-    int NameConstantIndex = -1);
+    int NameConstantIndex = -1,
+    bool IsOptionalReceiverCheck = false);
 
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,

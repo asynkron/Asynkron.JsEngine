@@ -921,6 +921,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.JumpIfNullish:
                 case ExpressionOpKind.JumpIfShortCircuited:
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                     declineReason =
                         "Optional-chain short-circuiting is outside the first production property-read boundary.";
@@ -1476,7 +1481,198 @@ internal static class UnifiedBytecodeProductionEligibility
                        call);
         }
 
+        if (TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots))
+        {
+            return true;
+        }
+
+        if (TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots))
+        {
+            return true;
+        }
+
+        if (TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots))
+        {
+            return true;
+        }
+
         return false;
+    }
+
+    // Case 1: box?.read(args) — receiver-optional named call
+    // Expression program: [Receiver..., JumpIfNullish, LoadNamedCallTarget, args..., Call]
+    private static bool TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots)
+    {
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex < 2)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(namedCallTargetIndex - 1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+        if (namedCallTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        return IsSupportedNamedReceiverChain(
+                   program,
+                   identifierConstants,
+                   stringConstants,
+                   activationSlots,
+                   namedCallTargetIndex - 1,
+                   allowDeepChain: true) &&
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   namedCallTargetIndex + 1,
+                   call,
+                   callIndex);
+    }
+
+    // Case 2: box.read?.() — callee-optional named call
+    // Expression program: [Receiver..., LoadNamedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
+    private static bool TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 7)
+        {
+            return false;
+        }
+
+        if (!IsCalleeOptionalTrailingStructure(program, out var callIndex))
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(callIndex);
+        if (!call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        if (namedCallTargetIndex < 1 || namedCallTargetIndex >= callIndex - 1)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(namedCallTargetIndex + 1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+        if (namedCallTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        return IsSupportedNamedReceiverChain(
+                   program,
+                   identifierConstants,
+                   stringConstants,
+                   activationSlots,
+                   namedCallTargetIndex,
+                   allowDeepChain: true) &&
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   namedCallTargetIndex + 2,
+                   call,
+                   callIndex);
+    }
+
+    // Case 3: box[key]?.() — callee-optional computed call
+    // Expression program: [Receiver, Key, LoadComputedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
+    private static bool TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 8)
+        {
+            return false;
+        }
+
+        if (!IsCalleeOptionalTrailingStructure(program, out var callIndex))
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(callIndex);
+        if (!call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex < 2 || computedCallTargetIndex >= callIndex - 1)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(computedCallTargetIndex + 1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var keyIndex = computedCallTargetIndex - 1;
+        var stringConstants = program.StringConstants.AsSpan();
+        return IsSupportedNamedReceiverChain(
+                   program,
+                   identifierConstants,
+                   stringConstants,
+                   activationSlots,
+                   keyIndex,
+                   allowDeepChain: false) &&
+               IsSimpleComputedPropertyKey(
+                   program.GetOperation(keyIndex),
+                   identifierConstants,
+                   activationSlots) &&
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   computedCallTargetIndex + 2,
+                   call,
+                   callIndex);
+    }
+
+    // Returns true and the index of the Call op when the expression program ends with
+    // the callee-optional trailing structure: ..., Call, Jump, SwapTopTwo, Pop
+    private static bool IsCalleeOptionalTrailingStructure(ExpressionProgram program, out int callIndex)
+    {
+        callIndex = program.OperationCount - 4;
+        return callIndex >= 0 &&
+               program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.Pop &&
+               program.GetOperation(program.OperationCount - 2).Kind == ExpressionOpKind.SwapTopTwo &&
+               program.GetOperation(program.OperationCount - 3).Kind == ExpressionOpKind.Jump &&
+               program.GetOperation(callIndex).Kind == ExpressionOpKind.Call;
     }
 
     private static int FindFirstOperation(ExpressionProgram program, ExpressionOpKind kind)
@@ -1549,7 +1745,23 @@ internal static class UnifiedBytecodeProductionEligibility
         int argsStartIndex,
         PackedExpressionOp call)
     {
-        var callIndex = program.OperationCount - 1;
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            argsStartIndex,
+            call,
+            program.OperationCount - 1);
+    }
+
+    private static bool HasSimpleCallArguments(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        int callIndex)
+    {
         if (callIndex - argsStartIndex != call.ArgumentCount)
         {
             return false;

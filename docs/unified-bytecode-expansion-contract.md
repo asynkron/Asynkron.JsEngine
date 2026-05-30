@@ -287,10 +287,21 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   stack, preserves nullish-receiver-before-key-coercion ordering, consumes the
   computed key with normal property-key semantics, loads the callee from that
   receiver, and invokes through the existing receiver-as-`this` stack contract.
-- Direct eval, construct/super calls, optional calls,
+- Accepted optional member-call programs use `PrepareNamedOptionalCallTarget`
+  or `PrepareComputedOptionalCallTarget` followed by `CallInvocationBoundary`.
+  Both opcodes pack a call-target constant index (low 16 bits) and a nullish
+  short-circuit jump target (high 16 bits) into a single operand. The VM checks
+  the receiver or callee for nullish before evaluation proceeds; if nullish the
+  stack top is replaced with `Undefined` and execution jumps past the call
+  boundary. Three patterns are admitted: receiver-optional named calls
+  (`box?.read(args)`), callee-optional named calls (`box.read?.(args)`), and
+  callee-optional computed calls (`box[key]?.(args)`). The `IsOptionalReceiverCheck`
+  flag in `UnifiedBytecodeCallTarget` distinguishes the two named variants.
+  (Optional calls admitted as of gh2689; ADR 0286.)
+- Direct eval, construct/super calls,
   private/super member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
-  complex receiver/key shapes, and
+  complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM
   execution. (Synchronous spread calls are admitted as of gh2676.)
 - Accepted programs must still satisfy the no-mixed-execution rule: no
@@ -401,11 +412,13 @@ support today.
 
 ## Ranked Next Unsupported Buckets (current boundary)
 1. Wider call invocation remains the highest-impact unsupported bucket.
-   Synchronous spread calls are now admitted (gh2676). Direct
-   eval, construct/super calls, optional calls, arguments-object
-   dependencies, unsupported non-with dynamic lookup, private/super member
-   targets, complex receiver/key shapes, and receiver-binding-sensitive
-   adjacent families beyond the direct activation-resolved and with-backed
+   Synchronous spread calls are now admitted (gh2676). Optional calls are
+   now admitted (gh2689, ADR 0286): `box?.read(args)`, `box.read?.(args)`,
+   and `box[key]?.(args)`. Direct eval, construct/super calls,
+   spread-onto-optional, arguments-object dependencies, unsupported
+   non-with dynamic lookup, private/super member targets, complex
+   receiver/key shapes, and receiver-binding-sensitive adjacent families
+   beyond the direct activation-resolved and with-backed
    dynamic-identifier boundaries must still decline before VM execution.
 2. Driver-state widening is next. Async iterator drivers, TDZ head
    environments, and awaited iterator/for-in sources remain outside the

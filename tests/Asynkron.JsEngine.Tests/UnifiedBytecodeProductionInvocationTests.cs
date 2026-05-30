@@ -1489,6 +1489,144 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ReceiverOptionalNamedMemberCall_ShortCircuitsToUndefinedWhenReceiverNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(box) {
+                return box?.read();
+            }
+
+            invoke(null) + "," + invoke(undefined);
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ReceiverOptionalNamedMemberCall_InvokesMethodAndPreservesThisWhenReceiverNonNull()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                read(value) {
+                    return this === box ? value + 1 : -1;
+                }
+            };
+
+            function invoke(box, value) {
+                return box?.read(value);
+            }
+
+            invoke(box, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CalleeOptionalNamedMemberCall_ShortCircuitsToUndefinedWhenMethodNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { read: null };
+
+            function invoke(box) {
+                return box.read?.();
+            }
+
+            invoke(box) + "," + invoke({ read: undefined });
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CalleeOptionalNamedMemberCall_InvokesMethodAndPreservesThisWhenCalleeNonNull()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return this === box ? value + this.offset : -1;
+                }
+            };
+
+            function invoke(box, value) {
+                return box.read?.(value);
+            }
+
+            invoke(box, 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CalleeOptionalComputedMemberCall_ShortCircuitsToUndefinedWhenMethodNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { read: null };
+
+            function invoke(box, key) {
+                return box[key]?.();
+            }
+
+            invoke(box, "read") + "," + invoke({ read: undefined }, "read");
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CalleeOptionalComputedMemberCall_InvokesMethodAndPreservesThisWhenCalleeNonNull()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return this === box ? value + this.offset : -1;
+                }
+            };
+
+            function invoke(box, key, value) {
+                return box[key]?.(value);
+            }
+
+            invoke(box, "read", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

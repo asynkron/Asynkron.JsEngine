@@ -1106,6 +1106,24 @@ internal static class UnifiedBytecodeVirtualMachine
                         : instruction.Operand;
                     break;
 
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitFalse:
+                    programCounter = stack[stackPointer - 1].IsTruthy
+                        ? programCounter + 1
+                        : instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitTrue:
+                    programCounter = stack[stackPointer - 1].IsTruthy
+                        ? instruction.Operand
+                        : programCounter + 1;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish:
+                    programCounter = stack[stackPointer - 1].IsNullish
+                        ? programCounter + 1
+                        : instruction.Operand;
+                    break;
+
                 case UnifiedBytecodeOpCode.Break:
                     if (HandleAbruptCompletion(
                             program,

@@ -962,6 +962,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     declineReason = "super property access is not eligible for production unified bytecode routing.";
                     return true;
 
+                case ExpressionOpKind.JumpIfFalse:
+                case ExpressionOpKind.JumpIfTrue:
+                case ExpressionOpKind.JumpIfNotNullish:
+                    break;
+
                 case ExpressionOpKind.JumpIfNullish:
                 case ExpressionOpKind.JumpIfShortCircuited:
                     if (isCallTargetPreparationCandidate)
@@ -2506,6 +2511,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.Jump:
                 case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
                 case UnifiedBytecodeOpCode.JumpIfFalse:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitFalse:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitTrue:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish:
                 case UnifiedBytecodeOpCode.PushEnvironment:
                 case UnifiedBytecodeOpCode.PopEnvironment:
                 case UnifiedBytecodeOpCode.IteratorInit:

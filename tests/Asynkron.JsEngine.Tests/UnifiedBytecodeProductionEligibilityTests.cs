@@ -2917,4 +2917,168 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
     }
+
+    // Array-literal and object-literal operand widening (gh2705)
+
+    [Fact]
+    public void Evaluate_CallWithArrayLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendPair(receiver, a, b) {
+                return receiver([a, b]);
+            }
+            """,
+            "sendPair");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithObjectLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendConfig(receiver, x, y) {
+                return receiver({ a: x, b: y });
+            }
+            """,
+            "sendConfig");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithEmptyArrayArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendEmpty(receiver) {
+                return receiver([]);
+            }
+            """,
+            "sendEmpty");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithEmptyObjectArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendEmptyObj(receiver) {
+                return receiver({});
+            }
+            """,
+            "sendEmptyObj");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithMixedScalarAndArrayLiteralArgs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendMixed(receiver, a, b, c) {
+                return receiver(a, [b, c]);
+            }
+            """,
+            "sendMixed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PropertyReadBinaryExpressionWithArrayLiteralRhs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function checkProp(obj, a, b) {
+                return obj.value === [a, b];
+            }
+            """,
+            "checkProp");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_PropertyReadBinaryExpressionWithObjectLiteralRhs_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function checkPropObj(obj, a) {
+                return obj.value === { x: a };
+            }
+            """,
+            "checkPropObj");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithHoleyArrayArg_DeclinesCallDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function sendHoley(receiver) {
+                return receiver([1,,3]);
+            }
+            """,
+            "sendHoley");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithComputedKeyObjectArg_DeclinesCallDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function sendComputed(receiver, k, v) {
+                return receiver({ [k]: v });
+            }
+            """,
+            "sendComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+    }
 }

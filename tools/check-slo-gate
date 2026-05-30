@@ -9,7 +9,7 @@ export LC_ALL=C
 #
 # Re-measures timing for the instrumented SLOs (cold-start latency and
 # microtask drain latency) and compares them to the committed baseline
-# (.testrunner/perf-slo-baseline.md). Exits non-zero with a clear per-profile
+# (tools/perf-slo-baseline.md). Exits non-zero with a clear per-profile
 # diff when any profile's avg-ms-per-iteration regresses beyond the tolerance.
 #
 # This guards the Performance SLOs defined in docs/dreaming.md from silently

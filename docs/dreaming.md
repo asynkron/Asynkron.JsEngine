@@ -964,10 +964,10 @@ Instrumented SLOs have a committed baseline in `tools/perf-slo-baseline.md` and 
 
 | SLO | Target | Measured by | Current status |
 |---|---|---|---|
-| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Candidate — baseline committed (~5.5 ms avg; see `tools/perf-slo-baseline.md`) |
+| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Candidate — baseline committed (~4.8 ms avg; see `tools/perf-slo-baseline.md`) |
 | Warm-path throughput (`fibonacci`, `looping`) | ≤ 2× Jint managed bytes per op | `./benchmark.sh --allocations` | Tracked, improving |
 | Allocation per expression eval (hot loop, no object creation) | Zero Gen 1+ promotions | `./benchmark.sh --allocations` | Partially met; args still escape |
-| Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Candidate — baseline committed (~8.4 ms avg/1 000 jobs; see `tools/perf-slo-baseline.md`) |
+| Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Candidate — baseline committed (~8.0 ms avg/1 000 jobs; see `tools/perf-slo-baseline.md`) |
 | Test262 true correctness failures | < 10 in Language + BuiltIns suites | Testrunner baseline | < 20 today |
 | Tier 0 routing coverage (accepted ordinary sync programs) | 100% attempt-Tier-0 | PR #2623 expansion contract | Proven for primary sync route |
 | Seam inventory shrink rate | One near-closure seam eliminated per milestone | Seam inventory table above | In progress |

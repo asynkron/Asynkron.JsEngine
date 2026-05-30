@@ -59,6 +59,18 @@ public static partial class TypedAstEvaluator
             out JsObject iterator)
         {
             iterator = null!;
+
+            // Non-simple parameter lists (destructuring patterns, defaults, rest) require
+            // IteratorBindingInitialization during FunctionDeclarationInstantiation, which runs
+            // eagerly at call time before the generator object is produced and can throw (e.g.
+            // GetIterator(null) for `*m([[x]]){}` called with `[null]`). The resumable route copies
+            // arguments straight into positional slots and cannot model that, so it must decline and
+            // fall back to the runner path. See ADR 0283 / gh2675 resumable-route boundary.
+            if (!_function.HasOnlySimpleIdentifierParameters())
+            {
+                return false;
+            }
+
             if (!TryGetExecutionPlan(out var plan))
             {
                 return false;

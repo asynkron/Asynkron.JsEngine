@@ -373,6 +373,30 @@ public static partial class TypedAstEvaluator
         return false;
     }
 
+    /// <summary>
+    ///     True when every formal parameter is a plain identifier with no destructuring pattern,
+    ///     default initializer, or rest element. The unified-bytecode resumable route copies arguments
+    ///     directly into positional slots (<c>PopulateParameterSlots</c>) and cannot perform
+    ///     IteratorBindingInitialization, whose destructuring side effects and eager errors (e.g.
+    ///     <c>GetIterator(null)</c> on a generator/async call) must run before the resumable object is
+    ///     produced. Non-simple parameter lists must therefore fall back to the runner path.
+    /// </summary>
+    internal static bool HasOnlySimpleIdentifierParameters(this FunctionExpression function)
+    {
+        foreach (var parameter in function.Parameters)
+        {
+            if (parameter.Name is null ||
+                parameter.Pattern is not null ||
+                parameter.DefaultValue is not null ||
+                parameter.IsRest)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static FunctionExecutionPlanSeed ResolveCallablePlanSeed(
         FunctionExpression functionExpression,
         JsEnvironment environment,

@@ -87,12 +87,12 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareComputedOptionalCallTarget,
     CallInvocationBoundary,
     ConstructInvocationBoundary,
+    LoadFunctionLiteral,
     Yield,
     StoreResumeValue,
     AwaitAndDiscard,
     AwaitedReturn,
     YieldStar,
-    LoadFunctionLiteral
 }
 
 internal readonly record struct UnifiedBytecodeInstruction(

@@ -1,6 +1,7 @@
 #region
 
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -424,6 +425,20 @@ public static partial class TypedAstEvaluator
         // no-slot IR runner. Keep the cached plan/failure result intact instead of forcing
         // them back onto legacy AST execution.
         return planSeed;
+    }
+
+    internal static JsValue CreateFunctionLiteralValue(
+        FunctionLiteralDescriptor descriptor,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isConstructorFunction)
+    {
+        return JsValue.FromObjectUnsafe(
+            descriptor.Function.CreateFunctionValue(
+                environment,
+                context,
+                isConstructorFunction,
+                planSeed: descriptor.PlanSeed));
     }
 
     private static IJsCallable CreateFunctionValue(this FunctionExpression functionExpression, JsEnvironment environment,

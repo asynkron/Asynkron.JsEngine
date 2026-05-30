@@ -113,6 +113,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
 - `CallInvocationBoundary`
+- `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`
 - `AwaitAndDiscard`

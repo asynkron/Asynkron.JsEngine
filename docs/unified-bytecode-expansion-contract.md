@@ -255,7 +255,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   still decline before VM execution.
 
 ## Production Call Invocation Boundary
-- Current executable call support is intentionally limited to no-spread
+- Current executable call support covers
   activation-resolved identifier calls, direct named member calls whose
   optional-free named receiver chain is activation-resolved, and direct computed
   member calls whose receiver chain remains inside the shallow computed-call
@@ -263,6 +263,16 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   keys must also be simple literal or slot operands. For accepted member
   receiver chains, the call receiver is the final resolved receiver object, not
   the root object.
+- Synchronous spread calls are admitted (gh2676): `f(...args)`, `f(...a, ...b)`,
+  `obj.method(...args)`, and mixed `f(a, ...b, c)`. Each argument (positional or
+  spread) lowers to one value-producing load; the `CallInvocationBoundary`
+  operand low 16 bits hold the pushed argument value count and the high bits hold
+  a spread-mask reference (`spreadMaskIndex + 1`, where `0` means no spread). The
+  VM flattens spread iterables left-to-right at the boundary via the shared
+  `TypedAstEvaluator.EnumerateSpread` helper, preserving iteration order and
+  side-effects, then invokes through the existing callable helpers with
+  receiver-as-`this`. Direct eval, construct/super spread, and optional spread
+  calls stay declined.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -277,12 +287,12 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   stack, preserves nullish-receiver-before-key-coercion ordering, consumes the
   computed key with normal property-key semantics, loads the callee from that
   receiver, and invokes through the existing receiver-as-`this` stack contract.
-- Direct eval, spread calls, construct/super calls, optional calls,
+- Direct eval, construct/super calls, optional calls,
   private/super member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, and
   receiver-binding-sensitive adjacent families still decline before VM
-  execution.
+  execution. (Synchronous spread calls are admitted as of gh2676.)
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
   is allowed from `UnifiedBytecodeVirtualMachine`.
@@ -390,8 +400,9 @@ support today.
   require mixed IR/AST execution.
 
 ## Ranked Next Unsupported Buckets (current boundary)
-1. Wider call invocation remains the highest-impact unsupported bucket. Direct
-   eval, spread calls, construct/super calls, optional calls, arguments-object
+1. Wider call invocation remains the highest-impact unsupported bucket.
+   Synchronous spread calls are now admitted (gh2676). Direct
+   eval, construct/super calls, optional calls, arguments-object
    dependencies, unsupported non-with dynamic lookup, private/super member
    targets, complex receiver/key shapes, and receiver-binding-sensitive
    adjacent families beyond the direct activation-resolved and with-backed

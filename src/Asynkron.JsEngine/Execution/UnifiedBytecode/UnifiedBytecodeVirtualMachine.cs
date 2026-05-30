@@ -297,7 +297,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     stackPointer = ExecutePreparedCall(
-                        instruction.Operand,
+                        DecodeCallBoundaryArgumentCount(instruction.Operand),
+                        DecodeCallBoundarySpreadMask(program, instruction.Operand),
                         stack,
                         stackPointer,
                         context,
@@ -3751,6 +3752,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static int ExecutePreparedCall(
         int argumentCount,
+        ImmutableArray<int> spreadMask,
         Span<JsValue> stack,
         int stackPointer,
         EvaluationContext context,
@@ -3810,29 +3812,50 @@ internal static class UnifiedBytecodeVirtualMachine
                 debugFunction.CurrentContext = context;
             }
 
-            result = argumentCount switch
+            if (!spreadMask.IsDefaultOrEmpty)
             {
-                0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context, callingEnvironment),
-                1 => TypedAstEvaluator.InvokeCallableSingleArg(
+                // Synchronous spread call (gh2676): flatten spread iterables in source
+                // order before invoking. Each pushed argument value is either a positional
+                // value or a spread iterable; the mask names the spread positions.
+                var spreadArguments = MaterializeSpreadCallArguments(
+                    argumentCount,
+                    spreadMask,
+                    stack,
+                    calleeIndex + 1,
+                    context);
+                result = TypedAstEvaluator.InvokeCallableJsValue(
                     callable,
-                    stack[calleeIndex + 1],
+                    spreadArguments,
                     thisValue,
                     context,
-                    callingEnvironment),
-                2 => TypedAstEvaluator.InvokeCallableTwoArgs(
-                    callable,
-                    stack[calleeIndex + 1],
-                    stack[calleeIndex + 2],
-                    thisValue,
-                    context,
-                    callingEnvironment),
-                _ => TypedAstEvaluator.InvokeCallableJsValue(
-                    callable,
-                    MaterializeCallArguments(argumentCount, stack, calleeIndex + 1, out pooledArguments),
-                    thisValue,
-                    context,
-                    callingEnvironment)
-            };
+                    callingEnvironment);
+            }
+            else
+            {
+                result = argumentCount switch
+                {
+                    0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context, callingEnvironment),
+                    1 => TypedAstEvaluator.InvokeCallableSingleArg(
+                        callable,
+                        stack[calleeIndex + 1],
+                        thisValue,
+                        context,
+                        callingEnvironment),
+                    2 => TypedAstEvaluator.InvokeCallableTwoArgs(
+                        callable,
+                        stack[calleeIndex + 1],
+                        stack[calleeIndex + 2],
+                        thisValue,
+                        context,
+                        callingEnvironment),
+                    _ => TypedAstEvaluator.InvokeCallableJsValue(
+                        callable,
+                        MaterializeCallArguments(argumentCount, stack, calleeIndex + 1, out pooledArguments),
+                        thisValue,
+                        context,
+                        callingEnvironment)
+                };
+            }
         }
         catch (ThrowSignal signal)
         {
@@ -3857,6 +3880,52 @@ internal static class UnifiedBytecodeVirtualMachine
 
         stack[baseIndex] = result;
         return baseIndex + 1;
+    }
+
+    // CallInvocationBoundary operand packing for spread calls (gh2676). Mirrors
+    // UnifiedBytecodeCompiler.EncodeCallBoundaryOperand: low 16 bits are the pushed
+    // argument value count, high bits are spreadMaskIndex + 1 (0 means "no spread").
+    private static int DecodeCallBoundaryArgumentCount(int operand) => operand & 0xFFFF;
+
+    private static ImmutableArray<int> DecodeCallBoundarySpreadMask(
+        UnifiedBytecodeProgram program,
+        int operand)
+    {
+        var encoded = operand >> 16;
+        if (encoded <= 0 || program.CallSpreadMasks.IsDefaultOrEmpty)
+        {
+            return default;
+        }
+
+        return program.CallSpreadMasks[encoded - 1];
+    }
+
+    private static JsValue[] MaterializeSpreadCallArguments(
+        int argumentCount,
+        ImmutableArray<int> spreadMask,
+        Span<JsValue> stack,
+        int argumentsStartIndex,
+        EvaluationContext context)
+    {
+        // One pushed value per argument position; spread positions hold the iterable to
+        // expand. Flatten left-to-right so iteration order and side effects are preserved.
+        var arguments = ImmutableArray.CreateBuilder<JsValue>(argumentCount);
+        var spreadMaskPosition = 0;
+        for (var i = 0; i < argumentCount; i++)
+        {
+            var argumentValue = stack[argumentsStartIndex + i];
+            if (spreadMaskPosition < spreadMask.Length && spreadMask[spreadMaskPosition] == i)
+            {
+                arguments.AddRange(TypedAstEvaluator.EnumerateSpread(argumentValue, context));
+                spreadMaskPosition++;
+            }
+            else
+            {
+                arguments.Add(argumentValue);
+            }
+        }
+
+        return arguments.ToArray();
     }
 
     private static IReadOnlyList<JsValue> MaterializeCallArguments(

@@ -39,13 +39,13 @@ When a spawned maintenance-child issue asks for one bounded repository
 maintenance pass, keep the slice repo-local and reviewable:
 
 - Policy ownership: recurring-child policy and edge-case lessons live in
-  `.claude/rules/recurring-maintenance-child-runs.md`.
+  `docs/rules/recurring-maintenance-child-runs.md`.
 - Operational ownership: this section owns the runnable checklist and `## Build
   Update` template used in build-stage issue updates.
-- ADR allocation ownership: `.claude/rules/adr-allocation.md` owns ADR ID
+- ADR allocation ownership: `docs/rules/adr-allocation.md` owns ADR ID
   reservation (`rtk faktorial-api adr-next`) and duplicate-prefix guardrails.
 - Persistent ADR/rule compaction details stay in
-  `.claude/rules/recurring-maintenance-child-runs.md`; keep this section
+  `docs/rules/recurring-maintenance-child-runs.md`; keep this section
   focused on the operational checklist and Build Update template.
 
 1. Check active sibling child log summaries before choosing a slice so this
@@ -61,8 +61,8 @@ maintenance pass, keep the slice repo-local and reviewable:
    `rtk make -n quality`, a targeted `rtk rg` check, `rtk git diff --check`, or another
    narrow command tied directly to the chosen slice.
    For recurring-child context reads and Faktorial precedence/fallback order,
-   follow `.claude/rules/agent-context-issues.md` and
-   `.claude/rules/recurring-maintenance-child-runs.md` instead of duplicating
+   follow `docs/rules/agent-context-issues.md` and
+   `docs/rules/recurring-maintenance-child-runs.md` instead of duplicating
    those details in this operational checklist.
    In Faktorial runs, use supplied Source Context or the HTTP API before raw
    logs; keep raw-log searches narrow and do not run the host `faktorial`

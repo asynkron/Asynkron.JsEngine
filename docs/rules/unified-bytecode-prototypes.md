@@ -312,18 +312,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
 24. When adding unified-bytecode call-target preparation, keep preparation
-    bytecode-owned but non-executable for eval/spread/construct and other
+    bytecode-owned but non-executable for eval/construct and other
     unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
     semantics end to end. The #2495 identifier-call slice and #2530 named
     member-call slice plus the #2531 computed member-call slice and the #2538
-    receiver-aware integration slice are the narrow exceptions: no-spread
+    receiver-aware integration slice are the narrow exceptions:
     activation-resolved identifier calls, direct named member calls with
     activation-resolved optional-free named receiver chains, and direct
     computed member calls with shallow activation-resolved receiver chains may
     execute through the VM-owned
     `CallInvocationBoundary` when their arguments are simple literal/slot
     operands and computed member keys are also simple literal/slot operands.
+    Issue #2676 / PR #2685 widened all admitted shapes to accept **spread
+    arguments** (`f(...args)`, `obj.m(...args)`, mixed positional+spread
+    `f(a, ...b, c)`): the `CallInvocationBoundary` operand is extended with a
+    spread-mask reference (high bits = `SpreadMaskConstantIndex + 1`, zero
+    means no spread); the compiler packs the mask and the VM flattens via
+    `TypedAstEvaluator.EnumerateSpread` left-to-right before invoking.
+    Spread is now a fully owned admitted shape; no new opcode was added and
+    no AST/`ExecutionPlanRunner` fallback is used in the spread path.
     Executable identifier calls must still carry the caller
     `EvaluationContext` and active `JsEnvironment` into existing callable
     invocation helpers. Executable named member calls must keep the receiver on
@@ -346,8 +354,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     computed member calls;
     do not rely only on ordinary JavaScript return values. It is valid for the
     compiler to emit typed `UnifiedBytecodeCallTarget` records and
-    `Prepare*CallTarget` opcodes for no-spread activation-resolved
-    identifier/member calls, but all unproven production call routing must
+    `Prepare*CallTarget` opcodes for activation-resolved identifier/member
+    calls (including spread-argument forms admitted by #2676), but all
+    unproven production call routing must
     decline at `CallInvocationBoundary` and the VM must not call back into
     `ExpressionProgram`, `ExecutionPlanRunner`, AST evaluation, or a generic
     host-call fallback. Update
@@ -366,13 +375,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     #2530 / PR #2534 then made the direct named member-call slice executable;
     the durable lesson is that `PrepareNamedCallTarget` may execute only when
     the VM preserves the receiver/callee stack contract and tests prove
-    receiver-as-`this` behavior while computed, eval, spread, super/private,
+    receiver-as-`this` behavior while computed, eval, super/private,
     optional, dynamic, and other unproven call families still decline. Issue
     #2531 / PR #2535 then made the direct computed member-call slice
     executable; the durable lesson is that `PrepareComputedCallTarget` may
     execute only when the VM preserves receiver-as-`this`, computed key
     conversion/order, nullish receiver errors, and non-callable callee errors
-    while eval, spread, construct/super, optional, private/super, dynamic,
+    while eval, construct/super, optional, private/super, dynamic,
     complex computed-key, and other unproven call families still decline.
     Issue
     `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-cffd4a813a`
@@ -388,7 +397,16 @@ all-or-nothing until a separate routing issue proves production readiness.
     receivers followed by computed call targets declined. The durable lesson is
     that named-chain depth can widen with existing `GetNamedProperty` and
     `PrepareNamedCallTarget` opcodes, but deeper computed-member call neighbors
-    require their own proof slice.
+    require their own proof slice. Issue #2676 / PR #2685 then admitted
+    **spread arguments** across all admitted call shapes by extending the
+    `CallInvocationBoundary` operand with a packed spread-mask index (high
+    bits = `SpreadMaskConstantIndex + 1`, zero means no spread). The durable
+    lesson is that a new argument-passing form can extend the existing call
+    boundary operand encoding rather than requiring a new opcode, provided the
+    spread flattening reuses a shared helper (`EnumerateSpread`) and the no-mixed-
+    execution rule is respected — no AST/IR fallback for the spread path.
+    Optional calls, construct/super, and direct eval continue to decline at
+    their existing guards and are not affected by the spread admission.
 25. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`

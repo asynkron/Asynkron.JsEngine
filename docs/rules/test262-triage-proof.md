@@ -120,7 +120,7 @@ Issue #1867 repeated this boundary for the legacy direct-eval variable
 statement fixture `language/statements/variable/12.2.1-11.js`. The issue body
 correctly pointed at `EvalHostFunction` and the `var arguments;` collision
 surface, but that semantic decision was already covered by issue #1834, ADR
-0132, and `.claude/rules/ecmascript-direct-eval-declaration-instantiation.md`.
+0132, and `docs/rules/ecmascript-direct-eval-declaration-instantiation.md`.
 The build-stage proof passed both the issue-supplied `Name=Statements_variable`
 filter 115/115 and the exact fixture filter 1/1, plus the focused internal
 `TestVariableDeclarations.DirectEvalVarArgumentsInSloppyFunction_ShouldBeAllowed`

@@ -4214,4 +4214,24 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=testInstanceOf argc=2",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralWithShorthandProperties_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function build(a, b) {
+                return { a, b };
+            }
+
+            var o = build(40, 2);
+            o.a + o.b;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=build argc=2",
+                StringComparison.Ordinal));
+    }
 }

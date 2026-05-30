@@ -985,14 +985,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (operation.AllowNameInference)
-                    {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                        declineReason =
-                            "Object literal name inference is not eligible for production unified bytecode routing.";
-                        return true;
-                    }
-
                     break;
 
                 case ExpressionOpKind.DefineComputedObjectProperty:

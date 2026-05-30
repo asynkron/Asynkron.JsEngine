@@ -3299,12 +3299,6 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.DefineObjectProperty:
-                    if (operation.AllowNameInference)
-                    {
-                        reason = "Object literal name inference is not supported.";
-                        return false;
-                    }
-
                     var propertyNameIndex = stringConstants.Count;
                     stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
                     unified.Add(new UnifiedBytecodeInstruction(

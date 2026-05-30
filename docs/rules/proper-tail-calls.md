@@ -30,7 +30,7 @@ tail restart behavior, keep runtime context ownership explicit.
 7. Preserve the callable object's operation-selected realm-sensitive errors. A
    revoked proxy called from tail position must throw from the realm selected
    by that proxy operation; do not replace it with a generic caller, callee, or
-   proxy-creation realm. See `.claude/rules/ecmascript-proxy-realm-errors.md`
+   proxy-creation realm. See `docs/rules/ecmascript-proxy-realm-errors.md`
    for the apply/construct null-handler rule.
 8. Prove this class with focused internal coverage before broad Test262 runs:
    call-depth stability, `try` / `catch` frame cleanup, `try` / `finally`

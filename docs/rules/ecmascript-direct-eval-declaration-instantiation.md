@@ -65,7 +65,7 @@ and keep `arguments` handling path-specific.
    class-field-initializer state, declaration-instantiation effects,
    execution results, and caller environment decisions outside the cache.
    Eval sources that may contain template literals remain governed by
-   `.claude/rules/ecmascript-template-object-cache.md` and must not reuse a
+   `docs/rules/ecmascript-template-object-cache.md` and must not reuse a
    cached `ProgramNode` without a separately proven eval-instantiation
    identity.
 

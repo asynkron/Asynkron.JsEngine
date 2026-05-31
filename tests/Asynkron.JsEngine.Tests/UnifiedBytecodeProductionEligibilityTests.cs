@@ -3836,6 +3836,70 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
 
+    [Fact]
+    public void Evaluate_OptionalThenRegularPropertyChain_StillDeclinesWithOptionalChainDependency()
+    {
+        // a?.b.c: first hop is optional, second hop is regular — second hop emits
+        // ShortCircuitOnNullishTarget:true and is caught by OptionalChainDependency gate.
+        var plan = GetFunctionPlan("""
+            function f(a) {
+                return a?.b.c;
+            }
+            """,
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NonOptionalNamedPropertyReadChain_IsUnaffectedByOptionalChainAdmission()
+    {
+        // Admitting a?.b must not disturb regular a.b.c eligibility.
+        var plan = GetFunctionPlan("""
+            function readChain(a) {
+                return a.b.c;
+            }
+            """,
+            "readChain");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
+    }
+
+    [Fact]
+    public void Evaluate_NonOptionalComputedPropertyRead_IsUnaffectedByOptionalChainAdmission()
+    {
+        // Admitting a?.[k] must not disturb regular a[k] eligibility.
+        var plan = GetFunctionPlan("""
+            function readComputed(a, k) {
+                return a[k];
+            }
+            """,
+            "readComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
     // Literal-operand proof pack for &&/||/?? (ADR 0238 batch-5)
 
     [Fact]

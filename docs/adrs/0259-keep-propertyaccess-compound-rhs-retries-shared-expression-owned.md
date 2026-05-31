@@ -107,6 +107,16 @@ and clear the issue's repeated selected-profile improvement threshold beyond
 timing noise. A single best row is not enough when the median remains at the
 baseline.
 
+Follow-up clarification from issue `autrun-dix26395qm5s-46711c7275` / PR #2873:
+this ADR does not forbid every `propertyaccess` specialization under
+`EvaluateExpressionProgram`. A later retained slice proved that a whole-program
+simple named-property addition-chain fast path can stay on the shared
+expression owner when it removes repeated generic `ExpressionProgram` dispatch
+and reuses the existing identifier-read, named-property-read, and `+`
+semantics. The prohibition here remains on compound-assignment-specific mini
+interpreters and direct-read micro-slices that create a parallel owner surface
+or shave only one dispatch edge.
+
 ## Consequences
 
 - The failed performance note is useful negative evidence, not a retained
@@ -121,6 +131,10 @@ baseline.
   non-private own-data read shortcut unless the surrounding shared expression
   overhead has first been removed or a fresh profile proves this edge is now
   the dominant owner.
+- Future agents may retain a narrow whole-program simple named-property chain
+  specialization when it stays under `EvaluateExpressionProgram`, reuses the
+  shared semantic helpers, and proves getter-order/string-addition guardrails
+  plus repeated timing improvement beyond noise.
 - Performance notes must preserve the provenance of baseline rows. A
   full-table baseline row and a focused selected-profile row can both be valid
   evidence, but they are not interchangeable labels.
@@ -132,7 +146,8 @@ baseline.
 
 - `docs/performance/failed-propertyaccess-compound-rhs-fast-path.md`
 - `docs/performance/failed-propertyaccess-expression-boundary-direct-read.md`
-- `.claude/rules/performance-profiling-guardrails.md`
+- `docs/performance/propertyaccess-simple-expression-chain-fast-path.md`
+- `docs/rules/performance-profiling-guardrails.md`
 - `docs/adrs/0188-keep-named-property-read-fast-paths-storage-owned-and-receiver-preserving.md`
 - `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`
 - `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`

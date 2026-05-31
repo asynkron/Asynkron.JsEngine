@@ -54,8 +54,11 @@ all-or-nothing until a separate routing issue proves production readiness.
    and for-style update continue targets, all through the existing
    compiler-owned shapes; do not add source-syntax exceptions or a
    selector-side second CFG recognizer. `Binary` is production-eligible only
-   for the explicitly proven operator subset (`+`, `-`, `*`, `/`, `%`, `==`,
-   `<`, `<=`, `>`, `>=`) and
+   for the explicitly proven operator subset: arithmetic (`+`, `-`, `*`, `/`,
+   `%`, `**`), equality/comparison (`==`, `!=`, `===`, `!==`, `<`, `<=`, `>`,
+   `>=`), bitwise/shift (`&`, `|`, `^`, `<<`, `>>`, `>>>`), and
+   relational/object tests (`in`, `instanceof`); operators outside that subset
+   such as `&&`, `||`, and `??` remain prototype-only and
    must execute through the existing `JsValue` operator helpers with an
    `EvaluationContext`, not direct numeric extraction. Any new production
    Binary operator must update the selector, unified compiler allowlist, and VM

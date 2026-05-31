@@ -445,16 +445,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         currentCallingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (HandleContextThrow(
-                                context,
-                                program,
-                                tryStack,
-                                slots,
-                                ref programCounter,
-                                ref currentCallingEnvironment,
-                                slotEnvironments,
-                                ref environmentStack,
-                                ref environmentStackCount))
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -474,16 +465,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (HandleContextThrow(
-                                context,
-                                program,
-                                tryStack,
-                                slots,
-                                ref programCounter,
-                                ref currentCallingEnvironment,
-                                slotEnvironments,
-                                ref environmentStack,
-                                ref environmentStackCount))
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -503,16 +485,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (HandleContextThrow(
-                                context,
-                                program,
-                                tryStack,
-                                slots,
-                                ref programCounter,
-                                ref currentCallingEnvironment,
-                                slotEnvironments,
-                                ref environmentStack,
-                                ref environmentStackCount))
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -1269,16 +1242,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         context);
                     if (context.ShouldStopEvaluation)
                     {
-                        if (HandleContextThrow(
-                                context,
-                                program,
-                                tryStack,
-                                slots,
-                                ref programCounter,
-                                ref currentCallingEnvironment,
-                                slotEnvironments,
-                                ref environmentStack,
-                                ref environmentStackCount))
+                        if (TryHandleCurrentContextThrow(slots))
                         {
                             break;
                         }
@@ -1874,16 +1838,7 @@ internal static class UnifiedBytecodeVirtualMachine
             catch (ThrowSignal signal)
             {
                 context.SetThrow(signal.ThrownValue);
-                if (HandleContextThrow(
-                        context,
-                        program,
-                        tryStack,
-                        slots,
-                        ref programCounter,
-                        ref currentCallingEnvironment,
-                        slotEnvironments,
-                        ref environmentStack,
-                        ref environmentStackCount))
+                if (TryHandleCurrentContextThrow(slots))
                 {
                     continue;
                 }

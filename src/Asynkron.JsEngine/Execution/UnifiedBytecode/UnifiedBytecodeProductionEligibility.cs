@@ -1002,6 +1002,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.JumpIfTrue:
                 case ExpressionOpKind.JumpIfNotNullish:
                 case ExpressionOpKind.Jump:
+                case ExpressionOpKind.Pop:
+                    // Admitted: Jump and Pop appear in the conditional (?:) expression IR.
+                    // Pop discards the condition value on the taken/not-taken path;
+                    // Jump is the unconditional forward branch to the end of the ternary.
                     break;
 
                 case ExpressionOpKind.JumpIfNullish:

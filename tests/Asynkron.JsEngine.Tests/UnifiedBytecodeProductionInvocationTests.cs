@@ -4961,4 +4961,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=classify argc=1",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_ConditionIsConsumedNotPeeked_BothBranchesCorrect()
+    {
+        // AC-2: verifies consume semantics — if the condition were left on the stack
+        // (peek), the stack would overflow and results would be wrong across calls.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pick(cond, a, b) {
+                return cond ? a : b;
+            }
+
+            pick(1, 10, 20) + pick(0, 10, 20);
+            """);
+
+        // 10 (truthy picks a=10) + 20 (falsy picks b=20)
+        Assert.Equal(30d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_Nested_AllCombinationsCorrect_OnProductionFastPath()
+    {
+        // AC-3: c1 ? (c2 ? a : b) : d — all four combinations of c1/c2.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nested(c1, c2, a, b, d) {
+                return c1 ? c2 ? a : b : d;
+            }
+
+            [nested(1,1,10,20,30), nested(1,0,10,20,30), nested(0,1,10,20,30), nested(0,0,10,20,30)].join(',');
+            """);
+
+        Assert.Equal("10,20,30,30", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nested",
+                StringComparison.Ordinal));
+    }
 }

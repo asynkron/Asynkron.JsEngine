@@ -1019,6 +1019,12 @@ internal static class UnifiedBytecodeVirtualMachine
                     stackPointer--;
                     programCounter++;
                     break;
+                case UnifiedBytecodeOpCode.SwapTopTwo:
+                    var top = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = stack[stackPointer - 2];
+                    stack[stackPointer - 2] = top;
+                    programCounter++;
+                    break;
 
                 case UnifiedBytecodeOpCode.CreateArray:
                     stack[stackPointer++] = JsValue.FromJsArray(new JsArray(context.RealmState));
@@ -2294,6 +2300,12 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.Pop:
                     stackPointer--;
+                    programCounter++;
+                    break;
+                case UnifiedBytecodeOpCode.SwapTopTwo:
+                    var resumableTop = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = stack[stackPointer - 2];
+                    stack[stackPointer - 2] = resumableTop;
                     programCounter++;
                     break;
 

@@ -4468,6 +4468,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalNamedThenComputedReadWithTrailingNamedContinuation_Accepts()
+    {
+        // AC-2: a?.b[left + right].c keeps the already VM-executable trailing read continuation.
+        var plan = GetFunctionPlan("""
+            function optChainComputed(obj, left, right) {
+                return obj?.items[left + right].value;
+            }
+            """,
+            "optChainComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.True(
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 2);
+    }
+
+    [Fact]
     public void Evaluate_OptionalNamedPropertyReadChainWithNonActivationResolvedBase_Declines()
     {
         // AC-3: a?.b.c with a non-activation-resolved base (obj.nested) continues to decline.

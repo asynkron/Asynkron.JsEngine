@@ -2202,8 +2202,8 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // Admits the a?.b[k] shape:
-    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true)]
+    // Admits the a?.b[k] and a?.b[k].c shapes:
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
     private static bool TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2229,7 +2229,22 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var computedIndex = program.OperationCount - 1;
+        var computedSuffixStart = program.OperationCount;
+        while (computedSuffixStart > 4)
+        {
+            var suffixOp = program.GetOperation(computedSuffixStart - 1);
+            if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                suffixOp.IsOptional ||
+                !suffixOp.ShortCircuitOnNullishTarget ||
+                suffixOp.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
         var computedOp = program.GetOperation(computedIndex);
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                computedOp.ShortCircuitOnNullishTarget &&

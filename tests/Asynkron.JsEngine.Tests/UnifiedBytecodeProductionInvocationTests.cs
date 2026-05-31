@@ -2094,6 +2094,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenComputedRichKeyWithTrailingNamedRead_ShortCircuitsBeforeKey()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var left = {
+                valueOf() {
+                    keyHits++;
+                    return "i";
+                }
+            };
+            var right = {
+                valueOf() {
+                    keyHits++;
+                    return "d";
+                }
+            };
+            function readChain(a, left, right) {
+                return a?.items[left + right].value;
+            }
+
+            var whenNull = readChain(null, left, right);
+            var nullHits = keyHits;
+            var whenPresent = readChain({ items: { id: { value: 42 } } }, left, right);
+            "" + whenNull + ":" + nullHits + ":" + whenPresent + ":" + keyHits;
+            """);
+
+        Assert.Equal("undefined:0:42:2", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalThenRegularNamedChain_EvaluatesBaseExactlyOnce()
     {
         // Gate 1: the base expression must be evaluated exactly once even for a multi-hop chain.

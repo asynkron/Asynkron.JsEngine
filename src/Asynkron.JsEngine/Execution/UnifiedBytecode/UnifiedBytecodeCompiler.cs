@@ -6479,8 +6479,8 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true)]
-    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key..., GetComputedProperty
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
+    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key..., GetComputedProperty, GetNamedProperty*
     private static bool TryAppendFirstBoundaryOptionalNamedThenComputed(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -6498,7 +6498,27 @@ internal static class UnifiedBytecodeCompiler
         var baseLoad = expressionProgram.GetOperation(0);
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
         var firstPropOp = expressionProgram.GetOperation(1);
-        var computedIndex = expressionProgram.OperationCount - 1;
+        var computedSuffixStart = expressionProgram.OperationCount;
+        while (computedSuffixStart > 4)
+        {
+            var suffixOp = expressionProgram.GetOperation(computedSuffixStart - 1);
+            if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                suffixOp.IsOptional ||
+                !suffixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            if (suffixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
         var computedOp = expressionProgram.GetOperation(computedIndex);
 
         if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
@@ -6541,6 +6561,14 @@ internal static class UnifiedBytecodeCompiler
         }
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+        for (var operationIndex = computedIndex + 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var continuationOp = expressionProgram.GetOperation(operationIndex);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(continuationOp.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
         unified[jumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
         reason = string.Empty;
         return true;

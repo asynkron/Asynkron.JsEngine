@@ -266,6 +266,16 @@
       "show_progress": true,
       "show_timing": false
     },
+    "symbol-propertyaccess": {
+      "name": "SymbolPropertyAccessProfile",
+      "description": "Symbol-key property access, descriptor reads, and own-symbol enumeration",
+      "script": "symbol-propertyaccess.js",
+      "mode": "sync",
+      "iterations": 20,
+      "warmup": 1,
+      "show_progress": true,
+      "show_timing": true
+    },
     "classdef": {
       "name": "ClassDefinitionProfile",
       "description": "Class definition with inheritance",

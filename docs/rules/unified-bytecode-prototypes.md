@@ -188,9 +188,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     strict arm was not proven to route. The build-back fix added directive
     string-literal discard support plus explicit VM strictness threading so
     strict failed writes throw through the owned unified path.
-18. When hardening property-write production boundaries, keep logical member
-    assignments, dynamic value dependencies, and computed-key expressions with
-    unowned payloads as pre-VM declines until the same slice owns selector,
+18. When hardening property-write production boundaries, keep dynamic value
+    dependencies and computed-key expressions with unowned payloads as pre-VM
+    declines until the same slice owns selector,
     compiler, VM, and route-proof semantics for those shapes. Pair each
     eligibility decline with public invocation fallback/no-route proof for the
     exact function body. WHY: issue
@@ -198,7 +198,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2415 added focused logical write, dynamic RHS write, and computed key
     expression write coverage after the ordinary property-write boundary was
     admitted. Without those neighboring declines, future property-set widening
-    can accidentally route logical assignment, dynamic lookup, or computed-key
+    can accidentally route dynamic lookup or computed-key
     expression payloads through a VM path that does not yet own those semantics.
 19. When admitting direct compound property writes into production unified
     bytecode, preserve the reference operands with dedicated get-for-set opcodes
@@ -1576,9 +1576,9 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     opcode inventory, reinforcing that VM-executed opcode additions are delivery
     artifacts, not learn-stage cleanup. Follow-up issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
-    / PR #2812 restored the final neighboring decline gates: computed logical
-    member assignment and deeper chains stay `PropertyWriteDependency`, private
-    fields stay `PrivateFieldDependency`, and optional-chain assignment remains
+    / PR #2812 restored the remaining neighboring decline gates: deeper chains
+    stay `PropertyWriteDependency`, private fields stay
+    `PrivateFieldDependency`, and optional-chain assignment remains
     parser-rejected before eligibility.
 
 Related ADRs:

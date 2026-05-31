@@ -4584,6 +4584,52 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
+    [Fact]
+    public void Evaluate_ComputedLogicalAssignment_ShortCircuitCleanup_DropsTargetAndKeyFromStack()
+    {
+        var plan = GetFunctionPlan("""
+            function logicalAndComputedWrite(box, key, value) {
+                return box[key] &&= value;
+            }
+            """,
+            "logicalAndComputedWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+
+        var jumpIndex = -1;
+        for (var i = 0; i < result.Program.Instructions.Length; i++)
+        {
+            if (result.Program.Instructions[i].OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)
+            {
+                jumpIndex = i;
+                break;
+            }
+        }
+        Assert.True(jumpIndex >= 0);
+
+        var cleanupPatternFound = false;
+        for (var i = jumpIndex + 1; i + 3 < result.Program.Instructions.Length; i++)
+        {
+            if (result.Program.Instructions[i].OpCode == UnifiedBytecodeOpCode.SwapTopTwo
+                && result.Program.Instructions[i + 1].OpCode == UnifiedBytecodeOpCode.Pop
+                && result.Program.Instructions[i + 2].OpCode == UnifiedBytecodeOpCode.SwapTopTwo
+                && result.Program.Instructions[i + 3].OpCode == UnifiedBytecodeOpCode.Pop)
+            {
+                cleanupPatternFound = true;
+                break;
+            }
+        }
+
+        Assert.True(
+            cleanupPatternFound,
+            string.Join(", ", result.Program.Instructions.Select(static instruction => instruction.OpCode.ToString())));
+    }
+
     [Theory]
     [InlineData(
         """

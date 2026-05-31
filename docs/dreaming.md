@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-30 (rev 4)
+Date: 2026-05-31 (rev 5)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,19 +11,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 3 kept all architectural commitments from prior revisions: 2-stratum target, register-based VM, event loop lifecycle, Shape/IC system, performance SLOs, .NET Platform Advantage, and Embedding/Host API. This rev 4 addresses six remaining gaps identified when applying the same scrutiny to that document:
+Rev 4 added the JsValue struct layout diagram, bytecode instruction format specification, Mermaid component diagrams for the Concurrency Runtime (3), Platform Layer (4), Standard Library (5), and Evidence layer (6), the Worker/Realm Fabric component (14), the Compilation Artifact Cache component (15), and replaced the changelog-style critique with a forward-looking list. This rev 5 addresses six remaining gaps identified when applying the same scrutiny to rev 4:
 
-1. **No JsValue struct layout diagram.** The `.NET Platform Advantage` section commits to `JsValue` as a no-boxing struct, but never shows the discriminant layout, inline vs. managed field split, or the 24-byte size. A maintainer reviewing a new allocation slice cannot verify struct layout intent without reading source code.
+1. **Greenfield top-level diagram labels the Execution Engine as "4-tier".** The top-level system flowchart's `Execution Engine` subgraph still carries the migration-reality label "4-tier" and exposes Tier 0–3 node labels. This contradicts the 2-stratum target stated in the same document a few sections below. The greenfield diagram should show only Stratum 0 and Stratum F; the 4-tier migration reality already has its own dedicated diagram.
 
-2. **No bytecode instruction format specification.** The Execution Engine section commits to a register-based VM but never shows the instruction encoding: opcode width, operand field layout, register indexing, or constant pool encoding scheme. A slice author cannot tell whether a proposed change respects the instruction contract.
+2. **No startup cost breakdown diagram.** The Performance SLOs section targets cold-start < 5 ms p95 and the System lifecycle section describes the startup sequence, but neither shows how the budget is distributed across phases. A slice author reducing cold-start cost has no diagram showing which phase dominates and where profiling effort should land.
 
-3. **Components 3, 4, 5, and 6 lack Mermaid diagrams.** Components 1, 2, and 7–13 all have component diagrams. The Concurrency Runtime (3), Platform Layer (4), Standard Library (5), and Evidence layer (6) have only prose descriptions — inconsistent with the rest of the document and harder to reason about at a glance.
+3. **No JsValue ↔ .NET type conversion flow diagram at the host boundary.** The Embedding/Host API section (component 11) describes the value conversion contract in prose but never draws the conversion paths. A host developer implementing a `HostFunction` cannot see at a glance which conversions are zero-alloc and which allocate a managed wrapper.
 
-4. **No Worker / Realm Fabric model.** The product dream claims "Node.js-competitive" for concurrent workloads, but the component map has no Worker isolation component. The isolation boundary, structured-clone communication contract, and Worker lifecycle are invisible to any slice author working toward that goal.
+4. **No host error translation path diagram.** Component 11 documents the `EvaluateAsync` entry point and the fact that uncaught throw completions become .NET exceptions or `Task.Faulted`, but the path from JS throw completion through VM unwind to the host boundary is not drawn. An embedder cannot follow the error propagation without reading source code.
 
-5. **No Compilation Artifact Cache.** The Performance SLOs section targets cold-start < 5 ms p95, but the component map has no cache component. The artifact cache is the primary architectural enabler for repeated-script fast paths and is entirely absent from the architecture picture.
+5. **Proven-now table has no priority or phase grouping.** The table currently has 25+ rows in flat order. A maintainer choosing a next slice cannot distinguish which proven-now rows are foundational to the migration target from which are directional aspirations. A simple grouping by migration phase (core, migration, directional) would make the table actionable.
 
-6. **Self-critique section had grown into a changelog.** Prior revisions appended narrative rather than replacing it; the section read as a running audit trail. This revision replaces the accumulated multi-paragraph narrative with the six forward-looking gaps above.
+6. **Capability lifecycle backward edges lack precondition language.** The `stateDiagram-v2` for capability lifecycle shows backward edges (e.g., `ProductionClaim --> Prototyped`) but does not state the condition that triggers each reversion. A reviewer looking at a regression cannot determine which edge applies without reading ADR text.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -121,14 +121,13 @@ flowchart TD
         ART[Program Artifacts]
     end
 
-    subgraph ENG[Execution Engine — 4-tier]
+    subgraph ENG[Execution Engine — 2 strata (greenfield target)]
         direction TB
-        T0[Tier 0: UnifiedBytecodeVM]
-        T1[Tier 1: ExpressionProgram VM]
-        T2[Tier 2: Statement IR Runner]
-        T3[Tier 3: Fallback Bridge — temporary]
+        S0["Stratum 0\nCompiled VM\nall statically decidable shapes"]
+        SF["Stratum F\nCorrectness fallback\neval / with / dynamic scope"]
         ENV[Shared Environment and Slot Model]
         CPL[Shared Completion Protocol]
+        S0 -. only undecidable shapes .-> SF
     end
 
     subgraph CON[Concurrency Runtime]
@@ -202,6 +201,35 @@ Lifecycle invariants:
 - Routing is a compile-time decision; VMs do not reroute at execution time.
 - Module drain and async queue drain are distinct phases; top-level await completes before the microtask loop empties.
 - Teardown is explicit; the engine does not hold live references after host cleanup.
+
+### Startup cost breakdown
+
+The cold-start < 5 ms p95 SLO is a budget across the phases below. Each phase has a different allocation profile; profiling effort should target the dominant phase first. Phase boundaries are measurable with the ProfileRunner `startup` benchmark; the per-phase breakdown is directional until instrumented.
+
+```mermaid
+flowchart LR
+    EC["Engine construct\nrealm struct alloc\nbudget: trivial"]
+    RI["Realm init\nglobal object layout\nhost globals registered\nbudget: small"]
+    IN["Intrinsics init\nObject/Function/Array/Error\nand all built-in prototype chains\nbudget: dominant phase"]
+    MR["Module registry\nempty registry init\nbudget: trivial"]
+    PR["Parse + compile\nsource → typed artifacts\neligibility classified\nbudget: per-script size"]
+    RT["Route + first opcode\ntier select\nVM loop entry\nbudget: near zero"]
+
+    EC --> RI --> IN --> MR --> PR --> RT
+
+    style EC fill:#333,color:#fff
+    style RI fill:#363,color:#fff
+    style IN fill:#933,color:#fff
+    style MR fill:#333,color:#fff
+    style PR fill:#363,color:#fff
+    style RT fill:#060,color:#fff
+```
+
+Startup cost invariants:
+- Intrinsics init is the dominant allocation phase; NativeAOT and pre-allocated intrinsic tables are the primary levers for the < 5 ms target.
+- Parse + compile cost scales with script size; the Compilation Artifact Cache (component 15) is the architectural answer for repeated-script evaluations.
+- Route + first opcode is near-zero budget; eligibility classification must not add a traversal pass at runtime.
+- The ProfileRunner `startup` benchmark measures total wall-clock; per-phase instrumentation requires a separate profiling slice before phase targets can be committed.
 
 ## Compilation pipeline (data flow)
 
@@ -1036,6 +1064,91 @@ Embedding invariants:
 - `EvaluateAsync` returns `Task<JsValue>` (or `ValueTask<JsValue>` on the fast path); it is the primary entry point for host-driven async execution. Synchronous `Evaluate` is a convenience wrapper.
 - The capability grant surface (what the script may call, read, or write via host-exposed objects) is the security boundary between the script realm and the host environment. Granular capability control is directional; the current contract is all-or-nothing at the `HostFunction` bridge.
 - Value conversion (JsValue ↔ .NET types) must be explicit and allocation-conscious: returning a `JsValue` from a host function must not box through `object?` if the target type fits in a `JsValue` struct.
+
+#### JsValue ↔ .NET type conversion
+
+The conversion paths at the host boundary determine which calls are zero-alloc and which allocate. A `HostFunction` implementor must know this at a glance.
+
+```mermaid
+flowchart LR
+    subgraph ToJS["Host → JsValue (parameter / return from host)"]
+        direction TB
+        DN[double / float]
+        BO[bool]
+        STN[null / void]
+        STR[string]
+        OBJ[.NET object]
+
+        DN -->|zero-alloc\nKind=Number, NumberValue=value| JSNM[JsValue Number]
+        BO -->|zero-alloc\nKind=Boolean, NumberValue=0.0/1.0| JSBL[JsValue Boolean]
+        STN -->|zero-alloc\nKind=Null or Undefined| JSUD[JsValue Null/Undefined]
+        STR -->|managed ref\nKind=String, ObjectValue=string| JSST[JsValue String]
+        OBJ -->|wrap: new JsObject\nKind=Object, ObjectValue=wrapper| JSOB[JsValue Object]
+    end
+
+    subgraph FromJS["JsValue → Host (callback argument / EvaluateAsync result)"]
+        direction TB
+        JSNM2[JsValue Number] -->|zero-alloc\nNumberValue cast| DN2[double / int]
+        JSBL2[JsValue Boolean] -->|zero-alloc\nNumberValue != 0| BO2[bool]
+        JSUD2[JsValue Null/Undefined] -->|zero-alloc\nKind check| NUL2[null]
+        JSST2[JsValue String] -->|managed ref\nObjectValue cast| STR2[string]
+        JSOB2[JsValue Object] -->|unwrap\nObjectValue.Unwrap| OBJ2[.NET object or JsObject]
+    end
+
+    style JSNM fill:#060,color:#fff
+    style JSBL fill:#060,color:#fff
+    style JSUD fill:#060,color:#fff
+    style JSST fill:#363,color:#fff
+    style JSOB fill:#933,color:#fff
+    style JSNM2 fill:#060,color:#fff
+    style JSBL2 fill:#060,color:#fff
+    style JSUD2 fill:#060,color:#fff
+    style JSST2 fill:#363,color:#fff
+    style JSOB2 fill:#933,color:#fff
+```
+
+Conversion rules:
+- Number, Boolean, Undefined, and Null conversions are zero-alloc in both directions; they fit entirely in the `Kind` + `NumberValue` fields.
+- String crossing the boundary carries a managed reference both ways; no additional allocation occurs if the .NET string is already interned.
+- Object wrapping always allocates a `JsObject` wrapper; this is the one unavoidable allocation in the `HostFunction` bridge. Caching the wrapper per .NET object instance is the reduction target.
+
+#### Host error translation path
+
+When a JS throw completion reaches the top frame, the VM unwinds completely and the host boundary converts the completion to a .NET-observable error form.
+
+```mermaid
+flowchart TB
+    THR["JS throw completion\nexception JsValue + realm"]
+    UW["VM unwind\ncompletion protocol\nfinally restart chain\n(if try/finally present)"]
+    TF["Top frame reached\nno enclosing catch handler"]
+
+    subgraph HostBoundary["Host boundary — entry point determines form"]
+        SYNC["Synchronous entry\nEvaluate(source)"]
+        ASYNC["Async entry\nEvaluateAsync(source)"]
+    end
+
+    DOTNET[".NET Exception thrown\nJsException wraps throw value\ncaller catch block receives it"]
+    TASKF["Task.Faulted\nAggregateException → JsException\ncaller await throws"]
+
+    THR --> UW
+    UW -->|no handler found| TF
+    TF --> SYNC
+    TF --> ASYNC
+    SYNC --> DOTNET
+    ASYNC --> TASKF
+
+    style THR fill:#c00,color:#fff
+    style UW fill:#333,color:#fff
+    style DOTNET fill:#933,color:#fff
+    style TASKF fill:#933,color:#fff
+    style TF fill:#444,color:#fff
+```
+
+Error translation invariants:
+- The `JsException` wrapper preserves the original `JsValue` throw value and the realm it was created in; the host must not re-wrap or lose the realm identity (ADR 0137, ADR 0270).
+- For async entry, the exception is wrapped in `AggregateException` by the .NET `Task` machinery; the host must unwrap to retrieve the `JsException`.
+- A throw inside a `finally` block replaces the in-flight completion before it reaches the host; the host sees only the final completion (ADR 0139).
+- Stack trace attribution (source position, function name, bytecode offset) is carried in the `JsException`; the host error surface is the consumer of the stack trace capture.
 
 ### 12. Developer Tooling / Inspector Protocol (directional)
 

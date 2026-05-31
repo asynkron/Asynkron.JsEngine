@@ -118,6 +118,13 @@ boundary-explicit.
       is required.
     - No SLO may be removed from the table without an ADR documenting why
       the target was dropped or superseded.
+18. When `docs/dreaming.md`, roadmap, ADR, PR, or issue text marks a
+    capability as `None`, `Untracked`, `requires ADR`, or entirely
+    directional, first check existing ADRs, rule files, focused tests, and
+    current architecture docs for that capability. Preserve the proven
+    baseline separately from any directional follow-on. Do not demote an
+    already-proven or ADR-owned capability to untracked just because the
+    current slice is adding a new future variant.
 
 ## Why
 
@@ -235,6 +242,17 @@ captured in rule 14. WHY for rule 17: the SLO section introduces a new
 governance contract that no prior Dreamer run had; without a rule pinning the
 evidence lifecycle, future agents will add SLOs or promote their status without
 ProfileRunner proof, making the finish-line concrete-sounding but unmeasured.
+
+Faktorial issue `autrun-diwpc6khquns-231b1a28e6` / PR #2818 initially treated
+proper tail calls as `Untracked — requires ADR` and `None — entirely
+directional` while the repository already had ADR 0126, the
+`docs/rules/proper-tail-calls.md` rule, and focused tail-call proof history.
+Review had to rework `docs/dreaming.md` so the proven runtime baseline stayed
+separate from directional tail-call opcode/frame-reuse ideas. WHY: Dreamer
+refreshes often add future-looking sections, and a future section can
+accidentally erase existing capability status unless agents verify the
+capability's durable evidence before using `None`, `Untracked`, or
+`requires ADR` language.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

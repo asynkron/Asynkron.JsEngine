@@ -1021,7 +1021,26 @@ all-or-nothing until a separate routing issue proves production readiness.
     proof: both truthy and falsy branches produce correct results in sequence,
     which would fail if the condition were left on the stack) and AC-3 (nested
     ternary `c1 ? c2 ? a : b : d` for all four condition combinations on the
-    production fast path), completing the ternary production proof pack.
+    production fast path).
+    Issue widen-unified-bytecode-production-conditio-852d01f78b / PR #2797
+    completed the ternary proof pack with comprehensive eligibility and
+    invocation coverage. Two durable lessons emerged:
+    (a) **Gate 3 negative-assertion pattern**: when a declined ternary shape
+    has side effects (function-call arms, e.g. `cond ? effect(10) : effect(20)`),
+    add an explicit `Assert.DoesNotContain` assertion on the
+    `unified-bytecode-production-fast-path` log — not just behavioral
+    correctness. The JS result is correct regardless of which execution path is
+    taken, so a behavioral-only test cannot prove the fast path was declined.
+    (b) **AC-5 architectural deviation**: `this.flag ? a : b` is a pre-VM
+    decline, not a fast-path accept. `TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate`
+    handles only peek-semantics opcodes (`JumpIfFalse/JumpIfTrue/JumpIfNotNullish`)
+    where the LHS value IS the expression result on the taken branch.
+    `JumpIfConditionalFalse` is consume-semantics: the condition value is not
+    part of the ternary result. Extending the short-circuit helper to admit
+    `JumpIfConditionalFalse` would be architecturally incorrect. Document such
+    deviations from originally planned acceptance criteria explicitly in test
+    comments so future agents do not re-open the question or silently drop the
+    acceptance requirement.
 
 ## Why
 

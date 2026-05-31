@@ -729,7 +729,8 @@ internal static class JsOps
                 JsValueKind.Null => true,
                 JsValueKind.Boolean => left.NumberValue == right.NumberValue,
                 JsValueKind.Number => left.NumberValue == right.NumberValue, // NaN != NaN per IEEE 754
-                JsValueKind.String => string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
+                JsValueKind.String => ReferenceEquals(left.ObjectValue, right.ObjectValue) ||
+                                      string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
                 JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
                 JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi &&
                                       lbi == rbi,

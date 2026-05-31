@@ -1567,6 +1567,7 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
             var match = /<body.*>((.*\n?)*?)<\/body>/i.exec(html);
             [
               typeof match.input,
+              match.input == html,
               match.input === html,
               Object.is(match.input, html),
               match[0],
@@ -1577,7 +1578,36 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
         """);
 
         Assert.Equal(
-            "string|true|true|<body onXXX=\"alert(event.type);\">\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n</body>|\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n|<p>All for Kibology</p>\n|7",
+            "string|true|true|true|<body onXXX=\"alert(event.type);\">\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n</body>|\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n|<p>All for Kibology</p>\n|7",
+            result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_DuplicateNamedGroups_UseObservableCaptureSelection()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var html = "";
+            html += '<html>\n';
+            html += '<body onXXX="alert(event.type);">\n';
+            html += '<p>Kibology for all<\/p>\n';
+            html += '<p>All for Kibology<\/p>\n';
+            html += '<\/body>\n';
+            html += '<\/html>';
+
+            var plain = /<body.*>((?<x>.*\n?)*?|(?<x>UNUSED))<\/body>/i.exec(html);
+            var withIndices = /<body.*>((?<x>.*\n?)*?|(?<x>UNUSED))<\/body>/di.exec(html);
+            [
+              plain[0],
+              plain.groups.x,
+              withIndices.groups.x,
+              withIndices.indices.groups.x[0],
+              withIndices.indices.groups.x[1]
+            ].join("|");
+        """);
+
+        Assert.Equal(
+            "<body onXXX=\"alert(event.type);\">\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n</body>|<p>All for Kibology</p>\n|<p>All for Kibology</p>\n|65|89",
             result);
     }
 }

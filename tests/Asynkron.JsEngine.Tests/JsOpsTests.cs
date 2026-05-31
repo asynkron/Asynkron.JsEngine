@@ -132,6 +132,18 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
     }
 
     [Fact]
+    public async Task Eq_LooseEquality_StringAndRope_ShouldCompareByStringValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var flat = "Kibology for all";
+            var rope = "Kibology" + " for" + " all";
+            flat == rope;
+        """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public async Task StrictEq_StrictEquality_ShouldWork()
     {
         await using var engine = CreateEngine();

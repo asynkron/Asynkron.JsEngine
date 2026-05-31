@@ -2134,7 +2134,7 @@ public sealed class JsRegExp
                 Value = new JsValue(input), Writable = true, Enumerable = true, Configurable = true
             });
 
-        var groups = BuildGroupsObject(match, captureValues);
+        var groups = BuildGroupsObject(match, captureValues, observableCaptures);
         // Per spec step 26, groups is created with CreateDataProperty (DefinePropertyOrThrow),
         // not [[Set]], to bypass inherited setters on Array.prototype.
         result.DefineProperty("groups", new PropertyDescriptor
@@ -2147,7 +2147,7 @@ public sealed class JsRegExp
 
         if (HasIndices)
         {
-            var indices = BuildIndicesArray(match);
+            var indices = BuildIndicesArray(match, observableCaptures);
             // Per spec, indices is created with CreateDataProperty (DefinePropertyOrThrow),
             // not [[Set]], so it must bypass inherited setters on Array.prototype.
             result.DefineProperty("indices", new PropertyDescriptor
@@ -2272,7 +2272,7 @@ public sealed class JsRegExp
         return null;
     }
 
-    private JsObject? BuildGroupsObject(Match match, JsValue[] captureValues)
+    private JsObject? BuildGroupsObject(Match match, JsValue[] captureValues, Capture?[] observableCaptures)
     {
         var regex = EnsureRegex();
         JsObject? groups = null;
@@ -2311,7 +2311,7 @@ public sealed class JsRegExp
                     continue; // Already processed this duplicate group
                 }
 
-                var value = ResolveDuplicateGroupValue(match, renamedNames);
+                var value = ResolveDuplicateGroupValue(regex, observableCaptures, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
                     Value = value, Writable = true, Enumerable = true, Configurable = true
@@ -2335,9 +2335,9 @@ public sealed class JsRegExp
     /// <summary>
     /// For duplicate named groups, finds the value of whichever renamed group actually matched.
     /// </summary>
-    private static JsValue ResolveDuplicateGroupValue(Match match, string[] renamedNames)
+    private static JsValue ResolveDuplicateGroupValue(Regex regex, Capture?[] observableCaptures, string[] renamedNames)
     {
-        if (!TryResolveDuplicateGroupCapture(match, renamedNames, out var capture))
+        if (!TryResolveDuplicateGroupCapture(regex, observableCaptures, renamedNames, out var capture))
         {
             return JsValue.Undefined;
         }
@@ -2345,9 +2345,9 @@ public sealed class JsRegExp
         return new JsValue(capture.Value);
     }
 
-    private JsValue ResolveDuplicateGroupIndicesValue(Match match, string[] renamedNames)
+    private JsValue ResolveDuplicateGroupIndicesValue(Regex regex, Capture?[] observableCaptures, string[] renamedNames)
     {
-        if (!TryResolveDuplicateGroupCapture(match, renamedNames, out var capture))
+        if (!TryResolveDuplicateGroupCapture(regex, observableCaptures, renamedNames, out var capture))
         {
             return JsValue.Undefined;
         }
@@ -2358,7 +2358,8 @@ public sealed class JsRegExp
         return JsValue.FromJsArray(pair);
     }
 
-    private static bool TryResolveDuplicateGroupCapture(Match match, string[] renamedNames, out Capture capture)
+    private static bool TryResolveDuplicateGroupCapture(Regex regex, Capture?[] observableCaptures, string[] renamedNames,
+        out Capture capture)
     {
         capture = null!;
         var found = false;
@@ -2367,13 +2368,18 @@ public sealed class JsRegExp
 
         for (var i = 0; i < renamedNames.Length; i++)
         {
-            var group = match.Groups[renamedNames[i]];
-            if (group.Captures.Count == 0)
+            var groupNumber = regex.GroupNumberFromName(renamedNames[i]);
+            if (groupNumber < 0 || groupNumber >= observableCaptures.Length)
             {
                 continue;
             }
 
-            var candidate = group.Captures[group.Captures.Count - 1];
+            var candidate = observableCaptures[groupNumber];
+            if (candidate is null)
+            {
+                continue;
+            }
+
             if (!found ||
                 candidate.Index > selectedIndex ||
                 (candidate.Index == selectedIndex && i > selectedRenameIndex))
@@ -2388,12 +2394,11 @@ public sealed class JsRegExp
         return found;
     }
 
-    private JsArray BuildIndicesArray(Match match)
+    private JsArray BuildIndicesArray(Match match, Capture?[] observableCaptures)
     {
         var regex = EnsureRegex();
         var indices = new JsArray(RealmState);
         var reorderMap = _groupReorderMap;
-        var observableCaptures = GetObservableCaptures(match, _quantifiedAncestorMap);
 
         // Build indexValues in .NET order (needed by BuildIndicesGroupsObject).
         var indexValues = new JsValue[match.Groups.Count];
@@ -2429,7 +2434,7 @@ public sealed class JsRegExp
             }
         }
 
-        var groups = BuildIndicesGroupsObject(match, regex, indexValues);
+        var groups = BuildIndicesGroupsObject(match, regex, indexValues, observableCaptures);
         // Per spec, groups is created with CreateDataProperty (DefinePropertyOrThrow),
         // not [[Set]], to bypass inherited setters on Array.prototype.
         indices.DefineProperty("groups", new PropertyDescriptor
@@ -2442,7 +2447,8 @@ public sealed class JsRegExp
         return indices;
     }
 
-    private JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues)
+    private JsObject? BuildIndicesGroupsObject(Match match, Regex regex, JsValue[] indexValues,
+        Capture?[] observableCaptures)
     {
         JsObject? groups = null;
         HashSet<string>? processedDuplicates = null;
@@ -2480,7 +2486,7 @@ public sealed class JsRegExp
                     continue;
                 }
 
-                var value = ResolveDuplicateGroupIndicesValue(match, renamedNames);
+                var value = ResolveDuplicateGroupIndicesValue(regex, observableCaptures, renamedNames);
                 groups.DefineProperty(originalName, new PropertyDescriptor
                 {
                     Value = value, Writable = true, Enumerable = true, Configurable = true

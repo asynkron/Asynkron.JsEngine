@@ -14,7 +14,7 @@ rtk dotnet run --project examples/NodeHostDemo
 Then open:
 
 ```bash
-curl http://localhost:9615/
+rtk curl http://localhost:9615/
 ```
 
 The initial module surface is intentionally tiny:
@@ -33,11 +33,11 @@ rtk dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/
 Then try:
 
 ```bash
-curl http://localhost:9615/
-curl http://localhost:9615/api/status
-curl http://localhost:9615/api/todos
-curl http://localhost:9615/api/todos/3
-curl http://localhost:9615/api/users/ada/todos
+rtk curl http://localhost:9615/
+rtk curl http://localhost:9615/api/status
+rtk curl http://localhost:9615/api/todos
+rtk curl http://localhost:9615/api/todos/3
+rtk curl http://localhost:9615/api/users/ada/todos
 ```
 
 This second script adds a JavaScript framework layer with route matching,
@@ -53,15 +53,15 @@ rtk dotnet run --project examples/NodeHostDemo -- examples/NodeHostDemo/scripts/
 Then try the browser UI and JSON API:
 
 ```bash
-curl http://localhost:9615/
-curl http://localhost:9615/assets/app.js
-curl http://localhost:9615/api/status
-curl http://localhost:9615/api/issues
-curl http://localhost:9615/api/issues/2
-curl -X POST http://localhost:9615/api/issues \
+rtk curl http://localhost:9615/
+rtk curl http://localhost:9615/assets/app.js
+rtk curl http://localhost:9615/api/status
+rtk curl http://localhost:9615/api/issues
+rtk curl http://localhost:9615/api/issues/2
+rtk curl -X POST http://localhost:9615/api/issues \
   -H 'Content-Type: application/json' \
   -d '{"title":"Try POST bodies","owner":"ada","priority":"high"}'
-curl -X PATCH http://localhost:9615/api/issues/2 \
+rtk curl -X PATCH http://localhost:9615/api/issues/2 \
   -H 'Content-Type: application/json' \
   -d '{"status":"closed"}'
 ```
@@ -80,18 +80,18 @@ rtk npm --prefix examples/NodeHostDemo run express
 Then try:
 
 ```bash
-curl http://localhost:9615/
-curl http://localhost:9615/api/status
-curl 'http://localhost:9615/api/hello/roger?x=1'
-curl -i -X OPTIONS http://localhost:9615/api/echo
-curl -X POST http://localhost:9615/api/echo \
+rtk curl http://localhost:9615/
+rtk curl http://localhost:9615/api/status
+rtk curl 'http://localhost:9615/api/hello/roger?x=1'
+rtk curl -i -X OPTIONS http://localhost:9615/api/echo
+rtk curl -X POST http://localhost:9615/api/echo \
   -H 'Content-Type: application/json' \
   -d '{"message":"hello from middleware"}'
-curl -X POST http://localhost:9615/api/echo \
+rtk curl -X POST http://localhost:9615/api/echo \
   -H 'Content-Type: application/json' \
   -d '{bad json'
-curl http://localhost:9615/not-found
-curl http://localhost:9615/api/audit
+rtk curl http://localhost:9615/not-found
+rtk curl http://localhost:9615/api/audit
 ```
 
 This fourth script loads the real `express` npm package from `node_modules`
@@ -110,8 +110,8 @@ rtk npm --prefix examples/NodeHostDemo run official-express-ejs
 Then try:
 
 ```bash
-curl http://localhost:3000/
-curl http://localhost:3000/stylesheets/style.css
+rtk curl http://localhost:3000/
+rtk curl http://localhost:3000/stylesheets/style.css
 ```
 
 This script clones [expressjs/express](https://github.com/expressjs/express)
@@ -132,9 +132,9 @@ rtk npm --prefix examples/NodeHostDemo run polka
 Then try:
 
 ```bash
-curl http://localhost:9615/
-curl http://localhost:9615/api/status
-curl 'http://localhost:9615/api/hello/roger?x=1'
+rtk curl http://localhost:9615/
+rtk curl http://localhost:9615/api/status
+rtk curl 'http://localhost:9615/api/hello/roger?x=1'
 ```
 
 This fifth script loads `polka` from `node_modules` through the CommonJS

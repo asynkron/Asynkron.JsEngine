@@ -1965,6 +1965,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+        """,
+        "readComputedSpreadKey",
+        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+    [InlineData(
+        """
         function logicalWrite(box, value) {
             return box.value ||= value;
         }

@@ -4221,6 +4221,16 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         42d)]
     [InlineData(
         """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+
+        readComputedSpreadKey({ value: 42 }, { toString() { return "value"; } });
+        """,
+        "readComputedSpreadKey",
+        42d)]
+    [InlineData(
+        """
         function complexCompoundWrite(box, value) {
             return box.child.value += value;
         }

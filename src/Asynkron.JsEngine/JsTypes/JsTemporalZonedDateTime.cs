@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Asynkron.JsEngine.StdLib.Intl;
 using Asynkron.JsEngine.StdLib.Temporal;
 
 namespace Asynkron.JsEngine.JsTypes;
@@ -78,6 +79,11 @@ public sealed class JsTemporalZonedDateTime : IEquatable<JsTemporalZonedDateTime
         {
             fixedOffset = TimeSpan.Zero;
             return TimeZoneInfo.Utc;
+        }
+
+        if (IntlUtilities.TryResolveTimeZoneId(timeZoneId, out var resolvedTimeZoneId))
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(resolvedTimeZoneId);
         }
 
         return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);

@@ -1,11 +1,7 @@
-#region
-
 using System.Collections.Concurrent;
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

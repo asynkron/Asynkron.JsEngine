@@ -1,9 +1,5 @@
-#region
-
 using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

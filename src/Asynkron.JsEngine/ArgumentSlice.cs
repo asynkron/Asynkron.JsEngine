@@ -1,8 +1,4 @@
-#region
-
 using System.Collections;
-
-#endregion
 
 namespace Asynkron.JsEngine;
 

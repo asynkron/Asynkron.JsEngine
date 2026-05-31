@@ -1,9 +1,5 @@
-#region
-
 using System.Numerics;
 using Asynkron.JsEngine.Runtime;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

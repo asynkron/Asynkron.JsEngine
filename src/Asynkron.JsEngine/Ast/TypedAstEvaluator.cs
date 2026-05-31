@@ -1,5 +1,3 @@
-#region
-
 using System.Collections.Immutable;
 using System.Globalization;
 using Asynkron.JsEngine.Converters;
@@ -8,8 +6,6 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

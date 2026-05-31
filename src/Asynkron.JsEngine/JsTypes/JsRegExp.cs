@@ -1,5 +1,3 @@
-#region
-
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Globalization;
@@ -9,8 +7,6 @@ using Asynkron.JsEngine.Parser;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.StdLib.RegExp;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

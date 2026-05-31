@@ -1,8 +1,4 @@
-#region
-
 using Asynkron.JsEngine.Ast;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

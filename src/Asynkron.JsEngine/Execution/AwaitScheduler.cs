@@ -1,9 +1,5 @@
-#region
-
 using System.Runtime.CompilerServices;
 using System.Threading;
-
-#endregion
 
 // ResolvedPromiseValue is internal in JsTypes namespace, accessible here
 

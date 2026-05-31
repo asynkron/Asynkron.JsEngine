@@ -1,11 +1,7 @@
-#region
-
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Asynkron.JsEngine.StdLib.Intl;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

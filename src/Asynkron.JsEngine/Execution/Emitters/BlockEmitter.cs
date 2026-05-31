@@ -1,11 +1,7 @@
-#region
-
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
 using static Asynkron.JsEngine.Ast.TypedAstEvaluator;
-
-#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 

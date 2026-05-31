@@ -1,12 +1,8 @@
-#region
-
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.StdLib;
-
-#endregion
 
 namespace Asynkron.JsEngine.Runtime;
 

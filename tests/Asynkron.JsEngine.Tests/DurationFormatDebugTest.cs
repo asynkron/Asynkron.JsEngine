@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.JsTypes;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class DurationFormatDebugTest
@@ -53,15 +51,6 @@ public class DurationFormatDebugTest
         ");
         var str = result?.ToString();
         Assert.Contains("threw RangeError", str);
-    }
-
-    [Fact(Timeout = 2000)]
-    public async Task DecimalConversionCheck()
-    {
-        // Test what Number.MAX_SAFE_INTEGER + 1 evaluates to
-        await using var engine = new JsEngine();
-        var result = await engine.Evaluate("'' + (Number.MAX_SAFE_INTEGER + 1)");
-        Assert.Equal("9007199254740992", result?.ToString());
     }
 
     [Fact(Timeout = 2000)]

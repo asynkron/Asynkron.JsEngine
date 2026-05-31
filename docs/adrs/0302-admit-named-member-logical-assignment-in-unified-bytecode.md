@@ -95,6 +95,11 @@ exact direct named member logical-assignment shape.
   inventory, and focused proof pack in the same delivery slice. PR #2826's
   build-back repair was required because `SwapTopTwo` support initially left the
   contract inventory stale.
+- Shape helpers for this route must stay atomic when they discover an
+  unsupported neighbor after partially probing the base. PR #2812 staged
+  `TryAppendFirstBoundaryNamedLogicalPropertySet` output in scratch builders so
+  unsupported RHS, computed, nested, optional, or private forms cannot leave
+  partial instructions or constants behind for a later fallback path.
 
 ## Evidence
 
@@ -107,11 +112,23 @@ exact direct named member logical-assignment shape.
 - Focused build-back verification passed:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests/Asynkron.JsEngine.Tests.csproj -c Release --filter "FullyQualifiedName~UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack|FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"`
   with 8 tests passing.
+- Follow-up delivery PR #2812 merged as commit `8470597c` and restored final
+  gate coverage for adjacent declines:
+  `box[key] &&= value` and `box.child.value &&= value` decline as
+  `PropertyWriteDependency`, `this.#p &&= value` declines as
+  `PrivateFieldDependency`, and `box?.prop &&= value` is parser-rejected as an
+  invalid assignment target. The same fix made
+  `TryAppendFirstBoundaryNamedLogicalPropertySet` side-effect-free until full
+  acceptance.
 
 ## Issue / PR
 
 Issue `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-f31b87b5d8`
 / PR #2826.
+
+Follow-up build-back issue
+`planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
+/ PR #2812.
 
 ## Related
 

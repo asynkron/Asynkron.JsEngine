@@ -585,6 +585,17 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 break;
 
+            case LogicalCompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Logical compound assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
             case IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
                 if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
                 {
@@ -2793,6 +2804,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
             case CompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } rhsProgram }:
                 program = rhsProgram;
+                return true;
+
+            case LogicalCompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } logicalRhsProgram }:
+                program = logicalRhsProgram;
                 return true;
 
             case EvaluateAndDiscardInstruction { ExpressionProgram: { } expressionProgram }:

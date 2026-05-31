@@ -415,7 +415,7 @@ This table distinguishes near-closure seams from structural seams. Near-closure 
 | CommonJS host shim | Platform | **Structural (host layer)** | No core-engine obligation |
 | Label-dependent control flow | T2 | **Structural** | ADR 0210 |
 | Spread / construct / super call families | T2 → T0 | **Deferred** | Expansion contract bucket |
-| Proper tail calls (PTC) — strict mode | T0 (target) | **Untracked — requires ADR** | ECMAScript strict-mode mandate; no seam ADR yet |
+| Proper tail calls (PTC) — strict mode | T0 (runtime-owned) | **Proven (runtime-owned baseline)** | ADR 0126, `TailCallTests` strict same-function depth proof |
 
 ### Dream completion condition
 
@@ -837,7 +837,7 @@ flowchart TD
     T2 -.near-closure and structural seams.-> T3
 ```
 
-#### Proper tail calls (PTC) — directional
+#### Proper tail calls (PTC) — directional extensions
 
 ECMAScript strict-mode mandates proper tail calls: a call expression in tail position of a strict-mode function must not grow the call stack. The engine's treatment — opcode, frame reuse, or documented Tier 3/Stratum F decline — must be explicit in the Execution Engine contract.
 
@@ -862,13 +862,13 @@ flowchart TB
     style GROW fill:#933,color:#fff
 ```
 
-Tail call invariants (all directional):
+Tail call invariants (future extension work):
 - Tail position detection is a compile-time static analysis in the lowering pass; it does not add a runtime check on the hot path.
 - A `TailCall` opcode reuses the current call frame (slot array + return address) instead of pushing a new frame; this is the mechanism that enables non-stack-growing tail recursion.
 - Non-strict mode PTC is implementation-defined by the spec; this engine may choose to apply PTC only in strict mode to match the mandatory minimum.
 - `yield`, `await`, `arguments` reference, and `new.target` use inside the tail call site are eligibility-disqualifying conditions; they must be detected at lowering time.
-- The seam inventory entry "Proper tail calls (PTC) — strict mode" is **Untracked — requires ADR**. A focused ADR must specify the eligibility criteria, frame-reuse mechanism, and decline conditions before any production claim.
-- This is entirely directional; no tail call opcode exists today.
+- Current ownership and baseline behavior are already committed by ADR 0126: proper tail calls remain runtime-context owned, with proven strict same-function non-growth behavior via trampoline/restart execution.
+- Directional work in this section covers future instruction-shape choices (for example, an explicit `TailCall` opcode) and broader eligibility expansion, not whether PTC exists at all.
 
 #### Bytecode instruction format (committed direction — requires ADR before wire-format freeze)
 
@@ -1464,7 +1464,7 @@ This table is grouped by migration phase. Use it to choose the next slice: **Cor
 | Directional | Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of pre-compiled `UnifiedBytecodeProgram` artifacts keyed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
 | Directional | TypeScript preprocessing | None — entirely directional. | Source-level annotation-stripping layer before the lexer; position-preserving (whitespace replacement, not deletion); no type-checking; JSX/TSX stripping as a separate phase; see "TypeScript preprocessing (directional)" section. |
 | Directional | Module graph parallelism | None — entirely directional. | Parallel-fetch phase for independent specifiers before sequential evaluation; host loader hook must support concurrent invocation; circular graph detection at link phase; see "Module graph parallelism (directional)" section. |
-| Directional | Proper tail calls (PTC) | None — entirely directional. | `TailCall` opcode reuses current frame; compile-time tail-position detection in lowering pass; strict-mode mandate; eligibility gates for `yield`/`await`/`arguments` references; requires ADR before implementation; see "Proper tail calls — PTC (directional)" section. |
+| Migration | Proper tail calls (PTC) | Runtime-context-owned strict same-function PTC baseline is proven (ADR 0126; tail-call depth tests). | Optional explicit opcode/lowering-shape expansion (`TailCall` instruction form, widened eligibility matrix) remains directional follow-on; see "Proper tail calls (PTC) — directional extensions". |
 
 ## Architecture constraints (current reality)
 

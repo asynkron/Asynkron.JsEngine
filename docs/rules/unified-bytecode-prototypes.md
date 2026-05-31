@@ -1785,8 +1785,9 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     activation-resolved, every intermediate receiver hop is non-optional and
     non-private, and the final operation is a non-private
     `DeleteNamedProperty`. Computed deletes may route only when the receiver is
-    activation-resolved, the key operand is compiler-owned, and the final
-    operation is `DeleteComputedProperty`.
+    activation-resolved, any intermediate receiver prefix is made only of
+    non-optional, non-private named property reads, the key operand is
+    compiler-owned, and the final operation is `DeleteComputedProperty`.
 
     Lower accepted shapes to dedicated `DeleteNamedProperty` and
     `DeleteComputedProperty` opcodes and execute them through the runtime
@@ -1797,6 +1798,14 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     pre-VM declines until a later slice owns selector, compiler, VM, and route
     proof for those exact shapes.
 
+    For nested named receiver computed deletes such as `delete box.child[key]`,
+    compose the existing `GetNamedProperty` receiver hops with the existing
+    `DeleteComputedProperty` opcode. Do not add a VM callback or generic
+    expression-stack fallback for the receiver chain. Keep optional receiver
+    chains, richer computed-key payloads, dynamic lookup, private names, and
+    `super` as pre-VM declines until a later slice proves those exact
+    semantics.
+
     Pair each positive widening with opcode proof, public fast-path route logs,
     computed-key coercion/order proof for computed deletes, strict/sloppy
     descriptor failure proof, and adjacent negative decline coverage. WHY:
@@ -1806,7 +1815,10 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     delete (ADR 0309). The important boundary is that `DeleteDependency` was
     narrowed, not retired: descriptor-aware ordinary deletes now have owned VM
     opcodes, while optional-chain, private-name, and super delete semantics
-    remain separate dependency families.
+    remain separate dependency families. Issue #gh2926 / PR #2931 then admitted
+    nested named receiver computed deletes by composing existing
+    `GetNamedProperty` and `DeleteComputedProperty` opcodes, while retaining the
+    optional receiver, dynamic-key, and richer-key declines (ADR 0316).
 
 53. When admitting labeled `break` or `continue` that crosses nested
     iterator/for-in driver loops to production unified bytecode, make cleanup
@@ -1904,3 +1916,4 @@ Related ADRs:
 - `docs/adrs/0309-admit-ordinary-property-delete-in-unified-bytecode.md`
 - `docs/adrs/0313-admit-nested-driver-labeled-abrupt-cleanup-in-unified-bytecode.md`
 - `docs/adrs/0314-split-unified-bytecode-driver-break-and-continue-cleanup-targets.md`
+- `docs/adrs/0316-admit-nested-named-receiver-computed-delete-in-unified-bytecode.md`

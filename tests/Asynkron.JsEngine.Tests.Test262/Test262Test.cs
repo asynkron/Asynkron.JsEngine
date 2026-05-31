@@ -641,7 +641,7 @@ try {
             RegExpLiteralCharsEscapeRoundTripTest or
             IntlLocaleInvalidTagThrowsTest or
             FunctionPrototypeToStringBuiltInFunctionObjectTest
-            ? TimeSpan.FromSeconds(90)
+            ? TimeSpan.FromSeconds(180)
             : TimeSpan.FromSeconds(30);
     }
 

@@ -6,6 +6,33 @@ namespace Asynkron.JsEngine.StdLib;
 
 internal static class DisposableStackHelper
 {
+    internal static JsValue Use(JsDisposableStackBase stack, IReadOnlyList<JsValue> args, bool preferAsync,
+        RealmState realm)
+    {
+        var value = args.GetArgument(0);
+        if (GetDisposeMethod(value, preferAsync, realm) is { } disposeMethod)
+        {
+            stack.AddRecord(disposeMethod, value, []);
+        }
+
+        return value;
+    }
+
+    internal static JsValue Adopt(JsDisposableStackBase stack, IReadOnlyList<JsValue> args, RealmState realm,
+        string errorMessage)
+    {
+        var value = args.GetArgument(0);
+        stack.AddRecord(RequireCallable(args.GetArgument(1), realm, errorMessage), JsValue.Undefined, [value]);
+        return value;
+    }
+
+    internal static JsValue Defer(JsDisposableStackBase stack, IReadOnlyList<JsValue> args, RealmState realm,
+        string errorMessage)
+    {
+        stack.AddRecord(RequireCallable(args.GetArgument(0), realm, errorMessage), JsValue.Undefined, []);
+        return JsValue.Undefined;
+    }
+
     internal static IJsCallable RequireCallable(JsValue value, RealmState realm, string errorMessage)
     {
         if (!value.TryGetObject<IJsCallable>(out var callable))

@@ -78,6 +78,32 @@ found that all were provably interface-typed. Tighter cursor types eliminate
 implicit casts in switch/match arms and make future `IJsObjectLike` / `JsProxy`
 hierarchy changes safer.
 
+## Region Blocks
+
+Do **not** add bare (unlabeled) `#region` / `#endregion` blocks to C# files.
+They wrap IDE folding around `using` statements and other syntactic groups with
+no semantic value, and they accumulate silently across files until a bulk-removal
+refactor is required.
+
+**Labeled** regions are permitted when a block has a descriptive name that aids
+navigation, e.g.:
+```csharp
+#region Slot-based Variable Access
+...
+#endregion
+```
+
+Bare blocks look like this and must not be introduced:
+```csharp
+#region
+using System;
+#endregion
+```
+
+WHY: PR #2788 removed 1,675 lines of bare `#region`/`#endregion` blocks spread
+across 418 C# files. The blocks added no information beyond what the code itself
+says and created mechanical churn whenever they were touched. Issue autrun-diwixvvzvgd4-0d2f84a3b5.
+
 ## Example Workflow
 
 1. Edit `src/Foo.cs` to add new method

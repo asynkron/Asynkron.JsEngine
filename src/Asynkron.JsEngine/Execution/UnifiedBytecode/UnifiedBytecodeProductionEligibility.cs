@@ -767,9 +767,8 @@ internal static class UnifiedBytecodeProductionEligibility
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
 
-        // Pre-scan: any ArraySpread whose immediately-preceding op is non-simple must decline with
-        // ObjectLiteralOrSpreadDependency before the main loop processes the source ops (which may
-        // otherwise trigger a less-specific decline code such as CallDependency).
+        // Pre-scan spread source operands before the main loop processes the source ops, which may
+        // otherwise trigger a less-specific decline code such as CallDependency.
         for (var i = 0; i < operationCount; i++)
         {
             if (program.GetOperation(i).Kind == ExpressionOpKind.ArraySpread &&
@@ -778,6 +777,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
                     "Array spread with non-simple source is not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (program.GetOperation(i).Kind == ExpressionOpKind.ObjectSpread &&
+                (i == 0 ||
+                 !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots) ||
+                 IsOperationInComputedPropertyKeyPayload(program, i) ||
+                 !IsOperationInSimpleObjectLiteralSpan(program, i, identifierConstants, activationSlots)))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                declineReason =
+                    "Object spread with non-simple source, inside a computed property key payload, or outside an admitted object literal span is not eligible for production unified bytecode routing.";
                 return true;
             }
         }
@@ -1413,10 +1424,23 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
                 case ExpressionOpKind.DefineComputedObjectAccessor:
-                case ExpressionOpKind.ObjectSpread:
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
-                        "Object methods, object accessors, and object spread are not eligible for production unified bytecode routing.";
+                        "Object methods and object accessors are not eligible for production unified bytecode routing.";
+                    return true;
+
+                case ExpressionOpKind.ObjectSpread:
+                    if (operationIndex > 0 &&
+                        IsSimpleOperand(program.GetOperation(operationIndex - 1), identifierConstants, activationSlots) &&
+                        !IsOperationInComputedPropertyKeyPayload(program, operationIndex) &&
+                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                    declineReason =
+                        "Object spread with non-simple source, inside a computed property key payload, or outside an admitted object literal span is not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.DefineObjectProperty:
@@ -1989,12 +2013,22 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount < 5)
+        if (!TryGetComputedPropertyKeyPayloadBounds(program, out _, out _))
         {
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        return TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots);
+    }
+
+    private static bool TryGetComputedPropertyKeyPayloadBounds(
+        ExpressionProgram program,
+        out int keyStart,
+        out int keyEndExclusive)
+    {
+        keyStart = 0;
+        keyEndExclusive = 0;
+        if (program.OperationCount < 5)
         {
             return false;
         }
@@ -2034,9 +2068,15 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var getComputedProperty = program.GetOperation(computedIndex);
-        return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
-               !getComputedProperty.ShortCircuitOnNullishTarget &&
-               computedIndex > computedPrefixEnd;
+        if (getComputedProperty.Kind != ExpressionOpKind.GetComputedProperty ||
+            getComputedProperty.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        keyStart = computedPrefixEnd;
+        keyEndExclusive = computedIndex - 2;
+        return true;
     }
 
     private static bool TryIsFirstBoundaryNamedPropertyDeleteCandidate(
@@ -3243,10 +3283,11 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple object literal starting at startIndex.
-    // Admitted shapes (CreateObject followed by N ≥ 0 property triples):
+    // Admitted shapes (CreateObject followed by N >= 0 property triples/spreads):
     //   Static:   [simple-value-operand, DefineObjectProperty(non-private, no name inference)]
     //   Computed: [simple-key-operand, ResolvePropertyKey, simple-value-operand, DefineComputedObjectProperty(no name inference)]
-    // DefineObjectMethod, ObjectSpread, private names, name inference, and complex key expressions are declined.
+    //   Spread:   [simple-spread-source-operand, ObjectSpread]
+    // DefineObjectMethod, accessors, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
         ExpressionProgram program,
         int startIndex,
@@ -3330,6 +3371,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 i++;
             }
+            else if (secondOp.Kind == ExpressionOpKind.ObjectSpread)
+            {
+                i++;
+            }
             else
             {
                 // Not a static or simple-computed property — decline.
@@ -3340,6 +3385,43 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = i - startIndex;
         return true;
+    }
+
+    private static bool IsOperationInSimpleObjectLiteralSpan(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        for (var startIndex = 0; startIndex <= operationIndex; startIndex++)
+        {
+            if (program.GetOperation(startIndex).Kind != ExpressionOpKind.CreateObject)
+            {
+                continue;
+            }
+
+            if (TryMeasureSimpleObjectLiteralSpan(
+                    program,
+                    startIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength) &&
+                operationIndex < startIndex + spanLength)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsOperationInComputedPropertyKeyPayload(
+        ExpressionProgram program,
+        int operationIndex)
+    {
+        return TryGetComputedPropertyKeyPayloadBounds(program, out var keyStart, out var keyEndExclusive) &&
+               operationIndex >= keyStart &&
+               operationIndex < keyEndExclusive;
     }
 
     // Measures the op span for a simple untagged template literal starting at startIndex.
@@ -4182,6 +4264,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                case UnifiedBytecodeOpCode.ObjectSpread:
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.EnsureHasName:

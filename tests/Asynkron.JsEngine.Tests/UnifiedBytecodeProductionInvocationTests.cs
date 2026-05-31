@@ -4221,6 +4221,16 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         42d)]
     [InlineData(
         """
+        function readComputedSpreadKey(box, source) {
+            return box[{ ...source }];
+        }
+
+        readComputedSpreadKey({ value: 42 }, { toString() { return "value"; } });
+        """,
+        "readComputedSpreadKey",
+        42d)]
+    [InlineData(
+        """
         function complexCompoundWrite(box, value) {
             return box.child.value += value;
         }
@@ -4974,6 +4984,53 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ObjectSpreadGetterThrow_StopsBeforeLaterSpread_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var order = [];
+            function spreadObject(source, after) {
+                return { ...source, ...after };
+            }
+
+            var source = {};
+            Object.defineProperty(source, "a", {
+                get: function () {
+                    order.push("source");
+                    throw new RangeError("boom");
+                },
+                enumerable: true
+            });
+
+            var after = {};
+            Object.defineProperty(after, "b", {
+                get: function () {
+                    order.push("after");
+                    return 2;
+                },
+                enumerable: true
+            });
+
+            var message = "none";
+            try {
+                spreadObject(source, after);
+            } catch (error) {
+                message = error instanceof RangeError ? error.message : "wrong";
+            }
+
+            [message, order.join(",")];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("boom", steps.Items[0].AsString());
+        Assert.Equal("source", steps.Items[1].AsString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadObject argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallWithMixedScalarAndArrayLiteralArgs_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -5249,6 +5306,100 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=build argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_UsesUnifiedBytecodeProductionFastPathAndCopiesSymbolKeys()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function copy(source) {
+                return { ...source };
+            }
+
+            var sym = Symbol("answer");
+            var source = { a: 1 };
+            source[sym] = 41;
+            var out = copy(source);
+            out[sym] + out.a;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=copy argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_PreservesOverwriteOrder_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function merge(source) {
+                return { a: 1, ...source, b: 2, a: 3 };
+            }
+
+            var out = merge({ a: 9, c: 37 });
+            out.a + out.b + out.c;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=merge argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_NullAndUndefinedSourcesAreNoOps_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function build(left, right) {
+                return { ...left, value: 42, ...right };
+            }
+
+            build(null, undefined).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=build argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_InvokesEnumerableGetters_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function copy(source) {
+                return { ...source, other: 1 };
+            }
+
+            var hits = 0;
+            var source = {};
+            Object.defineProperty(source, "value", {
+                get: function () {
+                    hits = hits + 1;
+                    return 41;
+                },
+                enumerable: true
+            });
+
+            var out = copy(source);
+            [out.value + out.other, hits];
+            """);
+
+        var values = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(42d, values.Items[0].AsDouble());
+        Assert.Equal(1d, values.Items[1].AsDouble());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=copy argc=1",
                 StringComparison.Ordinal));
     }
 

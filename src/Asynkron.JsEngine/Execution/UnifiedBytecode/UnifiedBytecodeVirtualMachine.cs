@@ -1232,6 +1232,28 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.ObjectSpread:
+                    var objectSpreadValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var objectSpreadTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object spread unified bytecode op requires an object receiver.");
+                    }
+
+                    ApplyObjectLiteralSpread(objectSpreadTarget, objectSpreadValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -4999,6 +5021,72 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
+    }
+
+    private static void ApplyObjectLiteralSpread(
+        JsObject targetObject,
+        JsValue spreadValue,
+        EvaluationContext context)
+    {
+        if (spreadValue.IsNullOrUndefined)
+        {
+            return;
+        }
+
+        if (spreadValue.ObjectValue is IIsHtmlDda)
+        {
+            return;
+        }
+
+        if (spreadValue.ObjectValue is IDictionary<string, object?> dictionary and not JsObject)
+        {
+            foreach (var (key, value) in dictionary)
+            {
+                targetObject.DefineProperty(
+                    key,
+                    new PropertyDescriptor
+                    {
+                        JsValue = JsValue.FromObjectUnsafe(value),
+                        Writable = true,
+                        Enumerable = true,
+                        Configurable = true
+                    });
+            }
+
+            return;
+        }
+
+        var accessor = spreadValue.ObjectValue is IJsPropertyAccessor propertyAccessor
+            ? propertyAccessor
+            : TypedAstEvaluator.TryToObjectForDestructuring(spreadValue, context, out var objectLike)
+                ? objectLike
+                : null;
+        if (accessor is null)
+        {
+            return;
+        }
+
+        foreach (var key in accessor.GetOwnPropertyKeysInOrder(includeSymbols: true, includeNonEnumerable: true))
+        {
+            var descriptor = accessor.GetOwnPropertyDescriptor(key);
+            if (descriptor is not { Enumerable: true })
+            {
+                continue;
+            }
+
+            var spreadPropertyValue = accessor.TryGetProperty(key, out var value)
+                ? value
+                : JsValue.Undefined;
+            targetObject.DefineProperty(
+                key,
+                new PropertyDescriptor
+                {
+                    JsValue = spreadPropertyValue,
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                });
+        }
     }
 
     private static JsValue UpdatePropertyValue(

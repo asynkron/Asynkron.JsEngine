@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Roadmap
 
-_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777)_
+_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777, #2783, #2787)_
 
 ## Current State
 
@@ -45,6 +45,10 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 - **Compound property write eligibility and invocation coverage expanded** to `this`-base shapes and all 12 arithmetic/bitwise compound-assignment operators (+=, -=, *=, /=, %=, **=, &=, |=, ^=, <<=, >>=, >>>=). Theory tests added for both named and computed property paths with `this`-base; logical-assignment forms (`&&=`, `||=`, `??=`) confirmed declined with `PropertyWriteDependency`. Evidence recorded as ADR 0238 batch-4 deliverable (PRs #2755, #2758).
 
 - **Unified-bytecode production routing widened to admit `&&`, `||`, and `??` expressions** via three new peek-semantics jump opcodes (`JumpIfShortCircuitFalse`, `JumpIfShortCircuitTrue`, `JumpIfShortCircuitNotNullish`). The compiler re-maps expression-IR `JumpIfFalse`/`JumpIfTrue`/`JumpIfNotNullish` ops to their unified counterparts via a backpatch map; the VM peeks TOS without consuming it, enabling spec-conformant short-circuit evaluation. Optional-chain `JumpIfShortCircuited` still declines as `OptionalChainDependency`. Decision recorded in ADR 0293 and rule 41 (PR #2761).
+
+- **`object?` cursor and prototype locals narrowed to typed interfaces** in prototype traversal paths (PR #2783). `ObjectPrototype.cs` loop cursors and both `TryGetPrototype(object? candidate, …)` signatures narrowed from `object?` to `IJsObjectLike?`; `StandardLibrary.Helpers.HasProperty` `currentProto` local narrowed to `IJsPropertyAccessor?`. Advances the JsValue migration boundary described in ADR 0281 / rule 20.
+
+- **`docs/dreaming.md` rev 5 fixes the greenfield diagram and adds three new architectural diagrams** (PR #2787). The top-level system flowchart's `Execution Engine` subgraph is relabeled from "4-tier" to "2 strata (greenfield target)" with Stratum 0 / Stratum F nodes (the migration-reality 4-tier diagram in §Greenfield target vs migration reality is unchanged). Added: startup cost breakdown diagram annotating cold-start phases and invariants (aligned with the < 5 ms p95 SLO); `JsValue ↔ .NET type conversion` flow diagram in component 11 showing which conversion paths are zero-alloc and which allocate a managed wrapper; host error translation path diagram tracing JS throw completion → VM unwind → host boundary → .NET `Exception` or `Task.Faulted`.
 
 Architecture direction is tracked in docs rather than as runtime parity claims: unified-bytecode primary sync-route coverage is recorded (PR #2644), the ordinary sync `this`-binding route is recorded in ADR 0279 (issue #2633), its resumable async/generator counterpart accepting `this`-dependent suspendable functions is recorded in ADR 0283 (issue #2675), and the typed-AST/"dreaming" target is refined in `docs/dreaming.md` — a 4-tier execution model (PR #2647) followed by a self-critique revision (PR #2663), with tier-numbering disambiguation captured as rule 14 (PR #2650). These describe a staged migration with allocation budgets and escape hatches, not current parity.
 

@@ -4531,7 +4531,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LogicalAndAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_LogicalAndAssignment_ThisPropertyBase_Accepts()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4547,12 +4547,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]
-    public void Evaluate_LogicalOrAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_LogicalOrAssignment_ThisPropertyBase_Accepts()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4568,12 +4568,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]
-    public void Evaluate_NullishAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_NullishAssignment_ThisPropertyBase_Accepts()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4589,7 +4589,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 }

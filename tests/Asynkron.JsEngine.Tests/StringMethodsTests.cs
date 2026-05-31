@@ -462,6 +462,34 @@ public sealed class StringMethodsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task String_Repeat_LongCount()
+    {
+        await using var engine = CreateEngine();
+        await engine.Evaluate("""
+
+                                                       var assert = {
+                                                           sameValue: function(actual, expected, message) {
+                                                               if (!Object.is(actual, expected)) {
+                                                                   throw new Error(message || 'Expected SameValue check to pass');
+                                                               }
+                                                           }
+                                                       };
+
+                                                       let str = '';
+                                                       let i = 0;
+                                                       let count = 10000;
+
+                                                       while (i < count) {
+                                                           str += '.';
+                                                           i++;
+                                                       }
+
+                                                       assert.sameValue('.'.repeat(count), str);
+
+                                           """);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task String_PadStart()
     {
         await using var engine = CreateEngine();

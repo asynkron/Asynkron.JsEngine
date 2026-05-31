@@ -188,4 +188,34 @@ public sealed class FunctionConstructorTests(ITestOutputHelper output) : Interna
             Assert.Equal("test262", details.Items[5].AsString());
         }
     }
+
+    [Fact]
+    public async Task ArrowFunctionToStringCoercionProducesPrimitiveString()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            (function () {
+              const fn = /* before */( /* a */ a /* b */ , /* c */ b /* d */ ) /* e */ => /* f */ { /* g */ ; /* h */ }/* after */;
+              const actual = "" + fn;
+              const expected = "( /* a */ a /* b */ , /* c */ b /* d */ ) /* e */ => /* f */ { /* g */ ; /* h */ }";
+
+              return [
+                typeof actual,
+                actual === expected,
+                Object.prototype.toString.call(actual),
+                actual instanceof String,
+                actual.length,
+                expected.length
+              ];
+            })();
+        """);
+
+        var array = Assert.IsType<JsArray>(result);
+        Assert.Equal("string", array.Items[0].AsString());
+        Assert.True(array.Items[1].AsBoolean());
+        Assert.Equal("[object String]", array.Items[2].AsString());
+        Assert.False(array.Items[3].AsBoolean());
+        Assert.Equal(array.Items[4].NumberValue, array.Items[5].NumberValue);
+    }
 }

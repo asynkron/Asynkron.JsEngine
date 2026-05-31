@@ -15,15 +15,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         var stack = RequireStack(thisValue);
         EnsureNotDisposed(stack);
 
-        var value = args.GetArgument(0);
-        var disposeMethod = DisposableStackHelper.GetDisposeMethod(value, preferAsync: true, Realm);
-        if (disposeMethod is null)
-        {
-            return value;
-        }
-
-        stack.AddRecord(disposeMethod, value, []);
-        return value;
+        return DisposableStackHelper.Use(stack, args, preferAsync: true, Realm);
     }
 
     /* FLAKY */
@@ -33,12 +25,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         var stack = RequireStack(thisValue);
         EnsureNotDisposed(stack);
 
-        var value = args.GetArgument(0);
-        var onDispose = args.GetArgument(1);
-        var callable = DisposableStackHelper.RequireCallable(onDispose, Realm, "AsyncDisposableStack.prototype.adopt requires a callable disposer");
-
-        stack.AddRecord(callable, JsValue.Undefined, [value]);
-        return value;
+        return DisposableStackHelper.Adopt(stack, args, Realm, "AsyncDisposableStack.prototype.adopt requires a callable disposer");
     }
 
     /* FLAKY */
@@ -48,11 +35,7 @@ public sealed partial class AsyncDisposableStackPrototype : JsPrototype
         var stack = RequireStack(thisValue);
         EnsureNotDisposed(stack);
 
-        var onDispose = args.GetArgument(0);
-        var callable = DisposableStackHelper.RequireCallable(onDispose, Realm, "AsyncDisposableStack.prototype.defer requires a callable disposer");
-
-        stack.AddRecord(callable, JsValue.Undefined, []);
-        return JsValue.Undefined;
+        return DisposableStackHelper.Defer(stack, args, Realm, "AsyncDisposableStack.prototype.defer requires a callable disposer");
     }
 
     /* FLAKY */

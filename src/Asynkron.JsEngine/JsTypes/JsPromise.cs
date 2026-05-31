@@ -145,12 +145,26 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
         // Value is not a thenable - fulfill directly
         _state = PromiseState.Fulfilled;
-        // Settled promises must keep fulfilled values stable for late-attached reactions.
-        // If an iterator result escapes through settlement, capture it now so pooling cannot
-        // recycle the same instance before a later .then observes it.
-        IteratorResultObject.CaptureIfSurfaced(value);
-        _value = value;
+        _value = CaptureSettledValue(value);
         ScheduleProcessing();
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private static JsValue CaptureSettledValue(JsValue value)
+    {
+        // Async-generator next() results are created via the iterator-result pool and may be
+        // queued for return after settlement. Promises still need a stable settled value for
+        // late-attached reactions, so snapshot pooled iterator results instead of pinning them.
+        if (value.TryGetObject<IteratorResultObject>(out var iteratorResult))
+        {
+            iteratorResult.Deconstruct(out var resultValue, out var resultDone);
+            var stableResult = new IteratorResultObject(resultValue, resultDone);
+            stableResult.Capture();
+            return stableResult.AsJsValue;
+        }
+
+        IteratorResultObject.CaptureIfSurfaced(value);
+        return value;
     }
 
     /// <summary>
@@ -205,8 +219,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         }
 
         _state = PromiseState.Rejected;
-        IteratorResultObject.CaptureIfSurfaced(reason);
-        _value = reason;
+        _value = CaptureSettledValue(reason);
         ScheduleProcessing();
     }
 

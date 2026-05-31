@@ -949,6 +949,17 @@ all-or-nothing until a separate routing issue proves production readiness.
     separate slice. A future slice admitting chained forms must own
     sentinel-value propagation through the full chain before removing the
     `ShortCircuitOnNullishTarget:true` decline.
+    Issue planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-e36522d0f7
+    / PR #2800: when proving that the optional-chain base is evaluated exactly
+    once, the test base must be a call result (e.g. `getBox()?.value`,
+    `getBox()?.["value"]`). A call result is not activation-resolved, so the
+    containing function will NOT qualify for the production fast path — do NOT
+    assert the `unified-bytecode-production-fast-path` log in these
+    single-evaluation tests. The behavioral assertion (call count = 1) alone is
+    the correct proof. Asserting the fast-path log alongside a call-result base
+    is incorrect because `TryIsFirstBoundaryOptionalNamedPropertyReadCandidate`
+    and `TryIsFirstBoundaryOptionalComputedPropertyReadCandidate` reject
+    non-activation-resolved bases.
 
 43. When admitting `ConditionalExpression` (`cond ? a : b`) to production
     unified bytecode, the **only new compiler surface** is

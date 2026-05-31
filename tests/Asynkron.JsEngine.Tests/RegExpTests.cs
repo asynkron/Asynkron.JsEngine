@@ -174,6 +174,39 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task UnicodePropertyEscape_ScriptExtensionsCommonAndInherited_UnanchoredSearch_MatchesExpectedSamples()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const common = "_";
+                                                       const inherited = "\u0300";
+                                                       const latin = "A";
+                                                       const commonMatch = /\p{Script_Extensions=Common}/u.exec(latin + common);
+                                                       const inheritedMatch = /\p{Script_Extensions=Inherited}/u.exec(latin + inherited);
+                                                       const negatedCommonMatch = /\P{Script_Extensions=Common}/u.exec(common + latin);
+                                                       const negatedInheritedMatch = /\P{Script_Extensions=Inherited}/u.exec(inherited + latin);
+                                                       [
+                                                         commonMatch[0] === common,
+                                                         commonMatch.index === 1,
+                                                         inheritedMatch[0] === inherited,
+                                                         inheritedMatch.index === 1,
+                                                         negatedCommonMatch[0] === latin,
+                                                         negatedCommonMatch.index === 1,
+                                                         negatedInheritedMatch[0] === latin,
+                                                         negatedInheritedMatch.index === 1
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        foreach (var value in values.Items)
+        {
+            Assert.True(value.AsBoolean());
+        }
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

@@ -7,10 +7,7 @@ namespace Asynkron.JsEngine.StdLib;
 public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmState realm)
     : CollectionConstructorBase<JsWeakSet>(prototype, realm, "WeakSet")
 {
-    protected override JsWeakSet CreateInstance()
-    {
-        return new JsWeakSet();
-    }
+    protected override JsWeakSet CreateInstance() => new();
 
     protected override void ConfigureRealmProperties(HostFunction constructor)
     {
@@ -20,18 +17,7 @@ public sealed partial class WeakSetConstructor(IJsObjectLike prototype, RealmSta
 
     protected override void PopulateInstance(JsWeakSet instance, IReadOnlyList<JsValue> args)
     {
-        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
-        {
-            return;
-        }
-
-        if (!instance.TryGetProperty("add", out var adderValue) ||
-            !adderValue.TryGetObject<IJsCallable>(out var adder))
-        {
-            throw StandardLibrary.ThrowTypeError("WeakSet.prototype.add is not callable", realm: Realm);
-        }
-
-        var instanceValue = JsValue.FromObjectUnsafe(instance);
-        MapSetIterationHelper.Iterate(args[0], Realm, "WeakSet constructor", entry => adder.Invoke([entry], instanceValue));
+        PopulateCollectionFromIterable(instance, args, "add", "WeakSet.prototype.add is not callable", "WeakSet constructor",
+            (adder, entry, instanceValue) => adder.Invoke([entry], instanceValue));
     }
 }

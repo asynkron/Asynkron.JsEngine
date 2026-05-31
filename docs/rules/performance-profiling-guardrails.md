@@ -214,17 +214,22 @@ optimization.
 6j. For failed-attempt performance notes, carry the same investigation-shaped
     evidence expected by the issue before review: full-table baseline runs and
     target-selection rationale when the acceptance criteria ask for a benchmark
-    choice, repeated focused CPU profiles with the requested depth/width, repeated
-    selected-profile final rows, internal-test gate evidence, and any smoke gate
-    the run contract required. A reverted runtime edit still needs this evidence
-    so reviewers can tell whether the retained document captures a measured
-    failed slice or only a narrative. WHY: issue
+    choice, repeated focused CPU profiles with the requested depth/width,
+    repeated selected-profile final rows, the focused semantic proof pack for
+    the subsystem changed by the experiment, internal-test gate evidence, and
+    any smoke gate the run contract required. A reverted runtime edit still
+    needs this evidence so reviewers can tell whether the retained document
+    captures a measured failed slice or only a narrative. WHY: issue
     `autrun-diwpc6lcb3gg-ec063492f2` / PR #2822 kept only the
     `docs/performance/failed-ir-arithmetic-fast-path-script-completion.md`
     artifact after the attempted `ir-arithmetic` fast-path write tweak regressed,
     but review needed an evidence-completion pass to add the 3x full benchmark
     baseline, 3x required `--calltree-depth 40 --calltree-width 40` CPU profiles,
     focused final benchmark medians, and explicit internal-test/smoke outcomes.
+    Issue `autrun-dix8nm1r84cg-42604b755b` / PR #2924 then needed a
+    build-back repair to add the activation semantics proof-pack result to the
+    retained `activation-arguments-lite` failed-attempt note after a reverted
+    `PushEnvironment` slot-name experiment.
 6k. Do not retain or retry a `simplearithmetic` return-cleanup-only optimization
     merely because it removes the sampled `CompleteReturn -> CloseActiveIterators
     -> ScanEnvironmentForActiveIterators` subtree. A plan-proven

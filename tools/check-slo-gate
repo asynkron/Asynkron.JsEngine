@@ -13,11 +13,12 @@ export LC_ALL=C
 # diff when any profile's avg-ms-per-iteration regresses beyond the tolerance.
 #
 # This guards the committed ProfileRunner baseline from silently regressing.
-# It also prints a non-failing directional target status for the Performance
-# SLO targets defined in docs/dreaming.md. Target status is evidence only:
-# the gate measures avg ms per iteration, not p95, and does not claim Node.js
-# parity. Timing is noisier than allocation bytes, so the default hard-failure
-# tolerance is 200% (gate fails only when a measurement exceeds 3× baseline).
+# It also prints non-failing directional target evidence for the Performance
+# SLO targets defined in docs/dreaming.md: p95 timing samples where a target is
+# p95-shaped, plus same-run Node.js reference timing when node is available.
+# Only committed avg-ms baseline regression is a hard failure. Timing is noisier
+# than allocation bytes, so the default hard-failure tolerance is 200% (gate
+# fails only when a measurement exceeds 3× baseline).
 #
 # Usage:
 #   ./tools/check-slo-gate [--no-build] [--update] [--tolerance PCT]
@@ -31,8 +32,8 @@ export LC_ALL=C
 #                     Gate fails when avg_ms > baseline_ms * (1 + pct/100).
 #
 # Directional targets reported by this gate (non-failing evidence):
-#   startup   < 5 ms p95 target in docs/dreaming.md; shown here as avg status.
-#   microtask < 1 ms per 1,000 queued jobs target; shown here as avg status.
+#   startup   < 5 ms p95 target in docs/dreaming.md; shown as p95 status.
+#   microtask < 1 ms per 1,000 queued jobs target; shown as avg status.
 #
 # Baseline-refresh path (one command):
 #   ./tools/check-slo-gate --update
@@ -44,6 +45,7 @@ runner_bin="$script_dir/ProfileRunner/bin/Release/net10.0"
 runner_exe="$runner_bin/ProfileRunner"
 runner_dll="$runner_bin/ProfileRunner.dll"
 baseline_file="$script_dir/perf-slo-baseline.md"
+scripts_dir="$script_dir/profile-scripts"
 
 build_runner=true
 update_baseline=false
@@ -71,6 +73,66 @@ target_for() {
   esac
 }
 
+target_shape_for() {
+  local profile=$1
+  case "$profile" in
+    startup)
+      printf 'p95'
+      ;;
+    microtask)
+      printf 'avg'
+      ;;
+    *)
+      printf ''
+      ;;
+  esac
+}
+
+script_for() {
+  local profile=$1
+  case "$profile" in
+    startup)
+      printf 'startup.js'
+      ;;
+    microtask)
+      printf 'microtask.js'
+      ;;
+    *)
+      printf ''
+      ;;
+  esac
+}
+
+node_mode_for() {
+  local profile=$1
+  case "$profile" in
+    startup)
+      printf 'fresh-context'
+      ;;
+    microtask)
+      printf 'async-drain'
+      ;;
+    *)
+      printf 'sync'
+      ;;
+  esac
+}
+
+iterations_for() {
+  local profile=$1
+  case "$profile" in
+    startup)
+      printf '10'
+      ;;
+    microtask)
+      printf '5'
+      ;;
+    *)
+      printf '1'
+      ;;
+  esac
+}
+
 usage() {
   cat <<'USAGE'
 Usage:
@@ -81,7 +143,8 @@ compares them to tools/perf-slo-baseline.md, failing on regressions
 beyond the tolerance (default 200% — fails only when measurement exceeds 3×
 the baseline value). The output also includes non-failing directional target
 status from docs/dreaming.md so baseline protection stays separate from SLO
-target evidence.
+target evidence. p95 timing and same-run Node.js comparison columns are
+non-failing evidence; only avg-ms committed-baseline regression fails the gate.
 
 Options:
   --no-build        Skip the ProfileRunner Release build.
@@ -146,19 +209,20 @@ else
   exit 1
 fi
 
-# Run a single ProfileRunner profile with --force-timing and return the avg
-# ms per iteration from the "Done in Xms (avg Y.YYms per iteration)" output.
+# Run a single ProfileRunner profile with --force-timing and per-iteration
+# timing samples. Prints "<avg_ms> <p95_ms>" parsed from ProfileRunner output.
 measure_profile() {
   local profile=$1
-  local out status line avg_ms
+  local out status line sample_line avg_ms p95_ms
 
   set +e
-  out=$("${runner_cmd[@]}" --asynkron --force-timing "$profile" 2>&1)
+  out=$("${runner_cmd[@]}" --asynkron --force-timing --timing-samples "$profile" 2>&1)
   status=$?
   set -e
 
   line=$(printf '%s\n' "$out" | awk '/Done in/ {line=$0} END {if (line) print line}')
-  if [[ $status -ne 0 || -z "$line" ]]; then
+  sample_line=$(printf '%s\n' "$out" | awk '/Timing samples:/ {line=$0} END {if (line) print line}')
+  if [[ $status -ne 0 || -z "$line" || -z "$sample_line" ]]; then
     printf '\nasynkron %s failed:\n%s\n' "$profile" "$out" >&2
     return 1
   fi
@@ -170,21 +234,114 @@ measure_profile() {
     return 1
   fi
 
-  printf '%s' "$avg_ms"
+  p95_ms=$(printf '%s\n' "$sample_line" | sed -nE 's/.*p95_ms=([0-9]+(\.[0-9]+)?).*/\1/p')
+  if [[ -z "$p95_ms" ]]; then
+    printf '\nCould not parse p95 timing for asynkron %s:\n%s\n' "$profile" "$sample_line" >&2
+    return 1
+  fi
+
+  printf '%s %s' "$avg_ms" "$p95_ms"
+}
+
+# Measure the same SLO workload in Node.js during this invocation. This is
+# non-failing comparison evidence, not a committed-baseline gate.
+measure_node_avg_ms() {
+  local profile=$1 script iterations mode script_path
+
+  if ! command -v node >/dev/null 2>&1; then
+    printf 'n/a'
+    return 0
+  fi
+
+  script=$(script_for "$profile")
+  if [[ -z "$script" ]]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  script_path="$scripts_dir/$script"
+  iterations=$(iterations_for "$profile")
+  mode=$(node_mode_for "$profile")
+
+  node - "$script_path" "$iterations" "$mode" <<'NODE'
+const fs = require('fs');
+const vm = require('vm');
+
+const [scriptPath, iterationText, mode] = process.argv.slice(2);
+const iterations = Number(iterationText);
+const raw = fs.readFileSync(scriptPath, 'utf8');
+const code = '(function(){\n' + raw + '\n}());';
+const script = new vm.Script(code);
+const sharedContext = mode === 'fresh-context' ? null : vm.createContext({});
+
+async function runOnce() {
+  if (mode === 'fresh-context') {
+    script.runInContext(vm.createContext({}));
+    return;
+  }
+
+  script.runInContext(sharedContext);
+  if (mode === 'async-drain') {
+    await new Promise(resolve => setImmediate(resolve));
+  }
+}
+
+(async () => {
+  await runOnce();
+  const start = process.hrtime.bigint();
+  for (let i = 0; i < iterations; i++) {
+    await runOnce();
+  }
+
+  const elapsedMs = Number(process.hrtime.bigint() - start) / 1000000;
+  const avgMs = iterations > 0 ? elapsedMs / iterations : 0;
+  process.stdout.write(avgMs.toFixed(4));
+})().catch(error => {
+  process.stderr.write(String(error && error.stack ? error.stack : error));
+  process.exit(1);
+});
+NODE
+}
+
+target_status_for() {
+  local profile=$1 avg_ms=$2 p95_ms=$3 target shape
+  target=$(target_for "$profile")
+  shape=$(target_shape_for "$profile")
+
+  if [[ -z "$target" || -z "$shape" ]]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  awk -v avg="$avg_ms" -v p95="$p95_ms" -v target="$target" -v shape="$shape" 'BEGIN {
+    value = (shape == "p95") ? p95 : avg
+    status = (value < target) ? "under-target" : "over-target"
+    printf "%s-%s", shape, status
+  }'
 }
 
 measure_all() {
-  local profile avg_ms
+  local include_node=${1:-true}
+  local profile avg_ms p95_ms node_ms
   measured_values=()
+  measured_p95_values=()
+  node_values=()
   for profile in "${slo_profiles[@]}"; do
-    avg_ms=$(measure_profile "$profile")
+    read -r avg_ms p95_ms <<<"$(measure_profile "$profile")"
     measured_values+=("$avg_ms")
+    measured_p95_values+=("$p95_ms")
+    if [[ "$include_node" == true ]]; then
+      node_ms=$(measure_node_avg_ms "$profile")
+    else
+      node_ms="n/a"
+    fi
+    node_values+=("$node_ms")
   done
 }
 
 if [[ "$update_baseline" == true ]]; then
   echo "Measuring SLO timing for the profile set ..." >&2
-  measure_all
+  measure_all false
   {
     echo "# Asynkron.JsEngine Performance SLO Baseline"
     echo "#"
@@ -195,8 +352,9 @@ if [[ "$update_baseline" == true ]]; then
     echo "# Values are ProfileRunner --force-timing avg ms per iteration."
     echo "# Timing is hardware-dependent; regenerate on a new machine with --update then commit."
     echo "# Hard baseline tolerance: 200% by default (gate fails only at >3x baseline)."
-    echo "# Override with TIMING_GATE_TOLERANCE or --tolerance."
-    echo "# Directional target status is printed by tools/check-slo-gate but is non-failing evidence only."
+    echo "# Override with TIMING_GATE_TOLERANCE or ./tools/check-slo-gate --tolerance."
+    echo "# Directional p95 target status and same-run Node.js comparison are printed by"
+    echo "# tools/check-slo-gate but are non-failing evidence only."
     echo "# The startup target in docs/dreaming.md is p95; this file stores avg-ms guardrail values."
     echo "#"
     echo "# format: <profile> <avg_ms_per_iteration>"
@@ -233,27 +391,33 @@ baseline_for() {
 echo "Checking SLO timing against baseline (tolerance ${tolerance_pct}%) ..." >&2
 measure_all
 
-printf '%-12s %18s %18s %18s %10s %-12s %s\n' \
-  "profile" "baseline_avg_ms" "current_avg_ms" "hard_ceiling_ms" "delta_%" "baseline" "target"
+printf '%-12s %18s %18s %14s %18s %10s %-12s %-18s %12s %s\n' \
+  "profile" "baseline_avg_ms" "current_avg_ms" "current_p95_ms" "hard_ceiling_ms" "delta_%" "baseline" "target_evidence" "node_avg_ms" "same_run"
 
 regressed=false
 i=0
 for profile in "${slo_profiles[@]}"; do
   current="${measured_values[$i]}"
+  current_p95="${measured_p95_values[$i]}"
+  node_ms="${node_values[$i]}"
   i=$((i + 1))
   base=$(baseline_for "$profile")
-  target=$(target_for "$profile")
+  target_status=$(target_status_for "$profile" "$current" "$current_p95")
+  if [[ "$node_ms" == "n/a" ]]; then
+    same_run_status="node-unavailable"
+  else
+    same_run_status=$(awk -v cur="$current" -v node="$node_ms" 'BEGIN {
+      if (node <= 0) {
+        printf "node-bad"
+      } else {
+        printf "ratio=%.2fx", cur / node
+      }
+    }')
+  fi
 
   if [[ -z "$base" ]]; then
-    if [[ -n "$target" ]]; then
-      target_status=$(awk -v cur="$current" -v target="$target" 'BEGIN {
-        printf "%s", (cur < target) ? "avg-under-target" : "avg-over-target"
-      }')
-    else
-      target_status="n/a"
-    fi
-    printf '%-12s %18s %18s %18s %10s %-12s %s\n' \
-      "$profile" "n/a" "$current" "n/a" "n/a" "NO BASELINE" "$target_status"
+    printf '%-12s %18s %18s %14s %18s %10s %-12s %-18s %12s %s\n' \
+      "$profile" "n/a" "$current" "$current_p95" "n/a" "n/a" "NO BASELINE" "$target_status" "$node_ms" "$same_run_status"
     regressed=true
     continue
   fi
@@ -272,16 +436,8 @@ for profile in "${slo_profiles[@]}"; do
     hard_ceiling="n/a"
   fi
 
-  if [[ -n "$target" ]]; then
-    target_status=$(awk -v cur="$current" -v target="$target" 'BEGIN {
-      printf "%s", (cur < target) ? "avg-under-target" : "avg-over-target"
-    }')
-  else
-    target_status="n/a"
-  fi
-
-  printf '%-12s %18s %18s %18s %10s %-12s %s\n' \
-    "$profile" "$base" "$current" "$hard_ceiling" "$delta_pct" "$status" "$target_status"
+  printf '%-12s %18s %18s %14s %18s %10s %-12s %-18s %12s %s\n' \
+    "$profile" "$base" "$current" "$current_p95" "$hard_ceiling" "$delta_pct" "$status" "$target_status" "$node_ms" "$same_run_status"
   if [[ "$status" == "REGRESSED" || "$status" == "BADBASE" ]]; then
     regressed=true
   fi
@@ -297,4 +453,4 @@ fi
 
 echo "" >&2
 echo "OK: no SLO timing regression beyond ${tolerance_pct}% tolerance." >&2
-echo "Note: target status is non-failing avg-ms evidence, not p95 or Node.js parity proof." >&2
+echo "Note: p95 target status and same-run Node.js comparison are non-failing evidence; only committed avg-ms baseline regression fails this gate." >&2

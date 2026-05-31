@@ -21,6 +21,7 @@ var reportStatementInstructionStorage = false;
 var forceTiming = false;
 var forceFreshEnginePerIteration = false;
 var measureAllocations = false;
+var reportTimingSamples = false;
 var wrapInFunction = false;
 var positionalArgs = new List<string>();
 
@@ -90,6 +91,12 @@ for (var i = 0; i < args.Length; i++)
     if (string.Equals(arg, "--measure-allocations", StringComparison.OrdinalIgnoreCase))
     {
         measureAllocations = true;
+        continue;
+    }
+
+    if (string.Equals(arg, "--timing-samples", StringComparison.OrdinalIgnoreCase))
+    {
+        reportTimingSamples = true;
         continue;
     }
 
@@ -241,10 +248,13 @@ async Task RunWithSharedEnginesAsync(
     }
 
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
+    var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
+        var sampleStart = StartTimingSample(samples);
         await EvaluateAsync(engine, parsed);
+        StopTimingSample(samples, iter, sampleStart);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -256,6 +266,7 @@ async Task RunWithSharedEnginesAsync(
         ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
+    PrintTimingSamples(samples, runsForAverage);
 }
 
 async Task RunWithFreshEnginesAsync(
@@ -288,11 +299,14 @@ async Task RunWithFreshEnginesAsync(
     }
 
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
+    var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
+        var sampleStart = StartTimingSample(samples);
         await using var engine = CreateEngine(traceRealm);
         await EvaluateAsync(engine, parsed);
+        StopTimingSample(samples, iter, sampleStart);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -304,6 +318,7 @@ async Task RunWithFreshEnginesAsync(
         ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
+    PrintTimingSamples(samples, runsForAverage);
 }
 
 async Task EvaluateAsync(JsEngine engine, ProgramNode parsed)
@@ -334,10 +349,13 @@ void RunWithSharedJintEngine(
     }
 
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
+    var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
+        var sampleStart = StartTimingSample(samples);
         EvaluateJint(engine, prepared);
+        StopTimingSample(samples, iter, sampleStart);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -349,6 +367,7 @@ void RunWithSharedJintEngine(
         ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
+    PrintTimingSamples(samples, runsForAverage);
 }
 
 void RunWithFreshJintEngines(
@@ -366,11 +385,14 @@ void RunWithFreshJintEngines(
     }
 
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
+    var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
     for (var iter = 0; iter < iterations; iter++)
     {
+        var sampleStart = StartTimingSample(samples);
         using var engine = CreateJintEngine();
         EvaluateJint(engine, prepared);
+        StopTimingSample(samples, iter, sampleStart);
         if (profile.ShowProgress)
         {
             Console.Write(".");
@@ -382,6 +404,7 @@ void RunWithFreshJintEngines(
         ? GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
+    PrintTimingSamples(samples, runsForAverage);
 }
 
 void EvaluateJint(Engine engine, Prepared<Acornima.Ast.Script> script)
@@ -598,6 +621,51 @@ long BeginAllocationMeasurement()
     GC.WaitForPendingFinalizers();
     GC.Collect();
     return GC.GetTotalAllocatedBytes(precise: true);
+}
+
+double[]? CreateTimingSampleBuffer(int iterations)
+{
+    return reportTimingSamples && iterations > 0 ? new double[iterations] : null;
+}
+
+long StartTimingSample(double[]? samples)
+{
+    return samples is null ? 0 : Stopwatch.GetTimestamp();
+}
+
+void StopTimingSample(double[]? samples, int index, long startTimestamp)
+{
+    if (samples is null)
+    {
+        return;
+    }
+
+    samples[index] = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+}
+
+void PrintTimingSamples(double[]? samples, int runsForAverage)
+{
+    if (samples is null || samples.Length == 0)
+    {
+        return;
+    }
+
+    var sorted = new double[samples.Length];
+    Array.Copy(samples, sorted, samples.Length);
+    Array.Sort(sorted);
+
+    var countForAverage = runsForAverage > 0 ? Math.Min(runsForAverage, samples.Length) : samples.Length;
+    var totalMs = 0d;
+    for (var i = 0; i < countForAverage; i++)
+    {
+        totalMs += samples[i];
+    }
+
+    var p95Index = Math.Clamp((int)Math.Ceiling(sorted.Length * 0.95d) - 1, 0, sorted.Length - 1);
+    var avgMs = countForAverage > 0 ? totalMs / countForAverage : 0d;
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"Timing samples: count={samples.Length}, avg_ms={avgMs:F2}, p95_ms={sorted[p95Index]:F2}"));
 }
 
 void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage, long? allocatedBytes)

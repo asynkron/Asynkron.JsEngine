@@ -49,11 +49,11 @@ optimization.
     `./tools/check-slo-gate --update && git add tools/perf-slo-baseline.md`.
     Do not interpret an SLO gate failure as an allocation regression; use
     `check-allocation-regression` and allocation profiles separately.
-    Treat the gate's directional target-status output as non-failing evidence,
-    not proof that a p95 or Node.js parity SLO is met. A green gate means the
-    current avg-ms timing did not regress beyond the committed baseline
-    tolerance; stronger SLO claims need the matching measurement shape and
-    comparison proof.
+    Treat the gate's directional target-status and same-run comparison output
+    as non-failing evidence, not proof that a p95 or Node.js parity SLO is met.
+    A green gate means the current avg-ms timing did not regress beyond the
+    committed baseline tolerance; stronger SLO claims need the matching
+    measurement shape and comparison proof attached to the advancing change.
     WHY: issue #2711 / PR #2716 introduced the startup/microtask SLO gate and
     committed the first baseline. Issue #2905 / PR #2908 then separated hard
     baseline protection from non-failing directional target status after the

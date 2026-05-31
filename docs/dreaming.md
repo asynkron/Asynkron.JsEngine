@@ -1394,7 +1394,7 @@ These constraints are binding until new evidence says otherwise.
 
 These are the observable performance targets the dream must eventually satisfy to support the "Node.js-competitive runtime" product claim. SLOs are **not** requirements today; they are the finish line that makes "directional" language concrete. No SLO may be claimed without ProfileRunner matrix evidence (baseline + final signal, `./benchmark.sh` and `./benchmark.sh --allocations`).
 
-Instrumented SLOs have a committed avg-ms baseline in `tools/perf-slo-baseline.md` and can be re-checked with `make slo-gate`. The gate hard-fails only on committed-baseline regressions; its target-status output is non-failing evidence and does not by itself prove p95 or Node.js parity.
+Instrumented SLOs have a committed avg-ms baseline in `tools/perf-slo-baseline.md` and can be re-checked with `make slo-gate`. The gate hard-fails only on committed-baseline regressions; its p95 target-status and same-run comparison output are non-failing evidence and do not by themselves prove SLO completion or Node.js parity.
 
 | SLO | Target | Measured by | Current status |
 |---|---|---|---|

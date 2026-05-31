@@ -8,7 +8,8 @@
 # Timing is hardware-dependent; regenerate on a new machine with --update then commit.
 # Hard baseline tolerance: 200% by default (gate fails only at >3x baseline).
 # Override with TIMING_GATE_TOLERANCE or ./tools/check-slo-gate --tolerance.
-# Directional target status is printed by tools/check-slo-gate but is non-failing evidence only.
+# Directional p95 target status and same-run Node.js comparison are printed by
+# tools/check-slo-gate but are non-failing evidence only.
 # The startup target in docs/dreaming.md is p95; this file stores avg-ms guardrail values.
 #
 # format: <profile> <avg_ms_per_iteration>

@@ -4096,4 +4096,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_ConditionalExpression_NestedTernary_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function classify(c1, c2, a, b, d) {
+                return c1 ? c2 ? a : b : d;
+            }
+            """,
+            "classify");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Jump);
+    }
+
+    [Fact]
+    public void Evaluate_ConditionalExpression_ThisPropertyConditionAndArms_DeclinesWithPropertyReadBoundaryOutOfScope()
+    {
+        // this.flag ? this.a : other has GetNamedProperty in ternary condition position,
+        // which is outside the admitted property-read boundary shapes for ternary.
+        var plan = GetClassMethodPlan("""
+            class Toggle {
+                select(other) {
+                    return this.flag ? this.a : other;
+                }
+            }
+            """,
+            "Toggle",
+            "select");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope, result.Code);
+    }
 }

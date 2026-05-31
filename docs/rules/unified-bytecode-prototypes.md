@@ -138,7 +138,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     with or without a decline reason, must not leave partial stack instructions
     or constants behind for the next fallback path. Pair accepted examples with
     adjacent unsupported examples so partial-emission stack drift is caught by
-    the focused proof pack.
+    the focused proof pack. WHY: issue
+    `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
+    / PR #2812 found that
+    `TryAppendFirstBoundaryNamedLogicalPropertySet` could append base/property
+    setup before later RHS or neighbor-shape rejection. The accepted repair
+    staged unified instructions plus literal and string constants in scratch
+    builders, then replaced the shared builders only after the complete direct
+    named logical-assignment shape was accepted.
 15. When proving no-route behavior for unsupported property-read-adjacent
     shapes through public invocation logs, assert absence of
     `unified-bytecode-production-fast-path` for the exact function or method
@@ -1567,7 +1574,12 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     the VM could not keep the short-circuit result while discarding the receiver.
     The build-back repair also had to add `SwapTopTwo` to the expansion-contract
     opcode inventory, reinforcing that VM-executed opcode additions are delivery
-    artifacts, not learn-stage cleanup.
+    artifacts, not learn-stage cleanup. Follow-up issue
+    `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
+    / PR #2812 restored the final neighboring decline gates: computed logical
+    member assignment and deeper chains stay `PropertyWriteDependency`, private
+    fields stay `PrivateFieldDependency`, and optional-chain assignment remains
+    parser-rejected before eligibility.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

@@ -45,6 +45,10 @@ boundary:
   logic at every call site.
 - Future unified-bytecode widening work has a reusable guardrail for helpers
   that combine shape recognition with emission.
+- Helpers that must call lower-level append routines before full acceptance
+  should stage `unified`, literal, and string builders in scratch copies and
+  replace the shared builders only after every operand and branch target has
+  been accepted.
 
 ## Evidence
 
@@ -56,14 +60,23 @@ boundary:
   `LoadSlot` and `GetNamedProperty` instructions.
 - The focused proof pack passed after the fix:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodePrototypeTests|FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests" -- xUnit.MaxParallelThreads=1 -timeout 20000`.
+- Issue `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
+  / PR #2812 found the same partial-emission risk in
+  `TryAppendFirstBoundaryNamedLogicalPropertySet`: the accepted direct named
+  logical-assignment route needed to try an activation-base append before
+  proving the simple RHS. The build-back fix staged the unified instruction,
+  literal, and string builders and committed them atomically only after the
+  whole shape was accepted.
 
 ## Related
 
 - Issue #2314
 - PR #2320
+- Issue `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
+- PR #2812
 - ADR 0181: `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - ADR 0218: `docs/adrs/0218-keep-unified-bytecode-property-read-production-boundary-selector-owned.md`
 - ADR 0221: `docs/adrs/0221-keep-unified-bytecode-property-reads-vm-owned-and-observable.md`
 - ADR 0222: `docs/adrs/0222-keep-unified-bytecode-two-hop-named-property-read-boundary-owned.md`
-- `.claude/rules/unified-bytecode-prototypes.md`
+- `docs/rules/unified-bytecode-prototypes.md`
 - `src/Asynkron.JsEngine/Execution/UnifiedBytecode/UnifiedBytecodeCompiler.cs`

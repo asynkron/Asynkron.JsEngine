@@ -1835,6 +1835,21 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 if (plan is not null)
                 {
                     if (IsClassConstructor && _isDerivedClassConstructor &&
+                        CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                        TryInvokeProductionUnifiedBytecode(
+                            arguments,
+                            thisValue,
+                            newTarget,
+                            plan,
+                            context,
+                            callingContext,
+                            out var productionDerivedConstructorResult,
+                            constructErrorRealm))
+                    {
+                        return productionDerivedConstructorResult;
+                    }
+
+                    if (IsClassConstructor && _isDerivedClassConstructor &&
                         TryInvokeSimpleDerivedClassConstructorFastPath(
                             arguments,
                             thisValue,
@@ -2857,6 +2872,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
+            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                TryInvokeProductionUnifiedBytecode(
+                    arguments,
+                    thisValue,
+                    newTarget,
+                    plan,
+                    context,
+                    callingContext,
+                    out result,
+                    constructErrorRealm))
+            {
+                return true;
+            }
+
             JsEnvironment? executionEnvironment = null;
             try
             {
@@ -3018,11 +3047,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan,
             EvaluationContext context,
             EvaluationContext? callingContext,
-            out JsValue result)
+            out JsValue result,
+            RealmState? derivedClassErrorRealm = null)
             where TArgs : IReadOnlyList<JsValue>
         {
             result = JsValue.Undefined;
-            if (!TryGetProductionUnifiedBytecodeProgram(plan, out var program))
+            if (!TryGetProductionUnifiedBytecodeProgram(plan, newTarget, out var program))
             {
                 return false;
             }
@@ -3038,7 +3068,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
                 if (RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
-                    executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                    executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
+                        ? CreateSimpleDerivedClassConstructorEnvironment(arguments, newTarget, plan)
+                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
                 }
 
                 RealmState.Logger?.LogInformation(
@@ -3054,12 +3086,69 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     boundThis,
                     newTarget,
                     _isStrict);
+                CompleteProductionUnifiedBytecodeClassConstructorResult(
+                    executionEnvironment,
+                    context,
+                    derivedClassErrorRealm ?? RealmState,
+                    ref result);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
             }
             finally
             {
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
                 ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+            }
+        }
+
+        private void CompleteProductionUnifiedBytecodeClassConstructorResult(
+            JsEnvironment? executionEnvironment,
+            EvaluationContext context,
+            RealmState derivedClassErrorRealm,
+            ref JsValue result)
+        {
+            if (!IsClassConstructor)
+            {
+                return;
+            }
+
+            if (result.IsObject)
+            {
+                return;
+            }
+
+            if (_isDerivedClassConstructor)
+            {
+                if (!result.IsUndefined)
+                {
+                    context.SetThrow(StandardLibrary.CreateTypeError(
+                        "Derived constructors may only return object or undefined",
+                        context,
+                        derivedClassErrorRealm));
+                    result = context.FlowValue;
+                    return;
+                }
+
+                if (executionEnvironment is null ||
+                    !executionEnvironment.TryGetJsValue(Symbol.This, out var derivedThis) ||
+                    derivedThis.IsUninitialized ||
+                    ReferenceEquals(derivedThis.ObjectValue, JsEnvironment.Uninitialized))
+                {
+                    context.SetThrow(StandardLibrary.CreateReferenceError(
+                        "ReferenceError: this is not defined - must call super() in derived class constructor",
+                        context,
+                        derivedClassErrorRealm));
+                    result = context.FlowValue;
+                    return;
+                }
+
+                result = derivedThis;
+                return;
+            }
+
+            if (executionEnvironment is not null &&
+                executionEnvironment.TryGetJsValue(Symbol.This, out var thisValue))
+            {
+                result = thisValue;
             }
         }
 
@@ -3070,6 +3159,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 if (instructions[i].OpCode is
                     UnifiedBytecodeOpCode.CallInvocationBoundary or
+                    UnifiedBytecodeOpCode.SuperConstructInvocationBoundary or
+                    UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
+                    UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget or
                     UnifiedBytecodeOpCode.DeclareDynamicVar or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifier or
@@ -3096,6 +3188,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool TryGetProductionUnifiedBytecodeProgram(
             ExecutionPlan plan,
+            JsValue newTarget,
             out UnifiedBytecodeProgram program)
         {
             // Fast path: plan-level structural decline is permanent across all SyncFunctionInvoker
@@ -3115,7 +3208,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             var result = UnifiedBytecodeProductionEligibility.Evaluate(
                 plan,
-                CreateProductionUnifiedBytecodeActivationDescriptor());
+                CreateProductionUnifiedBytecodeActivationDescriptor(
+                    newTarget,
+                    CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
+                    CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget)));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
             {
@@ -3163,7 +3259,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
-            var activation = CreateProductionUnifiedBytecodeActivationDescriptor(newTarget, canUseDynamicNamePath);
+            var canUseDerivedClassConstructorPath =
+                CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget);
+            var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
+                newTarget,
+                canUseDynamicNamePath,
+                canUseDerivedClassConstructorPath);
             if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
                     activation,
                     out _,
@@ -3173,14 +3274,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !_hasOnlySimpleIdentifierParameters ||
                 PrivateNameScope is not null ||
                 !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
-                _superConstructor is not null ||
-                _superPrototype is not null ||
                 !_instanceFields.IsDefaultOrEmpty)
             {
                 return false;
             }
 
-            return CanUseProductionUnifiedBytecodePlanShape(plan, canUseDynamicNamePath);
+            return CanUseProductionUnifiedBytecodePlanShape(plan, canUseDynamicNamePath) ||
+                   canUseDerivedClassConstructorPath && plan.ActivationSlots is not null;
         }
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
@@ -3191,7 +3291,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor(
             JsValue newTarget,
-            bool canUseDynamicNamePath)
+            bool canUseDynamicNamePath,
+            bool canUseDerivedClassConstructorPath = false)
         {
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
@@ -3200,9 +3301,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _hasCapturedActivationInClosure || !_allowIdentifierCache && !canUseDynamicNamePath,
                 HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath,
                 HasThisDependency: false,
-                HasNewTargetDependency: !newTarget.IsUndefined,
+                HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
-                HasClassConstructorActivation: IsClassConstructor,
+                HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
                 HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
                 HasFunctionDeclarationDependency: _hasFunctionDeclarations && !canUseDynamicNamePath,
                 HasParameterVarDeclarationDependency:
@@ -3419,6 +3520,28 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return CanUseSimpleIrActivationPlanShape(plan);
         }
 
+        private bool CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(JsValue newTarget)
+        {
+            return IsClassConstructor &&
+                   _isDerivedClassConstructor &&
+                   !newTarget.IsUndefined &&
+                   !IsArrowFunction &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   !_hasParameterExpressions &&
+                   _hasOnlySimpleIdentifierParameters &&
+                   !_argumentsObjectNeeded &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   (_superConstructor is not null || _superPrototype is not null);
+        }
+
         private bool CanUseSimpleBaseClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             if (!IsClassConstructor ||
@@ -3601,6 +3724,36 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
             functionEnvironment._thisValue = boundThis;
             functionEnvironment._hasThisValue = true;
+            functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+            functionEnvironment.SetThisInitializationStatus(true);
+
+            IJsPropertyAccessor? prototypeForSuper = null;
+            if (_homeObject is not null)
+            {
+                prototypeForSuper = (_homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                    _homeObject.Prototype;
+                prototypeForSuper ??= _superPrototype;
+            }
+            else
+            {
+                prototypeForSuper = _superPrototype;
+                if (prototypeForSuper is null && boundThis.TryGetObject<JsObject>(out var thisObj))
+                {
+                    prototypeForSuper = thisObj.Prototype;
+                }
+            }
+
+            if (_homeObject is not null ||
+                _superConstructor is not null ||
+                prototypeForSuper is not null)
+            {
+                functionEnvironment.DefineJsValue(Symbol.Super,
+                    JsValue.FromObjectUnsafe(new SuperBinding(
+                        _superConstructor,
+                        prototypeForSuper,
+                        boundThis,
+                        true)));
+            }
 
             if (!_hasFunctionNameEnvironment && _function.Name is { } functionName)
             {

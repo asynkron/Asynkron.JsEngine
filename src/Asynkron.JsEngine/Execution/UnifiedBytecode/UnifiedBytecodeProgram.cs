@@ -92,8 +92,11 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareComputedCallTarget,
     PrepareNamedOptionalCallTarget,
     PrepareComputedOptionalCallTarget,
+    PrepareNamedSuperCallTarget,
+    PrepareComputedSuperCallTarget,
     CallInvocationBoundary,
     ConstructInvocationBoundary,
+    SuperConstructInvocationBoundary,
     LoadClassLiteral,
     LoadFunctionLiteral,
     Yield,
@@ -112,7 +115,9 @@ internal enum UnifiedBytecodeCallTargetKind : byte
 {
     Identifier,
     NamedMember,
-    ComputedMember
+    ComputedMember,
+    NamedSuperMember,
+    ComputedSuperMember
 }
 
 internal readonly record struct UnifiedBytecodeCallTarget(

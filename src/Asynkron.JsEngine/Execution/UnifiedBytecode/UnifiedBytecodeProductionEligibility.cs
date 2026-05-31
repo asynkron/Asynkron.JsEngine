@@ -841,18 +841,26 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.SuperConstruct:
+                    if (operation.SpreadMaskConstantIndex >= 0)
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
+                        declineReason =
+                            "Spread super construct arguments are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    break;
+
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 case ExpressionOpKind.LoadComputedSuperCallTarget:
-                    // super(...) and super-member call targets only appear inside derived
-                    // constructors, which the activation gate in
-                    // SyncFunctionInvoker.CanUseProductionUnifiedBytecode already declines
-                    // (IsClassConstructor / IsDefaultDerivedConstructor / _superConstructor /
-                    // _lexicalThisEnvironment / _instanceFields). Admitting them here would be
-                    // unreachable, unprovable dead code, so they stay explicitly declined
-                    // (gh2690 ADR 0286).
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
                     declineReason =
-                        "super call semantics are not eligible for production unified bytecode routing.";
+                        "super call-target preparation is outside the first production invocation boundary.";
                     return true;
 
                 case ExpressionOpKind.LoadIdentifier:
@@ -1135,9 +1143,18 @@ internal static class UnifiedBytecodeProductionEligibility
                     declineReason = "delete expressions are not eligible for production unified bytecode routing.";
                     return true;
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
+                    declineReason = "super property access is not eligible for production unified bytecode routing.";
+                    return true;
+
                 case ExpressionOpKind.GetNamedSuperProperty:
                 case ExpressionOpKind.GetComputedSuperProperty:
-                case ExpressionOpKind.EnsureSuperReference:
                     declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
                     declineReason = "super property access is not eligible for production unified bytecode routing.";
                     return true;
@@ -2083,6 +2100,40 @@ internal static class UnifiedBytecodeProductionEligibility
                    (TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots) ||
                     allowsDynamicIdentifiers) &&
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
+        }
+
+        if (firstOperation.Kind == ExpressionOpKind.LoadNamedSuperCallTarget)
+        {
+            return !firstOperation.GetString(stringConstants).IsPrivateName() &&
+                   HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
+        }
+
+        var computedSuperCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedSuperCallTarget);
+        if (computedSuperCallTargetIndex > 0)
+        {
+            var keyEnd = computedSuperCallTargetIndex;
+            if (program.GetOperation(keyEnd - 1).Kind == ExpressionOpKind.EnsureSuperReference)
+            {
+                keyEnd--;
+            }
+
+            var hasResolvedKey = keyEnd == 2 &&
+                                 program.GetOperation(1).Kind == ExpressionOpKind.ResolvePropertyKey;
+            if (keyEnd is not 1 && !hasResolvedKey)
+            {
+                return false;
+            }
+
+            return IsSimpleComputedPropertyKey(
+                       program.GetOperation(0),
+                       identifierConstants,
+                       activationSlots) &&
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       computedSuperCallTargetIndex + 1,
+                       call);
         }
 
         var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
@@ -3504,6 +3555,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget:
+                case UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget:
+                case UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
@@ -3560,6 +3613,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LeaveWith:
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                 case UnifiedBytecodeOpCode.ConstructInvocationBoundary:
+                case UnifiedBytecodeOpCode.SuperConstructInvocationBoundary:
                     break;
 
                 default:

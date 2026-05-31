@@ -390,6 +390,48 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
                 }
 
+                case UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget:
+                    PrepareNamedSuperCallTarget(
+                        program,
+                        instruction.Operand,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        stack,
+                        ref stackPointer,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget:
+                    PrepareComputedSuperCallTarget(
+                        program,
+                        instruction.Operand,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        stack,
+                        ref stackPointer,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     stackPointer = ExecutePreparedCall(
                         DecodeCallBoundaryArgumentCount(instruction.Operand),
@@ -425,6 +467,35 @@ internal static class UnifiedBytecodeVirtualMachine
                         instruction.Operand,
                         stack,
                         stackPointer,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (HandleContextThrow(
+                                context,
+                                program,
+                                tryStack,
+                                slots,
+                                ref programCounter,
+                                ref currentCallingEnvironment,
+                                slotEnvironments,
+                                ref environmentStack,
+                                ref environmentStackCount))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SuperConstructInvocationBoundary:
+                    stackPointer = ExecutePreparedSuperConstruct(
+                        instruction.Operand,
+                        stack,
+                        stackPointer,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
                         context);
                     if (context.ShouldStopEvaluation)
                     {
@@ -4214,6 +4285,162 @@ internal static class UnifiedBytecodeVirtualMachine
         return constructorIndex + 1;
     }
 
+    private static int ExecutePreparedSuperConstruct(
+        int argumentCount,
+        Span<JsValue> stack,
+        int stackPointer,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var baseIndex = stackPointer - argumentCount;
+        var callDepthIncremented = false;
+
+        try
+        {
+            var superBindingForCall = environment.ExpectSuperBinding(context);
+
+            if (!environment.TryResolveSuperConstructorForCall(superBindingForCall, out var constructorValue))
+            {
+                throw new InvalidOperationException(
+                    "Super constructor is not available in this context.");
+            }
+
+            JsEnvironment? thisInitializationEnvironment = null;
+            var thisInitializationValue = JsValue.Undefined;
+            if (environment.TryGetObject<JsEnvironment>(Symbol.LexicalThisEnvironment, out var lexicalThisEnv) ||
+                (environment.TryFindBindingJsValue(Symbol.LexicalThisEnvironment, true, out _, out var lexicalEnvValue) &&
+                 lexicalEnvValue.TryGetObject<JsEnvironment>(out lexicalThisEnv)))
+            {
+                thisInitializationEnvironment = lexicalThisEnv;
+                if (lexicalThisEnv.TryGetJsValue(Symbol.ThisInitialized, out var lexicalInitValue))
+                {
+                    thisInitializationValue = lexicalInitValue;
+                }
+            }
+            else if (environment.TryFindBindingJsValue(Symbol.This, true, out var thisEnv, out _))
+            {
+                thisInitializationEnvironment = thisEnv.HasBindingLocal(Symbol.ThisInitialized)
+                    ? thisEnv
+                    : thisEnv.ResolveConstructorThisEnvironment();
+                if (thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue))
+                {
+                    thisInitializationValue = initValue;
+                }
+            }
+
+            if (thisInitializationEnvironment is null &&
+                environment.TryFindBindingJsValue(Symbol.ThisInitialized, true, out var foundEnv, out var foundValue))
+            {
+                thisInitializationEnvironment = foundEnv;
+                thisInitializationValue = foundValue;
+            }
+
+            if (++context.CallDepth > context.MaxCallDepth)
+            {
+                context.CallDepth--;
+                throw new InvalidOperationException(
+                    $"Exceeded maximum call depth of {context.MaxCallDepth}.");
+            }
+
+            callDepthIncremented = true;
+
+            if (!JsOps.IsConstructor(constructorValue) ||
+                !constructorValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                var error = StandardLibrary.CreateTypeError(
+                    "Super constructor is not a constructor",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                stack[baseIndex] = JsValue.Undefined;
+                return baseIndex + 1;
+            }
+
+            var newTargetValue = environment.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
+                ? inheritedNewTarget
+                : JsValue.Undefined;
+            var newTargetCallable = newTargetValue.TryGetObject<IJsCallable>(out var nt)
+                ? nt
+                : callable;
+
+            var result = ConstructNoSpread(
+                callable,
+                newTargetCallable,
+                stack,
+                baseIndex,
+                argumentCount,
+                context.RealmState);
+
+            var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
+            object? thisAfterSuper = callResultObject;
+            if (callResultObject is not JsObject && callResultObject is not IJsObjectLike)
+            {
+                thisAfterSuper = superBindingForCall.ThisValue.Kind == JsValueKind.Object
+                    ? superBindingForCall.ThisValue.ObjectValue
+                    : null;
+            }
+
+            if (thisInitializationEnvironment is not null)
+            {
+                var alreadyInitialized = thisInitializationValue.IsUndefined
+                    ? thisInitializationEnvironment.TryGetJsValue(Symbol.ThisInitialized, out var initValue)
+                        ? initValue
+                        : JsValue.Undefined
+                    : thisInitializationValue;
+
+                if (!alreadyInitialized.IsUndefined &&
+                    (alreadyInitialized.IsBoolean
+                        ? alreadyInitialized.AsBoolean()
+                        : JsOps.ToBoolean(alreadyInitialized)))
+                {
+                    throw StandardLibrary.ThrowReferenceError(
+                        "Super constructor may only be called once.", context, context.RealmState);
+                }
+            }
+
+            var targetEnvironment = thisInitializationEnvironment ?? environment;
+            var initializedThis = thisAfterSuper is null
+                ? JsValue.Undefined
+                : JsValue.FromObjectUnsafe(thisAfterSuper);
+            targetEnvironment.AssignJsValue(Symbol.This, initializedThis);
+            if (!ReferenceEquals(environment, targetEnvironment))
+            {
+                environment.AssignJsValue(Symbol.This, initializedThis);
+            }
+
+            if (targetEnvironment.TryGetObject<SuperBinding>(Symbol.Super, out var binding))
+            {
+                var constructorForSuper = superBindingForCall.Constructor ?? binding.Constructor;
+                var prototypeForSuper = superBindingForCall.Prototype ?? binding.Prototype;
+                targetEnvironment.AssignJsValue(Symbol.Super,
+                    JsValue.FromObjectUnsafe(new SuperBinding(
+                        constructorForSuper,
+                        prototypeForSuper,
+                        initializedThis,
+                        true)));
+            }
+
+            context.MarkThisInitialized();
+            targetEnvironment.SetThisInitializationStatus(true);
+
+            stack[baseIndex] = result;
+            return baseIndex + 1;
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            stack[baseIndex] = signal.ThrownValue;
+            return baseIndex + 1;
+        }
+        finally
+        {
+            if (callDepthIncremented)
+            {
+                context.CallDepth--;
+            }
+        }
+    }
+
     // Invoke [[Construct]] with the constructor as new.target, mirroring the
     // no-spread construct reference helper: small arity uses the allocation-free
     // value-args structs, larger arity materializes an argument array.
@@ -4258,6 +4485,48 @@ internal static class UnifiedBytecodeVirtualMachine
         };
     }
 
+    private static JsValue ConstructNoSpread(
+        IJsCallable callable,
+        IJsCallable newTargetCallable,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        int argumentCount,
+        RealmState realm)
+    {
+        return argumentCount switch
+        {
+            0 => ReflectHelper.Construct(callable, EmptyValueArgs.Instance, newTargetCallable, realm),
+            1 => ReflectHelper.Construct(
+                callable,
+                new SingleValueArgs(stack[firstArgumentIndex]),
+                newTargetCallable,
+                realm),
+            2 => ReflectHelper.Construct(
+                callable,
+                new TwoValueArgs(stack[firstArgumentIndex], stack[firstArgumentIndex + 1]),
+                newTargetCallable,
+                realm),
+            3 => ReflectHelper.Construct(
+                callable,
+                new ThreeValueArgs(
+                    stack[firstArgumentIndex],
+                    stack[firstArgumentIndex + 1],
+                    stack[firstArgumentIndex + 2]),
+                newTargetCallable,
+                realm),
+            4 => ReflectHelper.Construct(
+                callable,
+                new FourValueArgs(
+                    stack[firstArgumentIndex],
+                    stack[firstArgumentIndex + 1],
+                    stack[firstArgumentIndex + 2],
+                    stack[firstArgumentIndex + 3]),
+                newTargetCallable,
+                realm),
+            _ => ConstructNoSpreadMany(callable, newTargetCallable, stack, firstArgumentIndex, argumentCount, realm)
+        };
+    }
+
     private static JsValue ConstructNoSpreadMany(
         IJsCallable callable,
         Span<JsValue> stack,
@@ -4272,6 +4541,23 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         return ReflectHelper.Construct(callable, arguments, callable, realm);
+    }
+
+    private static JsValue ConstructNoSpreadMany(
+        IJsCallable callable,
+        IJsCallable newTargetCallable,
+        Span<JsValue> stack,
+        int firstArgumentIndex,
+        int argumentCount,
+        RealmState realm)
+    {
+        var arguments = new JsValue[argumentCount];
+        for (var i = 0; i < argumentCount; i++)
+        {
+            arguments[i] = stack[firstArgumentIndex + i];
+        }
+
+        return ReflectHelper.Construct(callable, arguments, newTargetCallable, realm);
     }
 
     // CallInvocationBoundary operand packing for spread calls (gh2676). Mirrors
@@ -4418,6 +4704,99 @@ internal static class UnifiedBytecodeVirtualMachine
         return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
             ? directValue
             : JsValue.Undefined;
+    }
+
+    private static void PrepareNamedSuperCallTarget(
+        UnifiedBytecodeProgram program,
+        int callTargetIndex,
+        JsEnvironment environment,
+        Span<JsValue> stack,
+        ref int stackPointer,
+        EvaluationContext context)
+    {
+        var callTarget = program.CallTargetConstants[callTargetIndex];
+        if (callTarget.Kind != UnifiedBytecodeCallTargetKind.NamedSuperMember ||
+            (uint)callTarget.NameConstantIndex >= (uint)program.StringConstants.Length)
+        {
+            throw new InvalidOperationException(
+                "Named super call-target preparation requires a named super member call target constant.");
+        }
+
+        LoadNamedSuperCallTarget(
+            program.StringConstants[callTarget.NameConstantIndex],
+            environment,
+            context,
+            out var receiver,
+            out var callee);
+        stack[stackPointer++] = receiver;
+        stack[stackPointer++] = callee;
+    }
+
+    private static void PrepareComputedSuperCallTarget(
+        UnifiedBytecodeProgram program,
+        int callTargetIndex,
+        JsEnvironment environment,
+        Span<JsValue> stack,
+        ref int stackPointer,
+        EvaluationContext context)
+    {
+        var callTarget = program.CallTargetConstants[callTargetIndex];
+        if (callTarget.Kind != UnifiedBytecodeCallTargetKind.ComputedSuperMember)
+        {
+            throw new InvalidOperationException(
+                "Computed super call-target preparation requires a computed super member call target constant.");
+        }
+
+        var propertyKey = stack[--stackPointer];
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            stack[stackPointer++] = JsValue.Undefined;
+            stack[stackPointer++] = JsValue.Undefined;
+            return;
+        }
+
+        LoadNamedSuperCallTarget(propertyName, environment, context, out var receiver, out var callee);
+        stack[stackPointer++] = receiver;
+        stack[stackPointer++] = callee;
+    }
+
+    private static void LoadNamedSuperCallTarget(
+        string propertyName,
+        JsEnvironment environment,
+        EvaluationContext context,
+        out JsValue receiver,
+        out JsValue callee)
+    {
+        var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null)
+        {
+            receiver = JsValue.Undefined;
+            callee = JsValue.Undefined;
+            return;
+        }
+
+        receiver = binding.ThisValue;
+        callee = context.ShouldStopEvaluation
+            ? JsValue.Undefined
+            : binding.TryGetProperty(propertyName, out var value)
+                ? value
+                : JsValue.Undefined;
+    }
+
+    private static SuperBinding? GetSuperBindingForRead(JsEnvironment environment, EvaluationContext context)
+    {
+        var binding = environment.ExpectSuperBinding(context);
+        if (!binding.IsThisInitialized || binding.ThisValue.IsUndefined || binding.ThisValue.IsUninitialized)
+        {
+            context.SetThrow(StandardLibrary.CreateReferenceError(
+                "Super is not available in this context.",
+                context,
+                context.RealmState));
+            return null;
+        }
+
+        return binding;
     }
 
     private static JsValue GetComputedCallTargetValue(

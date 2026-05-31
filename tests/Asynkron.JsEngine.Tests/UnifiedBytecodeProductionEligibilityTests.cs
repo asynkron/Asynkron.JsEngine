@@ -766,10 +766,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SuperConstructExpressionPlan_DeclinesWithSuperDependency()
+    public void Evaluate_SuperConstructExpressionPlan_AcceptsSuperConstructInvocationBoundary()
     {
-        // gh2690 keeps super(...) declined: derived constructors are activation-gated, so the
-        // SuperConstruct op stays explicitly out of the production pipeline (ADR 0286).
         var plan = GetClassConstructorPlan("""
             class Base {
                 constructor(x) { this.x = x; }
@@ -784,7 +782,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
     }
 
     [Fact]
@@ -1921,7 +1922,38 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SuperCall_DeclinesWithExplicitCode()
+    public void Evaluate_NamedSuperCall_AcceptsSuperCallTargetPreparation()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                read(value) {
+                    return value;
+                }
+            }
+
+            class Derived extends Base {
+                read(value) {
+                    return super.read(value);
+                }
+            }
+            """,
+            "Derived",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget);
+        Assert.Contains(result.Program.CallTargetConstants, callTarget =>
+            callTarget.Kind == UnifiedBytecodeCallTargetKind.NamedSuperMember);
+    }
+
+    [Fact]
+    public void Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary()
     {
         var plan = GetClassConstructorPlan("""
             class Base {
@@ -1942,9 +1974,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_SpreadSuperCall_DeclinesWithSpreadDependency()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(values) {
+                    super(...values);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
-        Assert.Contains("super call", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.Contains("Spread super construct", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

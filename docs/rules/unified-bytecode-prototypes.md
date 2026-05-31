@@ -1606,12 +1606,30 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     balanced so short-circuit returns the current property value while proceed
     returns the assigned RHS value.
 
-    Keep selector and compiler probes exact: activation-resolved base, direct
-    computed read/write with matching key payload, non-optional/non-private
-    access, and simple RHS/key payloads already owned by the computed member
-    write boundary. Optional chains, deeper member chains, private fields,
-    `super`, destructuring, dynamic lookup, and unsupported key/RHS payloads
-    remain pre-VM declines.
+    Keep selector and compiler probes exact and matched: activation-resolved
+    base, direct computed read/write with matching key payload,
+    non-optional/non-private access, and simple RHS/key payloads already owned
+    by the computed member write boundary. The selector's computed-key
+    predicate must stay aligned with the compiler helper that emits the key
+    (`TryAppendComputedPropertyKeyLoad`); if `LoadThis` or `LoadNewTarget` is
+    not compiler-owned for a computed key, the eligibility scan must decline the
+    same shape before route selection instead of admitting it through a broader
+    "simple operand" check. Optional chains, deeper member chains, private
+    fields, `super`, destructuring, dynamic lookup, and unsupported key/RHS
+    payloads remain pre-VM declines.
+
+    WHY: issue #2844 / PR #2847 admitted direct computed member logical
+    assignment after the named-member route from ADR 0302. The delivery reused
+    `GetComputedPropertyForCompoundSet`, `SetComputedProperty`, peek-semantics
+    short-circuit jumps, and cleanup stack shuffles so both the preserved
+    receiver and resolved key are removed while the assignment expression result
+    remains. The build-back repair found that selector eligibility initially
+    treated `box[this] &&= value` and `box[new.target] &&= value` as accepted
+    simple operands even though `TryAppendComputedPropertyKeyLoad` did not own
+    those key loads for this route. The durable lesson is that every production
+    computed-key admission site must use the compiler-supported computed-key
+    predicate, with focused negative rows for near-simple but unsupported key
+    operands, so eligibility cannot promise a route the compiler cannot emit.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

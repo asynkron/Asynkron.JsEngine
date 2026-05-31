@@ -73,6 +73,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `UnaryBitwiseNot`
 - `UnaryVoid`
 - `ToString`
+- `SwapTopTwo`
 - `Pop`
 - `CreateArray`
 - `ArrayPush`

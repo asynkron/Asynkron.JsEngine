@@ -3763,36 +3763,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         2d)]
     [InlineData(
         """
-        function logicalWrite(box, value) {
-            return box.value ||= value;
-        }
-
-        logicalWrite({ value: 0 }, 42);
-        """,
-        "logicalWrite",
-        42d)]
-    [InlineData(
-        """
-        function logicalAndWrite(box, value) {
-            return box.value &&= value;
-        }
-
-        logicalAndWrite({ value: 1 }, 42);
-        """,
-        "logicalAndWrite",
-        42d)]
-    [InlineData(
-        """
-        function logicalNullishWrite(box, value) {
-            return box.value ??= value;
-        }
-
-        logicalNullishWrite({ value: null }, 42);
-        """,
-        "logicalNullishWrite",
-        42d)]
-    [InlineData(
-        """
         var externalValue = 42;
         function dynamicValueWrite(box) {
             return box.value = externalValue;

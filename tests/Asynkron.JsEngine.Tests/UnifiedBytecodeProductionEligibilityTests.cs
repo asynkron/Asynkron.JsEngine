@@ -4584,8 +4584,91 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalAndComputedWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData(
+        """
+        function logicalOrComputedWrite(box, key, value) {
+            return box[key] ||= value;
+        }
+        """,
+        "logicalOrComputedWrite",
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData(
+        """
+        function logicalNullishComputedWrite(box, key, value) {
+            return box[key] ??= value;
+        }
+        """,
+        "logicalNullishComputedWrite",
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void Evaluate_ComputedLogicalAssignment_AcceptsWithOwnedOpcodes(
+        string source,
+        string functionName,
+        int expectedJumpOpCode)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedJumpOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedLogicalAssignment_ShortCircuitCleanup_DropsTargetAndKeyFromStack()
+    {
+        var plan = GetFunctionPlan("""
+            function logicalAndComputedWrite(box, key, value) {
+                return box[key] &&= value;
+            }
+            """,
+            "logicalAndComputedWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+
+        var jumpIndex = -1;
+        for (var i = 0; i < result.Program.Instructions.Length; i++)
+        {
+            if (result.Program.Instructions[i].OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)
+            {
+                jumpIndex = i;
+                break;
+            }
+        }
+        Assert.True(jumpIndex >= 0);
+
+        var cleanupPatternFound = false;
+        for (var i = jumpIndex + 1; i + 3 < result.Program.Instructions.Length; i++)
+        {
+            if (result.Program.Instructions[i].OpCode == UnifiedBytecodeOpCode.SwapTopTwo
+                && result.Program.Instructions[i + 1].OpCode == UnifiedBytecodeOpCode.Pop
+                && result.Program.Instructions[i + 2].OpCode == UnifiedBytecodeOpCode.SwapTopTwo
+                && result.Program.Instructions[i + 3].OpCode == UnifiedBytecodeOpCode.Pop)
+            {
+                cleanupPatternFound = true;
+                break;
+            }
+        }
+
+        Assert.True(
+            cleanupPatternFound,
+            string.Join(", ", result.Program.Instructions.Select(static instruction => instruction.OpCode.ToString())));
+    }
+
+    [Theory]
     [InlineData(
         """
         function logicalAndNestedWrite(box, value) {
@@ -4606,7 +4689,54 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
-    public void Evaluate_LogicalAndAssignment_NonFirstBoundaryOrUnsupportedShapes_DeclineWithExplicitCodes(
+    [InlineData(
+        """
+        class Child extends Base {
+            update(key, value) {
+                return super[key] &&= value;
+            }
+        }
+        """,
+        "Child",
+        "update",
+        (int)UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedComplexKeyWrite(box, key, suffix, value) {
+            return box[key + suffix] &&= value;
+        }
+        """,
+        "logicalAndComputedComplexKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedComplexRhsWrite(box, key, value) {
+            return box[key] &&= (value + 1);
+        }
+        """,
+        "logicalAndComputedComplexRhsWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedThisKeyWrite(box, value) {
+            return box[this] &&= value;
+        }
+        """,
+        "logicalAndComputedThisKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedNewTargetKeyWrite(box, value) {
+            return box[new.target] &&= value;
+        }
+        """,
+        "logicalAndComputedNewTargetKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
         string source,
         string functionOrClassName,
         string? methodName,

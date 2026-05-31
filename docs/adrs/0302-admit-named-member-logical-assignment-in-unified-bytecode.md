@@ -86,10 +86,13 @@ exact direct named member logical-assignment shape.
 - ADR 0300's retained-decline statement for member logical assignment is
   superseded only for direct named member targets. Slot logical assignment keeps
   the ADR 0300 statement-level stack contract.
-- Computed member logical assignment, optional chains, deeper member chains,
-  private fields, `super`, destructuring, dynamic lookup, and complex RHS/key
-  payloads remain pre-VM declines until a slice owns their selector, compiler,
-  VM, and route-proof behavior.
+- Follow-up issue #2844 widened the boundary to direct computed member logical
+  assignments with activation-resolved base plus simple key/RHS operands
+  (`box[key] &&= y`, `box[key] ||= y`, `box[key] ??= y`).
+- Optional chains, deeper member chains, private fields, `super`,
+  destructuring, dynamic lookup, and complex RHS/key payloads remain pre-VM
+  declines until a slice owns their selector, compiler, VM, and route-proof
+  behavior.
 - Any future stack-shuffle opcode added for expression-program lowering must be
   added to the VM, production eligibility allowlist, expansion-contract opcode
   inventory, and focused proof pack in the same delivery slice. PR #2826's

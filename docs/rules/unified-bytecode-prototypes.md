@@ -188,9 +188,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     strict arm was not proven to route. The build-back fix added directive
     string-literal discard support plus explicit VM strictness threading so
     strict failed writes throw through the owned unified path.
-18. When hardening property-write production boundaries, keep logical member
-    assignments, dynamic value dependencies, and computed-key expressions with
-    unowned payloads as pre-VM declines until the same slice owns selector,
+18. When hardening property-write production boundaries, keep dynamic value
+    dependencies and computed-key expressions with unowned payloads as pre-VM
+    declines until the same slice owns selector,
     compiler, VM, and route-proof semantics for those shapes. Pair each
     eligibility decline with public invocation fallback/no-route proof for the
     exact function body. WHY: issue
@@ -198,7 +198,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2415 added focused logical write, dynamic RHS write, and computed key
     expression write coverage after the ordinary property-write boundary was
     admitted. Without those neighboring declines, future property-set widening
-    can accidentally route logical assignment, dynamic lookup, or computed-key
+    can accidentally route dynamic lookup or computed-key
     expression payloads through a VM path that does not yet own those semantics.
 19. When admitting direct compound property writes into production unified
     bytecode, preserve the reference operands with dedicated get-for-set opcodes
@@ -206,15 +206,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     compound writes must keep the receiver live for `SetNamedProperty`, and
     computed compound writes must keep both the receiver and the already-resolved
     key live for `SetComputedProperty`. Keep the selector and compiler matched
-    to exact operation sequences, and leave logical assignment, nested member
-    chains, richer computed keys, optional chains, `super`, private fields,
+    to exact operation sequences, and leave nested member chains, richer
+    computed keys, optional chains, `super`, private fields,
     `delete`, calls, destructuring, and dynamic lookup as pre-VM declines until
     a later slice owns their full proof. The admitted compound-assignment
     operators are the 12 arithmetic and bitwise operators (`+=`, `-=`, `*=`,
-    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`); the three
-    logical operators (`&&=`, `||=`, `??=`) decline as `PropertyWriteDependency`
-    because their conditional short-circuit semantics require a branch opcode
-    that the compound get-for-set model does not provide. WHY: issue
+    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`). In this
+    compound-write slice, the three logical operators (`&&=`, `||=`, `??=`)
+    decline as `PropertyWriteDependency` because their conditional
+    short-circuit semantics require a branch opcode that the compound get-for-set
+    model does not provide. Direct member logical assignment routing is owned by
+    the dedicated logical-assignment rules below, not by this compound-write
+    rule. WHY: issue
     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
     / PR #2426 widened direct named/computed compound writes by adding
     `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
@@ -1532,10 +1535,10 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
         asserting `unified-bytecode-production-fast-path`.
 
     Computed logical compound assignments and unowned member forms remain
-    declined as `PropertyWriteDependency`. Direct named member logical
-    assignments are now admitted by rule 46 / ADR 0302; do not reuse this slot
-    pattern for member targets without preserving the receiver and the
-    expression result through the dedicated named-member cleanup shape.
+    declined as `PropertyWriteDependency`. Direct named and direct computed
+    member logical assignments are admitted by the dedicated member rules below;
+    do not reuse this slot pattern for member targets without preserving the
+    receiver and the expression result through the dedicated cleanup shape.
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-dad47dee93`
     / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300).
@@ -1572,13 +1575,14 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
 
     Keep selector and compiler probes matched to the exact direct named shape:
     activation-resolved base, non-optional/non-private named read and write,
-    matching property names, exact cleanup jump target, and simple RHS. Computed
-    logical member assignment, optional chains, deeper member chains, private
-    fields, `super`, destructuring, dynamic lookup, and complex RHS/key payloads
-    still decline before VM execution. Any new stack-mechanics opcode used by an
-    admitted shape must be added to the VM handlers, production opcode allowlist,
-    `docs/unified-bytecode-expansion-contract.md`, and focused opcode/route
-    proofs in the same delivery slice.
+    matching property names, exact cleanup jump target, and simple RHS. Optional
+    chains, deeper member chains, private fields, `super`, destructuring,
+    dynamic lookup, and complex RHS/key payloads still decline before VM
+    execution. Direct computed logical member assignment now belongs to rule 47,
+    including its compiler-owned key/RHS boundaries. Any new stack-mechanics
+    opcode used by an admitted shape must be added to the VM handlers,
+    production opcode allowlist, `docs/unified-bytecode-expansion-contract.md`,
+    and focused opcode/route proofs in the same delivery slice.
 
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-f31b87b5d8`
@@ -1590,10 +1594,42 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     opcode inventory, reinforcing that VM-executed opcode additions are delivery
     artifacts, not learn-stage cleanup. Follow-up issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-0aa2351edc`
-    / PR #2812 restored the final neighboring decline gates: computed logical
-    member assignment and deeper chains stay `PropertyWriteDependency`, private
-    fields stay `PrivateFieldDependency`, and optional-chain assignment remains
+    / PR #2812 restored the remaining neighboring decline gates: deeper chains
+    stay `PropertyWriteDependency`, private fields stay
+    `PrivateFieldDependency`, and optional-chain assignment remains
     parser-rejected before eligibility.
+47. When admitting direct computed member logical assignment (`box[key] &&= y`,
+    `box[key] ||= y`, `box[key] ??= y`) to production unified bytecode, keep
+    the compiler ownership and stack invariants aligned with the existing
+    computed member get-for-set model. Preserve both receiver and resolved key,
+    thread the matching peek-semantics short-circuit jump, and keep cleanup
+    balanced so short-circuit returns the current property value while proceed
+    returns the assigned RHS value.
+
+    Keep selector and compiler probes exact and matched: activation-resolved
+    base, direct computed read/write with matching key payload,
+    non-optional/non-private access, and simple RHS/key payloads already owned
+    by the computed member write boundary. The selector's computed-key
+    predicate must stay aligned with the compiler helper that emits the key
+    (`TryAppendComputedPropertyKeyLoad`); if `LoadThis` or `LoadNewTarget` is
+    not compiler-owned for a computed key, the eligibility scan must decline the
+    same shape before route selection instead of admitting it through a broader
+    "simple operand" check. Optional chains, deeper member chains, private
+    fields, `super`, destructuring, dynamic lookup, and unsupported key/RHS
+    payloads remain pre-VM declines.
+
+    WHY: issue #2844 / PR #2847 admitted direct computed member logical
+    assignment after the named-member route from ADR 0302. The delivery reused
+    `GetComputedPropertyForCompoundSet`, `SetComputedProperty`, peek-semantics
+    short-circuit jumps, and cleanup stack shuffles so both the preserved
+    receiver and resolved key are removed while the assignment expression result
+    remains. The build-back repair found that selector eligibility initially
+    treated `box[this] &&= value` and `box[new.target] &&= value` as accepted
+    simple operands even though `TryAppendComputedPropertyKeyLoad` did not own
+    those key loads for this route. The durable lesson is that every production
+    computed-key admission site must use the compiler-supported computed-key
+    predicate, with focused negative rows for near-simple but unsupported key
+    operands, so eligibility cannot promise a route the compiler cannot emit.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

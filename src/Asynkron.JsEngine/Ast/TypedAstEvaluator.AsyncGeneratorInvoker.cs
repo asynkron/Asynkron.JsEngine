@@ -346,7 +346,7 @@ public static partial class TypedAstEvaluator
 
             private IteratorResultObject? _result;
             private JsEngine? _engine;
-            private bool _deferredOnce;
+            private byte _deferredCount;
 
             public int Epoch { get; set; }
 
@@ -361,9 +361,11 @@ public static partial class TypedAstEvaluator
             public void Execute()
             {
                 AssertOwnership(nameof(Execute));
-                if (!_deferredOnce)
+                // Give settled and late-attached handlers time to observe the iterator result
+                // before it is recycled back into the pool.
+                if (_deferredCount < 2)
                 {
-                    _deferredOnce = true;
+                    _deferredCount++;
                     _engine?.QueueMicrotask(this);
                     return;
                 }
@@ -385,7 +387,7 @@ public static partial class TypedAstEvaluator
             {
                 _result = null;
                 _engine = null;
-                _deferredOnce = false;
+                _deferredCount = 0;
                 Epoch = 0;
             }
 

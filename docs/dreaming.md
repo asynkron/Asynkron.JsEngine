@@ -1308,7 +1308,7 @@ Boundary contract rules:
 | Area | Proven now | Directional next (needs new proof) |
 |---|---|---|
 | Compilation pipeline | Typed AST → StatementIR, ExpressionProgram, UnifiedBytecodeProgram; 4-tier routing | Full elimination of Tier 3 fallback seams from runtime |
-| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, label-dependent control flow, and resumable state (Yield/Await opcodes) | `this`-dependent ordinary sync functions (#2633), remaining declined call families (optional call, direct eval, construct-spread/super), and profile-verified broader route coverage |
+| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, label-dependent control flow, and resumable state (Yield/Await opcodes) | Remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes) plus profile-verified broader route coverage |
 | Tier 1 (ExpressionProgram) | Covers most expression shapes; inline expression buffers proven | Compact ExpressionOp storage as runtime contract |
 | Realm isolation | Cross-realm error creation realm-owned (ADR 0137, 0270); brand validation JsValue-native (ADR 0196) | Broader realm-sensitivity checks in fast paths |
 | Standard Library | JsValue-native hot paths on most Array/String helpers; descriptor semantics proven | Full removal of object-overload compat tripwires |

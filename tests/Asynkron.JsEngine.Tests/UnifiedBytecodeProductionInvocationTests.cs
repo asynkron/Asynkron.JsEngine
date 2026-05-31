@@ -1708,6 +1708,88 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyRead_ReturnsUndefinedWhenBaseIsUndefined()
+    {
+        // gh2771: a?.b short-circuits to undefined when base is undefined (not only null).
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptionalUndef(box) {
+                return box?.value;
+            }
+
+            readOptionalUndef(undefined);
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptionalUndef",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedPropertyRead_ReturnsUndefinedWhenBaseIsUndefined()
+    {
+        // gh2771: a?.[k] short-circuits to undefined when base is undefined (not only null).
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptionalComputedUndef(box, key) {
+                return box?.[key];
+            }
+
+            readOptionalComputedUndef(undefined, "value");
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptionalComputedUndef",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyRead_EvaluatesBaseExactlyOnce()
+    {
+        // gh2771: GetNamedPropertyOptional must not re-evaluate the base expression.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var callCount = 0;
+            function getBox() {
+                callCount++;
+                return { value: 42 };
+            }
+            function countedOptNamed() {
+                return getBox()?.value;
+            }
+            countedOptNamed();
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedPropertyRead_EvaluatesBaseExactlyOnce()
+    {
+        // gh2771: JumpIfNullishReplaceUndefined must not re-evaluate the base expression.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var callCount = 0;
+            function getBox() {
+                callCount++;
+                return { value: 42 };
+            }
+            function countedOptComputed() {
+                return getBox()?.["value"];
+            }
+            countedOptComputed();
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

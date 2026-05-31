@@ -828,6 +828,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     label itself — is the real boundary, and a PC-based multi-driver shortcut is
     unsound under lazy target compilation.
 
+    Follow-up issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-9e9f5025f7`
+    / PR #2914 superseded this rule's single-level cleanup boundary for
+    synchronous nested iterator/for-in drivers by adding descriptor-backed
+    `MoveNextTarget` topology. Keep this paragraph as the historical ADR 0285
+    boundary and apply rule #53 for the current nested-driver cleanup model.
+
 38. When admitting synchronous construct and super invocation to production
     unified bytecode, keep constructor and super ownership split and prove the
     activation contract in the same slice. `ConstructInvocationBoundary` stays
@@ -1801,6 +1808,42 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     opcodes, while optional-chain, private-name, and super delete semantics
     remain separate dependency families.
 
+53. When admitting labeled `break` or `continue` that crosses nested
+    iterator/for-in driver loops to production unified bytecode, make cleanup
+    descriptor-topology-backed instead of target-name, active-state-only, or
+    program-counter-order based. Each compiled driver descriptor must carry both
+    its cleanup/break target and its active driver `MoveNextTarget`. The VM
+    should resolve leading cleanup-chain opcodes (`PopEnvironment` and
+    `LeaveWith`) for both the abrupt target and descriptor break target, close
+    every currently active driver whose descriptor lifetime is exited by that
+    effective target, and sort active driver states by `ActiveDriverOrdinal`
+    descending so cleanup runs inner-to-outer. A target resolving to a
+    descriptor's `MoveNextTarget` stays inside that driver loop and must not
+    close it, even while inner drivers exited by the same labeled continue are
+    closed.
+
+    Keep the backedge admission narrow and compiler-owned: direct jumps,
+    completion-value pass-through, `LeaveTry`, `EndFinally`, and
+    continue-targeted `PopEnvironment` cleanup into an active driver `MoveNext`
+    target are valid only when the surrounding driver body topology is still
+    proven by the existing compiler reconstruction checks. Do not reintroduce
+    program-counter heuristics for multi-driver cleanup, and do not satisfy a
+    missed cleanup case by calling back into `ExecutionPlanRunner`,
+    `ExpressionProgram`, or AST evaluation.
+
+    Pair every widening with route proof and observable cleanup proof: labeled
+    for-of continue across an inner driver should close the inner iterator only,
+    labeled for-of break across nested drivers should close exited iterators
+    inner-to-outer, for-in labeled continue should route through production, and
+    unsupported async/awaited driver-source shapes should remain pre-VM
+    declines. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-9e9f5025f7`
+    / PR #2914 retired the ADR 0285 driver-crossing residue for synchronous
+    nested drivers. The first safe model was not a looser label gate; it was
+    carrying driver `MoveNextTarget` topology into descriptors and using that
+    topology to decide which active driver lifetimes a control target exits
+    (ADR 0313).
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1849,3 +1892,4 @@ Related ADRs:
 - `docs/adrs/0306-admit-class-literals-in-unified-bytecode-through-shared-class-creation.md`
 - `docs/adrs/0308-admit-nested-named-property-write-receiver-chains-in-unified-bytecode.md`
 - `docs/adrs/0309-admit-ordinary-property-delete-in-unified-bytecode.md`
+- `docs/adrs/0313-admit-nested-driver-labeled-abrupt-cleanup-in-unified-bytecode.md`

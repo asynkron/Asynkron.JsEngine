@@ -1811,25 +1811,30 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
 53. When admitting labeled `break` or `continue` that crosses nested
     iterator/for-in driver loops to production unified bytecode, make cleanup
     descriptor-topology-backed instead of target-name, active-state-only, or
-    program-counter-order based. Each compiled driver descriptor must carry both
-    its cleanup/break target and its active driver `MoveNextTarget`. The VM
-    should resolve leading cleanup-chain opcodes (`PopEnvironment` and
-    `LeaveWith`) for both the abrupt target and descriptor break target, close
-    every currently active driver whose descriptor lifetime is exited by that
-    effective target, and sort active driver states by `ActiveDriverOrdinal`
-    descending so cleanup runs inner-to-outer. A target resolving to a
-    descriptor's `MoveNextTarget` stays inside that driver loop and must not
-    close it, even while inner drivers exited by the same labeled continue are
-    closed.
+    program-counter-order based. Each compiled driver descriptor must carry its
+    cleanup/break target and an explicit continue target for the active driver.
+    The VM should resolve leading cleanup-chain opcodes (`PopEnvironment` and
+    `LeaveWith`) for both the abrupt target and descriptor break/continue
+    targets, close every currently active driver whose descriptor lifetime is
+    exited by that effective target, and sort active driver states by
+    `ActiveDriverOrdinal` descending so cleanup runs inner-to-outer.
+
+    Keep `break` and `continue` cleanup classification separate. A `break`
+    target closes the matched exited driver and any deeper active drivers. A
+    `continue` target keeps the target driver open and closes only crossed inner
+    drivers or drivers whose body no longer contains the cleanup-chain-resolved
+    target. Do not infer this distinction from numeric program counter ordering
+    or from the active state slot alone; carry the abrupt kind and descriptor
+    target through the VM cleanup call.
 
     Keep the backedge admission narrow and compiler-owned: direct jumps,
     completion-value pass-through, `LeaveTry`, `EndFinally`, and
-    continue-targeted `PopEnvironment` cleanup into an active driver `MoveNext`
-    target are valid only when the surrounding driver body topology is still
-    proven by the existing compiler reconstruction checks. Do not reintroduce
-    program-counter heuristics for multi-driver cleanup, and do not satisfy a
-    missed cleanup case by calling back into `ExecutionPlanRunner`,
-    `ExpressionProgram`, or AST evaluation.
+    continue-targeted `PopEnvironment` cleanup into an active driver continue
+    or `MoveNext` target are valid only when the surrounding driver body
+    topology is still proven by the existing compiler reconstruction checks. Do
+    not reintroduce program-counter heuristics for multi-driver cleanup, and do
+    not satisfy a missed cleanup case by calling back into
+    `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation.
 
     Pair every widening with route proof and observable cleanup proof: labeled
     for-of continue across an inner driver should close the inner iterator only,
@@ -1842,7 +1847,12 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     nested drivers. The first safe model was not a looser label gate; it was
     carrying driver `MoveNextTarget` topology into descriptors and using that
     topology to decide which active driver lifetimes a control target exits
-    (ADR 0313).
+    (ADR 0313). Follow-up issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-1daee0b11e`
+    / PR #2915 split driver break and continue cleanup classification after a
+    crossing-continue proof showed that a single target model kept the wrong
+    driver lifetime. Future changes must preserve explicit `ContinueTarget`
+    metadata and pass the abrupt kind into cleanup selection (ADR 0314).
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
@@ -1893,3 +1903,4 @@ Related ADRs:
 - `docs/adrs/0308-admit-nested-named-property-write-receiver-chains-in-unified-bytecode.md`
 - `docs/adrs/0309-admit-ordinary-property-delete-in-unified-bytecode.md`
 - `docs/adrs/0313-admit-nested-driver-labeled-abrupt-cleanup-in-unified-bytecode.md`
+- `docs/adrs/0314-split-unified-bytecode-driver-break-and-continue-cleanup-targets.md`

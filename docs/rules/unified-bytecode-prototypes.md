@@ -623,23 +623,36 @@ all-or-nothing until a separate routing issue proves production readiness.
     iterator/destructuring as remaining lanes unless current `main` proves an
     even newer slice has landed.
 32. When preserving or widening with-backed dynamic names on the production
-    unified bytecode route, keep the accepted program activation-hoist aligned
-    and receiver-owned. The sync bridge must define function-scoped var bindings
-    in the fast activation environment before VM execution so nested callees
-    called from inside an outer `with` still see their own hoisted var names as
+    unified bytecode route, keep the accepted program activation-hoist aligned,
+    receiver-owned, and explicitly descriptor-gated for ordinary environment
+    operations. The sync bridge must define function-scoped var bindings in the
+    fast activation environment before VM execution so nested callees called
+    from inside an outer `with` still see their own hoisted var names as
     `undefined` before any initializer runs. VM
     `PrepareDynamicIdentifierCallTarget` must resolve active with bindings
     regardless of identifier-cache state and must push the with binding object
-    as the receiver when the identifier comes from that object. Keep direct
-    eval source execution, captured dynamic activation, arguments objects,
-    async/generator functions, and unresolved non-with dynamic lookup as
-    pre-VM declines. Pair retained changes with the focused
-    `Statements_with` Test262 row and public production invocation tests for
-    both hoisted-var shadowing and with-object receiver binding. WHY: issue
-    #2564 / PR #2571 fixed `S12.10_A1.11_T5` after the with-backed production
-    route failed to create a nested function's hoisted local `value` binding
-    before dynamic lookup and dynamic identifier call preparation still depended
-    on the identifier-cache path.
+    as the receiver when the identifier comes from that object. Outside active
+    `with`, admit only the exact ordinary-environment dynamic-name opcode
+    family that the bridge explicitly enables:
+    `LoadDynamicIdentifier`, `StoreDynamicIdentifier`,
+    `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`,
+    `DeleteDynamicIdentifier`, `ResolveDynamicIdentifierReference`,
+    `LoadDynamicIdentifierReference`, and
+    `StoreDynamicIdentifierReference`. Direct eval source execution and any
+    dynamic lookup that depends on eval-created declarations, captured or
+    materialized activation, arguments objects, or async/generator machinery
+    remain pre-VM declines. Pair retained changes with the focused
+    `Statements_with` Test262 row, public production invocation tests for both
+    hoisted-var shadowing and with-object receiver binding, and a no-route
+    proof that direct-eval-created declaration lookup still falls back. WHY:
+    issue #2564 / PR #2571 fixed `S12.10_A1.11_T5` after the with-backed
+    production route failed to create a nested function's hoisted local `value`
+    binding before dynamic lookup and dynamic identifier call preparation still
+    depended on the identifier-cache path. Issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-409e9e2030`
+    / PR #2872 then widened the same family to ordinary dynamic-name
+    environment operations while keeping direct-eval declaration materialization
+    out of the production route.
 33. When admitting `try/catch/finally` exception regions to production unified
     bytecode, keep exception routing and abrupt-completion propagation
     descriptor-backed and VM-owned. `EnterTry`, `EnterCatch`, `LeaveTry`, and
@@ -651,15 +664,25 @@ all-or-nothing until a separate routing issue proves production readiness.
     compare compiled driver descriptor topology and mapped break/continue
     targets; do not decide whether to schedule an outer synthetic for-of finally
     from currently active driver-state slots alone, because an inner iterator can
-    already be closed when its pending break reaches an outer frame. Pair the
+    already be closed when its pending break reaches an outer frame. When
+    `HandleContextThrow` resumes execution in the same VM instance, clear the
+    operand stack back to the handler-owned baseline before continuing; a
+    handled throw from call/construct/super preparation or cleanup must not
+    leak receiver/callee/argument temporaries into the resumed path. Pair the
     route proof with catch binding leak/direct-read regressions, return/throw
     replacement through finally, break/continue through finally, nested for-of
-    inner-break cleanup ordering, and unsupported async/generator/dynamic
-    declines. WHY: issue
+    inner-break cleanup ordering, handled invocation-boundary throws, and
+    unsupported async/generator/dynamic declines. WHY: issue
     `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-0bfc08d573`
     / PR #2591 admitted ordinary synchronous exception regions, then build-back
     fixes exposed catch-slot lifetime, operand-stack cleanup, pending body-throw
     preservation, and nested driver-cleanup topology as the durable guardrails.
+    Issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-409e9e2030`
+    / PR #2872 later hit the same contract from a handled call-boundary throw:
+    the repair reset the unified-bytecode stack after `HandleContextThrow` so
+    `ThrowBugTests.AssertThrowsPattern_ShouldCatchErrorObject` no longer
+    overflowed the fixed operand stack.
 
 34. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
     verify that the plan-level decline taxonomy in

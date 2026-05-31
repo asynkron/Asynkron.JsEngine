@@ -831,10 +831,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     expression op sequence is emitted.
 
     `JumpIfShortCircuited` (optional chain `?.`) remains declined as
-    `OptionalChainDependency` until a future slice owns optional-chain
-    semantics end to end. Do not admit optional-chain forms by extending the
-    short-circuit jump opcodes; the semantics (nullable receiver, optional
-    member lookup, optional call) require a separate proof slice.
+    `OptionalChainDependency` unless a later optional-chain proof slice owns the
+    exact embedded shape. Do not admit optional-chain forms by extending the
+    short-circuit jump opcodes alone; the semantics (nullable receiver,
+    optional member lookup, optional call) require a separate proof slice.
 
     **Dual-dispatch completeness**: When adding new VM opcodes, they must appear
     in BOTH the sync `Execute` dispatch switch AND the `ExecuteResumable` dispatch
@@ -842,9 +842,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     at runtime for any function kind that routes through the omitted path. The
     quality gate catches this — but the structural check to avoid it is to grep
     for the opcode name in `UnifiedBytecodeVirtualMachine.cs` after adding it and
-    confirm two `case` entries exist (one in each switch). Optional-chain-as-LHS
-    shapes (e.g. `a?.b && c`) must decline via `OptionalChainDependency` during
-    eligibility; they are not admitted by the short-circuit jump opcodes.
+    confirm two `case` entries exist (one in each switch). Bounded optional-read
+    operands in logical/nullish expression programs are admitted only through
+    the dedicated optional-read span rules in #2851 / ADR 0305; the
+    short-circuit jump opcodes themselves do not authorize broader optional
+    chains.
 
     **JsArray result indexing in invocation tests**: When asserting array elements
     from a JS return value in invocation tests, do not use `((dynamic)result)[N]`
@@ -912,6 +914,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     `TryIsNamedPropertyReadAtLogicalShortCircuitBoundary` (from PR #2766) remains
     in use for boundary-candidate probes that are not standalone short-circuit
     return expressions; this helper pair does not replace it. See ADR 0295.
+    Issue
+    `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-ece8f107eb`
+    / PR #2851 then narrowed `OptionalChainDependency` for operands inside
+    already-owned control expression programs. The durable lesson is that the
+    owning control operator and the embedded optional-read span must both be
+    proven. Eligibility may admit an optional named/computed read span only
+    after detecting an owned control expression (`JumpIfFalse`, `JumpIfTrue`,
+    `JumpIfNotNullish`, or `JumpIfConditionalFalse`) and only when the span is
+    activation-resolved, non-private, bounded to the existing optional-read
+    lowering shapes, and backed by opcode-shape assertions. Do not use this
+    operand admission to widen optional writes, optional calls, complex computed
+    keys, dynamic lookup, or unbounded optional-chain forms.
 
 42. When admitting simple (non-chained) optional member reads to production
     unified bytecode, use **dedicated null-check opcodes** and constrain

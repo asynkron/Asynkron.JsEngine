@@ -518,6 +518,24 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalChainComputedPlainSpreadCallExpressionPlan_Declines()
+    {
+        // gh2828 AC-4: keep spread variants out of the optional-start computed plain-call slice.
+        var plan = GetFunctionPlan("""
+            function invoke(a, key, args) {
+                return a?.box[key](...args);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_OptionalChainNonActivationBaseCallExpressionPlan_Declines()
     {
         // gh2806 AC-4: a.x?.b.c() must decline — receiver chain not bounded to activation-resolved base.

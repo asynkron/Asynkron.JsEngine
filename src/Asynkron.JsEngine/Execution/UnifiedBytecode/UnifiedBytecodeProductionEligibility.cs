@@ -2214,6 +2214,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        // Keep AC-4 boundary for gh2828 narrow: optional-start computed plain-call
+        // admission does not include spread arguments in this slice.
+        if (call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
         var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
         if (computedCallTargetIndex != 4)
         {

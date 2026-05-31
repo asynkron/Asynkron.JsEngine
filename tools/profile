@@ -22,6 +22,27 @@ log() {
   printf '%s\n' "$*" >&2
 }
 
+print_usage() {
+  cat <<'EOF'
+Usage: ./tools/profile [profile] [flags]
+
+Profiles:
+  <profile>          Profile key to run (default: fib)
+  list               List available profiles
+  all                Run all manifest profiles
+
+Common flags:
+  -h, --help         Show this help and exit
+  --compare          Run benchmark comparison and exit
+  --debug            Use local profiler build (Debug)
+  --engine <name>    Pass engine selection through to ProfileRunner
+  --jint|--asynkron  Pass engine selection through to ProfileRunner
+
+Profiler flags:
+  Any remaining flags are forwarded to asynkron-profiler/local ProfileTool.
+EOF
+}
+
 run_benchmarks() {
   (cd "$repo_root/benchmarks/Asynkron.JsEngine.Benchmarks" && dotnet run -c Release -- jint --job short)
 }
@@ -181,6 +202,12 @@ run_mode_profile_with_scope_defaults() {
 }
 
 args=("$@")
+for arg in "${args[@]}"; do
+  if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+    print_usage
+    exit 0
+  fi
+done
 filtered_args=()
 for arg in "${args[@]}"; do
   case "$arg" in

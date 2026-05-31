@@ -121,14 +121,8 @@ public static partial class TypedAstEvaluator
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        if (iteratorResult.TryGetObject<IteratorResultObject>(out var poolableResult))
-                        {
-                            // Promise resolution can expose the iterator result across turns.
-                            // Mark as captured so pooled ownership checks stay valid.
-                            poolableResult.Capture();
-                        }
-
                         AsyncInvokeWithOneArg(resolve, iteratorResult);
+                        ReturnIteratorResultAfterPromiseReactions(iteratorResult);
                         break;
                     }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:

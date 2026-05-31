@@ -50,6 +50,15 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
         IsCaptured = true;
     }
 
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal static void CaptureIfSurfaced(in JsValue value)
+    {
+        if (value.TryGetObject<IteratorResultObject>(out var result))
+        {
+            result.Capture();
+        }
+    }
+
     /// <summary>
     /// Resets this instance for reuse from the pool.
     /// </summary>

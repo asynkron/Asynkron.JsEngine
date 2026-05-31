@@ -69,6 +69,24 @@ checks separate.
    for programs that belong to entirely different fast-path handlers, blocking
    all subsequent patterns and producing widespread false-positive failures
    (196 test failures in gh2689).
+10. When widening the executable `CallInvocationBoundary` to a new ordinary-call
+   family, remove descriptor-level `HasCallDependency` or script `FunctionCode`
+   seam blockers only for shapes the boundary can already prove end-to-end.
+   For direct eval specifically, admit only the syntactic `eval(source)`
+   identifier shape with exactly one non-spread argument, carry directness in
+   boundary-local metadata instead of inferring it from receiver/dynamic lookup
+   state, and keep the fast path same-engine guarded.
+10a. If a direct-eval boundary fast path bypasses the generic host-call setup,
+    resynchronize the unified-bytecode frame's slot array from the active slot
+    environments before returning to the VM. Sloppy direct eval can mutate
+    caller-visible bindings through the environment chain, so a fast path that
+    skips the ordinary invocation handoff must still make those writes visible
+    to later bytecode ops.
+10b. When a call-boundary operand gains new packed bits, audit every compiler
+    and VM encode/decode site that reuses the surface, including construct
+    boundaries that share the helper. Non-call shapes must pass the new flag
+    explicitly as off, and existing construct proofs should be rerun after the
+    packing change.
 
 ## Why
 
@@ -128,3 +146,18 @@ have admitted `a?.b[k](...args)` through the generic argument path; that spread
 variant was outside the slice and now declines explicitly. Future optional-start
 computed-call slices need to prove key skipping, receiver binding, and
 shape-specific spread handling separately.
+
+Issue
+`planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-1707adc0f0`
+/ PR #2863 retired the descriptor-level ordinary-call blocker for the proven
+direct-eval invocation-boundary slice. The accepted shape was deliberately
+narrow: syntactic one-argument non-spread `eval(source)` only, compiled through
+the existing dynamic identifier call-target preparation, tagged by a packed
+direct-eval bit on `CallInvocationBoundary`, and executed through the same-engine
+`EvalHostFunction.InvokeDirectSingleArgumentFast` path with caller slot
+resynchronization afterward. The delivery also hit construct-boundary rebase
+fallout because construct sites reuse the same operand-packing helper. The
+durable lesson is that widening executable call families must move three
+surfaces together — activation gating, boundary-local directness metadata, and
+VM state write-back — while auditing any shared operand-packing helpers that
+construct paths depend on.

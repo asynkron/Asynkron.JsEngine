@@ -385,8 +385,31 @@ host-runtime shortcuts.
     fixed Array `join`/`toString` Test262 regressions after the
     `JsValueExtensions.ToJsString` object-carrier path swallowed these
     observable coercion failures.
+44. For `Temporal.ZonedDateTime` named time-zone construction and equality
+    work, route canonical IANA IDs through the shared Intl time-zone resolver
+    before calling host `TimeZoneInfo`. Values returned by
+    `Intl.supportedValuesOf("timeZone")` are engine-supported canonical names,
+    but they are not guaranteed to be accepted directly by the host OS
+    time-zone database. Do not add a second Temporal-only alias table or fall
+    back to raw `TimeZoneInfo.FindSystemTimeZoneById(...)` until after the
+    shared resolver fails. Why: issue #2883 / PR #2896 fixed
+    `Temporal.ZonedDateTime.prototype.equals` canonicalization crashes after
+    supported canonical time-zone IDs bypassed the Intl alias/system seam.
 
 ## Why
+
+Issue #2883 / PR #2896 fixed `Temporal.ZonedDateTime.prototype.equals`
+`canonical-not-equal.js` crashes after construction accepted named time-zone
+strings through a raw `TimeZoneInfo.FindSystemTimeZoneById(...)` path. The
+failing values came from `Intl.supportedValuesOf("timeZone")`: they were
+canonical and engine-supported, but some still needed the existing
+`IntlUtilities.TryResolveTimeZoneId(...)` alias/system mapping before host
+lookup. The durable lesson is that Temporal named time-zone construction must
+share Intl's resolver boundary, while fixed-offset parsing and `UTC` handling
+remain explicit Temporal fast paths. Future ZonedDateTime time-zone fixes should
+prove both the exact `canonical-not-equal.js` Test262 row and a local
+`Intl.supportedValuesOf("timeZone")` construction/equality guard before widening
+to adjacent `Temporal_ZonedDateTime_prototype_equals` canonicalization cases.
 
 Issue #767 / PR #941 fixed `Intl.DateTimeFormat.prototype.formatRange` after
 Temporal operands were handled too much like epoch-millisecond values. The

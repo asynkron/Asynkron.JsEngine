@@ -953,27 +953,37 @@ all-or-nothing until a separate routing issue proves production readiness.
 43. When admitting `ConditionalExpression` (`cond ? a : b`) to production
     unified bytecode, the **only new compiler surface** is
     `ExpressionOpKind.Jump` in `TryAppendExpressionProgramOps`. No new VM
-    opcodes are needed: the existing `Jump`, `JumpIfShortCircuitFalse`, and
-    `Pop` opcodes already cover the ternary execution model.
+    opcodes are needed: the existing `JumpIfFalse` (for the condition),
+    `Pop`, and `Jump` VM opcodes cover the ternary execution model.
+    `JumpIfConditionalFalse` (the expression-level opcode for the ternary
+    condition check) maps to `UnifiedBytecodeOpCode.JumpIfFalse` — this is
+    **consume-semantics**, not `JumpIfShortCircuitFalse` (peek-semantics,
+    used by `&&`/`||`). The distinction is load-bearing: `JumpIfShortCircuitFalse`
+    leaves TOS intact because the LHS value IS the result when falsy;
+    `JumpIfConditionalFalse` consumes TOS because the condition value is not
+    part of the ternary result.
 
     The expression-program compiler emits ternary as:
     ```
     [test ops]
-    JumpIfFalse(alternateStart)   ← already handled
+    JumpIfConditionalFalse(alternateStart)   ← consume-semantics; maps to UnifiedBytecodeOpCode.JumpIfFalse
     Pop
     [consequent ops]
-    Jump(endTarget)               ← ExpressionOpKind.Jump — the only new case
+    Jump(endTarget)               ← ExpressionOpKind.Jump — the only new compiler case (PR #2772)
     Pop
     [alternate ops]
     [endTarget]
     ```
 
     Wire `ExpressionOpKind.Jump` with the same `exprPcToUnifiedPc[]` backpatch
-    pattern used by `JumpIfFalse/True/NotNullish` (ADR 0293): emit
-    `UnifiedBytecodeOpCode.Jump(0)` as a placeholder, record a patch entry,
-    and backpatch the operand after all ops are emitted. Also add
-    `case ExpressionOpKind.Jump:` to `TryFindExpressionDecline`'s allowed-op
-    set as documentation and a guard against future `default:` arm regressions.
+    pattern used by `JumpIfFalse/JumpIfConditionalFalse/True/NotNullish`
+    (ADR 0293): emit `UnifiedBytecodeOpCode.Jump(0)` as a placeholder, record
+    a patch entry, and backpatch the operand after all ops are emitted. Add
+    both `case ExpressionOpKind.Jump:` and `case ExpressionOpKind.JumpIfConditionalFalse:`
+    to `TryFindExpressionDecline`'s allowed-op set alongside `JumpIfFalse`,
+    `JumpIfTrue`, and `JumpIfNotNullish`. When testing unified-bytecode
+    eligibility for ternary programs, assert `UnifiedBytecodeOpCode.JumpIfFalse`
+    for the condition jump — not `JumpIfShortCircuitFalse`.
 
     Note: optional-call expression programs (`box.read?.()`) also contain
     `ExpressionOpKind.Jump` but are attached to
@@ -987,6 +997,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     `default:` arm and returned `UnsupportedExpressionOp`. The fix is a single
     new `case` with a placeholder-emit-then-backpatch. No new opcodes, no VM
     changes, no resumable-path changes. ADR 0297.
+    Issue gh2794 / PR #2794 then widened production eligibility to admit
+    `ExpressionOpKind.JumpIfConditionalFalse` after the ternary compiler
+    switched from `JumpIfFalse` to the dedicated `JumpIfConditionalFalse`
+    expression op. The build-back repair updated
+    `UnifiedBytecodeProductionEligibilityTests.cs` to assert
+    `UnifiedBytecodeOpCode.JumpIfFalse` (not `JumpIfShortCircuitFalse`) for
+    the ternary condition jump, confirming the consume-semantics mapping.
+    The durable lesson: `JumpIfConditionalFalse` and statement-level
+    `JumpIfFalse` share consume semantics and the same `UnifiedBytecodeOpCode.JumpIfFalse`
+    mapping; only their expression-op kinds differ. Any future expression-level
+    conditional opcode must classify its stack effect (consume vs peek) before
+    deciding how it maps to the unified VM layer.
 
 ## Why
 

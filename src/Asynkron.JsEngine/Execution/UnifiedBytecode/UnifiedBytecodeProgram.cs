@@ -156,7 +156,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
     ImmutableArray<int> TdzHeadSlots = default,
     bool TdzHeadIsConst = false,
-    int NameConstantIndex = -1);
+    int NameConstantIndex = -1,
+    int MoveNextTarget = -1);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {

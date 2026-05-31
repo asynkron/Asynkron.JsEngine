@@ -1056,6 +1056,162 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LabeledContinueAcrossNestedForOf_ClosesInnerIteratorOnly()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeOuterIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var i = 0;
+                        return {
+                            next: function() {
+                                i = i + 1;
+                                return { done: i > 2, value: i };
+                            },
+                            return: function() {
+                                box.outerCloses = box.outerCloses + 1;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function makeInnerIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.innerCloses = box.innerCloses + 1;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        continue outerLabel;
+                    }
+                }
+
+                return (box.innerCloses * 10) + box.outerCloses;
+            }
+
+            var box = { innerCloses: 0, outerCloses: 0 };
+            probe(makeOuterIterable(box), makeInnerIterable(box), box);
+            """);
+
+        Assert.Equal(21d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledBreakAcrossNestedForOf_ClosesExitedIteratorsInnerToOuter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeOuterIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.order = box.order + "o";
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function makeInnerIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.order = box.order + "i";
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        break outerLabel;
+                    }
+                }
+
+                return box.order;
+            }
+
+            var box = { order: "" };
+            probe(makeOuterIterable(box), makeInnerIterable(box), box);
+            """);
+
+        Assert.Equal("io", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledContinueAcrossNestedForIn_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(outer, inner) {
+                var total = 0;
+                outerLabel: for (var x in outer) {
+                    for (var y in inner) {
+                        continue outerLabel;
+                    }
+
+                    total = total + 100;
+                }
+
+                return total;
+            }
+
+            probe({ a: 1, b: 2 }, { c: 3 });
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

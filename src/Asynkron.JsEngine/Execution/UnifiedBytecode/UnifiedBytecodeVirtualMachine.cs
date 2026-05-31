@@ -1259,7 +1259,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
-                    CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
+                    CleanupDriverStatesForControlTarget(instruction.Operand, program, slots, slotEnvironments, context);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -1315,7 +1315,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
-                    CleanupDriverStatesForBreakTarget(
+                    CleanupDriverStatesForControlTarget(
                         instruction.Operand,
                         program,
                         slots,
@@ -1350,6 +1350,22 @@ internal static class UnifiedBytecodeVirtualMachine
                             ref environmentStackCount))
                     {
                         break;
+                    }
+
+                    CleanupDriverStatesForControlTarget(
+                        instruction.Operand,
+                        program,
+                        slots,
+                        slotEnvironments,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
                     programCounter = instruction.Operand;
@@ -2235,10 +2251,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 return false;
             }
 
-            if (pending.Kind == AbruptKind.Break)
-            {
-                CleanupDriverStatesForBreakTarget(pending.Target, program, slots, slotEnvironments, context);
-            }
+            CleanupDriverStatesForControlTarget(pending.Target, program, slots, slotEnvironments, context);
 
             programCounter = pending.Target >= 0 ? pending.Target : nextTarget;
             return false;
@@ -3504,18 +3517,19 @@ internal static class UnifiedBytecodeVirtualMachine
         }
     }
 
-    private static void CleanupDriverStatesForBreakTarget(
-        int breakTarget,
+    private static void CleanupDriverStatesForControlTarget(
+        int controlTarget,
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         JsEnvironment?[]? slotEnvironments,
         EvaluationContext context)
     {
+        var effectiveTarget = ResolveBytecodeCleanupChainTarget(program.Instructions, controlTarget);
         List<ActiveDriverSlot>? activeDriverSlots = null;
         foreach (var descriptor in program.DriverDescriptors)
         {
-            if (descriptor.BreakTarget != breakTarget ||
-                descriptor.StateSlot < 0 ||
+            if (descriptor.StateSlot < 0 ||
+                !ShouldCleanupDriverForControlTarget(descriptor, controlTarget, effectiveTarget, program.Instructions) ||
                 !TryGetActiveDriverOrdinal(slots, descriptor.StateSlot, out var ordinal))
             {
                 continue;
@@ -4354,6 +4368,56 @@ internal static class UnifiedBytecodeVirtualMachine
                 slots[i] = environment.GetSlotByIndex(i).Value;
             }
         }
+    }
+
+    private static bool ShouldCleanupDriverForControlTarget(
+        UnifiedBytecodeDriverDescriptor descriptor,
+        int controlTarget,
+        int effectiveTarget,
+        ImmutableArray<UnifiedBytecodeInstruction> instructions)
+    {
+        if (descriptor.BreakTarget < 0)
+        {
+            return false;
+        }
+
+        var effectiveBreakTarget = ResolveBytecodeCleanupChainTarget(instructions, descriptor.BreakTarget);
+        if (controlTarget == descriptor.BreakTarget ||
+            effectiveTarget == descriptor.BreakTarget ||
+            controlTarget == effectiveBreakTarget ||
+            effectiveTarget == effectiveBreakTarget)
+        {
+            return true;
+        }
+
+        if (descriptor.MoveNextTarget < 0)
+        {
+            return false;
+        }
+
+        if (effectiveTarget == descriptor.MoveNextTarget)
+        {
+            return false;
+        }
+
+        return effectiveTarget < descriptor.MoveNextTarget ||
+               effectiveTarget >= effectiveBreakTarget;
+    }
+
+    private static int ResolveBytecodeCleanupChainTarget(
+        ImmutableArray<UnifiedBytecodeInstruction> instructions,
+        int target)
+    {
+        var current = target;
+        var remainingCleanupDepth = instructions.Length;
+        while ((uint)current < (uint)instructions.Length &&
+               remainingCleanupDepth-- > 0 &&
+               instructions[current].OpCode is UnifiedBytecodeOpCode.PopEnvironment or UnifiedBytecodeOpCode.LeaveWith)
+        {
+            current++;
+        }
+
+        return current;
     }
 
     // Synchronous non-spread construct call (`new F(...)`, gh2690). Mirrors the

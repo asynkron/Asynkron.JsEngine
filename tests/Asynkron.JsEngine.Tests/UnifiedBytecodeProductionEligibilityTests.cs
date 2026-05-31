@@ -2442,25 +2442,17 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledContinueCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    public void Evaluate_LabeledContinueCrossingDriverLoop_DeclinesWhenCompilerLoopShapeIsStillUnsupported()
     {
-        // A labeled continue that re-enters an outer loop from inside an enclosing for-of driver
-        // loop would leak the inner iterator (the VM continue path performs no driver cleanup), so
-        // it must decline before VM execution to preserve no-mixed-execution.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
-                var total = 0;
                 outerLabel: for (var x of outer) {
                     for (var y of inner) {
-                        if (y === 1) {
-                            continue outerLabel;
-                        }
-
-                        total = total + 1;
+                        continue outerLabel;
                     }
                 }
 
-                return total;
+                return 0;
             }
             """,
             "labeled");
@@ -2470,16 +2462,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("Unsupported loop control flow", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    public void Evaluate_LabeledBreakCrossingDriverLoop_Accepts()
     {
-        // A labeled break that exits an enclosing for-of driver loop it is not directly targeting
-        // (here: break outerLabel from inside the inner for-of) would leave the inner iterator
-        // active, because the VM's single-level driver cleanup only closes the driver whose break
-        // target equals the jump target. Decline before VM execution to preserve no-mixed-execution.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 outerLabel: for (var x of outer) {
@@ -2499,8 +2488,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledContinueCrossingForInDriverLoop_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function labeled(outer, inner) {
+                var total = 0;
+                outerLabel: for (var x in outer) {
+                    for (var y in inner) {
+                        continue outerLabel;
+                    }
+
+                    total = total + 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
     }
 
     [Fact]

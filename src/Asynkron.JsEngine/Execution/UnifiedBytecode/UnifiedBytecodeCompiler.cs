@@ -535,17 +535,17 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
 
-                if (activeInstructions.Contains(instructionIndex))
-                {
-                    reason = $"Loop-shaped unified bytecode plan detected at instruction {instructionIndex}.";
-                    return false;
-                }
-
                 if (instructionPcMap.TryGetValue(instructionIndex, out var existingProgramCounter))
                 {
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, existingProgramCounter));
                     reason = string.Empty;
                     return true;
+                }
+
+                if (activeInstructions.Contains(instructionIndex))
+                {
+                    reason = $"Loop-shaped unified bytecode plan detected at instruction {instructionIndex}.";
+                    return false;
                 }
 
                 activeInstructions.Add(instructionIndex);
@@ -2280,16 +2280,16 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (activeInstructions.Contains(targetIndex))
-        {
-            reason = $"Loop-shaped unified bytecode plan detected at instruction {targetIndex}.";
-            return false;
-        }
-
         if (instructionPcMap.ContainsKey(targetIndex))
         {
             reason = string.Empty;
             return true;
+        }
+
+        if (activeInstructions.Contains(targetIndex))
+        {
+            reason = $"Loop-shaped unified bytecode plan detected at instruction {targetIndex}.";
+            return false;
         }
 
         return TryCompileBlock(
@@ -2531,7 +2531,8 @@ internal static class UnifiedBytecodeCompiler
             new UnifiedBytecodeDriverDescriptor(
                 stateSlot,
                 ValueSlot: valueSlot,
-                NextTarget: unified.Count + 1));
+                NextTarget: unified.Count + 1,
+                MoveNextTarget: unified.Count));
         unified.Add(new UnifiedBytecodeInstruction(opCode, descriptorIndex));
 
         if (!TryCompileTarget(
@@ -2815,12 +2816,25 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (instructions[sourceInstructionIndex] is JumpInstruction { TargetIndex: var jumpTargetIndex } &&
+            jumpTargetIndex == targetIndex)
+        {
+            return true;
+        }
+
+        if (instructions[sourceInstructionIndex] is SetCompletionValueInstruction { Next: var completionNext } &&
+            completionNext == targetIndex)
+        {
+            return true;
+        }
+
         // A per-iteration lexical head (for (const/let x in/of ...)) closes its environment with a
         // PopEnvironment immediately before looping back to the driver's MoveNext. That PopEnvironment
         // is a valid back-edge source: the canonical-body walk below still requires the body between
         // the MoveNext and this Pop to be linear, so no branching control flow is admitted.
         if (instructions[sourceInstructionIndex] is not AssignmentSlotInstruction and not
-            CompoundAssignmentSlotInstruction and not JumpInstruction and not PopEnvironmentInstruction)
+            CompoundAssignmentSlotInstruction and not JumpInstruction and not PopEnvironmentInstruction and not
+            SetCompletionValueInstruction)
         {
             return false;
         }

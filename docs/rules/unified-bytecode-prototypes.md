@@ -927,13 +927,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     atomically; both the taken branch and the fall-through branch leave
     exactly one value on the operand stack.
 
-    Chained optional forms (`a?.b?.c`, `a?.[k]?.b`) use
-    `ShortCircuitOnNullishTarget:true` on the second hop. Admitting these
-    requires either a sentinel-value propagation scheme or an owned
-    `JumpIfShortCircuited` opcode — both are separate future slices.
-    `OptionalChainDependency` is **narrowed, not removed**: the simple
-    admitted shapes lift the decline; multi-hop chains, assignment targets,
-    and super-optional forms retain the decline reason.
+    Named multi-hop optional chains (`a?.b.c`, `a?.b?.c`) are admitted by
+    PR #2804 / ADR 0298 via jump-based lowering — see lesson below. Computed
+    multi-hop chains (`a?.[k]?.b`, `a?.b?.[k]`), assignment targets, and
+    super-optional forms still retain `OptionalChainDependency`.
+    `OptionalChainDependency` is **narrowed, not removed**: admitted named-chain
+    forms lift the decline; genuinely unsupported forms retain the explicit
+    decline reason.
 
     Apply dual-dispatch completeness (rule #41): new opcodes must appear in
     both the sync `Execute` switch and the `ExecuteResumable` switch;
@@ -969,11 +969,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     NOT `JumpIfShortCircuited`. The `JumpIfShortCircuited` opcode appears only
     in call-target expression programs; property-read chains propagate the null
     sentinel through `ShortCircuitOnNullishTarget:true` on each regular hop.
-    Admission discriminator: first hop requires `IsOptional:true,
-    ShortCircuitOnNullishTarget:false`; each subsequent hop requires
-    `IsOptional:false, ShortCircuitOnNullishTarget:true`. A double-optional
-    second hop (`a?.b?.c`) has `IsOptional:true` on that hop and must remain
-    declined until a sentinel-propagation slice owns it.
+    Admission discriminator for the `a?.b.c` shape admitted in this batch:
+    first hop requires `IsOptional:true, ShortCircuitOnNullishTarget:false`;
+    each subsequent regular hop requires `IsOptional:false,
+    ShortCircuitOnNullishTarget:true`. A double-optional second hop
+    (`a?.b?.c`) has `IsOptional:true` on that hop; this form was admitted in
+    the following batch (issue `aae6bde47e` / PR #2804) via jump-based lowering
+    rather than the sentinel-propagation scheme originally anticipated.
     (b) **Variable-length vs fixed-count predicates**: `TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate`
     loops over ≥3 ops for any-length named chain; `TryIsFirstBoundaryOptionalNamedThenComputedCandidate`
     checks exactly 4 ops because `a?.b[k]` has a fixed shape. When admitting a
@@ -1085,6 +1087,38 @@ all-or-nothing until a separate routing issue proves production readiness.
     deviations from originally planned acceptance criteria explicitly in test
     comments so future agents do not re-open the question or silently drop the
     acceptance requirement.
+
+    Issue `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-aae6bde47e`
+    / PR #2804 admitted **multi-hop optional named chains** (`a?.b.c`,
+    `a?.b?.c`) via jump-based lowering reusing the existing
+    `JumpIfNullishReplaceUndefined` opcode (ADR 0298). Key lessons:
+    (a) **Jump-based lowering — no new opcode**: the original plan sketched
+    a new `JumpIfShortCircuitNullish` VM opcode and a sentinel-value
+    propagation scheme. The simpler approach was to emit
+    `JumpIfNullishReplaceUndefined(chain-end)` for *each* optional hop and
+    leave non-optional continuation hops as plain `GetNamedProperty`. All
+    `JumpIfNullishReplaceUndefined` jumps in the chain target the **same**
+    chain-end PC, so a nullish value at any hop short-circuits the entire
+    remainder to `undefined` in one jump — no propagation flag needed. Zero
+    VM changes were required.
+    (b) **Real-undefined vs nullish distinction**: `a?.b.c` where `a.b`
+    evaluates to actual `undefined` (non-nullish, e.g. `a = { b: undefined }`)
+    still throws `TypeError` on the `.c` read, because the `ShortCircuitOnNullishTarget:true`
+    continuation hop is a plain `GetNamedProperty` that runs on the real
+    `undefined` value. `a?.b?.c` differs: the second `?.` emits its own
+    `JumpIfNullishReplaceUndefined(chain-end)`, so an actual-undefined `a.b`
+    short-circuits to `undefined` without throwing.
+    (c) **Admission discriminator widened**: `TryIsFirstBoundaryOptionalNamedChainCandidate`
+    accepts `[activation-base, GetNamedProperty(IsOptional:true), GetNamedProperty(ShortCircuit:true or IsOptional:true)+]`.
+    Continuation hops may be either plain-continuation (`IsOptional:false,
+    ShortCircuitOnNullishTarget:true`) or another optional hop (`IsOptional:true`).
+    The compiler emits `JumpIfNullishReplaceUndefined(chain-end)` for
+    `IsOptional:true` hops and plain `GetNamedProperty` for
+    `ShortCircuitOnNullishTarget:true` hops.
+    (d) **Deferred forms**: computed multi-hop chains (`a?.b?.[k]`,
+    `a?.[k]?.b`), optional-then-computed (`a?.b[k]?.c`), assignment targets,
+    super-optional, and dynamic-lookup chains still decline as
+    `OptionalChainDependency`.
 
 ## Why
 
@@ -1435,3 +1469,4 @@ Related ADRs:
 - `docs/adrs/0295-admit-property-read-short-circuit-expressions-simple-rhs-owned.md`
 - `docs/adrs/0296-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`
+- `docs/adrs/0298-admit-multi-hop-optional-named-chains-in-unified-bytecode-jump-based-lowering.md`

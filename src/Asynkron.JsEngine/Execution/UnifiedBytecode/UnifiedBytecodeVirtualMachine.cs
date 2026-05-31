@@ -1241,6 +1241,16 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     ApplyObjectLiteralSpread(objectSpreadTarget, objectSpreadValue, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
                     programCounter++;
                     break;
 

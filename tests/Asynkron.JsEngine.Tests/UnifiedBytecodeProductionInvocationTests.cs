@@ -4974,6 +4974,53 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ObjectSpreadGetterThrow_StopsBeforeLaterSpread_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var order = [];
+            function spreadObject(source, after) {
+                return { ...source, ...after };
+            }
+
+            var source = {};
+            Object.defineProperty(source, "a", {
+                get: function () {
+                    order.push("source");
+                    throw new RangeError("boom");
+                },
+                enumerable: true
+            });
+
+            var after = {};
+            Object.defineProperty(after, "b", {
+                get: function () {
+                    order.push("after");
+                    return 2;
+                },
+                enumerable: true
+            });
+
+            var message = "none";
+            try {
+                spreadObject(source, after);
+            } catch (error) {
+                message = error instanceof RangeError ? error.message : "wrong";
+            }
+
+            [message, order.join(",")];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("boom", steps.Items[0].AsString());
+        Assert.Equal("source", steps.Items[1].AsString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadObject argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallWithMixedScalarAndArrayLiteralArgs_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

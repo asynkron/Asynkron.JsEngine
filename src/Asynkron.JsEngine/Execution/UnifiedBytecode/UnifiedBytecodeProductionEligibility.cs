@@ -34,9 +34,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     DestructuringDependency,
     LabelControlFlow,
     BreakOrContinueControlFlow,
-    PrototypeOnlyBinaryOpcode,
-    PrototypeOnlyJumpOpcode,
-    PrototypeOnlyJumpIfFalseOpcode,
     UnsupportedPlanShape,
     CallInvocationBoundary
 }
@@ -1265,7 +1262,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.Binary:
                     if (!IsProductionBinaryOperator(operation.Operator))
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
+                        declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                         declineReason =
                             $"Binary operator '{FormatBinaryOperator(operation.Operator)}' is not eligible for production unified bytecode routing.";
                         return true;
@@ -3507,7 +3504,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (!TryDecodeBinaryOperator(instruction, out var binaryOperator) ||
                         !IsProductionBinaryOperator(binaryOperator))
                     {
-                        TryGetPrototypeOnlyBinaryDecline(instruction, out declineCode, out declineReason);
+                        TryGetUnsupportedBinaryDecline(instruction, out declineCode, out declineReason);
                         return true;
                     }
 
@@ -3594,21 +3591,21 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static void TryGetPrototypeOnlyBinaryDecline(
+    private static void TryGetUnsupportedBinaryDecline(
         UnifiedBytecodeInstruction instruction,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
-        declineCode = UnifiedBytecodeProductionDeclineCode.PrototypeOnlyBinaryOpcode;
+        declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
         if (!TryDecodeBinaryOperator(instruction, out var binaryOperator))
         {
             declineReason =
-                $"Binary opcode is prototype-only for production unified bytecode routing (unknown operator operand {instruction.Operand}).";
+                $"Binary opcode uses unknown operator operand {instruction.Operand}, so the plan shape is outside production unified bytecode routing.";
             return;
         }
 
         declineReason =
-            $"Binary operator '{FormatBinaryOperator(binaryOperator)}' is prototype-only for production unified bytecode routing.";
+            $"Binary operator '{FormatBinaryOperator(binaryOperator)}' is outside the production unified bytecode operator subset.";
     }
 
     private static bool TryDecodeBinaryOperator(

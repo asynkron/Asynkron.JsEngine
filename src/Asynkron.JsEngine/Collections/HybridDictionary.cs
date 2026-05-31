@@ -17,10 +17,7 @@ public sealed class HybridDictionary<TValue> : IDictionary<string, TValue>
     private const int CutoverPoint = 9;
     private int _count;
 
-    // Large object storage - full dictionary
     private Dictionary<string, TValue>? _dictionary;
-
-    // Small object storage - array of key-value pairs
     private Entry[]? _entries;
 
     public int Count

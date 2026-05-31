@@ -4651,6 +4651,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
+    [InlineData(
+        """
+        class Child extends Base {
+            update(key, value) {
+                return super[key] &&= value;
+            }
+        }
+        """,
+        "Child",
+        "update",
+        (int)UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedComplexKeyWrite(box, key, suffix, value) {
+            return box[key + suffix] &&= value;
+        }
+        """,
+        "logicalAndComputedComplexKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedComplexRhsWrite(box, key, value) {
+            return box[key] &&= (value + 1);
+        }
+        """,
+        "logicalAndComputedComplexRhsWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
         string source,
         string functionOrClassName,

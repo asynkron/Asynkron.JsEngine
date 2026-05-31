@@ -1688,6 +1688,29 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     `LoadClassLiteral`, confirming that every newly VM-executed opcode must
     update the contract inventory as part of the delivery slice.
 
+50. When widening production unified-bytecode construct routing beyond the
+    identifier-only `new F(...)` lane, keep constructor-target recognition
+    anchored to the terminal `Construct` op and reuse already-owned
+    property-read and spread-boundary machinery instead of inventing a
+    construct-only target-preparation lane or VM fallback. Named constructor
+    targets may use ordinary non-optional `GetNamedProperty`; computed
+    constructor targets may use only the exact ordinary-read sequence
+    activation-resolved base load, simple key load,
+    `RequireObjectCoercible(Depth: 1)`, `ResolvePropertyKey`, then
+    `GetComputedProperty`; spread arguments must keep the existing
+    invocation-boundary spread-mask encoding and left-to-right flattening. When
+    the widening requires a generic opcode such as
+    `RequireObjectCoercible` to become prototype-compiler-owned outside an
+    older boundary assumption, update prototype tests in the same slice:
+    replace stale "outside boundary decline" assertions with positive
+    opcode-stream proof for the now-owned surface. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-0be1791f55`
+    / PR #2861 widened construct routing to spread/member/computed constructor
+    targets and reused the existing computed-property and spread-boundary
+    semantics. The merged build-back repair then had to fix a stale prototype
+    assertion for `box[left + right]`, proving that construct-boundary
+    widening and prototype compiler-surface expectations drift together.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`

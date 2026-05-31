@@ -125,6 +125,6 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] (open, [gh2843](https://github.com/asynkron/Asynkron.JsEngine/issues/2843)) Reduce `PropertyDescriptor` allocations in the computed symbol assignment path (`obj[symbol] = value`), grounded in `docs/performance/symbol-propertyaccess-owner-evidence.md`.
 - [x] (landed, [gh2844](https://github.com/asynkron/Asynkron.JsEngine/issues/2844)) Admitted direct computed member logical assignment in unified bytecode (`obj[k] &&=`, `||=`, `??=`) across compiler, eligibility, VM/opcode contract, and focused tests, synchronized with ADR 0302 boundaries for remaining declines.
 - [ ] (open, [gh2905](https://github.com/asynkron/Asynkron.JsEngine/issues/2905)) Tighten SLO gate beyond committed baselines — add comparison/tolerance evidence and keep baseline protection separate from Node.js-competitive SLO claims.
-- [ ] (open, [gh2906](https://github.com/asynkron/Asynkron.JsEngine/issues/2906)) Cut `PropertyDescriptor` allocations in computed symbol assignment — one owner-local runtime slice from `docs/performance/symbol-propertyaccess-owner-evidence.md`.
+- [ ] (open, [gh2906](https://github.com/asynkron/Asynkron.JsEngine/issues/2906)) Recheck residual `PropertyDescriptor` allocation evidence after the gh2843 / PR #2846 computed symbol assignment fast path, and either close the follow-up as already delivered or scope a distinct remaining owner from `docs/performance/symbol-propertyaccess-owner-evidence.md`.
 
 _Generated and maintained by the recurring Roadmapper run._

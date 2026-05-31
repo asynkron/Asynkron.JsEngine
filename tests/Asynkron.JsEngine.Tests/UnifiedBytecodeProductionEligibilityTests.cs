@@ -2442,7 +2442,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledContinueCrossingDriverLoop_DeclinesWhenCompilerLoopShapeIsStillUnsupported()
+    public void Evaluate_LabeledContinueCrossingDriverLoop_Accepts()
     {
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
@@ -2461,9 +2461,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("Unsupported loop control flow", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
     }
 
     [Fact]

@@ -2828,6 +2828,23 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (instructions[sourceInstructionIndex] is LeaveTryInstruction { Next: var leaveTryNext } &&
+            leaveTryNext == targetIndex)
+        {
+            return true;
+        }
+
+        if (instructions[sourceInstructionIndex] is EndFinallyInstruction { Next: var endFinallyNext } &&
+            endFinallyNext == targetIndex)
+        {
+            return true;
+        }
+
+        if (IsSupportedAbruptCleanupDriverLoopBackEdge(sourceInstructionIndex, targetIndex, instructions))
+        {
+            return true;
+        }
+
         // A per-iteration lexical head (for (const/let x in/of ...)) closes its environment with a
         // PopEnvironment immediately before looping back to the driver's MoveNext. That PopEnvironment
         // is a valid back-edge source: the canonical-body walk below still requires the body between
@@ -2841,6 +2858,29 @@ internal static class UnifiedBytecodeCompiler
 
         return TryIsLinearCanonicalWhileBody(bodyStartIndex, sourceInstructionIndex, instructions) &&
                !HasExplicitJumpIntoLoopBackEdgeSource(sourceInstructionIndex, instructions);
+    }
+
+    private static bool IsSupportedAbruptCleanupDriverLoopBackEdge(
+        int sourceInstructionIndex,
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        if (instructions[sourceInstructionIndex] is not PopEnvironmentInstruction popEnvironment ||
+            popEnvironment.Next != targetIndex)
+        {
+            return false;
+        }
+
+        foreach (var instruction in instructions)
+        {
+            if (instruction is ContinueInstruction { TargetIndex: var continueTarget } &&
+                continueTarget == sourceInstructionIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsSupportedBranchConsequentBackEdge(

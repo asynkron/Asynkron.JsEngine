@@ -2141,8 +2141,9 @@ internal static class UnifiedBytecodeVirtualMachine
         int target,
         int loopBreakTarget)
     {
-        foreach (var descriptor in program.DriverDescriptors)
+        for (var index = program.DriverDescriptors.Length - 1; index >= 0; index--)
         {
+            var descriptor = program.DriverDescriptors[index];
             // The inner driver can already be closed when its pending break reaches an outer frame.
             // Use descriptor topology instead of active driver state to mirror the runner's breakable stack.
             if (descriptor.BreakTarget < 0)
@@ -2153,6 +2154,11 @@ internal static class UnifiedBytecodeVirtualMachine
             if (IsSameLoopControlTarget(program, target, descriptor.BreakTarget))
             {
                 return descriptor.BreakTarget != loopBreakTarget;
+            }
+
+            if (descriptor.BreakTarget == loopBreakTarget)
+            {
+                return false;
             }
         }
 

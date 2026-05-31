@@ -1107,14 +1107,19 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                     }
                 }
 
-                return (box.innerCloses * 10) + box.outerCloses;
+                return 0;
             }
 
             var box = { innerCloses: 0, outerCloses: 0 };
             probe(makeOuterIterable(box), makeInnerIterable(box), box);
+            (box.innerCloses * 10) + box.outerCloses;
             """);
 
-        Assert.Equal(21d, result);
+        Assert.Equal(20d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=3",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

@@ -81,4 +81,38 @@ public sealed class PropertyAccessFastPathTests(ITestOutputHelper output) : Inte
 
         Assert.Equal(31.0, result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Property_Add_Chain_Preserves_Getter_Order()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var reads = [];
+            var obj = {
+                get x() { reads.push("x"); return 1; },
+                get y() { reads.push("y"); return 2; },
+                get z() { reads.push("z"); return 3; }
+            };
+            var sum = obj.x + obj.y + obj.z;
+            sum + ":" + reads.join(",");
+        """);
+
+        Assert.Equal("6:x,y,z", result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Property_Add_Chain_Preserves_String_Addition_Semantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var obj = {
+                x: "a",
+                y: 1,
+                z: 2
+            };
+            obj.x + obj.y + obj.z;
+        """);
+
+        Assert.Equal("a12", result);
+    }
 }

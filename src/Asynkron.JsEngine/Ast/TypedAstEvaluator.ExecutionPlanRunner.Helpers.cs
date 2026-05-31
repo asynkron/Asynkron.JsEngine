@@ -247,6 +247,16 @@ public static partial class TypedAstEvaluator
                 return simpleNumericResult;
             }
 
+            if (program.IsSimpleNamedPropertyChainCandidate &&
+                TryEvaluateSimpleNamedPropertyChainExpressionProgram(
+                    program,
+                    environment,
+                    context,
+                    out var simpleNamedPropertyResult))
+            {
+                return simpleNamedPropertyResult;
+            }
+
             var literalConstants = program.LiteralConstants.AsSpan();
             var stringConstants = program.StringConstants.AsSpan();
             var objectConstants = program.ObjectConstants.AsSpan();
@@ -1405,6 +1415,126 @@ public static partial class TypedAstEvaluator
                                     operation.Operator,
                                     left.NumberValue,
                                     right.NumberValue);
+                                break;
+                            }
+
+                        default:
+                            return false;
+                    }
+                }
+
+                result = stackIndex > 0 ? stack[stackIndex - 1] : JsValue.Undefined;
+                return true;
+            }
+            finally
+            {
+                if (stackBuffer is not null)
+                {
+                    stack.Slice(0, stackIndex).Clear();
+                    ArrayPool<JsValue>.Shared.Return(stackBuffer, clearArray: false);
+                }
+            }
+        }
+
+        private bool TryEvaluateSimpleNamedPropertyChainExpressionProgram(
+            ExpressionProgram program,
+            JsEnvironment environment,
+            EvaluationContext context,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+
+            if (!context.AllowIdentifierCache || environment.HasWithObjectInChain())
+            {
+                return false;
+            }
+
+            var stringConstants = program.StringConstants.AsSpan();
+            var identifierConstants = program.IdentifierConstants.AsSpan();
+            var operationCount = program.OperationCount;
+            var stackSize = Math.Max(program.MaxStackDepth, 1);
+            var inlineStackBuffer = default(InlineExpressionStackBuffer);
+            JsValue[]? stackBuffer = null;
+            var usePooledBuffer = stackSize > InlineExpressionStackCapacity;
+            Span<JsValue> stack = usePooledBuffer
+                ? (stackBuffer = ArrayPool<JsValue>.Shared.Rent(stackSize)).AsSpan(0, stackSize)
+                : MemoryMarshal.CreateSpan(ref inlineStackBuffer[0], InlineExpressionStackCapacity).Slice(0, stackSize);
+            var stackIndex = 0;
+
+            try
+            {
+                for (var programCounter = 0; programCounter < operationCount; programCounter++)
+                {
+                    var operation = program.GetOperation(programCounter);
+                    switch (operation.Kind)
+                    {
+                        case ExpressionOpKind.LoadIdentifier:
+                            {
+                                var identifier = operation.GetIdentifier(identifierConstants);
+                                stack[stackIndex++] = EvaluateProgramIdentifier(
+                                    identifier.Name,
+                                    identifier.ScopeId,
+                                    identifier.SlotIndex,
+                                    identifier.FlatSlotId,
+                                    isArguments: false,
+                                    environment,
+                                    context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    result = JsValue.Undefined;
+                                    return true;
+                                }
+
+                                break;
+                            }
+
+                        case ExpressionOpKind.RequireObjectCoercible:
+                            {
+                                var checkIndex = stackIndex - 1 - operation.Depth;
+                                if (stack[checkIndex].IsNullOrUndefined)
+                                {
+                                    throw StandardLibrary.ThrowTypeError(
+                                        "Cannot read properties of null or undefined",
+                                        context,
+                                        context.RealmState);
+                                }
+
+                                break;
+                            }
+
+                        case ExpressionOpKind.GetNamedProperty:
+                            {
+                                stack[stackIndex - 1] = GetProgramNamedPropertyValue(
+                                    stack[stackIndex - 1],
+                                    targetWasShortCircuited: false,
+                                    operation.GetString(stringConstants),
+                                    isOptional: false,
+                                    context,
+                                    out _);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    result = JsValue.Undefined;
+                                    return true;
+                                }
+
+                                break;
+                            }
+
+                        case ExpressionOpKind.Binary:
+                            {
+                                var right = stack[--stackIndex];
+                                var left = stack[stackIndex - 1];
+                                stack[stackIndex - 1] = ApplyProgramBinaryOperator(
+                                    operation.Operator,
+                                    left,
+                                    right,
+                                    context);
+                                if (context.ShouldStopEvaluation)
+                                {
+                                    result = JsValue.Undefined;
+                                    return true;
+                                }
+
                                 break;
                             }
 

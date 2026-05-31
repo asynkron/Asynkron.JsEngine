@@ -28,6 +28,16 @@ optimization.
     caught a stale generated-output path and missing audit-exclusion guidance
     during review; future agents should not let generated trace files pollute a
     documentation-maintenance search or reintroduce `tools/profile/generated/`.
+2c. Do not optimize the issue-title suspect when focused profiling does not
+    show it as the runtime owner. If the measured call tree points at a
+    different owner, record the non-owner explicitly and slice the next change
+    around the observed path instead of speculatively changing adjacent storage
+    or helper types. WHY: issue #2829 / PR #2833 targeted
+    `SymbolHybridDictionary<TValue>` after PR #2816, but the
+    `symbol-propertyaccess` CPU/memory evidence showed computed symbol
+    assignment and `JsObject.GetOwnPropertyDescriptor` / `PropertyDescriptor`
+    allocation as the bounded owner, while `SymbolHybridDictionary<TValue>` was
+    not observed as a runtime consumer in that path.
 3. Preserve `PERF_PROFILES` override behavior when changing aggregate profiler
    defaults. Default guardrails may expand, but operators must still be able to
    run a narrowed profile set.

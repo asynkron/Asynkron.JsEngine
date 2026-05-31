@@ -585,6 +585,17 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 break;
 
+            case LogicalCompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
+                if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                    declineReason =
+                        $"Logical compound assignment target '{targetSymbol.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                    return true;
+                }
+
+                break;
+
             case IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId }:
                 if (!TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
                 {
@@ -853,6 +864,14 @@ internal static class UnifiedBytecodeProductionEligibility
                         // a?.b.c / a?.b?.c chain, or a?.b[k] shape.
                         if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots) ||
                             TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
+                        // a?.b.c() / a?.b?.c() optional call-chain forms (Case 4/5):
+                        // isCallTargetPreparationCandidate is set by TryIsFirstBoundaryCallTargetPreparationCandidate
+                        // which already accepted the program via the optional call-chain candidates.
+                        if (isCallTargetPreparationCandidate)
                         {
                             break;
                         }
@@ -1807,7 +1826,9 @@ internal static class UnifiedBytecodeProductionEligibility
         // them first so the dedicated optional candidates own these shapes.
         if (TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots))
+            TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots) ||
+            TryIsFirstBoundaryOptionalChainPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
+            TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(program, identifierConstants, stringConstants, activationSlots))
         {
             return true;
         }
@@ -2045,6 +2066,135 @@ internal static class UnifiedBytecodeProductionEligibility
                    computedCallTargetIndex + 2,
                    call,
                    callIndex);
+    }
+
+    // Case 4: a?.b.c() — optional-start chain, plain non-optional call
+    // Expression program: [base(0), GetNamedProperty(IsOptional:true,b)(1), JumpIfShortCircuited(2),
+    //                       LoadNamedCallTarget(c)(3), args..., Call]
+    private static bool TryIsFirstBoundaryOptionalChainPlainCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, LoadNamedCallTarget, Call] = 5
+        if (program.OperationCount < 5)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        // LoadNamedCallTarget must be at index 3 exactly (base + optional hop + JumpIfShortCircuited).
+        if (namedCallTargetIndex != 3)
+        {
+            return false;
+        }
+
+        // op[2] = JumpIfShortCircuited
+        if (program.GetOperation(2).Kind != ExpressionOpKind.JumpIfShortCircuited)
+        {
+            return false;
+        }
+
+        // op[1] = GetNamedProperty(IsOptional:true, !SC, non-private)
+        var firstHop = program.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+        {
+            return false;
+        }
+
+        // op[0] = activation-resolved base
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        // LoadNamedCallTarget must not be private
+        var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+        if (namedCallTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        return HasSimpleCallArguments(program, identifierConstants, activationSlots, namedCallTargetIndex + 1, call);
+    }
+
+    // Case 5: a?.b?.c() — double-optional chain, receiver-optional call
+    // Expression program: [base(0), GetNamedProperty(IsOptional:true,b)(1), JumpIfShortCircuited(2),
+    //                       JumpIfNullish(ReplaceWithUndefined:true)(3), LoadNamedCallTarget(c)(4), args..., Call]
+    private static bool TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, JumpIfNullish, LoadNamedCallTarget, Call] = 6
+        if (program.OperationCount < 6)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
+        // LoadNamedCallTarget must be at index 4 exactly.
+        if (namedCallTargetIndex != 4)
+        {
+            return false;
+        }
+
+        // op[3] = JumpIfNullish(ReplaceWithUndefined:true)
+        var jumpNullish = program.GetOperation(3);
+        if (jumpNullish.Kind != ExpressionOpKind.JumpIfNullish || !jumpNullish.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        // op[2] = JumpIfShortCircuited
+        if (program.GetOperation(2).Kind != ExpressionOpKind.JumpIfShortCircuited)
+        {
+            return false;
+        }
+
+        // op[1] = GetNamedProperty(IsOptional:true, !SC, non-private)
+        var firstHop = program.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+        {
+            return false;
+        }
+
+        // op[0] = activation-resolved base
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        // LoadNamedCallTarget must not be private
+        var namedCallTarget = program.GetOperation(namedCallTargetIndex);
+        if (namedCallTarget.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        return HasSimpleCallArguments(program, identifierConstants, activationSlots, namedCallTargetIndex + 1, call);
     }
 
     // Returns true and the index of the Call op when the expression program ends with
@@ -2877,6 +3027,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
             case CompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } rhsProgram }:
                 program = rhsProgram;
+                return true;
+
+            case LogicalCompoundAssignmentSlotInstruction { AwaitedProgram: null, RhsProgram: { } logicalRhsProgram }:
+                program = logicalRhsProgram;
                 return true;
 
             case EvaluateAndDiscardInstruction { ExpressionProgram: { } expressionProgram }:

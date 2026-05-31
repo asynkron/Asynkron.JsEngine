@@ -228,4 +228,96 @@ public sealed class OptionalChainingTests(ITestOutputHelper output) : InternalTe
         var result = await engine.Evaluate("(function foo() {}?.name)");
         Assert.Equal("foo", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainPlainCall_NullBase_YieldsUndefined()
+    {
+        // gh2806 AC-2: a?.b.c() — null base short-circuits to undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a) { return a?.box.read(); }
+            invoke(null);
+            """);
+        Assert.True(result is Symbol { Name: "undefined" });
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainPlainCall_RealBase_CallsCorrectly()
+    {
+        // gh2806 AC-2: a?.b.c() — real base resolves and calls c on a.b with correct receiver.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, value) { return a?.box.read(value); }
+            let obj = { box: { value: 0, read(v) { this.value = v; return this.value; } } };
+            invoke(obj, 42);
+            """);
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainPlainCall_BaseEvaluatedOnce()
+    {
+        // gh2806 AC-2: base expression must be evaluated exactly once.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let calls = 0;
+            function getA() { calls++; return { box: { read() { return 7; } } }; }
+            function invoke(fn) { return fn()?.box.read(); }
+            invoke(getA);
+            calls;
+            """);
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainReceiverOptionalCall_NullBase_YieldsUndefined()
+    {
+        // gh2806 AC-3: a?.b?.c() — null a short-circuits to undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a) { return a?.box?.read(); }
+            invoke(null);
+            """);
+        Assert.True(result is Symbol { Name: "undefined" });
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainReceiverOptionalCall_NullIntermediate_YieldsUndefined()
+    {
+        // gh2806 AC-3: a?.b?.c() — null a.b short-circuits to undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a) { return a?.box?.read(); }
+            invoke({ box: null });
+            """);
+        Assert.True(result is Symbol { Name: "undefined" });
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainReceiverOptionalCall_RealChain_CallsCorrectly()
+    {
+        // gh2806 AC-3: a?.b?.c() — real chain calls c on a.b with correct receiver.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, value) { return a?.box?.read(value); }
+            let obj = { box: { value: 0, read(v) { this.value = v; return this.value; } } };
+            invoke(obj, 99);
+            """);
+        Assert.Equal(99d, result);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task OptionalChainReceiverOptionalCall_BaseEvaluatedOnce()
+    {
+        // gh2806 AC-3: base expression must be evaluated exactly once.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let calls = 0;
+            function getA() { calls++; return { box: { read() { return 5; } } }; }
+            function invoke(fn) { return fn()?.box?.read(); }
+            invoke(getA);
+            calls;
+            """);
+        Assert.Equal(1d, result);
+    }
 }

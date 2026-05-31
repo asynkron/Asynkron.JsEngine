@@ -34,7 +34,7 @@ The JsEngine has two separate generator execution paths:
      assigned to a JavaScript variable.
    Before introducing a new `JsObject`-based path for iterator results in any
    generator execution path, verify that `IteratorResultObject` does not already
-   apply. Related ADR: `docs/adrs/0290-reduce-iterator-result-allocation-resumable-generator.md`.
+   apply. Related ADR: `docs/adrs/0299-reduce-iterator-result-allocation-resumable-generator.md`.
 
 ## Why
 

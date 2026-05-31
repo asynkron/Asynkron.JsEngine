@@ -1120,6 +1120,55 @@ all-or-nothing until a separate routing issue proves production readiness.
     super-optional, and dynamic-lookup chains still decline as
     `OptionalChainDependency`.
 
+44. When admitting multi-hop optional call chains (`a?.b.c()`, `a?.b?.c()`)
+    to production unified bytecode, classify by where the `?.` appears relative
+    to the call member, and set `isCallTargetPreparationCandidate` before the
+    per-op decline loop reaches any `GetNamedProperty(IsOptional:true)`:
+
+    - **`a?.b.c()` (Case 4)** — optional-start chain, plain non-optional call:
+      the IR emits `[base, GetNamedProperty(IsOptional:true, b), JumpIfShortCircuited,
+      LoadNamedCallTarget(c), args..., Call]`.
+      `JumpIfShortCircuited` is produced by the IR builder whenever
+      `HasOptionalChaining(member.Target)` is true, even when the call member
+      itself is non-optional. Lowers to:
+      `LoadSlot(base)`, `JumpIfNullishReplaceUndefined(end)`,
+      `GetNamedProperty(b)`, `PrepareNamedCallTarget(c)`, args.
+    - **`a?.b?.c()` (Case 5)** — double-optional chain, receiver-optional call:
+      the IR adds `JumpIfNullish(ReplaceWithUndefined:true)` before
+      `LoadNamedCallTarget`. Lowers to:
+      `LoadSlot(base)`, `JumpIfNullishReplaceUndefined(end)`,
+      `GetNamedProperty(b)`, `PrepareNamedOptionalCallTarget(c, end)`, args.
+
+    Both `JumpIfNullishReplaceUndefined` and `PrepareNamedOptionalCallTarget`
+    share the same `end` backpatch target (the PC after `CallInvocationBoundary`),
+    set after all argument spans are emitted. No new VM opcodes are required.
+
+    **Eligibility gate**: `GetNamedProperty(IsOptional:true)` at op[1] is
+    normally declined as `OptionalChainDependency` unless a candidate recognizer
+    sets `isCallTargetPreparationCandidate = true` before the per-op loop. The
+    two new candidate recognizers (`TryIsFirstBoundaryOptionalChainPlainCallCandidate`
+    and `TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate`) set this
+    flag; the existing `if (isCallTargetPreparationCandidate) break;` escape in
+    `TryFindExpressionDecline` then admits the op without firing `OptionalChainDependency`.
+
+    Deferred: `a.x?.b.c()` (non-activation-resolved base) still declines as
+    `OptionalChainDependency` (AC-4); computed intermediate, super-optional, and
+    dynamic-lookup call chains remain deferred.
+
+    Test coverage must include: null base → `undefined`, null intermediate →
+    `undefined`, live chain → computed value, and base-evaluated-once (side
+    effects on the base are not repeated on short-circuit).
+
+    WHY: issue gh2806 / PR #2814 (ADR 0299) extended Cases 4–5 for optional call
+    chains, reusing the `JumpIfNullishReplaceUndefined` jump-based pattern from
+    ADR 0298 (multi-hop optional property reads). The durable lesson is that
+    `JumpIfShortCircuited` is an IR artifact of `HasOptionalChaining(member.Target)`
+    being true — it appears in call-target programs even when the call member is not
+    optional — and the eligibility gate must set `isCallTargetPreparationCandidate`
+    before the per-op loop to allow the preceding `GetNamedProperty(IsOptional:true)`
+    through. Without that flag, adding optional-chain call patterns will silently
+    decline the intermediate optional property access with `OptionalChainDependency`.
+
 ## Why
 
 Issue #2118 / PR #2137 introduced the first unified bytecode slice for
@@ -1470,3 +1519,4 @@ Related ADRs:
 - `docs/adrs/0296-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`
 - `docs/adrs/0298-admit-multi-hop-optional-named-chains-in-unified-bytecode-jump-based-lowering.md`
+- `docs/adrs/0299-admit-optional-call-chain-forms-in-unified-bytecode.md`

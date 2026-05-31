@@ -449,6 +449,70 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalChainPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2806 AC-2: a?.b.c(args) optional-start chain, plain non-optional call is admitted.
+        var plan = GetFunctionPlan("""
+            function invoke(a, value) {
+                return a?.box.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalChainReceiverOptionalCallExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        // gh2806 AC-3: a?.b?.c(args) double-optional chain, receiver-optional call is admitted.
+        var plan = GetFunctionPlan("""
+            function invoke(a, value) {
+                return a?.box?.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalChainNonActivationBaseCallExpressionPlan_Declines()
+    {
+        // gh2806 AC-4: a.x?.b.c() must decline — receiver chain not bounded to activation-resolved base.
+        var plan = GetFunctionPlan("""
+            function invoke(a, value) {
+                return a.x?.box.read(value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_SpreadIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         // gh2676: synchronous spread call f(...args) is admitted to the production pipeline.

@@ -108,7 +108,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] (landed, gh2770 / PR #2772) Widened unified bytecode to admit ternary/conditional expression (`?:`) via `ExpressionOpKind.Jump` backpatch in `TryAppendExpressionProgramOps`; no new opcodes required (ADR 0297).
 - [x] (landed, gh2771) Widened unified bytecode to admit simple optional member access (`?.prop`, `?.[k]`) via new `GetNamedPropertyOptional` and `JumpIfNullishReplaceUndefined` opcodes; chained forms (`a?.b?.c`) were declined pending a later slice (ADR 0296) — see follow-on below.
 - [x] (landed, PR #2804) Widened unified bytecode to admit multi-hop optional named chains (`a?.b.c`, `a?.b?.c`) — natural follow-on to gh2771. All optional hops emit `JumpIfNullishReplaceUndefined(chain-end)`; no new opcode. ADR 0298, rule 42.
-- [ ] (open, gh2806) Widen unified bytecode to admit optional call-chain forms (`a?.b()`, `a?.b?.c()`, `a?.b.c()`) — natural follow-on after multi-hop member access (PR #2804) and optional member calls (ADR 0289) are both in place.
+- [x] (landed, gh2806) Widen unified bytecode to admit optional call-chain forms (`a?.b.c()`, `a?.b?.c()`) — Cases 4/5 in `TryAppendNamedMemberCallTargetPreparation`; jump-based lowering reusing `JumpIfNullishReplaceUndefined` + `PrepareNamedCallTarget`/`PrepareNamedOptionalCallTarget`. ADR 0299.
 - [ ] (open, gh2807) Reduce allocations in async generator resumption path (targeted slice of gh2712) — profile and reduce Gen 1/2 escapes in the \`async function*\` resumption path; target Gen 0 only per resume cycle per \`docs/dreaming.md\` allocation budget table.
 
 _Generated and maintained by the recurring Roadmapper run._

@@ -3812,6 +3812,50 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Case 4: optional-chain plain call — a?.b.c(args)
+        // Pattern: [base, GetNamedProperty(opt,b), JumpIfShortCircuited, LoadNamedCallTarget(c), args..., Call]
+        if (callTargetIndexInProgram == 3)
+        {
+            var maybeShortCircuit = expressionProgram.GetOperation(callTargetIndexInProgram - 1);
+            if (maybeShortCircuit.Kind == ExpressionOpKind.JumpIfShortCircuited)
+            {
+                return TryAppendOptionalChainPlainCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
+        }
+
+        // Case 5: optional-chain receiver-optional call — a?.b?.c(args)
+        // Pattern: [base, GetNamedProperty(opt,b), JumpIfShortCircuited, JumpIfNullish(RWU), LoadNamedCallTarget(c), args..., Call]
+        if (callTargetIndexInProgram == 4)
+        {
+            var maybeNullishJump = expressionProgram.GetOperation(callTargetIndexInProgram - 1);
+            var maybeShortCircuit = expressionProgram.GetOperation(callTargetIndexInProgram - 2);
+            if (maybeNullishJump is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } &&
+                maybeShortCircuit.Kind == ExpressionOpKind.JumpIfShortCircuited)
+            {
+                return TryAppendOptionalChainReceiverOptionalCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
+        }
+
         // Case 1: receiver-optional named call — box?.read(args)
         // Pattern: [Receiver..., JumpIfNullish, LoadNamedCallTarget, args..., Call]
         if (callTargetIndexInProgram >= 2)
@@ -4189,6 +4233,166 @@ internal static class UnifiedBytecodeCompiler
         unified[prepareIndex] = new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
             callTargetConstantIndex | (unified.Count << 16));
+        return true;
+    }
+
+    // Case 4: a?.b.c(args) — optional-start chain, plain non-optional call.
+    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    //            PrepareNamedCallTarget(c), args, (end:)
+    private static bool TryAppendOptionalChainPlainCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        // Emit base load
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        // Emit JumpIfNullishReplaceUndefined — backpatch after args
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        // Emit GetNamedProperty(b) — receiver for c()
+        var firstHop = expressionProgram.GetOperation(1);
+        var receiverNameIndex = stringConstants.Count;
+        stringConstants.Add(firstHop.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+
+        // Emit PrepareNamedCallTarget(c)
+        var calleeTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var calleeName = calleeTarget.GetString(expressionStringConstants);
+        if (calleeName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var calleeNameIndex = stringConstants.Count;
+        stringConstants.Add(calleeName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: calleeNameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PrepareNamedCallTarget, callTargetConstantIndex));
+
+        // Emit args
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        // Backpatch JumpIfNullishReplaceUndefined to current position (after call)
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
+        return true;
+    }
+
+    // Case 5: a?.b?.c(args) — double-optional chain, receiver-optional call.
+    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    //            PrepareNamedOptionalCallTarget(c, end), args, (end:)
+    private static bool TryAppendOptionalChainReceiverOptionalCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        // Emit base load
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        // Emit JumpIfNullishReplaceUndefined — backpatch after args
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        // Emit GetNamedProperty(b) — receiver for ?.c()
+        var firstHop = expressionProgram.GetOperation(1);
+        var receiverNameIndex = stringConstants.Count;
+        stringConstants.Add(firstHop.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+
+        // Emit PrepareNamedOptionalCallTarget(c) with IsOptionalReceiverCheck:true
+        var calleeTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var calleeName = calleeTarget.GetString(expressionStringConstants);
+        if (calleeName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var calleeNameIndex = stringConstants.Count;
+        stringConstants.Add(calleeName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: calleeNameIndex,
+            IsOptionalReceiverCheck: true));
+
+        var prepareIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget, callTargetConstantIndex));
+
+        // Emit args
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        // Backpatch both jumps to point past the call
+        var chainEnd = unified.Count;
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, chainEnd);
+        unified[prepareIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (chainEnd << 16));
         return true;
     }
 

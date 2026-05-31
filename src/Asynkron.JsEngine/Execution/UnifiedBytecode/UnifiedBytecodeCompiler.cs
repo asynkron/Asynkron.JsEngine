@@ -3638,7 +3638,7 @@ internal static class UnifiedBytecodeCompiler
 
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.ConstructInvocationBoundary,
-                        EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex)));
+                        EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex, isDirectEval: false)));
                     break;
 
                 case ExpressionOpKind.LoadFunctionLiteral:

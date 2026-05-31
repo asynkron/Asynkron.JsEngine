@@ -3125,6 +3125,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+
         if (TryAppendFirstBoundaryPropertyReadBinaryExpression(
                 expressionProgram,
                 activationSlots,
@@ -5126,10 +5127,18 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
-    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(first), GetNamedProperty(rest)+
-    // The IsOptional guard on the first property access is lowered to an explicit null-check jump so the
-    // short-circuit information is represented in control flow, not an opcode flag.
+    // Handles multi-hop optional named chains a?.b.c and a?.b?.c:
+    //   [activation-resolved base,
+    //    GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
+    //    GetNamedProperty(ShortCircuitOnNullishTarget:true, non-private)+]
+    // Emits a jump-based lowering that keeps the operand stack a plain JsValue[]:
+    //   LoadSlot,
+    //   JumpIfNullishReplaceUndefined(END), GetNamedProperty,   // first optional hop
+    //   [JumpIfNullishReplaceUndefined(END),] GetNamedProperty, // each subsequent hop (jump only when ?. optional)
+    //   END:
+    // Every optional hop's jump targets the same chain end, so a nullish base/intermediate
+    // short-circuits the remainder of the chain to undefined while a real-undefined
+    // intermediate (a = { b: undefined }) still throws on the following plain read.
     private static bool TryAppendFirstBoundaryOptionalNamedPropertyReadChain(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -5143,49 +5152,76 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var baseLoad = expressionProgram.GetOperation(0);
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
-        var firstPropOp = expressionProgram.GetOperation(1);
 
-        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
-            !firstPropOp.IsOptional ||
-            firstPropOp.ShortCircuitOnNullishTarget ||
-            firstPropOp.GetString(expressionStringConstants).IsPrivateName())
+        var firstHop = expressionProgram.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(expressionStringConstants).IsPrivateName())
         {
             reason = string.Empty;
             return false;
         }
 
-        for (var i = 2; i < expressionProgram.OperationCount; i++)
+        for (var operationIndex = 2; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
-            var op = expressionProgram.GetOperation(i);
+            var op = expressionProgram.GetOperation(operationIndex);
             if (op.Kind != ExpressionOpKind.GetNamedProperty ||
-                op.IsOptional ||
-                !op.ShortCircuitOnNullishTarget ||
-                op.GetString(expressionStringConstants).IsPrivateName())
+                !op.ShortCircuitOnNullishTarget)
             {
                 reason = string.Empty;
                 return false;
             }
+
+            if (op.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
         }
 
-        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
         {
             return false;
         }
 
-        var jumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
-
-        for (var i = 1; i < expressionProgram.OperationCount; i++)
+        List<int>? boundaryJumpIndices = null;
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
-            var op = expressionProgram.GetOperation(i);
-            var propNameIndex = stringConstants.Count;
+            var op = expressionProgram.GetOperation(operationIndex);
+
+            // Each optional hop (the leading ?.b and any ?. continuation) emits a boundary jump
+            // that short-circuits the rest of the chain to undefined when its target is nullish.
+            if (op.IsOptional)
+            {
+                boundaryJumpIndices ??= [];
+                boundaryJumpIndices.Add(unified.Count);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+            }
+
+            var propertyNameIndex = stringConstants.Count;
             stringConstants.Add(op.GetString(expressionStringConstants));
-            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propNameIndex));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
         }
 
-        unified[jumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
+        var chainEnd = unified.Count;
+        if (boundaryJumpIndices is not null)
+        {
+            foreach (var jumpIndex in boundaryJumpIndices)
+            {
+                unified[jumpIndex] = new UnifiedBytecodeInstruction(
+                    UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+                    chainEnd);
+            }
+        }
+
+
         reason = string.Empty;
         return true;
     }

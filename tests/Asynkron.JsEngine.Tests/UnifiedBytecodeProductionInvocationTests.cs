@@ -1849,6 +1849,139 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalThenRegularNamedChain_ReturnsUndefinedWhenBaseIsNull()
+    {
+        // AC-1: a?.b.c short-circuits the whole chain to undefined when the base is null.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b.c;
+            }
+
+            readChain(null);
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalThenRegularNamedChain_ReturnsUndefinedWhenBaseIsUndefined()
+    {
+        // AC-1: a?.b.c short-circuits to undefined when the base is undefined (not only null).
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b.c;
+            }
+
+            readChain(undefined);
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalThenRegularNamedChain_ReturnsDeepValueWhenBaseIsNonNull()
+    {
+        // AC-2: a?.b.c reads through the full chain when the base is non-null.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b.c;
+            }
+
+            readChain({ b: { c: 42 } });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalThenRegularNamedChain_ThrowsTypeErrorWhenIntermediateIsRealUndefined()
+    {
+        // AC-3: a?.b.c with a = { b: undefined } must throw TypeError — the short-circuit only
+        // propagates when the base is null/undefined, not when a real-undefined intermediate
+        // value is read by a following non-optional hop.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b.c;
+            }
+
+            var captured = false;
+            try {
+                readChain({ b: undefined });
+            } catch (error) {
+                captured = error instanceof TypeError;
+            }
+
+            captured;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ChainedOptionalNamedChain_ShortCircuitsAtEachOptionalHop()
+    {
+        // a?.b?.c: each optional hop short-circuits to undefined when its own target is nullish,
+        // while the full read succeeds when every hop is present.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b?.c;
+            }
+
+            var whenInnerNull = readChain({ b: null });
+            var whenPresent = readChain({ b: { c: 7 } });
+            "" + whenInnerNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalThenRegularNamedChain_EvaluatesBaseExactlyOnce()
+    {
+        // Gate 1: the base expression must be evaluated exactly once even for a multi-hop chain.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var callCount = 0;
+            function getBox() {
+                callCount++;
+                return { b: { c: 42 } };
+            }
+            function countedChain() {
+                return getBox()?.b.c;
+            }
+            countedChain();
+            callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

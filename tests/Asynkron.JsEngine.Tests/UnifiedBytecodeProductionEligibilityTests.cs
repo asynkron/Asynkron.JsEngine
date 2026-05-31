@@ -3882,9 +3882,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ChainedOptionalPropertyReadExpressionPlan_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_ChainedOptionalPropertyReadExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefinedOpcode()
     {
-        // AC-4: Chained optional forms (a?.b?.c) use IsOptional+ShortCircuitOnNullishTarget and remain declined.
+        // Chained optional forms (a?.b?.c) lower to a jump-based form: each optional hop emits a
+        // JumpIfNullishReplaceUndefined targeting the chain end, followed by plain GetNamedProperty reads.
         var plan = GetFunctionPlan("""
             function chainedOptChain(a) {
                 return a?.b?.c;
@@ -3896,15 +3897,20 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
     }
 
     [Fact]
-    public void Evaluate_OptionalThenRegularPropertyChain_IsAdmitted()
+    public void Evaluate_OptionalThenRegularPropertyChain_AcceptsWithJumpIfNullishReplaceUndefinedOpcode()
     {
-        // a?.b.c: admitted since Batch 2 widened the optional-chain fast-path to include
-        // trailing regular property reads after an optional hop.
+        // AC-5: a?.b.c — first hop is optional, second hop is regular (emits
+        // ShortCircuitOnNullishTarget:true). The widened eligibility admits this chain and the
+        // compiler lowers it to JumpIfNullishReplaceUndefined(END) + plain GetNamedProperty reads.
         var plan = GetFunctionPlan("""
             function f(a) {
                 return a?.b.c;
@@ -3918,6 +3924,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        // The chain must NOT use GetNamedPropertyOptional — the jump owns the short-circuit so the
+        // intermediate reads stay plain (real-undefined intermediates must still throw, AC-3).
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
     }
 
     [Fact]

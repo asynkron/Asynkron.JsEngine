@@ -1074,6 +1074,20 @@ all-or-nothing until a separate routing issue proves production readiness.
     shape as declined. WHY: `Evaluate_OptionalThenRegularPropertyChain_StillDeclinesWithOptionalChainDependency`
     was a pre-implementation guard for `a?.b.c` that was never updated after the
     admission commit; the learn-stage build-fix caught and repaired it in PR #2802.
+    Issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-55cc574fe4`
+    / PR #2898 widened optional named-then-computed property-read chains from
+    the prefix form `a?.b[k]` to continuation forms such as
+    `a?.items[left + right].value`. The durable lesson is that the accepted
+    optional span must include ordinary trailing named continuations after the
+    computed hop. Eligibility must prove the whole chain before lifting
+    `PropertyReadBoundaryOutOfScope`, and the compiler must target the first
+    `JumpIfNullishReplaceUndefined` past the entire chain while appending the
+    trailing non-optional, non-private `GetNamedProperty` instructions after
+    `GetComputedProperty`. Do not use the prefix predicate as permission for
+    optional trailing computed hops, optional writes/updates/deletes, calls,
+    `super`, private names, dynamic lookup, or unowned computed-key payloads.
+    See ADR 0311.
 
 44. When admitting `ConditionalExpression` (`cond ? a : b`) to production
     unified bytecode, the **only new compiler surface** is

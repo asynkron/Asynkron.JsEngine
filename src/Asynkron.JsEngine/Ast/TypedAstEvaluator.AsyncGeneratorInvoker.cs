@@ -108,7 +108,17 @@ public static partial class TypedAstEvaluator
             return promiseCtor.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(executor)), JsValue.Undefined);
         }
 
-        private static JsValue CreateAsyncIteratorResult(JsValue value, bool done) => IteratorResultObject.Create(value, done);
+        private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
+        {
+            if (done && value.IsUndefined)
+            {
+                return IteratorResultObject.DoneUndefined.AsJsValue;
+            }
+
+            // Async-generator .next() promises may settle long before handlers are attached.
+            // Keep each settled result instance stable rather than pooling/recycling it.
+            return JsValue.FromObjectUnsafe(new IteratorResultObject(value, done));
+        }
 
         private void ResolveFromStep(
             ExecutionPlanRunner.AsyncGeneratorStepResult step,
@@ -122,7 +132,6 @@ public static partial class TypedAstEvaluator
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
                         AsyncInvokeWithOneArg(resolve, iteratorResult);
-                        ReturnIteratorResultAfterPromiseReactions(iteratorResult);
                         break;
                     }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
@@ -157,22 +166,6 @@ public static partial class TypedAstEvaluator
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
                 step.PendingPromise);
-        }
-
-        private void ReturnIteratorResultAfterPromiseReactions(JsValue iteratorResult)
-        {
-            if (!iteratorResult.TryGetObject<IteratorResultObject>(out var poolableResult))
-            {
-                return;
-            }
-
-            if (realmState.Engine is { } engine)
-            {
-                engine.QueueMicrotask(IteratorResultReturnMicrotask.Rent(poolableResult, engine));
-                return;
-            }
-
-            IteratorResultObjectPool.Return(poolableResult);
         }
 
         private JsObject? ResolveGeneratorPrototype()
@@ -339,60 +332,5 @@ public static partial class TypedAstEvaluator
             internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
         }
 
-        private sealed class IteratorResultReturnMicrotask : IMicrotask, IRentable
-        {
-            private static readonly ObjectPool<IteratorResultReturnMicrotask> Pool =
-                new(32, static () => new IteratorResultReturnMicrotask());
-
-            private IteratorResultObject? _result;
-            private JsEngine? _engine;
-            private byte _deferredCount;
-
-            public int Epoch { get; set; }
-
-            public static IMicrotask Rent(IteratorResultObject result, JsEngine engine)
-            {
-                var task = Pool.Rent();
-                task._result = result;
-                task._engine = engine;
-                return task;
-            }
-
-            public void Execute()
-            {
-                AssertOwnership(nameof(Execute));
-                // Give settled and late-attached handlers time to observe the iterator result
-                // before it is recycled back into the pool.
-                if (_deferredCount < 2)
-                {
-                    _deferredCount++;
-                    _engine?.QueueMicrotask(this);
-                    return;
-                }
-
-                var result = _result;
-                if (result is not null)
-                {
-                    IteratorResultObjectPool.Return(result);
-                }
-
-                Pool.Return(this);
-            }
-
-            public void OnRent(Microsoft.Extensions.Logging.ILogger? logger)
-            {
-            }
-
-            public void OnReturn(Microsoft.Extensions.Logging.ILogger? logger)
-            {
-                _result = null;
-                _engine = null;
-                _deferredCount = 0;
-                Epoch = 0;
-            }
-
-            [Conditional("DEBUG")]
-            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
-        }
     }
 }

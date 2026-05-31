@@ -3099,6 +3099,97 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyReadWithRichKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read(box, left, right) {
+                return box[left + right];
+            }
+
+            read({ value: 42 }, "va", "lue");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyReadWithRichKey_EvaluatesKeyBeforeNullishThrow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+
+            function getKey(left, right) {
+                keyHits++;
+                return left + right;
+            }
+
+            function read(box, left, right) {
+                return box[getKey(left, right)];
+            }
+
+            var captured = false;
+            try {
+                read(null, "va", "lue");
+            } catch (error) {
+                captured = error instanceof TypeError;
+            }
+
+            "" + keyHits + ":" + captured;
+            """);
+
+        Assert.Equal("1:true", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedThenNamedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function read(box, key) {
+                return box[key].value;
+            }
+
+            read({ item: { value: 42 } }, "item");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=read argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenComputedPropertyRead_EvaluatesComputedKeyOnce_OnUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var key = {
+                toString() {
+                    keyHits++;
+                    return "item";
+                }
+            };
+
+            function read(box, key) {
+                return box?.items[key];
+            }
+
+            var value = read({ items: { item: 42 } }, key);
+            "" + value + ":" + keyHits;
+            """);
+
+        Assert.Equal("42:1", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyRead_PropagatesGetterAbruptCompletionThroughUnifiedBytecode()
     {
         await using var engine = CreateEngine();

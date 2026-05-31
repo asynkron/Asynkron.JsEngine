@@ -678,11 +678,11 @@ stateDiagram-v2
     ProvenWidened --> PerfQualified: profile/benchmark evidence attached\nbaseline + final signal both present
     PerfQualified --> ProductionClaim: canonical quality gate green
 
-    Prototyped --> Candidate: owner boundary changed
-    ProvenScoped --> Prototyped: boundary wording drift detected
-    ProvenWidened --> Prototyped: widened proof regression
-    PerfQualified --> ProvenWidened: perf signal regression
-    ProductionClaim --> Prototyped: ADR contract changed
+    Prototyped --> Candidate: owner surface changed or the design is no longer coherent
+    ProvenScoped --> Prototyped: boundary wording drift detected or the focused pack no longer matches the owned seam
+    ProvenWidened --> Prototyped: widened proof regression or the owning cluster changed shape
+    PerfQualified --> ProvenWidened: perf signal regression or baseline/final evidence no longer holds
+    ProductionClaim --> Prototyped: ADR contract changed or the claim now depends on a new scope boundary
 
     note right of PerfQualified: Node.js-competitive and CommonJS\nparity language cannot enter\nProductionClaim without passing\nall gates — no exceptions.
 ```
@@ -1305,30 +1305,44 @@ Boundary contract rules:
 
 ## Proven-now vs directional-next
 
+The rows below are grouped by phase so a maintainer can tell what is foundational now, what still belongs to the migration bridge, and what remains directional next.
+
+### Core proven now
+
 | Area | Proven now | Directional next (needs new proof) |
 |---|---|---|
-| Compilation pipeline | Typed AST → StatementIR, ExpressionProgram, UnifiedBytecodeProgram; 4-tier routing | Full elimination of Tier 3 fallback seams from runtime |
 | Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, label-dependent control flow, and resumable state (Yield/Await opcodes) | Remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes) plus profile-verified broader route coverage |
-| Tier 1 (ExpressionProgram) | Covers most expression shapes; inline expression buffers proven | Compact ExpressionOp storage as runtime contract |
 | Realm isolation | Cross-realm error creation realm-owned (ADR 0137, 0270); brand validation JsValue-native (ADR 0196) | Broader realm-sensitivity checks in fast paths |
 | Standard Library | JsValue-native hot paths on most Array/String helpers; descriptor semantics proven | Full removal of object-overload compat tripwires |
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit; resumable Tier 0 state model (ADR 0277) | Dedicated async-generator Tier 0 executor (Milestone C) |
 | Module runtime | ESM lifecycle, registry, dynamic import phases, top-level await, dependency fault propagation (ADR 0212) proven | Node.js-competitive CommonJS ergonomics (host-layer work) |
 | Host interop | Host callable/global bridge boundaries explicit | Broader Node.js-style host behavior (integration-layer work) |
-| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
-| Tiered execution | Migration reality is a 4-tier bridge (`UnifiedBytecodeVM` Tier 0 target route, `ExpressionProgram` Tier 1, statement-IR Tier 2, fallback Tier 3) with bounded eligibility and evidence-gated expansion. | Greenfield collapse to the 2-stratum design (Stratum 0 + Stratum F), plus any profile-guided optimizing tier above Tier 0, remains directional and requires separate proof. |
-| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. Allocation budget table defines per-site Gen 0/1/2 targets. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. Argument array elision and stackalloc fast paths are improvement targets. |
-| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
-| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
 | Primary sync route | 100% of accepted ordinary sync production programs attempt Tier 0 before Tier 2/Tier 3 (PR #2623) | Profile evidence for coverage claim (#2634) |
-| Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
-| Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
-| Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. Cold-start latency and microtask drain latency have a committed ProfileRunner baseline (`startup`, `microtask` profiles in `profile-manifest.json`; `tools/perf-slo-baseline.md`; `make slo-gate`). | Full Jint allocation comparison; tightening SLO timing targets to < 5 ms p95 for cold-start and < 1 ms per 1 000 microtasks. |
-| .NET Platform Advantage | `JsValue` is a struct (no heap boxing on value-passing fast paths); `Span<JsValue>` parameter contract exists in Tier 0 call-site helpers; meta-JIT applies to the dispatch loop. | NativeAOT cold-start build; SIMD intrinsics for string/hash operations; `ValueTask<JsValue>` zero-alloc async fast path; full `Span<JsValue>`-native argument passing without `JsValue[]` backing arrays on fixed-arity calls. |
-| Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
 | VM register model | UnifiedBytecodeVM dispatch loop uses .NET locals as the operand storage, which the JIT maps to hardware registers on the fast path. | Formal register-based instruction encoding (explicit source/destination register operands in opcode format); elimination of any remaining implicit stack-push/pop patterns in the Tier 0 instruction set. |
 | JsValue struct layout | Tagged-union struct: `Kind` discriminant (4-byte int enum, tag values 0–9), `NumberValue` (8-byte IEEE 754 double; also stores Boolean as 0.0/1.0), `ObjectValue` (8-byte managed reference for String/BigInt/Symbol/Object). Total: 24 bytes on 64-bit .NET. Undefined/Null/Boolean/Number are fully inline (no heap allocation). | NaN-boxing optimization (encode tag in unused NaN mantissa bits, collapse struct to 8 bytes); `Unit` and `Uninitialized` kinds removed from public embedding surface once TDZ and statement-completion models are fully formalized. |
 | Bytecode instruction format | Register-based opcode model: .NET locals as operand storage, JIT maps to hardware registers on the hot path. `UnifiedBytecodeInstruction` carries `UnifiedBytecodeOpCode` (byte enum) + 32-bit integer operand per instruction. | Fixed 32-bit wire encoding: `[Opcode: 8][Dest: 8][Src1: 8][Src2: 8]` with wide-instruction escape prefix for large operands; max 256 registers; Src1+Src2 as 16-bit constant pool index for literal loads. Requires ADR before wire-format freeze. |
+
+### Migration proven now
+
+| Area | Proven now | Directional next (needs new proof) |
+|---|---|---|
+| Compilation pipeline | Typed AST → StatementIR, ExpressionProgram, UnifiedBytecodeProgram; 4-tier routing | Full elimination of Tier 3 fallback seams from runtime |
+| Tier 1 (ExpressionProgram) | Covers most expression shapes; inline expression buffers proven | Compact ExpressionOp storage as runtime contract |
+| Tiered execution | Migration reality is a 4-tier bridge (`UnifiedBytecodeVM` Tier 0 target route, `ExpressionProgram` Tier 1, statement-IR Tier 2, fallback Tier 3) with bounded eligibility and evidence-gated expansion. | Greenfield collapse to the 2-stratum design (Stratum 0 + Stratum F), plus any profile-guided optimizing tier above Tier 0, remains directional and requires separate proof. |
+| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. Allocation budget table defines per-site Gen 0/1/2 targets. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. Argument array elision and stackalloc fast paths are improvement targets. |
+| Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
+| Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. Cold-start latency and microtask drain latency have a committed ProfileRunner baseline (`startup`, `microtask` profiles in `profile-manifest.json`; `tools/perf-slo-baseline.md`; `make slo-gate`). | Full Jint allocation comparison; tightening SLO timing targets to < 5 ms p95 for cold-start and < 1 ms per 1 000 microtasks. |
+| Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
+| .NET Platform Advantage | `JsValue` is a struct (no heap boxing on value-passing fast paths); `Span<JsValue>` parameter contract exists in Tier 0 call-site helpers; meta-JIT applies to the dispatch loop. | NativeAOT cold-start build; SIMD intrinsics for string/hash operations; `ValueTask<JsValue>` zero-alloc async fast path; full `Span<JsValue>`-native argument passing without `JsValue[]` backing arrays on fixed-arity calls. |
+
+### Directional next
+
+| Area | Proven now | Directional next (needs new proof) |
+|---|---|---|
+| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
+| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
+| Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
+| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
 | Worker / Realm Fabric | None — entirely directional. | Each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` as opt-in side channel requiring host capability grant; host-owned Worker lifecycle. |
 | Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of pre-compiled `UnifiedBytecodeProgram` artifacts keyed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
 

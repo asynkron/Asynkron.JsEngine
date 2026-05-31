@@ -3394,6 +3394,104 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndPreservesShortCircuitSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return 0;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+
+            function write(box, key, value) {
+                return box[key] &&= value;
+            }
+
+            String(write(box, key, 5)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("0:key,get", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData("&&=", "1", "0", "7", "7", "0")]
+    [InlineData("||=", "0", "5", "7", "7", "5")]
+    [InlineData("??=", "null", "5", "7", "7", "5")]
+    public async Task ComputedLogicalPropertyWrite_AssignmentBranchPreservesResultAndSetterSemantics(
+        string logicalOperator,
+        string assignInitialValue,
+        string shortCircuitInitialValue,
+        string rhsValue,
+        string expectedAssignedResult,
+        string expectedShortCircuitResult)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            var events = [];
+            function makeBox(initialValue) {
+                var store = initialValue;
+                var box = {};
+                Object.defineProperty(box, "value", {
+                    get() {
+                        events.push("get");
+                        return store;
+                    },
+                    set(value) {
+                        events.push("set:" + value);
+                        store = value;
+                    }
+                });
+                return box;
+            }
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+            function rhs(value) {
+                events.push("rhs");
+                return value;
+            }
+            function write(box, key, value) {
+                return box[key] {{logicalOperator}} rhs(value);
+            }
+
+            var assignBox = makeBox({{assignInitialValue}});
+            var assignResult = write(assignBox, key, {{rhsValue}});
+            var assignEvents = events.join(",");
+            events = [];
+
+            var shortCircuitBox = makeBox({{shortCircuitInitialValue}});
+            var shortCircuitResult = write(shortCircuitBox, key, {{rhsValue}});
+            var shortCircuitEvents = events.join(",");
+
+            String(assignResult) + "|" + assignEvents + "|" + String(shortCircuitResult) + "|" + shortCircuitEvents;
+            """);
+
+        Assert.Equal(
+            expectedAssignedResult + "|key,get,rhs,set:" + expectedAssignedResult + "|" + expectedShortCircuitResult + "|key,get",
+            result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {
         await using var engine = CreateEngine();

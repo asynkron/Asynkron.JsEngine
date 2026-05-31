@@ -186,8 +186,11 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   binary operator e.g. `+=`, simple RHS) via
   `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`, and logical-assignment
   member writes (`&&=`, `||=`, `??=`) via
-  `TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate`. Retained declines
-  include deeper property chains
+  `TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate`. Direct computed logical
+  writes (`box[key] &&= y`, `box[key] ||= y`, `box[key] ??= y`) are also admitted
+  when they match `TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate`
+  (activation-resolved base, simple key, simple RHS, non-optional/non-private
+  target). Retained declines include deeper property chains
   (`box.child.value += …`), and computed-expression keys (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - The plan-level `SuperPropertyDependency` decline in

@@ -663,9 +663,7 @@ internal static class JsOps
             JsValueKind.Null => true,
             JsValueKind.Boolean => left.NumberValue == right.NumberValue,
             JsValueKind.Number => SameValueNumber(left.NumberValue, right.NumberValue),
-            JsValueKind.String => ReferenceEquals(left.ObjectValue, right.ObjectValue) ||
-                                  string.Equals(left.ObjectValue as string, right.ObjectValue as string,
-                                      StringComparison.Ordinal),
+            JsValueKind.String => string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
             JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
             JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi && lbi == rbi,
             JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
@@ -709,9 +707,7 @@ internal static class JsOps
             JsValueKind.Boolean => left.NumberValue == right.NumberValue,
             JsValueKind.Number => !double.IsNaN(left.NumberValue) && !double.IsNaN(right.NumberValue) &&
                                   left.NumberValue == right.NumberValue,
-            JsValueKind.String => ReferenceEquals(left.ObjectValue, right.ObjectValue) ||
-                                  string.Equals(left.ObjectValue as string, right.ObjectValue as string,
-                                      StringComparison.Ordinal),
+            JsValueKind.String => string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
             JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
             JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi && lbi == rbi,
             JsValueKind.Object => ReferenceEquals(left.ObjectValue, right.ObjectValue),
@@ -731,8 +727,7 @@ internal static class JsOps
                 JsValueKind.Null => true,
                 JsValueKind.Boolean => left.NumberValue == right.NumberValue,
                 JsValueKind.Number => left.NumberValue == right.NumberValue, // NaN != NaN per IEEE 754
-                JsValueKind.String => string.Equals(left.ObjectValue as string, right.ObjectValue as string,
-                    StringComparison.Ordinal),
+                JsValueKind.String => string.Equals(left.AsString(), right.AsString(), StringComparison.Ordinal),
                 JsValueKind.Symbol => ReferenceEquals(left.ObjectValue, right.ObjectValue),
                 JsValueKind.BigInt => left.ObjectValue is JsBigInt lbi && right.ObjectValue is JsBigInt rbi &&
                                       lbi == rbi,
@@ -793,12 +788,12 @@ internal static class JsOps
                     continue;
                 case JsValueType.BigInt when rightType == JsValueType.String:
                     {
-                        var rightStr = right1.ObjectValue as string ?? "";
+                        var rightStr = right1.AsString();
                         return TryParseJsBigInt(rightStr, out var parsed) && StrictEquals(left1, new JsValue(parsed!));
                     }
                 case JsValueType.String when rightType == JsValueType.BigInt:
                     {
-                        var leftStr = left1.ObjectValue as string ?? "";
+                        var leftStr = left1.AsString();
                         return TryParseJsBigInt(leftStr, out var parsed) && StrictEquals(new JsValue(parsed!), right1);
                     }
                 case JsValueType.Boolean:
@@ -842,7 +837,7 @@ internal static class JsOps
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
         {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) > 0;
+            return string.CompareOrdinal(left.AsString(), right.AsString()) > 0;
         }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThan, context);
@@ -859,7 +854,7 @@ internal static class JsOps
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
         {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) >= 0;
+            return string.CompareOrdinal(left.AsString(), right.AsString()) >= 0;
         }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.GreaterThanOrEqual, context);
@@ -877,7 +872,7 @@ internal static class JsOps
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
         {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) < 0;
+            return string.CompareOrdinal(left.AsString(), right.AsString()) < 0;
         }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThan, context);
@@ -895,7 +890,7 @@ internal static class JsOps
         // Fast path for comparing two strings
         if (left.Kind == JsValueKind.String && right.Kind == JsValueKind.String)
         {
-            return string.CompareOrdinal(left.ObjectValue as string, right.ObjectValue as string) <= 0;
+            return string.CompareOrdinal(left.AsString(), right.AsString()) <= 0;
         }
 
         return PerformComparisonOperation(left, right, ComparisonOperator.LessThanOrEqual, context);
@@ -934,7 +929,7 @@ internal static class JsOps
         if (leftPrimitive.Kind == JsValueKind.String && rightPrimitive.Kind == JsValueKind.String)
         {
             // String comparison: check if leftStr < rightStr lexicographically
-            var comparison = string.CompareOrdinal(leftPrimitive.ObjectValue as string, rightPrimitive.ObjectValue as string);
+            var comparison = string.CompareOrdinal(leftPrimitive.AsString(), rightPrimitive.AsString());
             return op switch
             {
                 ComparisonOperator.LessThan => comparison < 0,
@@ -949,7 +944,7 @@ internal static class JsOps
         // Per spec: when comparing String with BigInt, convert String to BigInt, not Number
         if (leftPrimitive.Kind == JsValueKind.String && rightPrimitive.IsBigInt)
         {
-            if (!TryParseJsBigInt(leftPrimitive.ObjectValue as string ?? "", out var leftAsBigInt))
+            if (!TryParseJsBigInt(leftPrimitive.AsString(), out var leftAsBigInt))
             {
                 // String cannot be parsed as BigInt, return undefined (false)
                 return false;
@@ -968,7 +963,7 @@ internal static class JsOps
 
         if (leftPrimitive.IsBigInt && rightPrimitive.Kind == JsValueKind.String)
         {
-            if (!TryParseJsBigInt(rightPrimitive.ObjectValue as string ?? "", out var rightAsBigInt))
+            if (!TryParseJsBigInt(rightPrimitive.AsString(), out var rightAsBigInt))
             {
                 // String cannot be parsed as BigInt, return undefined (false)
                 return false;

@@ -545,6 +545,27 @@ public sealed class BigIntTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task BigIntLooseEqualityWithRopeString()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let s = '';
+                                                       let i = 0;
+                                                       let count = 1000;
+
+                                                       while (i < count) {
+                                                           s += '1';
+                                                           i++;
+                                                       }
+
+                                                       s == BigInt(s);
+
+                                           """);
+        Assert.Equal(true, result);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task BigIntLooseEqualityWithStringFalse()
     {
         await using var engine = CreateEngine();

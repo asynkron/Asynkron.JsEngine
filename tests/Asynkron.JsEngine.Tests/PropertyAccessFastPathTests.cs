@@ -1,3 +1,4 @@
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -114,5 +115,50 @@ public sealed class PropertyAccessFastPathTests(ITestOutputHelper output) : Inte
         """);
 
         Assert.Equal("a12", result);
+    }
+
+    [Fact]
+    public void TrySetExistingJsValue_Updates_Writable_Data_Descriptor_In_Place()
+    {
+        var obj = new JsObject();
+        var descriptor = new PropertyDescriptor
+        {
+            JsValue = JsValue.FromDouble(1),
+            Writable = true,
+            Enumerable = false,
+            Configurable = false
+        };
+
+        obj.DefineProperty("value", descriptor);
+        var stored = obj.GetOwnPropertyDescriptor("value");
+
+        Assert.True(obj.TrySetExistingJsValue("value", JsValue.FromDouble(9)));
+
+        var updated = obj.GetOwnPropertyDescriptor("value");
+        Assert.Same(stored, updated);
+        Assert.Equal(9, updated!.JsValue.AsDouble());
+        Assert.True(updated.Writable);
+        Assert.False(updated.Enumerable);
+        Assert.False(updated.Configurable);
+    }
+
+    [Fact]
+    public void TrySetExistingJsValue_Rejects_Descriptor_Sensitive_Writes()
+    {
+        var obj = new JsObject();
+        obj.DefineProperty("locked", new PropertyDescriptor
+        {
+            JsValue = JsValue.FromDouble(1),
+            Writable = false,
+            Enumerable = true,
+            Configurable = true
+        });
+
+        Assert.False(obj.TrySetExistingJsValue("missing", JsValue.FromDouble(2)));
+        Assert.False(obj.TrySetExistingJsValue("locked", JsValue.FromDouble(2)));
+
+        var locked = obj.GetOwnPropertyDescriptor("locked");
+        Assert.Equal(1, locked!.JsValue.AsDouble());
+        Assert.False(locked.Writable);
     }
 }

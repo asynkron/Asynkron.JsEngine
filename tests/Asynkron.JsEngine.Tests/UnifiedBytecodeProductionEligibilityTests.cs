@@ -1135,6 +1135,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NestedNamedReceiverComputedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, key) {
+                return delete box.child[key];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadSlot));
+    }
+
+    [Fact]
     public void Evaluate_NamedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -2274,6 +2298,68 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
         Assert.Contains("Optional-chain", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box?.child[key];
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box.child?.[key];
+        }
+        """,
+        "remove")]
+    public void Evaluate_NestedComputedPropertyDeleteWithOptionalReceiver_DeclinesWithExplicitCode(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.Contains("Optional-chain", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function remove(box) {
+            return delete box.child[externalKey];
+        }
+        """,
+        "remove",
+        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(
+        """
+        function remove(box, left, right) {
+            return delete box.child[left + right];
+        }
+        """,
+        "remove",
+        (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
+    public void Evaluate_NestedComputedPropertyDeleteUnsupportedKey_DeclinesBeforeVm(
+        string source,
+        string functionName,
+        int expectedCode)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
     }
 
     [Fact]

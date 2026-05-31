@@ -294,10 +294,15 @@ the final post-compile production subset check before VM entry.
   `TryIsFirstBoundaryNestedNamedPropertyWriteCandidate` and
   `TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate`, which compile the
   receiver chain as owned `GetNamedProperty` opcodes before the final
-  `SetNamedProperty` / `UpdateNamedProperty`. Retained declines include deeper
-  compound/logical property chains (`box.child.value += …`,
-  `box.child.value &&= …`) and computed-expression keys
-  (`box[key+suffix] += …`).
+  `SetNamedProperty` / `UpdateNamedProperty`. Nested named receiver chains
+  ending in a simple computed delete (`delete box.child[key]`) are admitted by
+  `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; the compiler emits the
+  named receiver reads and final `DeleteComputedProperty`, while the VM's
+  descriptor-aware delete helper owns strict/sloppy results. Retained declines
+  include optional receiver hops, private/super property access, dynamic lookup,
+  richer computed keys, deeper compound/logical property chains
+  (`box.child.value += …`, `box.child.value &&= …`), and computed-expression
+  keys (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety

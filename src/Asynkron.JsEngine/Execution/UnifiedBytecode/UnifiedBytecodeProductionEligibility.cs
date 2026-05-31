@@ -1130,6 +1130,36 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    if (HasOptionalDeleteOperation(program))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain delete expressions are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (EndsWithComputedPropertyDelete(program))
+                    {
+                        if (!allowsDynamicIdentifiers &&
+                            HasOrdinaryDynamicExpressionDependency(program, activationSlots))
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                            declineReason =
+                                "Computed property delete key requires dynamic lookup and is not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
+                        declineReason =
+                            "Computed property deletes are outside the first production boundary unless they use activation-resolved/simple base and key operands.";
+                        return true;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -1523,6 +1553,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return hasDelete && hasNullishJump;
     }
+
+    private static bool EndsWithComputedPropertyDelete(ExpressionProgram program) =>
+        program.OperationCount > 0 &&
+        program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.DeleteComputedProperty;
 
     private static bool TryIsConstructInvocationCandidate(
         ExpressionProgram program,
@@ -1946,14 +1980,32 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 3)
+        if (program.OperationCount < 3)
         {
             return false;
         }
 
-        return TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
-               IsSimpleComputedPropertyKeyOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
-               program.GetOperation(2).Kind == ExpressionOpKind.DeleteComputedProperty;
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var keyIndex = program.OperationCount - 2;
+        for (var index = 1; index < keyIndex; index++)
+        {
+            var operation = program.GetOperation(index);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.GetString(stringConstants).IsPrivateName() ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return IsSimpleComputedPropertyKeyOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
+               program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.DeleteComputedProperty;
     }
 
     // Admits the simple a?.b shape: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)].

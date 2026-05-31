@@ -1817,6 +1817,13 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 _allowIdentifierCache &&
                 (_hasFunctionDeclarationParameterConflict ||
                  (_hasNonParameterCalleeCall && (!_isStrict || _hasHoistableDeclarations)));
+            if (hasFunctionCodeIrSeam &&
+                _hasDirectEvalInBodyOrParameters &&
+                plan is not null &&
+                CanUseProductionUnifiedBytecodeFastPath(plan, JsValue.Undefined))
+            {
+                hasFunctionCodeIrSeam = false;
+            }
 
             var canUseIrPlan =
                 !_function.IsGenerator &&
@@ -3144,7 +3151,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             //   • DynamicLookupDependency: HasDynamicLookupDependency is gated out by fast-path guard
             //     (!_allowIdentifierCache && !canUseDynamic), so any DynamicLookupDependency from
             //     Evaluate is plan-structural (e.g. a global like Math not in activation slots).
-            //   • CallDependency: HasCallDependency (_hasNonParameterCalleeCall) is also gated out.
+            //   • CallDependency: ordinary sync invocation no longer sets the descriptor-level
+            //     call blocker; unowned call shapes are declined from the plan scan instead.
             return code is not (
                 UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction or
                 UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
@@ -3193,12 +3201,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             JsValue newTarget,
             bool canUseDynamicNamePath)
         {
+            var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
+                                               !canUseDynamicNamePath &&
+                                               !_hasDirectEvalInBodyOrParameters;
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
                 IsGenerator: _function.IsGenerator,
                 HasCapturedOrDynamicActivation:
-                    _hasCapturedActivationInClosure || !_allowIdentifierCache && !canUseDynamicNamePath,
-                HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath,
+                    _hasCapturedActivationInClosure || _hasClosureWithObject && !canUseDynamicNamePath ||
+                    hasUnprovenDynamicActivation,
+                HasArgumentsObjectDependency:
+                    !_hasDirectEvalInBodyOrParameters &&
+                    (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
                 HasThisDependency: false,
                 HasNewTargetDependency: !newTarget.IsUndefined,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
@@ -3208,8 +3222,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasParameterVarDeclarationDependency:
                     _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
                 HasMaterializedActivationDependency: false,
-                HasCallDependency: _hasNonParameterCalleeCall && !canUseDynamicNamePath,
-                HasDynamicLookupDependency: !_allowIdentifierCache && !canUseDynamicNamePath);
+                HasCallDependency: false,
+                HasDynamicLookupDependency: hasUnprovenDynamicActivation);
         }
 
         private bool HasParameterNamed(Symbol name)
@@ -3541,7 +3555,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.ScopeId != plan.RootScopeId ||
                 activationSlots.LayoutId != plan.LayoutId)
             {
-                return false;
+                return _hasDirectEvalInBodyOrParameters && plan.ActivationSlots is not null;
             }
 
             if (!activationSlots.ParameterSlotIndices.IsDefault)
@@ -3549,7 +3563,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return activationSlots.ParameterSlotIndices.Length == _parameterNames.Length;
             }
 
-            return canUseDynamicNamePath;
+            return canUseDynamicNamePath || _hasDirectEvalInBodyOrParameters;
         }
 
         private static bool HasCapturedActivationInClosure(JsEnvironment closure)
@@ -3610,6 +3624,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            if (_argumentsObjectNeeded)
+            {
+                var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment,
+                    RealmState,
+                    this,
+                    _isStrict);
+                var argumentsValue = JsValue.FromObjectUnsafe(argumentsObject);
+                executionEnvironment.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
+                if (!ReferenceEquals(executionEnvironment, functionEnvironment))
+                {
+                    functionEnvironment.DefineJsValue(Symbol.Arguments, argumentsValue, isLexicalBinding: false);
+                }
+            }
+
             return executionEnvironment;
         }
 

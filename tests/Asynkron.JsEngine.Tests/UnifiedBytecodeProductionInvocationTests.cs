@@ -1163,6 +1163,66 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalIdentifierCall_UsesCallerEnvironmentOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval() {
+                var local = 42;
+                return eval("local");
+            }
+
+            invokeEval();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalIdentifierCall_SyncsMutatedCallerSlotsOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval(source) {
+                var local = 1;
+                eval(source);
+                return local;
+            }
+
+            invokeEval("local = 42;");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalIdentifierCall_UsesOrdinaryCallWhenEvalIsShadowed()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval(eval) {
+                return eval("local");
+            }
+
+            invokeEval(function(_) { return 99; });
+            """);
+
+        Assert.Equal(99d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ParameterPassedDebugAwareIdentifierCall_PreservesCallerEnvironment()
     {
         await using var engine = CreateEngine();

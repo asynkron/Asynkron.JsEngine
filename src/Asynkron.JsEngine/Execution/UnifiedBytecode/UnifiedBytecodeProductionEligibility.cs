@@ -2137,12 +2137,20 @@ internal static class UnifiedBytecodeProductionEligibility
         var callIndex = program.OperationCount - 1;
         var call = program.GetOperation(callIndex);
         // Synchronous spread calls are admitted (gh2676); spread args are flattened at
-        // the invocation boundary. Direct eval stays out of scope.
+        // the invocation boundary. Direct eval is admitted only for the one-argument
+        // non-spread eval identifier shape so the VM can thread caller eval state explicitly.
         if (call.Kind != ExpressionOpKind.Call ||
-            !call.HasExplicitThis ||
-            call.IsDirectEval)
+            (!call.HasExplicitThis && !call.IsDirectEval))
         {
             return false;
+        }
+
+        if (call.IsDirectEval)
+        {
+            return IsFirstBoundaryDirectEvalCallCandidate(
+                program,
+                identifierConstants,
+                call);
         }
 
         var firstOperation = program.GetOperation(0);
@@ -2204,6 +2212,30 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return false;
     }
+
+    private static bool IsFirstBoundaryDirectEvalCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        PackedExpressionOp call)
+    {
+        if (call.ArgumentCount != 1 || call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(0);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget || callTarget.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(identifierConstants);
+        return string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) &&
+               IsDirectEvalSingleArgumentCandidate(program.GetOperation(1));
+    }
+
+    private static bool IsDirectEvalSingleArgumentCandidate(PackedExpressionOp operation) =>
+        operation.Kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadLiteral;
 
     // Case 1: box?.read(args) — receiver-optional named call
     // Expression program: [Receiver..., JumpIfNullish, LoadNamedCallTarget, args..., Call]

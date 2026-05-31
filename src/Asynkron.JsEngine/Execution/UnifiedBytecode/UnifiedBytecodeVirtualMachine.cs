@@ -394,8 +394,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     stackPointer = ExecutePreparedCall(
                         DecodeCallBoundaryArgumentCount(instruction.Operand),
                         DecodeCallBoundarySpreadMask(program, instruction.Operand),
+                        DecodeCallBoundaryIsDirectEval(instruction.Operand),
                         stack,
                         stackPointer,
+                        slots,
+                        slotEnvironments,
                         context,
                         currentCallingEnvironment);
                     if (context.ShouldStopEvaluation)
@@ -4042,8 +4045,11 @@ internal static class UnifiedBytecodeVirtualMachine
     private static int ExecutePreparedCall(
         int argumentCount,
         ImmutableArray<int> spreadMask,
+        bool isDirectEval,
         Span<JsValue> stack,
         int stackPointer,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
         EvaluationContext context,
         JsEnvironment? callingEnvironment)
     {
@@ -4086,12 +4092,23 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         JsValue[]? pooledArguments = null;
+        EvalHostFunction? singleArgDirectEvalFastHost = null;
         DebugAwareHostFunction? debugFunction = null;
         JsEnvironment? previousDebugEnvironment = null;
         EvaluationContext? previousDebugContext = null;
         JsValue result;
         try
         {
+            if (isDirectEval &&
+                spreadMask.IsDefaultOrEmpty &&
+                argumentCount == 1 &&
+                callingEnvironment is not null &&
+                callable is EvalHostFunction evalHostFunction &&
+                ReferenceEquals(evalHostFunction.Engine, callingEnvironment.RealmState?.Engine))
+            {
+                singleArgDirectEvalFastHost = evalHostFunction;
+            }
+
             if (callingEnvironment is not null && callable is DebugAwareHostFunction debugAware)
             {
                 debugFunction = debugAware;
@@ -4124,12 +4141,18 @@ internal static class UnifiedBytecodeVirtualMachine
                 result = argumentCount switch
                 {
                     0 => TypedAstEvaluator.InvokeCallableNoArgs(callable, thisValue, context, callingEnvironment),
-                    1 => TypedAstEvaluator.InvokeCallableSingleArg(
-                        callable,
-                        stack[calleeIndex + 1],
-                        thisValue,
-                        context,
-                        callingEnvironment),
+                    1 => singleArgDirectEvalFastHost is not null
+                        ? singleArgDirectEvalFastHost.InvokeDirectSingleArgumentFast(
+                            stack[calleeIndex + 1],
+                            context,
+                            callingEnvironment!,
+                            context.InClassFieldInitializer)
+                        : TypedAstEvaluator.InvokeCallableSingleArg(
+                            callable,
+                            stack[calleeIndex + 1],
+                            thisValue,
+                            context,
+                            callingEnvironment),
                     2 => TypedAstEvaluator.InvokeCallableTwoArgs(
                         callable,
                         stack[calleeIndex + 1],
@@ -4153,6 +4176,11 @@ internal static class UnifiedBytecodeVirtualMachine
         }
         finally
         {
+            if (singleArgDirectEvalFastHost is not null)
+            {
+                SyncSlotsFromEnvironments(slots, slotEnvironments);
+            }
+
             if (debugFunction is not null)
             {
                 debugFunction.CurrentJsEnvironment = previousDebugEnvironment;
@@ -4171,10 +4199,32 @@ internal static class UnifiedBytecodeVirtualMachine
         return baseIndex + 1;
     }
 
-    // Synchronous construct call. Mirrors the spec-conformant construct reference
-    // helper: the constructor and its logical arguments are already on the stack
-    // ([constructor, arg0, .. arg(n-1)]); spread positions hold iterable values
-    // to flatten before invoking [[Construct]] with the constructor itself as new.target.
+    private static void SyncSlotsFromEnvironments(
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments)
+    {
+        if (slotEnvironments is null)
+        {
+            return;
+        }
+
+        var count = Math.Min(slots.Length, slotEnvironments.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (slotEnvironments[i] is { } environment &&
+                (uint)i < (uint)environment.SlotCount)
+            {
+                slots[i] = environment.GetSlotByIndex(i).Value;
+            }
+        }
+    }
+
+    // Synchronous non-spread construct call (`new F(...)`, gh2690). Mirrors the
+    // spec-conformant construct reference helper: the constructor and its simple
+    // arguments are already on the stack ([constructor, arg0, .. arg(n-1)]); invoke
+    // [[Construct]] with the constructor itself as new.target (per `new F()` semantics)
+    // and replace the constructor slot with the result. Spread-onto-construct is declined
+    // by eligibility, so only the no-spread path is modeled here.
     private static int ExecutePreparedConstruct(
         int argumentCount,
         ImmutableArray<int> spreadMask,
@@ -4293,14 +4343,20 @@ internal static class UnifiedBytecodeVirtualMachine
 
     // Invocation-boundary operand packing for spread calls/constructs. Mirrors
     // UnifiedBytecodeCompiler.EncodeCallBoundaryOperand: low 16 bits are the pushed
-    // argument value count, high bits are spreadMaskIndex + 1 (0 means "no spread").
+    // argument value count, high bits are spreadMaskIndex + 1 (0 means "no spread"),
+    // and bit 30 marks syntactic direct eval.
+    private const int CallBoundarySpreadMask = 0x3FFF;
+    private const int CallBoundaryDirectEvalFlag = 1 << 30;
+
     private static int DecodeCallBoundaryArgumentCount(int operand) => operand & 0xFFFF;
+
+    private static bool DecodeCallBoundaryIsDirectEval(int operand) => (operand & CallBoundaryDirectEvalFlag) != 0;
 
     private static ImmutableArray<int> DecodeCallBoundarySpreadMask(
         UnifiedBytecodeProgram program,
         int operand)
     {
-        var encoded = operand >> 16;
+        var encoded = (operand >> 16) & CallBoundarySpreadMask;
         if (encoded <= 0 || program.CallSpreadMasks.IsDefaultOrEmpty)
         {
             return default;

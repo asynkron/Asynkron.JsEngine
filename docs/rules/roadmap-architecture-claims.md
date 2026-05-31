@@ -116,6 +116,9 @@ boundary-explicit.
     - "Faster than before" is not sufficient for Node.js parity SLOs; a
       comparison benchmark against a reference Jint run at the same input
       is required.
+    - A green `make slo-gate` is baseline-regression evidence only. Its
+      target-status output is non-failing avg-ms evidence and must not be used
+      as p95 or Node.js parity proof without the matching measurement shape.
     - No SLO may be removed from the table without an ADR documenting why
       the target was dropped or superseded.
 18. When `docs/dreaming.md`, roadmap, ADR, PR, or issue text marks a

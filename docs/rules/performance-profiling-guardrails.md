@@ -49,10 +49,19 @@ optimization.
     `./tools/check-slo-gate --update && git add tools/perf-slo-baseline.md`.
     Do not interpret an SLO gate failure as an allocation regression; use
     `check-allocation-regression` and allocation profiles separately.
+    Treat the gate's directional target-status output as non-failing evidence,
+    not proof that a p95 or Node.js parity SLO is met. A green gate means the
+    current avg-ms timing did not regress beyond the committed baseline
+    tolerance; stronger SLO claims need the matching measurement shape and
+    comparison proof.
     WHY: issue #2711 / PR #2716 introduced the startup/microtask SLO gate and
-    committed the first baseline. See `docs/rules/tooling-shell-wrappers.md`
-    "Performance SLO Gate Consistency" for the three-step atomic update rule
-    when adding new profiles to the gate.
+    committed the first baseline. Issue #2905 / PR #2908 then separated hard
+    baseline protection from non-failing directional target status after the
+    docs risked reading committed avg baselines as p95 or Node.js parity proof.
+    Related ADR:
+    `docs/adrs/0310-keep-slo-gate-target-status-evidence-only.md`. See
+    `docs/rules/tooling-shell-wrappers.md` "Performance SLO Gate Consistency"
+    for the three-step atomic update rule when adding new profiles to the gate.
 4. Keep activation guardrails as profiler/tooling surfaces unless the issue
    explicitly asks for runtime optimization. Do not modify invoker,
    environment, arguments-object, or parameter-binding code without current

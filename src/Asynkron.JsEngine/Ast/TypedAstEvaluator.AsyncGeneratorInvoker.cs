@@ -122,6 +122,7 @@ public static partial class TypedAstEvaluator
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
                         AsyncInvokeWithOneArg(resolve, iteratorResult);
+                        ReturnIteratorResultAfterPromiseReactions(iteratorResult);
                         break;
                     }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
@@ -156,6 +157,22 @@ public static partial class TypedAstEvaluator
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
                 step.PendingPromise);
+        }
+
+        private void ReturnIteratorResultAfterPromiseReactions(JsValue iteratorResult)
+        {
+            if (!iteratorResult.TryGetObject<IteratorResultObject>(out var poolableResult))
+            {
+                return;
+            }
+
+            if (realmState.Engine is { } engine)
+            {
+                engine.QueueMicrotask(IteratorResultReturnMicrotask.Rent(poolableResult));
+                return;
+            }
+
+            IteratorResultObjectPool.Return(poolableResult);
         }
 
         private JsObject? ResolveGeneratorPrototype()
@@ -316,6 +333,48 @@ public static partial class TypedAstEvaluator
                 stepExecutor._mode = mode;
                 stepExecutor._argument = argument;
                 return stepExecutor;
+            }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
+        private sealed class IteratorResultReturnMicrotask : IMicrotask, IRentable
+        {
+            private static readonly ObjectPool<IteratorResultReturnMicrotask> Pool =
+                new(32, static () => new IteratorResultReturnMicrotask());
+
+            private IteratorResultObject? _result;
+
+            public int Epoch { get; set; }
+
+            public static IMicrotask Rent(IteratorResultObject result)
+            {
+                var task = Pool.Rent();
+                task._result = result;
+                return task;
+            }
+
+            public void Execute()
+            {
+                AssertOwnership(nameof(Execute));
+                var result = _result;
+                if (result is not null)
+                {
+                    IteratorResultObjectPool.Return(result);
+                }
+
+                Pool.Return(this);
+            }
+
+            public void OnRent(Microsoft.Extensions.Logging.ILogger? logger)
+            {
+            }
+
+            public void OnReturn(Microsoft.Extensions.Logging.ILogger? logger)
+            {
+                _result = null;
+                Epoch = 0;
             }
 
             [Conditional("DEBUG")]

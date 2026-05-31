@@ -1259,7 +1259,13 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
-                    CleanupDriverStatesForBreakTarget(instruction.Operand, program, slots, slotEnvironments, context);
+                    CleanupDriverStatesForControlTarget(
+                        instruction.Operand,
+                        isBreak: true,
+                        program,
+                        slots,
+                        slotEnvironments,
+                        context);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -1315,8 +1321,9 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
-                    CleanupDriverStatesForBreakTarget(
+                    CleanupDriverStatesForControlTarget(
                         instruction.Operand,
+                        isBreak: true,
                         program,
                         slots,
                         slotEnvironments,
@@ -1350,6 +1357,23 @@ internal static class UnifiedBytecodeVirtualMachine
                             ref environmentStackCount))
                     {
                         break;
+                    }
+
+                    CleanupDriverStatesForControlTarget(
+                        instruction.Operand,
+                        isBreak: false,
+                        program,
+                        slots,
+                        slotEnvironments,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
                     programCounter = instruction.Operand;
@@ -2070,7 +2094,16 @@ internal static class UnifiedBytecodeVirtualMachine
                 if (hasControlTarget &&
                     kind == AbruptKind.Continue &&
                     frame.Descriptor.LoopContinueTarget >= 0 &&
-                    IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopContinueTarget))
+                    (IsSameLoopControlTarget(program, controlTarget, frame.Descriptor.LoopContinueTarget) ||
+                     IsSameLoopControlTarget(program, frame.Descriptor.LoopContinueTarget, controlTarget)))
+                {
+                    return false;
+                }
+
+                if (hasControlTarget &&
+                    kind == AbruptKind.Continue &&
+                    frame.Descriptor.LoopBreakTarget >= 0 &&
+                    IsContinueTargetInsideLoopFrame(program, controlTarget, frame.Descriptor.LoopBreakTarget))
                 {
                     return false;
                 }
@@ -2143,32 +2176,87 @@ internal static class UnifiedBytecodeVirtualMachine
         return false;
     }
 
+    private static bool IsContinueTargetInsideLoopFrame(
+        UnifiedBytecodeProgram program,
+        int target,
+        int loopBreakTarget)
+    {
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            if (descriptor.BreakTarget < 0 ||
+                !IsSameDriverBreakTarget(program, descriptor.BreakTarget, loopBreakTarget))
+            {
+                continue;
+            }
+
+            if ((descriptor.ContinueTarget >= 0 &&
+                 IsSameLoopControlTarget(program, target, descriptor.ContinueTarget)) ||
+                IsControlTargetInsideDriverBody(program, target, descriptor))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSameDriverBreakTarget(
+        UnifiedBytecodeProgram program,
+        int left,
+        int right)
+    {
+        return IsSameLoopControlTarget(program, left, right) ||
+               IsSameLoopControlTarget(program, right, left);
+    }
+
     private static bool IsSameLoopControlTarget(
         UnifiedBytecodeProgram program,
         int target,
         int loopControlTarget)
     {
-        var instructions = program.Instructions;
-        var remainingCleanupDepth = instructions.Length;
-        while (target >= 0 &&
-               target < instructions.Length &&
-               remainingCleanupDepth-- > 0)
+        while ((uint)target < (uint)program.Instructions.Length)
         {
             if (target == loopControlTarget)
             {
                 return true;
             }
 
-            if (instructions[target].OpCode != UnifiedBytecodeOpCode.PopEnvironment)
+            var next = GetCleanupChainNext(program.Instructions[target], target);
+            if (next == target)
             {
                 return false;
             }
 
-            target++;
+            target = next;
         }
 
         return false;
     }
+
+    private static int ResolveCleanupChainTarget(UnifiedBytecodeProgram program, int target)
+    {
+        var visited = 0;
+        while ((uint)target < (uint)program.Instructions.Length &&
+               visited++ < program.Instructions.Length)
+        {
+            var next = GetCleanupChainNext(program.Instructions[target], target);
+            if (next == target)
+            {
+                break;
+            }
+
+            target = next;
+        }
+
+        return target;
+    }
+
+    private static int GetCleanupChainNext(UnifiedBytecodeInstruction instruction, int current) =>
+        instruction.OpCode switch
+        {
+            UnifiedBytecodeOpCode.PopEnvironment or UnifiedBytecodeOpCode.LeaveWith => current + 1,
+            _ => current
+        };
 
     private static bool CompleteFinally(
         UnifiedBytecodeProgram program,
@@ -2237,7 +2325,13 @@ internal static class UnifiedBytecodeVirtualMachine
 
             if (pending.Kind == AbruptKind.Break)
             {
-                CleanupDriverStatesForBreakTarget(pending.Target, program, slots, slotEnvironments, context);
+                CleanupDriverStatesForControlTarget(
+                    pending.Target,
+                    isBreak: true,
+                    program,
+                    slots,
+                    slotEnvironments,
+                    context);
             }
 
             programCounter = pending.Target >= 0 ? pending.Target : nextTarget;
@@ -3504,18 +3598,20 @@ internal static class UnifiedBytecodeVirtualMachine
         }
     }
 
-    private static void CleanupDriverStatesForBreakTarget(
-        int breakTarget,
+    private static void CleanupDriverStatesForControlTarget(
+        int controlTarget,
+        bool isBreak,
         UnifiedBytecodeProgram program,
         Span<JsValue> slots,
         JsEnvironment?[]? slotEnvironments,
         EvaluationContext context)
     {
         List<ActiveDriverSlot>? activeDriverSlots = null;
+        var targetDriverOrdinal = isBreak ? int.MaxValue : 0;
         foreach (var descriptor in program.DriverDescriptors)
         {
-            if (descriptor.BreakTarget != breakTarget ||
-                descriptor.StateSlot < 0 ||
+            if (descriptor.StateSlot < 0 ||
+                descriptor.BreakTarget < 0 ||
                 !TryGetActiveDriverOrdinal(slots, descriptor.StateSlot, out var ordinal))
             {
                 continue;
@@ -3523,6 +3619,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
             activeDriverSlots ??= new List<ActiveDriverSlot>();
             activeDriverSlots.Add(new ActiveDriverSlot(descriptor.StateSlot, ordinal));
+
+            if (isBreak && IsDriverBreakTarget(program, controlTarget, descriptor))
+            {
+                targetDriverOrdinal = Math.Min(targetDriverOrdinal, ordinal);
+            }
+            else if (!isBreak && IsDriverContinueTarget(program, controlTarget, descriptor))
+            {
+                targetDriverOrdinal = Math.Max(targetDriverOrdinal, ordinal);
+            }
         }
 
         if (activeDriverSlots is null)
@@ -3534,6 +3639,16 @@ internal static class UnifiedBytecodeVirtualMachine
         activeDriverSlots.Sort(static (left, right) => right.Ordinal.CompareTo(left.Ordinal));
         foreach (var activeDriverSlot in activeDriverSlots)
         {
+            if (!ShouldCleanupActiveDriverForControlTarget(
+                    activeDriverSlot,
+                    targetDriverOrdinal,
+                    controlTarget,
+                    isBreak,
+                    program))
+            {
+                continue;
+            }
+
             CleanupDriverStateSlot(
                 activeDriverSlot.SlotIndex,
                 slots,
@@ -3541,6 +3656,100 @@ internal static class UnifiedBytecodeVirtualMachine
                 context,
                 ref preserveCloseThrow);
         }
+    }
+
+    private static bool ShouldCleanupActiveDriverForControlTarget(
+        ActiveDriverSlot activeDriverSlot,
+        int targetDriverOrdinal,
+        int controlTarget,
+        bool isBreak,
+        UnifiedBytecodeProgram program)
+    {
+        if (isBreak && targetDriverOrdinal < int.MaxValue)
+        {
+            return activeDriverSlot.Ordinal >= targetDriverOrdinal;
+        }
+
+        if (!isBreak)
+        {
+            if (targetDriverOrdinal > 0)
+            {
+                return activeDriverSlot.Ordinal > targetDriverOrdinal;
+            }
+
+            foreach (var descriptor in program.DriverDescriptors)
+            {
+                if (descriptor.StateSlot == activeDriverSlot.SlotIndex &&
+                    descriptor.BreakTarget >= 0)
+                {
+                    return !IsControlTargetInsideDriverBody(program, controlTarget, descriptor);
+                }
+            }
+
+            return false;
+        }
+
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            if (descriptor.StateSlot == activeDriverSlot.SlotIndex &&
+                descriptor.BreakTarget >= 0)
+            {
+                return !IsControlTargetInsideDriverBody(program, controlTarget, descriptor);
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsDriverBreakTarget(
+        UnifiedBytecodeProgram program,
+        int controlTarget,
+        UnifiedBytecodeDriverDescriptor descriptor)
+    {
+        return descriptor.BreakTarget >= 0 &&
+               IsSameLoopControlTarget(program, controlTarget, descriptor.BreakTarget);
+    }
+
+    private static bool IsDriverContinueTarget(
+        UnifiedBytecodeProgram program,
+        int controlTarget,
+        UnifiedBytecodeDriverDescriptor descriptor)
+    {
+        if (descriptor.ContinueTarget >= 0 &&
+            IsSameLoopControlTarget(program, controlTarget, descriptor.ContinueTarget))
+        {
+            return true;
+        }
+
+        foreach (var tryDescriptor in program.TryDescriptors)
+        {
+            if (tryDescriptor.LoopContinueTarget >= 0 &&
+                tryDescriptor.LoopBreakTarget >= 0 &&
+                IsSameDriverBreakTarget(program, descriptor.BreakTarget, tryDescriptor.LoopBreakTarget) &&
+                IsSameLoopControlTarget(program, controlTarget, tryDescriptor.LoopContinueTarget))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsControlTargetInsideDriverBody(
+        UnifiedBytecodeProgram program,
+        int controlTarget,
+        UnifiedBytecodeDriverDescriptor descriptor)
+    {
+        if (descriptor.BreakTarget < 0)
+        {
+            return false;
+        }
+
+        var target = ResolveCleanupChainTarget(program, controlTarget);
+        return descriptor.NextTarget >= 0 &&
+               descriptor.BreakTarget >= 0 &&
+               target >= descriptor.NextTarget &&
+               target < descriptor.BreakTarget;
     }
 
     private static bool TryGetActiveDriverOrdinal(

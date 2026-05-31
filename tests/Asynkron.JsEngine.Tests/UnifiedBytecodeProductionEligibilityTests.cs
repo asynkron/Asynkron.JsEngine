@@ -2442,20 +2442,17 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledContinueCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    public void Evaluate_LabeledContinueCrossingDriverLoop_DoesNotDeclineWithLabelControlFlow()
     {
         // A labeled continue that re-enters an outer loop from inside an enclosing for-of driver
-        // loop would leak the inner iterator (the VM continue path performs no driver cleanup), so
-        // it must decline before VM execution to preserve no-mixed-execution.
+        // loop no longer uses the coarse LabelControlFlow decline; this shape still has a
+        // compiler-owned active loop-control topology that remains outside this cleanup slice.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 var total = 0;
-                outerLabel: for (var x of outer) {
-                    for (var y of inner) {
-                        if (y === 1) {
-                            continue outerLabel;
-                        }
-
+                outerLabel: for (var x in outer) {
+                    for (var y in inner) {
+                        continue outerLabel;
                         total = total + 1;
                     }
                 }
@@ -2470,16 +2467,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
     }
 
     [Fact]
-    public void Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow()
+    public void Evaluate_LabeledBreakCrossingDriverLoop_AcceptsWithDriverCleanupTopology()
     {
         // A labeled break that exits an enclosing for-of driver loop it is not directly targeting
-        // (here: break outerLabel from inside the inner for-of) would leave the inner iterator
-        // active, because the VM's single-level driver cleanup only closes the driver whose break
-        // target equals the jump target. Decline before VM execution to preserve no-mixed-execution.
+        // (here: break outerLabel from inside the inner for-of) is eligible now that cleanup closes
+        // all crossed active drivers in innermost-first order.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 outerLabel: for (var x of outer) {
@@ -2499,8 +2496,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Break);
+        Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
     }
 
     [Fact]

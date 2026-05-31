@@ -2531,7 +2531,8 @@ internal static class UnifiedBytecodeCompiler
             new UnifiedBytecodeDriverDescriptor(
                 stateSlot,
                 ValueSlot: valueSlot,
-                NextTarget: unified.Count + 1));
+                NextTarget: unified.Count + 1,
+                ContinueTarget: unified.Count));
         unified.Add(new UnifiedBytecodeInstruction(opCode, descriptorIndex));
 
         if (!TryCompileTarget(

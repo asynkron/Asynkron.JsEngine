@@ -153,6 +153,7 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     int TargetSlot = -1,
     int BreakTarget = -1,
     int NextTarget = -1,
+    int ContinueTarget = -1,
     IteratorDriverKind IteratorKind = IteratorDriverKind.Sync,
     ImmutableArray<int> TdzHeadSlots = default,
     bool TdzHeadIsConst = false,

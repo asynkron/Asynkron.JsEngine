@@ -1056,6 +1056,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LabeledBreakCrossingForOf_ClosesInnerAndOuterDriversOnProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeIterable(limit, closeValue, box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var i = 0;
+                        return {
+                            next: function() {
+                                i = i + 1;
+                                return { done: i > limit, value: i };
+                            },
+                            return: function() {
+                                box.value = box.value + closeValue;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        break outerLabel;
+                    }
+
+                    return -1;
+                }
+
+                return box.value;
+            }
+
+            var box = { value: 0 };
+            var result = probe(makeIterable(2, 100, box), makeIterable(3, 1, box), box);
+            result + ":" + box.value;
+            """);
+
+        // break outer crosses the inner iterator and exits the outer loop, so both returns run.
+        Assert.Equal("101:101", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes()
     {
         await using var engine = CreateEngine();

@@ -3356,6 +3356,40 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                     (int)UnifiedBytecodeOpCode.UpdateComputedProperty,
                     (int)UnifiedBytecodeOpCode.Return
                 ]
+            },
+            {
+                """
+                function writeNested(box, value) {
+                    return box.child.value = value;
+                }
+                """,
+                "writeNested",
+                [(int)UnifiedBytecodeOpCode.GetNamedProperty, (int)UnifiedBytecodeOpCode.SetNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.GetNamedProperty,
+                    (int)UnifiedBytecodeOpCode.SetNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
+            },
+            {
+                """
+                function updateNested(box) {
+                    return box.child.value++;
+                }
+                """,
+                "updateNested",
+                [(int)UnifiedBytecodeOpCode.GetNamedProperty, (int)UnifiedBytecodeOpCode.UpdateNamedProperty],
+                [
+                    (int)UnifiedBytecodeOpCode.LoadSlot,
+                    (int)UnifiedBytecodeOpCode.LoadLiteral,
+                    (int)UnifiedBytecodeOpCode.StoreSlot,
+                    (int)UnifiedBytecodeOpCode.GetNamedProperty,
+                    (int)UnifiedBytecodeOpCode.UpdateNamedProperty,
+                    (int)UnifiedBytecodeOpCode.Return
+                ]
             }
         };
 
@@ -3998,6 +4032,52 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: var operand } && operand == expectedOperator);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedPropertyWrite_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeNested(box, value) {
+                return box.child.value = value;
+            }
+            """,
+            "writeNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function updateNested(box) {
+                return ++box.child.count;
+            }
+            """,
+            "updateNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+        Assert.Equal(new[] { "child", "count" }, result.Program.StringConstants);
     }
 
     [Fact]

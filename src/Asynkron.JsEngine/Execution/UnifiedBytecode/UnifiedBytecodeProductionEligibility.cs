@@ -2203,13 +2203,13 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Admits the a?.b[k] shape:
-    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple-key, GetComputedProperty(SC:true)]
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true)]
     private static bool TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 4)
+        if (program.OperationCount < 4)
         {
             return false;
         }
@@ -2229,15 +2229,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var keyOp = program.GetOperation(2);
-        if (!IsSimpleComputedPropertyKey(keyOp, identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        var computedOp = program.GetOperation(3);
+        var computedIndex = program.OperationCount - 1;
+        var computedOp = program.GetOperation(computedIndex);
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
-               computedOp.ShortCircuitOnNullishTarget;
+               computedOp.ShortCircuitOnNullishTarget &&
+               IsSupportedComputedPropertyKeySpan(program, 2, computedIndex, identifierConstants, activationSlots);
     }
 
 
@@ -3020,6 +3016,59 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots),
             _ => false
         };
+    }
+
+    private static bool IsSupportedComputedPropertyKeySpan(
+        ExpressionProgram program,
+        int startInclusive,
+        int endExclusive,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        var stackDepth = 0;
+        for (var index = startInclusive; index < endExclusive; index++)
+        {
+            var operation = program.GetOperation(index);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadIdentifier:
+                    if (!IsSimpleComputedPropertyKey(operation, identifierConstants, activationSlots))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                case ExpressionOpKind.UnaryMinus:
+                case ExpressionOpKind.UnaryLogicalNot:
+                case ExpressionOpKind.UnaryBitwiseNot:
+                case ExpressionOpKind.UnaryVoid:
+                case ExpressionOpKind.ToString:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return stackDepth == 1;
     }
 
     private static bool IsPlainNamedPropertyRead(

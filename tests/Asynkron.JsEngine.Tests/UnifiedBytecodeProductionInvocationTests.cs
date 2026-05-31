@@ -2073,6 +2073,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenComputedRichKey_ReadsValueThroughProductionFastPath()
+    {
+        // a?.b[left + right]: rich key continuations use the production fast path.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a, left, right) {
+                return a?.items[left + right];
+            }
+
+            var whenPresent = readChain({ items: { id: 42 } }, "i", "d");
+            whenPresent;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalThenRegularNamedChain_EvaluatesBaseExactlyOnce()
     {
         // Gate 1: the base expression must be evaluated exactly once even for a multi-hop chain.

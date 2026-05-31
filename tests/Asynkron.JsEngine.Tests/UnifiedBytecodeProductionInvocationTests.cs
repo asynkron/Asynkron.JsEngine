@@ -4985,6 +4985,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Ternary_LiteralArms_TruthyCondition_ReturnsConsequentLiteral_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function clamp(a) {
+                return a > 0 ? 1 : 0;
+            }
+
+            clamp(5);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=clamp argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Ternary_Nested_AllCombinationsCorrect_OnProductionFastPath()
     {
         // AC-3: c1 ? (c2 ? a : b) : d — all four combinations of c1/c2.
@@ -5001,6 +5020,60 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=nested",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_LiteralArms_FalsyCondition_ReturnsAlternateLiteral_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function clamp(a) {
+                return a > 0 ? 1 : 0;
+            }
+
+            clamp(-3);
+            """);
+
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=clamp argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_SideEffectOnce_OnlyChosenArmEvaluated()
+    {
+        // Gate: non-chosen arm must never be evaluated.
+        // Note: a ternary with function-call arms is declined from the production fast path;
+        // this test verifies behavioral short-circuit correctness independently.
+        await using var engine = CreateEngine();
+
+        var countTruthy = await engine.Evaluate("""
+            var count = 0;
+            function effect(v) { count++; return v; }
+            function pick(cond) { return cond ? effect(10) : effect(20); }
+            pick(1);
+            count;
+            """);
+        Assert.Equal(1d, countTruthy);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick",
+                StringComparison.Ordinal));
+
+        var countFalsy = await engine.Evaluate("""
+            var count2 = 0;
+            function effect2(v) { count2++; return v; }
+            function pick2(cond) { return cond ? effect2(10) : effect2(20); }
+            pick2(0);
+            count2;
+            """);
+        Assert.Equal(1d, countFalsy);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick2",
                 StringComparison.Ordinal));
     }
 }

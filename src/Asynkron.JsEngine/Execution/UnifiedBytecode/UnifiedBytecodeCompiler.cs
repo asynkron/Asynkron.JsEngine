@@ -809,6 +809,64 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = compoundAssignment.Next;
                         continue;
 
+                    case LogicalCompoundAssignmentSlotInstruction
+                        {
+                            RhsProgram: { } logicalRhsProgram,
+                            AwaitedProgram: null,
+                            TargetSymbol: { } logicalTargetSymbol
+                        } logicalAssignment:
+                        if (!TryResolveInstructionSlot(logicalTargetSymbol, logicalAssignment.FlatSlotId, slotLayout, out var logicalSlot))
+                        {
+                            reason = $"Unsupported logical assignment target '{logicalTargetSymbol.Name}'.";
+                            return false;
+                        }
+
+                        var scJumpOpCode = logicalAssignment.Operator switch
+                        {
+                            BinaryOperator.LogicalAnd => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
+                            BinaryOperator.LogicalOr => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
+                            _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
+                        };
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, logicalSlot));
+                        var scJumpIndex = unified.Count;
+                        unified.Add(new UnifiedBytecodeInstruction(scJumpOpCode, 0));
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                        if (!TryAppendExpressionProgramOps(
+                                logicalRhsProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, logicalSlot));
+                        var skipScPopIndex = unified.Count;
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+                        PatchOperand(unified, scJumpIndex, unified.Count);
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                        PatchOperand(unified, skipScPopIndex, unified.Count);
+                        maxStackDepth = Math.Max(maxStackDepth, logicalRhsProgram.MaxStackDepth + 1);
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                logicalAssignment.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = logicalAssignment.Next;
+                        continue;
+
                     case IncrementSlotInstruction
                         {
                             TargetSymbol: { } incrementTargetSymbol

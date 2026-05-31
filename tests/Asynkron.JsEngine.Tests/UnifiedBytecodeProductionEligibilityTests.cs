@@ -4350,4 +4350,124 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope, result.Code);
     }
+
+    [Fact]
+    public void Evaluate_LogicalAndAssignment_SlotBased_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function andAssign(x, y) {
+                x &&= y;
+                return x;
+            }
+            """,
+            "andAssign");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrAssignment_SlotBased_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function orAssign(x, y) {
+                x ||= y;
+                return x;
+            }
+            """,
+            "orAssign");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NullishAssignment_SlotBased_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function nullishAssign(x, y) {
+                x ??= y;
+                return x;
+            }
+            """,
+            "nullishAssign");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalAndAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Obj {
+                method(value) {
+                    this.x &&= value;
+                }
+            }
+            """,
+            "Obj",
+            "method");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalOrAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Obj {
+                method(value) {
+                    this.x ||= value;
+                }
+            }
+            """,
+            "Obj",
+            "method");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NullishAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Obj {
+                method(value) {
+                    this.x ??= value;
+                }
+            }
+            """,
+            "Obj",
+            "method");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
 }

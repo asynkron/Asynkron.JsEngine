@@ -5350,4 +5350,178 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=pick2",
                 StringComparison.Ordinal));
     }
+
+    // Logical assignment operators on slot identifiers — ADR batch 3
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAndAssignment_SlotBased_ShortCircuitsOnFalsyLeft_SlotUnchanged_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function andAssign(x, y) {
+                x &&= y;
+                return x;
+            }
+
+            andAssign(0, 99);
+            """);
+
+        // x is falsy (0); &&= short-circuits, slot stays 0
+        Assert.Equal(0d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=andAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAndAssignment_SlotBased_ShortCircuitsOnFalsyLeft_RhsNeverEvaluated()
+    {
+        // Gate 1: &&= short-circuit must not invoke the RHS at all — proven by a side-effecting
+        // counter function. If RHS were evaluated, counter would be > 0 after the call.
+        // The global function call in the RHS declines the production fast path; correctness
+        // of the short-circuit opcode is verified here regardless of which path runs.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var counter = 0;
+            function sideEffect() { counter++; return 99; }
+            function andAssign(x) {
+                x &&= sideEffect();
+                return x;
+            }
+
+            andAssign(0);
+            counter;
+            """);
+
+        // counter must remain 0 — sideEffect() was never called during short-circuit
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAndAssignment_SlotBased_ProceedsOnTruthyLeft_SlotUpdated_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function andAssign(x, y) {
+                x &&= y;
+                return x;
+            }
+
+            andAssign(5, 99);
+            """);
+
+        // x is truthy (5); &&= evaluates y, stores y in x
+        Assert.Equal(99d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=andAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalOrAssignment_SlotBased_ShortCircuitsOnTruthyLeft_SlotUnchanged_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orAssign(x, y) {
+                x ||= y;
+                return x;
+            }
+
+            orAssign(5, 99);
+            """);
+
+        // x is truthy (5); ||= short-circuits, slot stays 5
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalOrAssignment_SlotBased_ProceedsOnFalsyLeft_SlotUpdated_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orAssign(x, y) {
+                x ||= y;
+                return x;
+            }
+
+            orAssign(0, 99);
+            """);
+
+        // x is falsy (0); ||= evaluates y, stores y in x
+        Assert.Equal(99d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishAssignment_SlotBased_ShortCircuitsOnNonNullishLeft_SlotUnchanged_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nullishAssign(x, y) {
+                x ??= y;
+                return x;
+            }
+
+            nullishAssign(5, 99);
+            """);
+
+        // x is not nullish (5); ??= short-circuits, slot stays 5
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nullishAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NullishAssignment_SlotBased_ProceedsOnNullLeft_SlotUpdated_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function nullishAssign(x, y) {
+                x ??= y;
+                return x;
+            }
+
+            nullishAssign(null, 99);
+            """);
+
+        // x is null (nullish); ??= evaluates y, stores y in x
+        Assert.Equal(99d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=nullishAssign argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LogicalAndAssignment_SlotBased_MultipleCallsDoNotCorruptStack_UsesProductionFastPath()
+    {
+        // Gate: verifies short-circuit and proceed paths balance the stack correctly across
+        // multiple calls — a mismatched Pop would corrupt the stack on repeated invocations.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function andAssign(x, y) {
+                x &&= y;
+                return x;
+            }
+
+            [andAssign(0, 99), andAssign(5, 99), andAssign(0, 42), andAssign(7, 42)].join(',');
+            """);
+
+        Assert.Equal("0,99,0,42", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=andAssign",
+                StringComparison.Ordinal));
+    }
 }

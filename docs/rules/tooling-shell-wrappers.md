@@ -134,6 +134,20 @@ measurement exceeds 3× the baseline) because CPU timing is hardware-dependent
 and noisier than allocation bytes. The committed `tools/perf-slo-baseline.md` is
 machine-specific; regenerate it with `--update` when switching developer hardware.
 
+For same-run Node.js evidence in `tools/check-slo-gate`, match the lifecycle of
+the Asynkron SLO profile being compared. Startup measures fresh engine/realm
+initialization, so the Node reference must run each measured iteration in a
+fresh `vm.Context` while still reusing the prepared `vm.Script`. Shared-context
+reuse is appropriate only for workloads whose Asynkron profile also reuses the
+same engine or whose target is steady-state execution. Keep the comparison
+evidence non-failing unless a later ADR changes the SLO-gate contract.
+
+WHY: issue #2927 / PR #2930 added p95 and same-run Node.js evidence to the SLO
+gate, but the build-back commit `716c76e71` was needed because the first startup
+comparison reused one Node context across iterations. That made Node measure
+steady-state script execution while Asynkron measured fresh-engine startup,
+making the ratio incomparable.
+
 ## Usage Heredoc Path Drift
 
 When creating a new gate or wrapper script by mirroring an existing one, grep

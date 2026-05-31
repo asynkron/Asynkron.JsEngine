@@ -2095,21 +2095,14 @@ public sealed class JsRegExp
     {
         var result = new JsArray(RealmState);
         var reorderMap = _groupReorderMap;
+        var observableCaptures = GetObservableCaptures(match, _quantifiedAncestorMap);
 
         // Build captureValues in .NET group order (needed by BuildGroupsObject which uses .NET group numbers).
         var captureValues = new JsValue[match.Groups.Count];
         for (var i = 0; i < match.Groups.Count; i++)
         {
-            var group = match.Groups[i];
-            captureValues[i] = group.Success ? new JsValue(group.Value) : JsValue.Undefined;
-        }
-
-        // ES capture-group-reset: when a group is inside a quantified construct and its
-        // last capture doesn't fall within the last iteration of the quantifier, the group
-        // should be undefined (it was reset by a later iteration that didn't match it).
-        if (_quantifiedAncestorMap is { } qaMap)
-        {
-            ApplyCaptureGroupResets(match, captureValues, qaMap);
+            var capture = observableCaptures[i];
+            captureValues[i] = capture is null ? JsValue.Undefined : new JsValue(capture.Value);
         }
 
         // Push to result array in JS (left-to-right) order.
@@ -2194,61 +2187,89 @@ public sealed class JsRegExp
         return result;
     }
 
-    /// <summary>
-    /// Implements ES capture-group-reset semantics (ES2024 21.2.2.5.1 step 4.b).
-    /// When a quantifier (+, *, {n,m}) iterates, all capturing groups inside it are
-    /// reset to undefined at the start of each iteration. .NET doesn't do this — it
-    /// retains the value from the last successful capture across iterations. We fix
-    /// this by checking whether each group's last capture falls within the range of
-    /// the last iteration of its nearest quantified ancestor. If not, the group's
-    /// value is reset to undefined.
-    /// </summary>
-    private static void ApplyCaptureGroupResets(Match match, JsValue[] captureValues, int[] quantifiedAncestorMap)
+    private static Capture?[] GetObservableCaptures(Match match, int[]? quantifiedAncestorMap)
     {
-        for (var g = 1; g < captureValues.Length && g < quantifiedAncestorMap.Length; g++)
+        var observableCaptures = new Capture?[match.Groups.Count];
+        for (var g = 0; g < observableCaptures.Length; g++)
         {
-            var ancestorIdx = quantifiedAncestorMap[g];
-            if (ancestorIdx == -2)
+            observableCaptures[g] = GetObservableCapture(match, g, quantifiedAncestorMap);
+        }
+
+        return observableCaptures;
+    }
+
+    private static Capture? GetObservableCapture(Match match, int groupIndex, int[]? quantifiedAncestorMap)
+    {
+        var group = match.Groups[groupIndex];
+        if (!group.Success || group.Captures.Count == 0)
+        {
+            return null;
+        }
+
+        if (quantifiedAncestorMap is null || groupIndex >= quantifiedAncestorMap.Length)
+        {
+            return group.Captures[group.Captures.Count - 1];
+        }
+
+        var ancestorIndex = quantifiedAncestorMap[groupIndex];
+        if (ancestorIndex == -2)
+        {
+            return null;
+        }
+
+        if (ancestorIndex == groupIndex)
+        {
+            return FindLastProgressingCapture(group.Captures);
+        }
+
+        if (ancestorIndex <= 0 || ancestorIndex >= match.Groups.Count)
+        {
+            return group.Captures[group.Captures.Count - 1];
+        }
+
+        var ancestor = match.Groups[ancestorIndex];
+        if (ancestor.Captures.Count <= 1)
+        {
+            return group.Captures[group.Captures.Count - 1];
+        }
+
+        var lastAncestorCapture = ancestor.Captures[ancestor.Captures.Count - 1];
+        return FindLastProgressingCaptureWithinRange(group.Captures, lastAncestorCapture.Index,
+            lastAncestorCapture.Index + lastAncestorCapture.Length);
+    }
+
+    private static Capture? FindLastProgressingCapture(CaptureCollection captures)
+    {
+        for (var i = captures.Count - 1; i >= 0; i--)
+        {
+            if (captures[i].Length > 0)
             {
-                captureValues[g] = JsValue.Undefined;
-                continue;
-            }
-
-            if (ancestorIdx < 0 || ancestorIdx >= match.Groups.Count)
-            {
-                continue;
-            }
-
-            var group = match.Groups[g];
-            if (!group.Success || group.Captures.Count == 0)
-            {
-                continue;
-            }
-
-            var ancestor = match.Groups[ancestorIdx];
-            if (ancestor.Captures.Count <= 1)
-            {
-                // Ancestor only iterated once — no reset needed.
-                continue;
-            }
-
-            // Get the range of the ancestor's last iteration.
-            var lastAncestorCapture = ancestor.Captures[ancestor.Captures.Count - 1];
-            var aStart = lastAncestorCapture.Index;
-            var aEnd = aStart + lastAncestorCapture.Length;
-
-            // Get the range of this group's last capture.
-            var lastGroupCapture = group.Captures[group.Captures.Count - 1];
-            var gStart = lastGroupCapture.Index;
-            var gEnd = gStart + lastGroupCapture.Length;
-
-            // If the group's last capture is entirely outside the ancestor's last iteration,
-            // it was from a prior iteration and should be reset to undefined.
-            if (gEnd <= aStart || gStart >= aEnd)
-            {
-                captureValues[g] = JsValue.Undefined;
+                return captures[i];
             }
         }
+
+        return null;
+    }
+
+    private static Capture? FindLastProgressingCaptureWithinRange(CaptureCollection captures, int start, int end)
+    {
+        for (var i = captures.Count - 1; i >= 0; i--)
+        {
+            var capture = captures[i];
+            if (capture.Length == 0)
+            {
+                continue;
+            }
+
+            var captureStart = capture.Index;
+            var captureEnd = captureStart + capture.Length;
+            if (captureEnd > start && captureStart < end)
+            {
+                return capture;
+            }
+        }
+
+        return null;
     }
 
     private JsObject? BuildGroupsObject(Match match, JsValue[] captureValues)
@@ -2372,17 +2393,18 @@ public sealed class JsRegExp
         var regex = EnsureRegex();
         var indices = new JsArray(RealmState);
         var reorderMap = _groupReorderMap;
+        var observableCaptures = GetObservableCaptures(match, _quantifiedAncestorMap);
 
         // Build indexValues in .NET order (needed by BuildIndicesGroupsObject).
         var indexValues = new JsValue[match.Groups.Count];
         for (var i = 0; i < match.Groups.Count; i++)
         {
-            var group = match.Groups[i];
-            if (group.Success)
+            var capture = observableCaptures[i];
+            if (capture is not null)
             {
                 var pair = new JsArray(RealmState);
-                pair.Push((double)group.Index);
-                pair.Push((double)(group.Index + group.Length));
+                pair.Push((double)capture.Index);
+                pair.Push((double)(capture.Index + capture.Length));
                 indexValues[i] = JsValue.FromJsArray(pair);
             }
             else
@@ -2865,6 +2887,13 @@ public sealed class JsRegExp
             map[g] = -1;
             var gn = groupNumbers[g];
             if (gn == 0) continue;
+
+            if (quantifiedGroups.Contains(gn))
+            {
+                map[g] = g;
+                hasAnyAncestor = true;
+                continue;
+            }
 
             // Walk up the parent chain
             if (!parentGroup.TryGetValue(gn, out var parent))

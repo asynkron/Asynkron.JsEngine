@@ -1547,4 +1547,37 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
             ":undefined:0|a:a:0|b:b:0|ab:b:0|abb:b:0|aba:a:0|ba:a:0|aaab:b:0|ab:b:0|:undefined:0",
             result);
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task RegExp_LazyNestedQuantifier_UsesLastProgressingInnerCapture()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var body = "";
+            body += '<body onXXX="alert(event.type);">\n';
+            body += '<p>Kibology for all<\/p>\n';
+            body += '<p>All for Kibology<\/p>\n';
+            body += '<\/body>';
+
+            var html = "";
+            html += '<html>\n';
+            html += body;
+            html += '\n<\/html>';
+
+            var match = /<body.*>((.*\n?)*?)<\/body>/i.exec(html);
+            [
+              typeof match.input,
+              match.input === html,
+              Object.is(match.input, html),
+              match[0],
+              match[1],
+              match[2],
+              match.index
+            ].join("|");
+        """);
+
+        Assert.Equal(
+            "string|true|true|<body onXXX=\"alert(event.type);\">\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n</body>|\n<p>Kibology for all</p>\n<p>All for Kibology</p>\n|<p>All for Kibology</p>\n|7",
+            result);
+    }
 }

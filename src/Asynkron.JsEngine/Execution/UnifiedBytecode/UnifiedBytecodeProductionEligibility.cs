@@ -21,7 +21,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     MaterializedActivationDependency,
     CallDependency,
     DynamicLookupDependency,
-    PropertyReadCandidateRequiresVmSupport,
     PropertyReadBoundaryOutOfScope,
     PropertyWriteDependency,
     PropertyUpdateDependency,
@@ -1041,7 +1040,9 @@ internal static class UnifiedBytecodeProductionEligibility
                         }
 
                         // Continuation hop of a multi-hop optional named chain (a?.b.c / a?.b?.c).
-                        if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
+                        if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots) ||
+                            TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                            TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
                         }
@@ -1067,7 +1068,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                         // a?.b.c / a?.b?.c chain, or a?.b[k] shape.
                         if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots) ||
-                            TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
+                            TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
                         }
@@ -1097,6 +1098,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1163,7 +1171,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         }
 
                         // a?.b[k] shape — admitted when the program matches the optional named then computed shape.
-                        if (TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
+                        if (TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
                         }
@@ -1174,12 +1182,12 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (TryIsFirstBoundaryComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
 
-                    if (TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1358,7 +1366,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     // Nullish guard of a?.[k] — admitted when the program matches the optional computed read shape.
-                    if (TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1976,50 +1984,59 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool TryIsFirstBoundaryComputedPropertyReadCandidate(
+    private static bool TryIsFirstBoundaryComputedPropertyReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 5)
+        if (program.OperationCount < 5)
         {
             return false;
         }
 
-        var baseLoad = program.GetOperation(0);
-        if (!TryGetActivationResolvedValue(baseLoad, identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
         }
 
-        var keyLoad = program.GetOperation(1);
-        if (keyLoad.Kind == ExpressionOpKind.LoadIdentifier &&
-            !TryGetActivationResolvedValue(keyLoad, identifierConstants, activationSlots))
+        var stringConstants = program.StringConstants.AsSpan();
+        var computedPrefixEnd = 1;
+        while (computedPrefixEnd < program.OperationCount &&
+               IsPlainNamedPropertyRead(program.GetOperation(computedPrefixEnd), stringConstants))
+        {
+            computedPrefixEnd++;
+        }
+
+        var computedSuffixStart = program.OperationCount;
+        while (computedSuffixStart > computedPrefixEnd + 1 &&
+               IsPlainNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
+        {
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
+        if (computedIndex - computedPrefixEnd < 3)
         {
             return false;
         }
 
-        if (keyLoad.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadLiteral))
-        {
-            return false;
-        }
-
-        var requireObjectCoercible = program.GetOperation(2);
+        var requireObjectCoercible = program.GetOperation(computedIndex - 2);
         if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
             requireObjectCoercible.Depth != 1)
         {
             return false;
         }
 
-        var resolvePropertyKey = program.GetOperation(3);
+        var resolvePropertyKey = program.GetOperation(computedIndex - 1);
         if (resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey)
         {
             return false;
         }
 
-        var getComputedProperty = program.GetOperation(4);
+        var getComputedProperty = program.GetOperation(computedIndex);
         return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
-               !getComputedProperty.ShortCircuitOnNullishTarget;
+               !getComputedProperty.ShortCircuitOnNullishTarget &&
+               computedIndex > computedPrefixEnd;
     }
 
     private static bool TryIsFirstBoundaryNamedPropertyDeleteCandidate(
@@ -2185,14 +2202,14 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // Admits the a?.b[k] shape:
-    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple-key, GetComputedProperty(SC:true)]
-    private static bool TryIsFirstBoundaryOptionalNamedThenComputedCandidate(
+    // Admits the a?.b[k] and a?.b[k].c shapes:
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
+    private static bool TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 4)
+        if (program.OperationCount < 4)
         {
             return false;
         }
@@ -2212,25 +2229,37 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!IsSimpleComputedPropertyKey(program.GetOperation(2), identifierConstants, activationSlots))
+        var computedSuffixStart = program.OperationCount;
+        while (computedSuffixStart > 4)
         {
-            return false;
+            var suffixOp = program.GetOperation(computedSuffixStart - 1);
+            if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                suffixOp.IsOptional ||
+                !suffixOp.ShortCircuitOnNullishTarget ||
+                suffixOp.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            computedSuffixStart--;
         }
 
-        var computedOp = program.GetOperation(3);
+        var computedIndex = computedSuffixStart - 1;
+        var computedOp = program.GetOperation(computedIndex);
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
-               computedOp.ShortCircuitOnNullishTarget;
+               computedOp.ShortCircuitOnNullishTarget &&
+               IsSupportedComputedPropertyKeySpan(program, 2, computedIndex, identifierConstants, activationSlots);
     }
 
 
     // Admits the simple a?.[k] shape:
     // [activation-resolved base, JumpIfNullish(ReplaceWithUndefined:true), simple key, GetComputedProperty(!ShortCircuitOnNullishTarget)].
-    private static bool TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(
+    private static bool TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount != 4)
+        if (program.OperationCount < 4)
         {
             return false;
         }
@@ -2246,13 +2275,21 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var keyOp = program.GetOperation(2);
-        if (!IsSimpleComputedPropertyKey(keyOp, identifierConstants, activationSlots))
+        var stringConstants = program.StringConstants.AsSpan();
+        var computedSuffixStart = program.OperationCount;
+        while (computedSuffixStart > 3 &&
+               IsShortCircuitNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
+        {
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
+        if (computedIndex <= 2 || jumpOp.Target != computedIndex + 1)
         {
             return false;
         }
 
-        var getComputedOp = program.GetOperation(3);
+        var getComputedOp = program.GetOperation(computedIndex);
         return getComputedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedOp.ShortCircuitOnNullishTarget;
     }
@@ -2994,6 +3031,78 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots),
             _ => false
         };
+    }
+
+    private static bool IsSupportedComputedPropertyKeySpan(
+        ExpressionProgram program,
+        int startInclusive,
+        int endExclusive,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        var stackDepth = 0;
+        for (var index = startInclusive; index < endExclusive; index++)
+        {
+            var operation = program.GetOperation(index);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadIdentifier:
+                    if (!IsSimpleComputedPropertyKey(operation, identifierConstants, activationSlots))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                case ExpressionOpKind.UnaryMinus:
+                case ExpressionOpKind.UnaryLogicalNot:
+                case ExpressionOpKind.UnaryBitwiseNot:
+                case ExpressionOpKind.UnaryVoid:
+                case ExpressionOpKind.ToString:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return stackDepth == 1;
+    }
+
+    private static bool IsPlainNamedPropertyRead(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants)
+    {
+        return operation.Kind == ExpressionOpKind.GetNamedProperty &&
+               !operation.IsOptional &&
+               !operation.ShortCircuitOnNullishTarget &&
+               !operation.GetString(stringConstants).IsPrivateName();
+    }
+
+    private static bool IsShortCircuitNamedPropertyRead(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants)
+    {
+        return operation.Kind == ExpressionOpKind.GetNamedProperty &&
+               operation.ShortCircuitOnNullishTarget &&
+               !operation.GetString(stringConstants).IsPrivateName();
     }
 
     private static bool HasSimpleCallArguments(

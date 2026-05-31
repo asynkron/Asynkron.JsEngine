@@ -6479,8 +6479,8 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple-key, GetComputedProperty(SC:true)]
-    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key_load, GetComputedProperty
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
+    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key..., GetComputedProperty, GetNamedProperty*
     private static bool TryAppendFirstBoundaryOptionalNamedThenComputed(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -6489,7 +6489,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 4)
+        if (expressionProgram.OperationCount < 4)
         {
             reason = string.Empty;
             return false;
@@ -6498,8 +6498,28 @@ internal static class UnifiedBytecodeCompiler
         var baseLoad = expressionProgram.GetOperation(0);
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
         var firstPropOp = expressionProgram.GetOperation(1);
-        var keyOp = expressionProgram.GetOperation(2);
-        var computedOp = expressionProgram.GetOperation(3);
+        var computedSuffixStart = expressionProgram.OperationCount;
+        while (computedSuffixStart > 4)
+        {
+            var suffixOp = expressionProgram.GetOperation(computedSuffixStart - 1);
+            if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                suffixOp.IsOptional ||
+                !suffixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            if (suffixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
+        var computedOp = expressionProgram.GetOperation(computedIndex);
 
         if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
             !firstPropOp.IsOptional ||
@@ -6528,13 +6548,95 @@ internal static class UnifiedBytecodeCompiler
         stringConstants.Add(firstPropOp.GetString(expressionStringConstants));
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propNameIndex));
 
-        if (!TryAppendComputedPropertyKeyLoad(keyOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                startInclusive: 2,
+                endExclusive: computedIndex,
+                out reason))
         {
             return false;
         }
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+        for (var operationIndex = computedIndex + 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var continuationOp = expressionProgram.GetOperation(operationIndex);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(continuationOp.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        }
+
         unified[jumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendComputedPropertyKeySpan(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        int startInclusive,
+        int endExclusive,
+        out string reason)
+    {
+        for (var index = startInclusive; index < endExclusive; index++)
+        {
+            var operation = expressionProgram.GetOperation(index);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadLiteral:
+                    if (!TryAppendComputedPropertyKeyLoad(
+                            operation,
+                            expressionProgram,
+                            activationSlots,
+                            unified,
+                            literalConstants,
+                            out reason))
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryPlus));
+                    break;
+
+                case ExpressionOpKind.UnaryMinus:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryMinus));
+                    break;
+
+                case ExpressionOpKind.UnaryLogicalNot:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryLogicalNot));
+                    break;
+
+                case ExpressionOpKind.UnaryBitwiseNot:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryBitwiseNot));
+                    break;
+
+                case ExpressionOpKind.UnaryVoid:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryVoid));
+                    break;
+
+                case ExpressionOpKind.ToString:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
+                    break;
+
+                case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)operation.Operator));
+                    break;
+
+                default:
+                    reason = $"Unsupported computed property key op '{operation.Kind}'.";
+                    return false;
+            }
+        }
+
         reason = string.Empty;
         return true;
     }

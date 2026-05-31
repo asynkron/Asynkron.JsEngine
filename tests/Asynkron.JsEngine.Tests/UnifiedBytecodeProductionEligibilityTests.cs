@@ -965,6 +965,72 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ComputedPropertyReadWithRichKeyCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box, left, right) {
+                return box[left + right];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedThenNamedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box, key) {
+                return box[key].value;
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Equal(1, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+    }
+
+    [Fact]
+    public void Evaluate_NamedThenComputedPropertyReadCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function read(box, key) {
+                return box.child[key];
+            }
+            """,
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -1795,25 +1861,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode()
-    {
-        var plan = GetFunctionPlan("""
-            function read(box, left, right) {
-                return box[left + right];
-            }
-            """,
-            "read");
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope, result.Code);
-        Assert.Contains("RequireObjectCoercible", result.Reason, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Evaluate_DirectEvalExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
@@ -1883,7 +1930,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readComputedObjectLiteralKey",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readComputedSpreadKey(box, source) {
@@ -1892,22 +1939,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readComputedSpreadKey",
         (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
-    [InlineData(
-        """
-        function readComputedOnBase(box, key) {
-            return box[key].value;
-        }
-        """,
-        "readComputedOnBase",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
-    [InlineData(
-        """
-        function readComputedAfterNamed(box, key) {
-            return box.child[key];
-        }
-        """,
-        "readComputedAfterNamed",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
         function logicalWrite(box, value) {
@@ -4348,6 +4379,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalComputedPropertyReadWithRichKeyExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefinedOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function optComputedChain(box, left, right) {
+                return box?.[left + right];
+            }
+            """,
+            "optComputedChain");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+    }
+
+    [Fact]
     public void Evaluate_OptionalNamedPropertyReadChainExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefined()
     {
         // AC-1: a?.b.c with an activation-resolved base is admitted.
@@ -4389,6 +4442,55 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalNamedThenComputedReadWithRichKeyExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefined()
+    {
+        // AC-1 variant: a?.b[left + right] — optional named then rich computed key.
+        var plan = GetFunctionPlan("""
+            function optChainComputed(obj, left, right) {
+                return obj?.items[left + right];
+            }
+            """,
+            "optChainComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalNamedThenComputedReadWithTrailingNamedContinuation_Accepts()
+    {
+        // AC-2: a?.b[left + right].c keeps the already VM-executable trailing read continuation.
+        var plan = GetFunctionPlan("""
+            function optChainComputed(obj, left, right) {
+                return obj?.items[left + right].value;
+            }
+            """,
+            "optChainComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.True(
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 2);
     }
 
     [Fact]

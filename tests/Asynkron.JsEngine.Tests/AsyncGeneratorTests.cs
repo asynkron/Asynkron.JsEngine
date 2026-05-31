@@ -751,4 +751,33 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         var result = await engine.Evaluate("log.join('|');");
         Assert.Equal("v1:false", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_NextPromiseLateThen_PreservesIteratorResultIdentity()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let sameIdentity = false;
+
+            async function* gen() {
+                yield "v1";
+            }
+
+            async function run() {
+                const it = gen();
+                const settled = await it.next();
+                const late = Promise.resolve(settled);
+                late.then(function(result) {
+                    sameIdentity = result === settled;
+                });
+                await Promise.resolve();
+            }
+
+            run();
+        """);
+
+        var same = await engine.Evaluate("sameIdentity;");
+        Assert.True(same is bool b && b);
+    }
 }

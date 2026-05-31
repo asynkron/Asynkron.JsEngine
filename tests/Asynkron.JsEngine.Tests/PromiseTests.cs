@@ -542,4 +542,23 @@ public sealed class PromiseTests(ITestOutputHelper output) : InternalTestBase(ou
 
         Assert.Equal("recovered", finalValue);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Promise_Resolve_PreservesIteratorResultIdentity()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let sameIdentity = false;
+            const iter = [1][Symbol.iterator]();
+            const step = iter.next();
+
+            Promise.resolve(step).then(function(value) {
+                sameIdentity = value === step;
+            });
+        """);
+
+        var same = await engine.Evaluate("sameIdentity;");
+        Assert.True(same is bool b && b);
+    }
 }

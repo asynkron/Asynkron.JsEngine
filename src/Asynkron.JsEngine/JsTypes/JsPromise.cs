@@ -152,17 +152,8 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
     [MethodImpl(JsEngineConstants.Inlining)]
     private static JsValue CaptureSettledValue(JsValue value)
     {
-        // Async-generator next() results are created via the iterator-result pool and may be
-        // queued for return after settlement. Promises still need a stable settled value for
-        // late-attached reactions, so snapshot pooled iterator results instead of pinning them.
-        if (value.TryGetObject<IteratorResultObject>(out var iteratorResult))
-        {
-            iteratorResult.Deconstruct(out var resultValue, out var resultDone);
-            var stableResult = new IteratorResultObject(resultValue, resultDone);
-            stableResult.Capture();
-            return stableResult.AsJsValue;
-        }
-
+        // Settled promise values can be observed by late-attached reactions, so if an iterator
+        // result object surfaces here keep the same object identity alive.
         IteratorResultObject.CaptureIfSurfaced(value);
         return value;
     }

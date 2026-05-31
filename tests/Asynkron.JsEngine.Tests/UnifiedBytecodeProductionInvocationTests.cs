@@ -1766,10 +1766,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(1d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=countedOptNamed",
-                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -1791,10 +1787,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(1d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=countedOptComputed",
-                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

@@ -1,4 +1,4 @@
-# ADR 0290 — Reduce Iterator-Result Allocation on Resumable Generator Resume Cycle
+# ADR 0299 — Reduce Iterator-Result Allocation on Resumable Generator Resume Cycle
 
 ## Status
 

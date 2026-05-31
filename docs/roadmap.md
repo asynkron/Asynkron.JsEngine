@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Roadmap
 
-_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777, #2783, #2787, #2788, #2795, #2804, #2805, #2814, #2816, #2855, #2858)_
+_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777, #2783, #2787, #2788, #2795, #2804, #2805, #2814, #2816, #2855, #2858, #2862)_
 
 ## Current State
 
@@ -15,7 +15,7 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 - Unified-bytecode production routing widened to admit **optional member calls** (`box?.read(args)`, `box.read?.(args)`, `box[key]?.(args)`). Two new opcodes (`PrepareNamedOptionalCallTarget`, `PrepareComputedOptionalCallTarget`) encode the nullish short-circuit target in the high 16 bits of the operand; the VM checks nullish before proceeding and yields `undefined` on short-circuit. Receiver-as-`this` contract preserved identically to non-optional member calls. Decision recorded in ADR 0289 (issue gh2689).
 
 - Unified-bytecode production routing widened to admit **synchronous non-spread construct calls** (`new F(...)`). New `ConstructInvocationBoundary` opcode invokes `[[Construct]]` with the constructor as `new.target`, mirroring the spec-conformant construct reference helper (`new.target` propagation, not-a-constructor `TypeError`, left-to-right argument order). Spread-onto-construct and member-target/non-simple constructs still decline. Decision recorded in ADR 0286 (issue gh2690).
-- Unified-bytecode production routing now admits the first non-spread **super invocation** shapes. Derived constructors route `super(...)` through `SuperConstructInvocationBoundary`, and class methods route named/computed super-member calls through `PrepareNamedSuperCallTarget` / `PrepareComputedSuperCallTarget` plus `CallInvocationBoundary`. Spread super constructs and super property reads/writes/updates still decline before VM execution.
+- Unified-bytecode production routing now admits the first non-spread **super invocation** shapes. Derived constructors route `super(...)` through `SuperConstructInvocationBoundary`, and class methods route named/computed super-member calls through `PrepareNamedSuperCallTarget` / `PrepareComputedSuperCallTarget` plus `CallInvocationBoundary`. Spread super constructs and super property reads/writes/updates still decline before VM execution. Decision recorded in ADR 0307 (PR #2862).
 
 - Unified-bytecode production routing widened to admit **`this`-based named-receiver chains and binary expressions**. `LoadThis`/`LoadNewTarget` base nodes are now accepted by the boundary-property-read classifier (`TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate`), allowing call sites like `this.method(this)` and guard expressions like `this.prop === value` to compile through the unified route (commit `64a914f6`).
 

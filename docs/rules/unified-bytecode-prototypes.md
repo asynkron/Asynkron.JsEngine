@@ -1510,10 +1510,11 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
         path, so this test proves short-circuit opcode correctness without
         asserting `unified-bytecode-production-fast-path`.
 
-    Logical compound assignments on **member targets** (`this.x &&= y`,
-    `box.prop ||= y`) remain declined as `PropertyWriteDependency`. The
-    conditional short-circuit branch opcode does not compose with the compound
-    get-for-set model that named/computed compound writes use (ADR 0238, rule 19).
+    Computed logical compound assignments and unowned member forms remain
+    declined as `PropertyWriteDependency`. Direct named member logical
+    assignments are now admitted by rule 46 / ADR 0302; do not reuse this slot
+    pattern for member targets without preserving the receiver and the
+    expression result through the dedicated named-member cleanup shape.
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-dad47dee93`
     / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300).
@@ -1522,6 +1523,51 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     short-circuit path; in statement programs it is a condition-only branch that
     both paths must discard. Mixing the two roles in test or compiler analysis
     produces incorrect stack effects.
+46. When admitting direct named member logical assignment (`box.value &&= y`,
+    `box.value ||= y`, `box.value ??= y`, including `this.value` bases) to
+    production unified bytecode, keep the shape exact and receiver/result
+    preserving. The accepted expression-program shape is:
+
+    ```
+    base
+    DuplicateTop
+    GetNamedProperty
+    JumpIfFalse | JumpIfTrue | JumpIfNotNullish
+    Pop
+    rhs
+    SetNamedProperty
+    DuplicateTop
+    SwapTopTwo
+    Pop
+    ```
+
+    Compile it through `GetNamedPropertyForCompoundSet`, the matching
+    peek-semantics short-circuit jump, `SetNamedProperty`, and `SwapTopTwo` plus
+    `Pop` cleanup. `GetNamedPropertyForCompoundSet` preserves the receiver for
+    the write; on the short-circuit path `SwapTopTwo`/`Pop` discards that
+    preserved receiver while keeping the current property value as the
+    assignment expression result. On the proceeding path, `SetNamedProperty`
+    leaves the assigned RHS value as the result.
+
+    Keep selector and compiler probes matched to the exact direct named shape:
+    activation-resolved base, non-optional/non-private named read and write,
+    matching property names, exact cleanup jump target, and simple RHS. Computed
+    logical member assignment, optional chains, deeper member chains, private
+    fields, `super`, destructuring, dynamic lookup, and complex RHS/key payloads
+    still decline before VM execution. Any new stack-mechanics opcode used by an
+    admitted shape must be added to the VM handlers, production opcode allowlist,
+    `docs/unified-bytecode-expansion-contract.md`, and focused opcode/route
+    proofs in the same delivery slice.
+
+    WHY: issue
+    `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-f31b87b5d8`
+    / PR #2826 admitted direct named member logical assignment (ADR 0302). The
+    delivery needed `SwapTopTwo` because the named get-for-set model preserves a
+    receiver beneath the logical assignment result; without the cleanup shuffle,
+    the VM could not keep the short-circuit result while discarding the receiver.
+    The build-back repair also had to add `SwapTopTwo` to the expansion-contract
+    opcode inventory, reinforcing that VM-executed opcode additions are delivery
+    artifacts, not learn-stage cleanup.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
@@ -1565,3 +1611,4 @@ Related ADRs:
 - `docs/adrs/0298-admit-multi-hop-optional-named-chains-in-unified-bytecode-jump-based-lowering.md`
 - `docs/adrs/0301-admit-optional-call-chain-forms-in-unified-bytecode.md`
 - `docs/adrs/0300-admit-logical-compound-assignment-on-slots-in-unified-bytecode.md`
+- `docs/adrs/0302-admit-named-member-logical-assignment-in-unified-bytecode.md`

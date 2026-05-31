@@ -3,6 +3,13 @@
 ## Status
 Accepted
 
+Supersession note: ADR 0302 later admits the direct named member logical
+assignment shape (`box.value &&= y`, `box.value ||= y`, `box.value ??= y`) with
+VM-owned `SwapTopTwo` cleanup. The retained-decline statements below remain
+historical for ADR 0300 and still apply to computed member targets, deeper
+chains, optional/private/super/dynamic shapes, and other unowned member logical
+assignment forms.
+
 ## Context
 
 `&&=`, `||=`, and `??=` on slot-identifier targets (`x &&= y`, `x ||= y`, `x ??= y`)
@@ -80,9 +87,10 @@ proceeding path) before the RHS is evaluated and stored.
   `JumpIfShortCircuitNotNullish` opcodes serve dual purpose: expression-level
   result-returning short-circuit (LHS stays on TOS as result) and statement-level
   condition-only short-circuit (both paths discard the slot TOS copy).
-- Member logical assignments (`this.x &&= y`, `box.prop ||= y`) remain declined
-  until a future slice owns conditional branch opcodes in the compound get-for-set
-  model.
+- At ADR 0300 time, member logical assignments (`this.x &&= y`,
+  `box.prop ||= y`) remained declined until a future slice owned conditional
+  branch opcodes in the compound get-for-set model. ADR 0302 later admits the
+  direct named member shape only.
 - Stack-balance regression coverage: a multi-call test
   (`LogicalAndAssignment_SlotBased_MultipleCallsDoNotCorruptStack_UsesProductionFastPath`)
   proves a stack misbalance does not accumulate across repeated invocations.

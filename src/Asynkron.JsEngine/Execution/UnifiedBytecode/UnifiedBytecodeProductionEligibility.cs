@@ -2714,7 +2714,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) ||
-            !IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots))
+            !IsSimpleComputedPropertyKeyOperand(program.GetOperation(1), identifierConstants, activationSlots))
         {
             return false;
         }
@@ -3073,6 +3073,22 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots),
             ExpressionOpKind.LoadThis => true,
             ExpressionOpKind.LoadNewTarget => true,
+            _ => false
+        };
+    }
+
+    private static bool IsSimpleComputedPropertyKeyOperand(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        return operation.Kind switch
+        {
+            ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
+                operation,
+                identifierConstants,
+                activationSlots),
             _ => false
         };
     }

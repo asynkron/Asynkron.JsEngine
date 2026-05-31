@@ -4680,6 +4680,24 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "logicalAndComputedComplexRhsWrite",
         null,
         (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndComputedThisKeyWrite(box, value) {
+            return box[this] &&= value;
+        }
+        """,
+        "logicalAndComputedThisKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)]
+    [InlineData(
+        """
+        function logicalAndComputedNewTargetKeyWrite(box, value) {
+            return box[new.target] &&= value;
+        }
+        """,
+        "logicalAndComputedNewTargetKeyWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)]
     public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
         string source,
         string functionOrClassName,

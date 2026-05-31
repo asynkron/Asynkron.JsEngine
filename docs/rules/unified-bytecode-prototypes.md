@@ -1561,13 +1561,14 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
 
     Keep selector and compiler probes matched to the exact direct named shape:
     activation-resolved base, non-optional/non-private named read and write,
-    matching property names, exact cleanup jump target, and simple RHS. Computed
-    logical member assignment, optional chains, deeper member chains, private
-    fields, `super`, destructuring, dynamic lookup, and complex RHS/key payloads
-    still decline before VM execution. Any new stack-mechanics opcode used by an
-    admitted shape must be added to the VM handlers, production opcode allowlist,
-    `docs/unified-bytecode-expansion-contract.md`, and focused opcode/route
-    proofs in the same delivery slice.
+    matching property names, exact cleanup jump target, and simple RHS. Optional
+    chains, deeper member chains, private fields, `super`, destructuring,
+    dynamic lookup, and complex RHS/key payloads still decline before VM
+    execution. Direct computed logical member assignment now belongs to rule 47,
+    including its compiler-owned key/RHS boundaries. Any new stack-mechanics
+    opcode used by an admitted shape must be added to the VM handlers,
+    production opcode allowlist, `docs/unified-bytecode-expansion-contract.md`,
+    and focused opcode/route proofs in the same delivery slice.
 
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-f31b87b5d8`

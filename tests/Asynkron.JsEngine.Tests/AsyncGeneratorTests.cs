@@ -717,4 +717,39 @@ public sealed class AsyncGeneratorTests(ITestOutputHelper output) : InternalTest
         var result = await engine.Evaluate("log.join('|');");
         Assert.Equal("v1:false", result);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task AsyncGenerator_NextPromiseLateThen_AfterSecondNext_SeesOriginalValue()
+    {
+        await using var engine = CreateEngine();
+
+        await engine.Evaluate("""
+            let log = [];
+
+            async function* gen() {
+                yield "v1";
+                yield "v2";
+            }
+
+            async function run() {
+                const it = gen();
+                const first = it.next();
+                const second = await it.next();
+                log.push("second:" + second.value + ":" + second.done);
+
+                first.then(function(result) {
+                    log.push("first:" + result.value + ":" + result.done);
+                }, function(error) {
+                    log.push("first-rejected:" + String(error));
+                });
+
+                await Promise.resolve();
+            }
+
+            run();
+        """);
+
+        var result = await engine.Evaluate("log.join('|');");
+        Assert.Equal("second:v2:false|first:v1:false", result);
+    }
 }

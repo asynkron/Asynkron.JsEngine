@@ -25,6 +25,10 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
     private PromiseState _state = PromiseState.Pending;
     private JsValue _value;
+    private JsValue _iteratorResultSnapshotValue;
+    private bool _iteratorResultSnapshotDone;
+    private bool _hasIteratorResultSnapshot;
+    private bool _iteratorResultDetached;
 
     /// <summary>
     ///     The epoch in which this promise's handler processing was scheduled.
@@ -145,7 +149,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
         // Value is not a thenable - fulfill directly
         _state = PromiseState.Fulfilled;
-        IteratorResultObject.CaptureIfSurfaced(value);
+        CaptureIteratorResultSnapshotIfNeeded(value);
         _value = value;
         ScheduleProcessing();
     }
@@ -333,6 +337,14 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         handlersToProcess.Clear();
         _spareHandlers = handlersToProcess;
 
+        // Once all currently queued reactions have consumed the async iterator result,
+        // detach the settled value so it can return to the pool and keep only a
+        // value/done snapshot for potential late-then observers.
+        if (_state == PromiseState.Fulfilled && _hasIteratorResultSnapshot && !_iteratorResultDetached && (_handlers?.Count ?? 0) == 0)
+        {
+            TryDetachIteratorResult();
+        }
+
         if (_handlers?.Count > 0)
         {
             ScheduleProcessing();
@@ -341,6 +353,8 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
     private void ProcessFulfilledHandler(PromiseReaction reaction)
     {
+        EnsureIteratorResultMaterialized();
+
         if (reaction.OnFulfilled != null)
         {
             var result = reaction.OnFulfilled.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
@@ -350,6 +364,62 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         {
             reaction.Resolve.Invoke(new SingleValueArgs(_value), JsValue.Undefined);
         }
+    }
+
+    private void CaptureIteratorResultSnapshotIfNeeded(JsValue value)
+    {
+        _hasIteratorResultSnapshot = false;
+        _iteratorResultDetached = false;
+        _iteratorResultSnapshotValue = JsValue.Undefined;
+        _iteratorResultSnapshotDone = false;
+
+        if (!value.TryGetObject<IteratorResultObject>(out var iteratorResult))
+        {
+            IteratorResultObject.CaptureIfSurfaced(value);
+            return;
+        }
+
+        iteratorResult.Deconstruct(out _iteratorResultSnapshotValue, out _iteratorResultSnapshotDone);
+        _hasIteratorResultSnapshot = true;
+    }
+
+    private void TryDetachIteratorResult()
+    {
+        if (!_value.TryGetObject<IteratorResultObject>(out var iteratorResult))
+        {
+            return;
+        }
+
+        IteratorResultObjectPool.Return(iteratorResult);
+        _value = JsValue.Undefined;
+        _iteratorResultDetached = true;
+    }
+
+    private void EnsureIteratorResultMaterialized()
+    {
+        if (!_hasIteratorResultSnapshot)
+        {
+            return;
+        }
+
+        if (_value.TryGetObject<IteratorResultObject>(out var currentResult))
+        {
+            currentResult.Deconstruct(out var currentValue, out var currentDone);
+            if (currentDone == _iteratorResultSnapshotDone && currentValue == _iteratorResultSnapshotValue)
+            {
+                return;
+            }
+
+            _iteratorResultDetached = true;
+        }
+
+        if (!_iteratorResultDetached && _value.IsObject)
+        {
+            return;
+        }
+
+        _value = IteratorResultObject.Create(_iteratorResultSnapshotValue, _iteratorResultSnapshotDone);
+        _iteratorResultDetached = false;
     }
 
     private void ProcessRejectedHandler(PromiseReaction reaction)

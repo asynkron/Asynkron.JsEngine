@@ -1,5 +1,3 @@
-#region
-
 using System.Buffers;
 using System.Collections.Immutable;
 using System.Globalization;
@@ -11,8 +9,6 @@ using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
 
@@ -4334,7 +4330,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             return slotCount > 0 ? slotCount : 0;
         }
-
 
         [MethodImpl(JsEngineConstants.Inlining)]
         private int ComputeActivationMinimumCapacity()

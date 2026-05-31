@@ -1,11 +1,7 @@
-#region
-
 using System;
 using System.Globalization;
 using System.Threading;
 using Asynkron.JsEngine.JsTypes;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 

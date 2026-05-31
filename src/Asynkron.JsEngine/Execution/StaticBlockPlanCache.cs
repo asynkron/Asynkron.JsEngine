@@ -1,9 +1,5 @@
-#region
-
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Ast;
-
-#endregion
 
 namespace Asynkron.JsEngine.Execution;
 

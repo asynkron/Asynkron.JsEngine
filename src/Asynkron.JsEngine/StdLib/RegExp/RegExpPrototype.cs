@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -8,8 +6,6 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.RegExpHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

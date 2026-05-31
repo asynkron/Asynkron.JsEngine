@@ -1,13 +1,9 @@
-#region
-
 using System.Diagnostics;
 using System.Globalization;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -1258,7 +1254,6 @@ public abstract class TypedArrayBase : IJsObjectLike, IPropertyDefinitionHost, I
         var intIndex = (int)numericIndex;
         return intIndex >= 0 && intIndex < Length;
     }
-
 
     /// <summary>
     /// Walks the prototype chain starting from <paramref name="prototype"/> looking for a TypedArray.

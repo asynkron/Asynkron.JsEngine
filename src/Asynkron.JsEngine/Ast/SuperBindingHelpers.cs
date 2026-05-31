@@ -1,9 +1,5 @@
-#region
-
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

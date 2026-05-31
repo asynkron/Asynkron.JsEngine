@@ -1,9 +1,5 @@
-#region
-
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution.Instructions;
-
-#endregion
 
 namespace Asynkron.JsEngine.Execution.Emitters;
 

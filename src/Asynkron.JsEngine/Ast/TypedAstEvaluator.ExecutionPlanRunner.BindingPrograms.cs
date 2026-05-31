@@ -1,12 +1,8 @@
-#region
-
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

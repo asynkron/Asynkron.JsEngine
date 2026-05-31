@@ -1,9 +1,5 @@
-#region
-
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.StdLib;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

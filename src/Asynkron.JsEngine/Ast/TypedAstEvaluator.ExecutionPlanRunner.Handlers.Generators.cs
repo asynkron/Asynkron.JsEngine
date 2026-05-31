@@ -1,10 +1,6 @@
-#region
-
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution.Instructions;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

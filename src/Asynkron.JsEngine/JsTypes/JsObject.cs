@@ -1,5 +1,3 @@
-#region
-
 using System.Buffers;
 using System.Collections;
 using System.Globalization;
@@ -10,8 +8,6 @@ using Asynkron.JsEngine.Collections;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 
@@ -1252,7 +1248,6 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         state.Storage.AddKnownNew(name, value);
         TrackArrayIndexWriteIfNeeded(name);
     }
-
 
     private bool CanStoreImplicitDefaultDataProperty(string name)
     {

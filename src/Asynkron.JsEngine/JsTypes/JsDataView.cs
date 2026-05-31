@@ -1,12 +1,8 @@
-#region
-
 using System.Buffers.Binary;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

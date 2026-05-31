@@ -1,8 +1,4 @@
-#region
-
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine;
 

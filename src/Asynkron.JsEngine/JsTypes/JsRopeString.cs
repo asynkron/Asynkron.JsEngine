@@ -1,9 +1,5 @@
-#region
-
 using System.Runtime.CompilerServices;
 using System.Text;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

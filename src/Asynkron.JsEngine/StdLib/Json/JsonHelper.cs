@@ -1,12 +1,8 @@
-#region
-
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

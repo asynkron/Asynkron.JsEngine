@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using System.Reflection;
 using Asynkron.JsEngine.Ast;
@@ -7,8 +5,6 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

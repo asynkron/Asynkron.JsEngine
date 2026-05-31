@@ -3901,10 +3901,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalThenRegularPropertyChain_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_OptionalThenRegularPropertyChain_IsAdmitted()
     {
-        // a?.b.c: first hop is optional, second hop is regular — second hop emits
-        // ShortCircuitOnNullishTarget:true and is caught by OptionalChainDependency gate.
+        // a?.b.c: admitted since Batch 2 widened the optional-chain fast-path to include
+        // trailing regular property reads after an optional hop.
         var plan = GetFunctionPlan("""
             function f(a) {
                 return a?.b.c;
@@ -3916,8 +3916,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]

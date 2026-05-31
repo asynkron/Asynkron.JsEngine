@@ -550,6 +550,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
     internal void SetJsValue(string key, JsValue value)
     {
         MarkMutated();
+        IteratorResultObject.CaptureIfSurfaced(value);
         State.Storage[key] = value;
     }
 
@@ -579,6 +580,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
             }
 
             MarkMutated();
+            IteratorResultObject.CaptureIfSurfaced(value);
             state.Storage[key] = value;
             descriptor.JsValue = value;
             TrackArrayWriteJsValue(key, value);
@@ -591,6 +593,7 @@ public sealed class JsObject : IDictionary<string, object?>, IJsObjectLike,
         }
 
         MarkMutated();
+        IteratorResultObject.CaptureIfSurfaced(value);
         state.Storage[key] = value;
         TrackArrayWriteJsValue(key, value);
         return true;

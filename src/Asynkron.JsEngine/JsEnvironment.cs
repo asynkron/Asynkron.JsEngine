@@ -757,6 +757,7 @@ public sealed class JsEnvironment : IRentable
                 if (slot.IsUninitialized || slot.Value.IsUninitialized)
                 {
                     // First-time initialization for a TDZ slot
+                    IteratorResultObject.CaptureIfSurfaced(value);
                     slot.Value = value;
                     if (value.IsUninitialized)
                     {
@@ -778,6 +779,7 @@ public sealed class JsEnvironment : IRentable
                 return;
             }
 
+            IteratorResultObject.CaptureIfSurfaced(value);
             slot.Value = value;
             // Upgrade lexical flags if needed
             if (isLexicalBinding)
@@ -1023,6 +1025,7 @@ public sealed class JsEnvironment : IRentable
                 return;
             }
 
+            IteratorResultObject.CaptureIfSurfaced(value);
             existing.Value = value;
             if (!isGlobalScope || globalThis is null)
             {
@@ -1812,6 +1815,7 @@ public sealed class JsEnvironment : IRentable
             }
             else
             {
+                IteratorResultObject.CaptureIfSurfaced(value);
                 currentSlot.Value = value;
             }
 
@@ -4537,6 +4541,7 @@ public sealed class JsEnvironment : IRentable
     {
         AssertSlotIndexValid(slotIndex, nameof(SetSlotDirect));
         ref var slot = ref _slots![slotIndex];
+        IteratorResultObject.CaptureIfSurfaced(value);
         slot.Value = value;
         // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
         slot.Flags &= ~SlotFlags.Uninitialized;
@@ -4554,6 +4559,7 @@ public sealed class JsEnvironment : IRentable
     {
         AssertSlotIndexValid(slotIndex, nameof(WriteSlotDirect));
         ref var slot = ref _slots![slotIndex];
+        IteratorResultObject.CaptureIfSurfaced(value);
         slot.Value = value;
         // Clearing Uninitialized makes the slot readable (TDZ satisfied) after copy.
         slot.Flags &= ~SlotFlags.Uninitialized;

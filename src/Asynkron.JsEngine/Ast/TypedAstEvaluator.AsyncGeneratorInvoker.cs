@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
@@ -96,36 +97,26 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Promise constructor is not available in the current environment.");
             }
 
-            var executor = new HostFunction((_, execArgs) =>
-            {
-                if (!TryGetExecutorCallbacks(execArgs, out var resolve, out var reject))
-                {
-                    return JsValue.Undefined;
-                }
-
-                // Drive the underlying generator plan by a single step and
-                // resolve/reject the Promise based on the step outcome.
-                var step = _inner.ExecuteAsyncStep(mode, argument);
-                ResolveFromStep(step, resolve, reject);
-
-                return JsValue.Undefined;
-            });
+            var executor = StepExecutor.Rent(this, mode, argument);
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
+                return hostCtor.InvokeWithContext([JsValue.FromObjectUnsafe(executor)], JsValue.Undefined, null,
+                    (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
+            return promiseCtor.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(executor)), JsValue.Undefined);
         }
 
-        private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)
+        private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
         {
-            var result = new JsObject();
-            // value is already JsValue
-            result.SetProperty("value", value);
-            result.SetProperty("done", done ? JsValue.True : JsValue.False);
-            return result;
+            var iteratorResult = IteratorResultObject.Create(value, done);
+            if (iteratorResult.TryGetObject<IteratorResultObject>(out var poolable))
+            {
+                poolable.MarkSkipPromiseSettlementCapture();
+            }
+
+            return iteratorResult;
         }
 
         private void ResolveFromStep(
@@ -139,7 +130,8 @@ public static partial class TypedAstEvaluator
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        AsyncInvokeWithOneArg(resolve, (JsValue)iteratorResult);
+                        AsyncInvokeWithOneArg(resolve, iteratorResult);
+                        ReturnIteratorResultAfterPromiseReactions(iteratorResult);
                         break;
                     }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
@@ -174,6 +166,22 @@ public static partial class TypedAstEvaluator
                 JsValue.FromObjectUnsafe(onFulfilled),
                 JsValue.FromObjectUnsafe(onRejected),
                 step.PendingPromise);
+        }
+
+        private void ReturnIteratorResultAfterPromiseReactions(JsValue iteratorResult)
+        {
+            if (!iteratorResult.TryGetObject<IteratorResultObject>(out var poolableResult))
+            {
+                return;
+            }
+
+            if (realmState.Engine is { } engine)
+            {
+                engine.QueueMicrotask(IteratorResultReturnMicrotask.Rent(poolableResult, engine));
+                return;
+            }
+
+            IteratorResultObjectPool.Return(poolableResult);
         }
 
         private JsObject? ResolveGeneratorPrototype()
@@ -284,5 +292,117 @@ public static partial class TypedAstEvaluator
             [Conditional("DEBUG")]
             internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
         }
+
+        private sealed class StepExecutor : IJsCallable
+        {
+            private static readonly ObjectPool<StepExecutor> Pool = new(32, static () => new StepExecutor());
+
+            private AsyncGeneratorInvoker? _executor;
+            private JsValue _argument;
+            private ExecutionPlanRunner.ResumeMode _mode;
+
+            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
+            {
+                AssertOwnership(nameof(Invoke));
+                if (_executor is null)
+                {
+                    return JsValue.Undefined;
+                }
+
+                var executor = _executor;
+                var mode = _mode;
+                var argument = _argument;
+                try
+                {
+                    if (!TryGetExecutorCallbacks(args, out var resolve, out var reject))
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    var step = executor._inner.ExecuteAsyncStep(mode, argument);
+                    executor.ResolveFromStep(step, resolve, reject);
+                    return JsValue.Undefined;
+                }
+                finally
+                {
+                    _executor = null;
+                    _mode = default;
+                    _argument = default;
+                    Pool.Return(this);
+                }
+            }
+
+            public static StepExecutor Rent(
+                AsyncGeneratorInvoker executor,
+                ExecutionPlanRunner.ResumeMode mode,
+                JsValue argument)
+            {
+                var stepExecutor = Pool.Rent();
+                stepExecutor._executor = executor;
+                stepExecutor._mode = mode;
+                stepExecutor._argument = argument;
+                return stepExecutor;
+            }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
+        private sealed class IteratorResultReturnMicrotask : IMicrotask, IRentable
+        {
+            private static readonly ObjectPool<IteratorResultReturnMicrotask> Pool =
+                new(32, static () => new IteratorResultReturnMicrotask());
+
+            private IteratorResultObject? _result;
+            private JsEngine? _engine;
+            private byte _deferredCount;
+
+            public int Epoch { get; set; }
+
+            public static IMicrotask Rent(IteratorResultObject result, JsEngine engine)
+            {
+                var task = Pool.Rent();
+                task._result = result;
+                task._engine = engine;
+                return task;
+            }
+
+            public void Execute()
+            {
+                AssertOwnership(nameof(Execute));
+                // Give settled and late-attached handlers time to observe the iterator result
+                // before it is recycled back into the pool.
+                if (_deferredCount < 2)
+                {
+                    _deferredCount++;
+                    _engine?.QueueMicrotask(this);
+                    return;
+                }
+
+                var result = _result;
+                if (result is not null)
+                {
+                    IteratorResultObjectPool.Return(result);
+                }
+
+                Pool.Return(this);
+            }
+
+            public void OnRent(Microsoft.Extensions.Logging.ILogger? logger)
+            {
+            }
+
+            public void OnReturn(Microsoft.Extensions.Logging.ILogger? logger)
+            {
+                _result = null;
+                _engine = null;
+                _deferredCount = 0;
+                Epoch = 0;
+            }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
     }
 }

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 
 namespace Asynkron.JsEngine;
 
@@ -134,6 +135,7 @@ public struct JsSlot
     [MethodImpl(JsEngineConstants.Inlining)]
     public void SetValueAndClearTdz(JsValue value)
     {
+        IteratorResultObject.CaptureIfSurfaced(value);
         Value = value;
         Flags = value.IsUninitialized
             ? Flags | SlotFlags.Uninitialized

@@ -168,7 +168,7 @@ public static partial class TypedAstEvaluator
 
             if (realmState.Engine is { } engine)
             {
-                engine.QueueMicrotask(IteratorResultReturnMicrotask.Rent(poolableResult));
+                engine.QueueMicrotask(IteratorResultReturnMicrotask.Rent(poolableResult, engine));
                 return;
             }
 
@@ -345,19 +345,29 @@ public static partial class TypedAstEvaluator
                 new(32, static () => new IteratorResultReturnMicrotask());
 
             private IteratorResultObject? _result;
+            private JsEngine? _engine;
+            private bool _deferredOnce;
 
             public int Epoch { get; set; }
 
-            public static IMicrotask Rent(IteratorResultObject result)
+            public static IMicrotask Rent(IteratorResultObject result, JsEngine engine)
             {
                 var task = Pool.Rent();
                 task._result = result;
+                task._engine = engine;
                 return task;
             }
 
             public void Execute()
             {
                 AssertOwnership(nameof(Execute));
+                if (!_deferredOnce)
+                {
+                    _deferredOnce = true;
+                    _engine?.QueueMicrotask(this);
+                    return;
+                }
+
                 var result = _result;
                 if (result is not null)
                 {
@@ -374,6 +384,8 @@ public static partial class TypedAstEvaluator
             public void OnReturn(Microsoft.Extensions.Logging.ILogger? logger)
             {
                 _result = null;
+                _engine = null;
+                _deferredOnce = false;
                 Epoch = 0;
             }
 

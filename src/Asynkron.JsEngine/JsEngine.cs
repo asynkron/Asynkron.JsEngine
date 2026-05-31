@@ -5817,8 +5817,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
 
         private void ScheduleAwaitFulfillment(JsValue value, HostFunction onFulfilledFn)
         {
-            IteratorResultObject.CaptureIfSurfaced(value);
-
             _engine.QueueMicrotask(JsCallableMicrotask.Rent(new HostFunction(_ =>
             {
                 if (_completion.Task.IsCompleted)
@@ -7169,8 +7167,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
                                         "for await iterator result must be an object",
                                         realm: _engine.RealmState);
                                 }
-
-                                IteratorResultObject.CaptureIfSurfaced(resultValue);
 
                                 if (resultObject.TryGetProperty("done", out var doneValue) &&
                                     JsOps.ToBoolean(doneValue))

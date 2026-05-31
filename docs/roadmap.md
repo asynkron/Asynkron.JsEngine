@@ -85,7 +85,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] Continue reducing allocations in the evaluator hot paths (call frames, argument arrays).
 - [ ] Expand `JsValue` struct adoption to remaining boxed numeric/string paths (follow `[Obsolete]` markers added in PR #2704).
 - [ ] Improve Test262 pass rate by triaging real correctness failures (target: <10 true failures — SLO defined in `docs/dreaming.md`).
-- [x] Establish committed ProfileRunner SLO baselines for `startup` and `microtask`, rechecked by `make slo-gate` (`tools/perf-slo-baseline.md`, `tools/check-slo-gate`).
+- [x] Establish committed ProfileRunner SLO baselines for `startup` and `microtask`, rechecked by `make slo-gate` (`tools/perf-slo-baseline.md`, `tools/check-slo-gate`); directional SLO targets remain separate from the hard baseline guardrail.
 - [ ] Tighten the performance SLO gate beyond baseline protection: comparison evidence, tolerance policy, and expanded coverage for allocation and Tier 0 route signals remain open.
 - [ ] Land the typed-AST evaluator migration described in the dreaming docs, gated by allocation budgets (2-stratum target: delete Tier 1 + Tier 2).
 

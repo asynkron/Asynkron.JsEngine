@@ -12,7 +12,7 @@ help:
 	@printf "%s\n" "Available targets:" \
 		"  help                   Show available repo maintenance targets" \
 		"  quality                Check diff, build internal projects, run internal tests (no Test262)" \
-		"  slo-gate               Re-measure SLO timing profiles and check against committed baseline" \
+		"  slo-gate               Check SLO timing baseline and directional target status" \
 		"  build-internal         Build internal projects used by the quality gate" \
 		"  test-internal          Run internal tests with build" \
 		"  test-internal-no-build Run internal tests without rebuilding" \

@@ -383,7 +383,7 @@ This document describes its own finish line so slices know what "done" means rat
 
 **Positive (measured) conditions** — observable runtime targets met:
 
-- **Cold-start < 5 ms p95** (measured by ProfileRunner `startup` benchmark on commodity hardware; NativeAOT build). Not a directional target — a measured, ProfileRunner-baseline-committed result.
+- **Cold-start < 5 ms p95** (measured by ProfileRunner `startup` benchmark on commodity hardware; NativeAOT build). This remains a directional target; the committed ProfileRunner baseline is an avg-ms guardrail, not p95 or Node.js parity proof.
 - **Tier 0 covers ≥ 95% of real programs** — defined as: ≥ 95% of Test262 Language + BuiltIns test cases attempt Tier 0 before any fallback, measured by an instrumented routing trace, not claimed by inspection.
 - **Embedding API stable** — `JsEngine.CreateRealm()`, `HostFunction` delegate bridge, module loader hook, and `EvaluateAsync` are all in a stable public API surface with no `internal`-type leakage; host code does not need to reference engine internals.
 - **Test262 true correctness failures < 10** in Language + BuiltIns suites (measured by the testrunner baseline, excluding excluded features listed in `Test262Harness.settings.json`).
@@ -1361,14 +1361,14 @@ These constraints are binding until new evidence says otherwise.
 
 These are the observable performance targets the dream must eventually satisfy to support the "Node.js-competitive runtime" product claim. SLOs are **not** requirements today; they are the finish line that makes "directional" language concrete. No SLO may be claimed without ProfileRunner matrix evidence (baseline + final signal, `./benchmark.sh` and `./benchmark.sh --allocations`).
 
-Instrumented SLOs have a committed baseline in `tools/perf-slo-baseline.md` and can be re-checked with `make slo-gate`.
+Instrumented SLOs have a committed avg-ms baseline in `tools/perf-slo-baseline.md` and can be re-checked with `make slo-gate`. The gate hard-fails only on committed-baseline regressions; its target-status output is non-failing evidence and does not by itself prove p95 or Node.js parity.
 
 | SLO | Target | Measured by | Current status |
 |---|---|---|---|
-| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Candidate — baseline committed (~4.8 ms avg; see `tools/perf-slo-baseline.md`) |
+| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Prototyped — avg baseline committed (~4.8 ms; see `tools/perf-slo-baseline.md`); p95 target proof still needed |
 | Warm-path throughput (`fibonacci`, `looping`) | ≤ 2× Jint managed bytes per op | `./benchmark.sh --allocations` | Tracked, improving |
 | Allocation per expression eval (hot loop, no object creation) | Zero Gen 1+ promotions | `./benchmark.sh --allocations` | Partially met; args still escape |
-| Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Candidate — baseline committed (~8.0 ms avg/1 000 jobs; see `tools/perf-slo-baseline.md`) |
+| Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Prototyped — avg baseline committed (~8.0 ms/1 000 jobs; see `tools/perf-slo-baseline.md`); target proof still needed |
 | Test262 true correctness failures | < 10 in Language + BuiltIns suites | Testrunner baseline | < 20 today |
 | Tier 0 routing coverage (accepted ordinary sync programs) | 100% attempt-Tier-0 | PR #2623 expansion contract | Proven for primary sync route |
 | Seam inventory shrink rate | One near-closure seam eliminated per milestone | Seam inventory table above | In progress |

@@ -2799,7 +2799,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) ||
-            !IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots))
+            !IsSimpleComputedPropertyKeyOperand(program.GetOperation(1), identifierConstants, activationSlots))
         {
             return false;
         }

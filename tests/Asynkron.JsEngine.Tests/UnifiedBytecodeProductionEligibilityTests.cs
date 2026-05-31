@@ -4688,7 +4688,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "logicalAndComputedThisKeyWrite",
         null,
-        (int)UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)]
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """
         function logicalAndComputedNewTargetKeyWrite(box, value) {
@@ -4697,7 +4697,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "logicalAndComputedNewTargetKeyWrite",
         null,
-        (int)UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)]
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
         string source,
         string functionOrClassName,

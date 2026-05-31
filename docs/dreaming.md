@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-31 (rev 5)
+Date: 2026-05-31 (rev 6)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,19 +11,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 4 added the JsValue struct layout diagram, bytecode instruction format specification, Mermaid component diagrams for the Concurrency Runtime (3), Platform Layer (4), Standard Library (5), and Evidence layer (6), the Worker/Realm Fabric component (14), the Compilation Artifact Cache component (15), and replaced the changelog-style critique with a forward-looking list. This rev 5 addresses six remaining gaps identified when applying the same scrutiny to rev 4:
+Rev 5 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, and clarified capability-lifecycle back edges. This rev 6 addresses the remaining routing gap: the cross-module map names module boundaries, but it does not yet show how a broad roadmap concern decomposes into one-owner implementation packets.
 
-1. **Greenfield top-level diagram labels the Execution Engine as "4-tier".** The top-level system flowchart's `Execution Engine` subgraph still carries the migration-reality label "4-tier" and exposes Tier 0–3 node labels. This contradicts the 2-stratum target stated in the same document a few sections below. The greenfield diagram should show only Stratum 0 and Stratum F; the 4-tier migration reality already has its own dedicated diagram.
+1. **Cross-module routing is not yet a delivery decomposition.** The map below correctly routes LC / EE / CR / PL / SL / EV ownership, but future slices still have to infer how to turn a broad concern into one primary owner, one receiving contract, one proof packet, and one evidence gate. That inference is where architecture wording can accidentally become a capability claim.
 
-2. **No startup cost breakdown diagram.** The Performance SLOs section targets cold-start < 5 ms p95 and the System lifecycle section describes the startup sequence, but neither shows how the budget is distributed across phases. A slice author reducing cold-start cost has no diagram showing which phase dominates and where profiling effort should land.
+2. **Packet handoff order is implicit.** A route from Execution to Concurrency or Platform is shown as an arrow, but the required sequence — classify boundary, choose owner, define receiving contract, prove semantics, attach evidence, then update roadmap wording — is not drawn. A reviewer should not need to reconstruct that order from rules files.
 
-3. **No JsValue ↔ .NET type conversion flow diagram at the host boundary.** The Embedding/Host API section (component 11) describes the value conversion contract in prose but never draws the conversion paths. A host developer implementing a `HostFunction` cannot see at a glance which conversions are zero-alloc and which allocate a managed wrapper.
+3. **Broad Node.js-competitive language can bypass the owner map.** Module/runtime, host interop, async seam closure, worker fabric, and artifact-cache language all cross fabrics. Each needs one primary owner before any implementation claim can advance.
 
-4. **No host error translation path diagram.** Component 11 documents the `EvaluateAsync` entry point and the fact that uncaught throw completions become .NET exceptions or `Task.Faulted`, but the path from JS throw completion through VM unwind to the host boundary is not drawn. An embedder cannot follow the error propagation without reading source code.
+4. **Evidence routing is horizontal but packet-local evidence is not shown.** The Evidence layer governs every fabric, but each packet must still state which focused test pack, canonical quality gate, and profile/benchmark proof apply to that owner boundary.
 
-5. **Proven-now table has no priority or phase grouping.** The table currently has 25+ rows in flat order. A maintainer choosing a next slice cannot distinguish which proven-now rows are foundational to the migration target from which are directional aspirations. A simple grouping by migration phase (core, migration, directional) would make the table actionable.
+5. **The decomposition target needs non-goals.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The document needs a visual reminder that those remain directional until the packet carries the right proof.
 
-6. **Capability lifecycle backward edges lack precondition language.** The `stateDiagram-v2` for capability lifecycle shows backward edges (e.g., `ProductionClaim --> Prototyped`) but does not state the condition that triggers each reversion. A reviewer looking at a regression cannot determine which edge applies without reading ADR text.
+This revision therefore adds a Mermaid-backed delivery decomposition flow under the cross-module routing map. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -1302,6 +1302,39 @@ Boundary contract rules:
 - **EE → SL:** Built-in fast paths are JsValue-native; descriptor/brand semantics are Standard Library obligations.
 - **CR → EE:** Resume always re-enters through a tracked opcode boundary, not through a shared runner bridge.
 - **→ EV:** Every module reports to Evidence. No capability claim advances without an Evidence artifact.
+
+### Delivery decomposition flow
+
+Use this flow when a roadmap concern crosses fabrics. It turns a broad dream item into a reviewable packet without promoting the directional target into a current capability.
+
+```mermaid
+flowchart TD
+    CONCERN["Broad concern\nNode-style modules / async seam / host API / SLO"]
+    CLASSIFY["Classify boundary\nWhich fabric owns the semantic change?"]
+    OWNER["Select one primary owner\nLC / EE / CR / PL / SL"]
+    RECEIVE["Name receiving contract\nartifact, opcode, resume, host, or JsValue boundary"]
+    PACKET["Implementation packet\none owner module + one file/test surface"]
+    PROOF["Focused proof\nsemantic pack before widening"]
+    EVIDENCE["Evidence gate\ncanonical quality + profile/benchmark when performance-related"]
+    DOCS["Roadmap / dream wording\nproven-now or directional-next"]
+
+    CONCERN --> CLASSIFY --> OWNER --> RECEIVE --> PACKET --> PROOF --> EVIDENCE --> DOCS
+
+    OWNER -. cross-fabric handoff .-> RECEIVE
+    EVIDENCE -. blocks overclaim .-> DOCS
+
+    style CONCERN fill:#555,color:#fff
+    style OWNER fill:#336,color:#fff
+    style PACKET fill:#363,color:#fff
+    style EVIDENCE fill:#653,color:#fff
+    style DOCS fill:#333,color:#fff
+```
+
+Decomposition invariants:
+- A packet has one primary owner even when the concern spans multiple fabrics.
+- The receiving contract is named before implementation starts; examples include typed artifact shape, suspension opcode, resume payload, host-callable bridge, or JsValue descriptor/brand boundary.
+- Proof stays owner-local first. Widened packs, route-coverage claims, and performance language come after focused semantics are green.
+- Documentation moves a row to **proven now** only after the evidence gate is attached. Otherwise the row stays in **directional next** with explicit non-goals.
 
 ## Proven-now vs directional-next
 

@@ -3045,7 +3045,7 @@ internal static class UnifiedBytecodeCompiler
         {
             return false;
         }
-        
+
         if (TryAppendFirstBoundaryNamedLogicalPropertySet(
                 expressionProgram,
                 activationSlots,
@@ -5238,19 +5238,28 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        stagedUnified.AddRange(unified);
+
+        var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        stagedLiterals.AddRange(literalConstants);
+
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
-                unified,
+                stagedUnified,
                 out reason))
         {
             return false;
         }
 
-        var propertyNameIndex = stringConstants.Count;
-        stringConstants.Add(propertyName);
-        unified.Add(new UnifiedBytecodeInstruction(
+        var propertyNameIndex = stagedStrings.Count;
+        stagedStrings.Add(propertyName);
+        stagedUnified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
             propertyNameIndex));
 
@@ -5260,31 +5269,38 @@ internal static class UnifiedBytecodeCompiler
             ExpressionOpKind.JumpIfTrue => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
             _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
         };
-        var jumpUnifiedIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        var jumpUnifiedIndex = stagedUnified.Count;
+        stagedUnified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
         if (!TryAppendSimpleOperandLoad(
                 rhs,
                 expressionProgram,
                 activationSlots,
-                unified,
-                literalConstants,
+                stagedUnified,
+                stagedLiterals,
                 out reason))
         {
             return false;
         }
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
-        var endJumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        var endJumpIndex = stagedUnified.Count;
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
 
-        var cleanupIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SwapTopTwo));
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        var cleanupIndex = stagedUnified.Count;
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SwapTopTwo));
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
-        unified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, cleanupIndex);
-        unified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, unified.Count);
+        stagedUnified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, cleanupIndex);
+        stagedUnified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, stagedUnified.Count);
+
+        unified.Clear();
+        unified.AddRange(stagedUnified);
+        literalConstants.Clear();
+        literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }

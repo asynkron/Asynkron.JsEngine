@@ -33,6 +33,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     /// Captured results cannot be returned to the pool.
     /// </summary>
     internal bool IsCaptured { get; private set; }
+    internal bool SkipPromiseSettlementCapture { get; private set; }
 
     public IteratorResultObject(JsValue value, bool done)
     {
@@ -51,10 +52,29 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
+    internal void MarkSkipPromiseSettlementCapture()
+    {
+        SkipPromiseSettlementCapture = true;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    internal JsValue CreateDetachedCapturedCopy()
+    {
+        var copy = new IteratorResultObject(_value, _done);
+        copy.Capture();
+        return copy.AsJsValue;
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
     internal static void CaptureIfSurfaced(in JsValue value)
     {
         if (value.TryGetObject<IteratorResultObject>(out var result))
         {
+            if (result.SkipPromiseSettlementCapture)
+            {
+                return;
+            }
+
             result.Capture();
         }
     }
@@ -68,6 +88,7 @@ internal sealed class IteratorResultObject : IJsObjectLike, IAsJsValue, IJsSurfa
         _value = value;
         _done = done;
         IsCaptured = false;
+        SkipPromiseSettlementCapture = false;
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]

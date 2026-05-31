@@ -110,7 +110,13 @@ public static partial class TypedAstEvaluator
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
         {
-            return IteratorResultObject.Create(value, done);
+            var iteratorResult = IteratorResultObject.Create(value, done);
+            if (iteratorResult.TryGetObject<IteratorResultObject>(out var poolable))
+            {
+                poolable.MarkSkipPromiseSettlementCapture();
+            }
+
+            return iteratorResult;
         }
 
         private void ResolveFromStep(

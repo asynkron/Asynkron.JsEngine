@@ -883,6 +883,21 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
                     var computedUpdateKey = stack[--stackPointer];
                     var computedUpdateTarget = stack[stackPointer - 1];
+                    if (computedUpdateTarget.IsNullOrUndefined)
+                    {
+                        var error = StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState);
+                        context.SetThrow(error);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
                     var computedUpdateName = JsOps.GetRequiredPropertyName(computedUpdateKey, context);
                     if (context.ShouldStopEvaluation)
                     {

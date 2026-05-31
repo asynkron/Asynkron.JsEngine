@@ -85,6 +85,28 @@ o.bar = 2;
     }
 
     [Fact]
+    public async Task PostfixIncrement_ComputedMemberNullBase_DoesNotEvaluatePropertyKey()
+    {
+        await using var engine = CreateEngine();
+
+        var ex = await Assert.ThrowsAsync<ThrowSignal>(async () =>
+        {
+            await engine.Evaluate("""
+                var baseValue = null;
+                var prop = {
+                    toString() {
+                        throw new Test262Error("property key evaluated");
+                    }
+                };
+
+                baseValue[prop]++;
+                """);
+        });
+
+        Assert.Contains("TypeError", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task PostfixDecrement_GlobalAccessor_CallsSetterWithNewValueAndReturnsOldValue()
     {
         await using var engine = CreateEngine();

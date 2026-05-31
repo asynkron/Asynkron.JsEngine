@@ -168,6 +168,30 @@ optimization.
     the second listed `propertyaccess --memory` / `simplearithmetic --memory`
     without recording their parse-failure outcomes. Related ADR:
     `docs/adrs/0260-keep-shared-workload-profile-evidence-command-complete.md`.
+6i. Do not retry removing `_argumentsObjectNeeded` from
+    `CanUseSimpleBaseClassConstructorFastPath` or
+    `CanUseSimpleDerivedClassConstructorFastPath` expecting a `classdef`
+    wall-clock win. The change is logically correct and semantically safe —
+    both constructors have `_usesArguments = false` and
+    `_needsArgumentsBinding = false`, so the fast path safely skips
+    arguments-object creation — and it eliminates all `CastHelpers.Box`
+    boxing in the constructor hot path (−14% profile time). But the
+    `classdef` benchmark mixes constructor work with string concatenation
+    (`"Dog" + i`, `"Breed" + (i % 10)`), array push, and
+    `dogs.map(d => d.speak())` iteration. These unaffected operations
+    dilute the constructor-path win to ~6% wall-clock (−42 ms / −5.9%),
+    below the required 10% gate. The change pattern is the same as
+    `CanUseSimpleIrActivationFastPath` in ADR 0193 /
+    `closure-simple-activation-fast-path.md` — the constructor fast paths
+    were not updated at that time, but the residual gain from doing so now
+    is insufficient on the current benchmark. Future work should attack the
+    non-constructor `classdef` owners (string concatenation, array push
+    overhead, `super(...)` dispatch) first so the constructor contribution
+    is a larger fraction of the remaining cost, or use a benchmark that
+    isolates pure constructor invocation to measure this change fairly.
+    WHY: issue `autrun-diwixvycrlyw-393d28c674` / PR #2790 documented the
+    failed attempt; failed-attempt note:
+    `docs/performance/failed-classdef-argumentsobject-constructor-fast-path.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

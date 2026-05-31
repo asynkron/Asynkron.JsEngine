@@ -107,6 +107,7 @@ internal readonly record struct ExpressionProgram
         SpreadMaskConstants = spreadMaskConstants.IsDefault ? ImmutableArray<ImmutableArray<int>>.Empty : spreadMaskConstants;
         MaxStackDepth = ComputeMaxStackDepth(operations);
         IsSimpleNumericCandidate = ComputeIsSimpleNumericCandidate(operations);
+        IsSimpleNamedPropertyChainCandidate = ComputeIsSimpleNamedPropertyChainCandidate(operations);
     }
 
     public static ExpressionProgram Empty { get; } = new(ImmutableArray<PackedExpressionOp>.Empty);
@@ -124,6 +125,8 @@ internal readonly record struct ExpressionProgram
     public int MaxStackDepth { get; init; }
 
     public bool IsSimpleNumericCandidate { get; init; }
+
+    public bool IsSimpleNamedPropertyChainCandidate { get; init; }
 
     public int OperationCount => _operations.IsDefault ? 0 : _operations.Length;
 
@@ -258,6 +261,35 @@ internal readonly record struct ExpressionProgram
             BinaryOperator.LessThanOrEqual or
             BinaryOperator.GreaterThan or
             BinaryOperator.GreaterThanOrEqual;
+    }
+
+    private static bool ComputeIsSimpleNamedPropertyChainCandidate(ImmutableArray<PackedExpressionOp> operations)
+    {
+        if (operations.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var operation in operations)
+        {
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadIdentifier when !operation.IsArguments:
+                case ExpressionOpKind.GetNamedProperty when !operation.IsOptional:
+                    continue;
+
+                case ExpressionOpKind.RequireObjectCoercible when operation.Depth == 0:
+                    continue;
+
+                case ExpressionOpKind.Binary when operation.Operator == BinaryOperator.Add:
+                    continue;
+
+                default:
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     private static int GetStackDelta(PackedExpressionOp operation)

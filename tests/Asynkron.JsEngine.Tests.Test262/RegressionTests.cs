@@ -223,7 +223,7 @@ public class RegressionTests
     {
         var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
 
-        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(180)));
     }
 
     [TestCase("built-ins/decodeURI/S15.1.3.1_A2.5_T1.js")]
@@ -232,7 +232,7 @@ public class RegressionTests
     {
         var timeout = Test262Test.GetTest262ExecutionTimeout(fileName);
 
-        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(90)));
+        Assert.That(timeout, Is.EqualTo(TimeSpan.FromSeconds(180)));
     }
 
     [TestCase("built-ins/RegExp/character-class-escape-non-whitespace.js")]

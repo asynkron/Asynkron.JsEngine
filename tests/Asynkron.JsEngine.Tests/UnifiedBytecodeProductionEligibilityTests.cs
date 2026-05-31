@@ -4120,6 +4120,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Fact]
     public void Evaluate_ConditionalExpression_ThisPropertyConditionAndArms_DeclinesWithPropertyReadBoundaryOutOfScope()
     {
+        // AC-5 deviation (intentional): AC-5 originally required an accept test for this.flag ? a : b.
+        // TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate handles only logical short-circuit
+        // opcodes (JumpIfFalse/JumpIfTrue/JumpIfNotNullish) — not JumpIfConditionalFalse, which is the
+        // ternary condition opcode. The ternary condition is not a "short-circuit property read" candidate;
+        // the property value is consumed as a boolean condition, not returned directly. Extending the
+        // method to admit JumpIfConditionalFalse would be architecturally incorrect. This decline test
+        // documents the boundary as the intentional AC-5 resolution.
         // this.flag ? this.a : other has GetNamedProperty in ternary condition position,
         // which is outside the admitted property-read boundary shapes for ternary.
         var plan = GetClassMethodPlan("""

@@ -5058,6 +5058,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             count;
             """);
         Assert.Equal(1d, countTruthy);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick",
+                StringComparison.Ordinal));
 
         var countFalsy = await engine.Evaluate("""
             var count2 = 0;
@@ -5067,5 +5071,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             count2;
             """);
         Assert.Equal(1d, countFalsy);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick2",
+                StringComparison.Ordinal));
     }
 }

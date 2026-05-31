@@ -543,11 +543,11 @@ The event loop describes the full ordering of work from host entry through ECMAS
 ```mermaid
 flowchart TB
     HOST[Host scheduler\n.NET Task / timer / I/O]
-    MT[Select macrotask\n(timer fire, I/O callback,\nhost-enqueued work)]
+    MT["Select macrotask\n(timer fire, I/O callback,\nhost-enqueued work)"]
     EX[Execute macrotask script\nor resume callback]
-    MQD[Drain microtask queue\nuntil empty\n(Promise jobs, queueMicrotask)]
-    RA[Render animation callbacks\n— directional: requestAnimationFrame\nnot a current contract]
-    IDLE[Idle / no pending work\n→ wait for next host event]
+    MQD["Drain microtask queue\nuntil empty\n(Promise jobs, queueMicrotask)"]
+    RA["Render animation callbacks\n— directional: requestAnimationFrame\nnot a current contract"]
+    IDLE["Idle / no pending work\n→ wait for next host event"]
 
     HOST --> MT
     MT --> EX

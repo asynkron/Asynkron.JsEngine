@@ -375,6 +375,15 @@ internal static class AssignmentReferenceResolver
             return;
         }
 
+        // Fast path for ordinary obj[prop] = value where receiver is the target object.
+        // Avoid descriptor materialization for existing writable data properties.
+        if (receiverValue.TryGetObject<JsObject>(out var receiverObject) &&
+            ReferenceEquals(receiverObject, target) &&
+            target.TrySetExistingJsValue(propertyName, value))
+        {
+            return;
+        }
+
         var ownDescriptor = target.GetOwnPropertyDescriptor(propertyName);
         if (ownDescriptor is not null)
         {

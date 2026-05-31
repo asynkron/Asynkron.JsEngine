@@ -262,7 +262,29 @@ all-or-nothing until a separate routing issue proves production readiness.
     `CompoundNamedPropertyWriteOperators` `TheoryData` property enumerates all
     12 admitted compound-write operators, and two Theory methods prove both
     named and computed paths accept each one.
-21. Before widening parallel unified-bytecode lanes, start from
+21. When admitting nested named receiver writes or updates into production
+    unified bytecode, keep the route owned by existing property opcodes and
+    prove the extra receiver stack pressure explicitly. Simple chains such as
+    `box.child.value = y` and `++box.child.count` may route when the root is
+    activation-resolved, every intermediate step is a non-optional non-private
+    `GetNamedProperty`, the final operation is `SetNamedProperty` or
+    `UpdateNamedProperty`, and the RHS is still a simple production-owned
+    payload. Do not infer that nested compound/logical assignments,
+    computed-expression keys, optional chains, `super`, private names, calls, or
+    dynamic lookup are covered by the same widening. If preserving an
+    intermediate receiver means the compiled unified-bytecode program needs a
+    deeper stack than `ExpressionProgram.MaxStackDepth` reports, raise the
+    compiled stack-depth calculation and add a focused stack-depth proof instead
+    of adding VM fallback to `ExpressionProgram`, `ExecutionPlanRunner`, or AST
+    evaluation. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-76ae54eb13`
+    / PR #2897 admitted simple nested named property assignment/update through
+    existing `GetNamedProperty`, `SetNamedProperty`, and `UpdateNamedProperty`
+    opcodes, while keeping nested compound/logical and richer computed families
+    declined. The delivery also added a compiled stack-depth floor because the
+    lowered unified-bytecode receiver-preservation stack can exceed the source
+    `ExpressionProgram` stack metadata.
+22. Before widening parallel unified-bytecode lanes, start from
     `docs/unified-bytecode-expansion-contract.md` and keep contract, roadmap,
     and ADR/rule surfaces synchronized in the same slice when shared boundary
     text changes. The contract must separate current support from
@@ -307,7 +329,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     wording from this rule after the roadmap/contract wording had become
     explicit, confirming that adjacent rule text is part of the same
     synchronization boundary.
-22. When admitting activation-value loads into production unified bytecode,
+23. When admitting activation-value loads into production unified bytecode,
     keep them call-time owned by the sync invocation bridge. `LoadThis` and
     `LoadNewTarget` may execute only as owned VM opcodes supplied with
     invocation-local values from `SyncFunctionInvoker`; sloppy `this` must reuse
@@ -325,7 +347,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     production unified bytecode, and the quality gate caught a missing
     `LoadThis` / `LoadNewTarget` expansion-contract inventory update before the
     lane was complete.
-23. When admitting primitive unary, conversion, discard, or strict equality
+24. When admitting primitive unary, conversion, discard, or strict equality
     operations into production unified bytecode, keep the semantics VM-owned and
     activation/TDZ-aware. The compiler may flatten only supported
     `ExpressionProgram` operations into owned opcodes such as `TypeOf`,
@@ -350,7 +372,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     reads. The durable lesson is that broad primitive support is safe only when
     selector, compiler, VM semantics, public route proof, dynamic declines,
     TDZ setup, and contract docs move together.
-24. When adding unified-bytecode call-target preparation, keep preparation
+25. When adding unified-bytecode call-target preparation, keep preparation
     bytecode-owned but non-executable for eval/construct and other
     unproven call families until a separate invocation slice owns
     receiver binding, direct-eval, construct/super, optional-call, and spread
@@ -490,7 +512,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     template literals (`` tag`...` ``) are declined because `LoadTemplateObject`
     requires owned VM/compiler support not in scope; complex substitutions
     (`` `${a + b}` ``) decline because `a + b` is not a simple operand (ADR 0292).
-25. When encountering stateful for-in or array-destructuring driver
+26. When encountering stateful for-in or array-destructuring driver
     instructions in production unified bytecode eligibility, decline before VM
     execution until a full driver-state model is owned. `ForInInitInstruction`
     and `ForInMoveNextInstruction` must decline as
@@ -506,7 +528,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     driver-state model yet. The delivery added explicit decline codes/tests and
     documented the model-first boundary instead of widening opcodes or VM paths
     opportunistically.
-26. When admitting completion and expression-statement behavior into production
+27. When admitting completion and expression-statement behavior into production
     unified bytecode, keep completion effects VM-owned and decline-first.
     Empty or implicit returns should compile to `ReturnUndefined`; non-awaited
     `ThrowInstruction` payloads should compile to owned expression operations
@@ -528,7 +550,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     destructuring model-first declines while removing only the redundant
     discarded property write/update veto that current owned VM semantics had
     superseded.
-27. When admitting loop-control shapes to production unified bytecode, keep
+28. When admitting loop-control shapes to production unified bytecode, keep
     target semantics compiler-owned and label decline explicit. Supported
     unlabeled `BreakInstruction` and `ContinueInstruction` cases may compile
     only as resolved `Jump` targets through the same IR-instruction to
@@ -547,7 +569,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     conflict-resolution stage had to preserve main's for-in/destructuring
     declines while repairing stale prototype tests that still expected
     for-loop post-update shapes to fail.
-28. When admitting block lexical scopes to production unified bytecode, make the
+29. When admitting block lexical scopes to production unified bytecode, make the
     accepted program own the full flat-slot span, not just root activation
     slots. Complete root activation mappings even when non-root flat mappings
     are present, derive `UnifiedBytecodeProgram.SlotCount` from every flat-slot
@@ -567,7 +589,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     that partial root remapping plus non-root flat mappings broke unrelated
     parameter-population paths. The accepted repair made slot layout
     program-wide and positional instead of activation-only or name-based.
-29. After parallel unified-bytecode lanes have individually widened production
+30. After parallel unified-bytecode lanes have individually widened production
     support, prove they compose as one accepted production boundary before
     treating the batch as coherent. The integrated selector proof should combine
     only already-owned families, assert `None` decline code, assert required
@@ -583,7 +605,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     proof pack. The durable lesson was that per-lane acceptance is not enough:
     completed lanes must compose inside one VM-owned program while route
     priority still protects older specialized fast paths.
-30. Keep production unified-bytecode no-mixed-execution source gates both
+31. Keep production unified-bytecode no-mixed-execution source gates both
     method-boundary-scoped and VM-scoped. The sync-invoker source gate should
     scan only `TryInvokeProductionUnifiedBytecode<TArgs>(...)`, because the
     surrounding invoker file legitimately owns fallback paths. The same test
@@ -599,7 +621,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2509 hardened the accepted-path proof after review caught two
     guardrail holes: linked-worktree root discovery and a missing VM-source
     `ExpressionProgram` assertion.
-31. Before creating or rewriting follow-on Faktorial plans for unified
+32. Before creating or rewriting follow-on Faktorial plans for unified
     bytecode, rebase lane order against current local `main`,
     `docs/unified-bytecode-expansion-contract.md`, relevant ADR/rule
     boundaries, and recent merged production proof. Do not carry a stale first
@@ -622,7 +644,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     plan edits must treat super calls, direct eval, dynamic lookup, and
     iterator/destructuring as remaining lanes unless current `main` proves an
     even newer slice has landed.
-32. When preserving or widening with-backed dynamic names on the production
+33. When preserving or widening with-backed dynamic names on the production
     unified bytecode route, keep the accepted program activation-hoist aligned,
     receiver-owned, and explicitly descriptor-gated for ordinary environment
     operations. The sync bridge must define function-scoped var bindings in the
@@ -653,7 +675,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     / PR #2872 then widened the same family to ordinary dynamic-name
     environment operations while keeping direct-eval declaration materialization
     out of the production route.
-33. When admitting `try/catch/finally` exception regions to production unified
+34. When admitting `try/catch/finally` exception regions to production unified
     bytecode, keep exception routing and abrupt-completion propagation
     descriptor-backed and VM-owned. `EnterTry`, `EnterCatch`, `LeaveTry`, and
     `EndFinally` must compile to owned opcodes with `UnifiedBytecodeTryDescriptor`
@@ -684,7 +706,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     `ThrowBugTests.AssertThrowsPattern_ShouldCatchErrorObject` no longer
     overflowed the fixed operand stack.
 
-34. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
+35. When removing a pre-gate from `CanUseProductionUnifiedBytecodeFastPath`,
     verify that the plan-level decline taxonomy in
     `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` already
     covers every opcode family the pre-gate was blocking; do not remove a gate
@@ -715,7 +737,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     boundary as two further durable guardrails for future `this`-using method
     admissions.
 
-35. When admitting `this`-dependent async/generator functions to the
+36. When admitting `this`-dependent async/generator functions to the
     **resumable** unified bytecode route, clear both gates and own the `this`
     lifetime on resume state. The resumable route declines `this` in two
     independent places, and both must move together: remove the
@@ -752,7 +774,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     resumable widening (e.g. `this.x` reads, new.target) must clear both gates
     and pick the resume-state lifetime, not the per-step VM-parameter lifetime.
 
-36. When admitting label-dependent control flow to production unified bytecode,
+37. When admitting label-dependent control flow to production unified bytecode,
     treat labels as compiler-owned targets, not a source-syntax permission, and
     bound the admission by the VM's single-level driver cleanup. There are two
     blanket gates and both move together: remove the
@@ -799,7 +821,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     label itself — is the real boundary, and a PC-based multi-driver shortcut is
     unsound under lazy target compilation.
 
-37. When admitting synchronous construct and super invocation to production
+38. When admitting synchronous construct and super invocation to production
     unified bytecode, keep constructor and super ownership split and prove the
     activation contract in the same slice. `ConstructInvocationBoundary` stays
     receiver-free and mirrors the spec-conformant construct reference helper
@@ -835,11 +857,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     the first bounded super invocation shapes became reachable and provable
     without mixed execution.
 
-38. When admitting a per-iteration TDZ head environment (`for (const/let x of/in …)`) to production unified bytecode, audit all three eligibility gate layers simultaneously — not just the first declining gate. The per-iteration TDZ head shape touches independent gates in series: (1) **`IsSupportedPushEnvironment`** by default declines any non-empty `PerIterationBindings`; admit it when all lexical slots resolve to flat activation slots. (2) The **structured loop-reconstruction gates** (`IsSupportedDriverLoopBackEdgeTarget`, `TryIsLinearCanonicalWhileBody`) — a driver loop with a per-iteration environment emits `PopEnvironment` as the back-edge source and has `Push`/`PopEnvironment` in the body; accept `PopEnvironment` as a valid back-edge source and treat the pair as linear flat-slot pass-throughs while still requiring a branch-free body to preserve no-mixed-execution. (3) The **production opcode allowlist** — a new opcode such as `TdzHeadInit` must be explicitly added to the admitted production subset even when the opcode and its VM handler already exist from a prior prototype slice. Emit `TdzHeadInit` **before** the iterable/object source expression ops so the TDZ is established before the source is evaluated (making `for (const x of [x])` throw the correct `ReferenceError`). The safety boundary is: captured/dynamic activations decline wholesale upstream, so the only case where per-iteration binding freshness is observable (a closure over the loop binding) never reaches this path — prove this with a negative routing test. When a new driver-state or per-iteration environment shape is admitted, assume it touches multiple gate layers and test each layer independently before claiming the shape is fully admitted. WHY: issue #2678 / PR #2687 admitted the per-iteration TDZ head shape (Slice A, ADR 0288). The first attempted fix targeted only one of three blocking gates; all three had to move together before the failing test passed. The useful lesson is that eligibility for a stateful driver shape is spread across the environment-support gate, the loop-reconstruction analysis, and the per-opcode allowlist — a shape that looks like a one-line eligibility change often requires synchronized updates across all three surfaces.
+39. When admitting a per-iteration TDZ head environment (`for (const/let x of/in …)`) to production unified bytecode, audit all three eligibility gate layers simultaneously — not just the first declining gate. The per-iteration TDZ head shape touches independent gates in series: (1) **`IsSupportedPushEnvironment`** by default declines any non-empty `PerIterationBindings`; admit it when all lexical slots resolve to flat activation slots. (2) The **structured loop-reconstruction gates** (`IsSupportedDriverLoopBackEdgeTarget`, `TryIsLinearCanonicalWhileBody`) — a driver loop with a per-iteration environment emits `PopEnvironment` as the back-edge source and has `Push`/`PopEnvironment` in the body; accept `PopEnvironment` as a valid back-edge source and treat the pair as linear flat-slot pass-throughs while still requiring a branch-free body to preserve no-mixed-execution. (3) The **production opcode allowlist** — a new opcode such as `TdzHeadInit` must be explicitly added to the admitted production subset even when the opcode and its VM handler already exist from a prior prototype slice. Emit `TdzHeadInit` **before** the iterable/object source expression ops so the TDZ is established before the source is evaluated (making `for (const x of [x])` throw the correct `ReferenceError`). The safety boundary is: captured/dynamic activations decline wholesale upstream, so the only case where per-iteration binding freshness is observable (a closure over the loop binding) never reaches this path — prove this with a negative routing test. When a new driver-state or per-iteration environment shape is admitted, assume it touches multiple gate layers and test each layer independently before claiming the shape is fully admitted. WHY: issue #2678 / PR #2687 admitted the per-iteration TDZ head shape (Slice A, ADR 0288). The first attempted fix targeted only one of three blocking gates; all three had to move together before the failing test passed. The useful lesson is that eligibility for a stateful driver shape is spread across the environment-support gate, the loop-reconstruction analysis, and the per-opcode allowlist — a shape that looks like a one-line eligibility change often requires synchronized updates across all three surfaces.
 
-39. Keep `ApplyBinaryOperator` in `UnifiedBytecodeVirtualMachine` exhaustive over every `BinaryOperator` enum member. When new enum members are added, or when a production-eligible operator subset is widened, ensure each remaining unsupported operator still has an explicit case arm that declines at eligibility as `UnsupportedPlanShape` rather than silently falling through to a default clause. For operators whose canonical evaluation path is `bool`-returning on `TypedAstEvaluator` (such as `In` and `InstanceOf`), add a `JsValue`-returning internal wrapper in `TypedAstEvaluator.JsValue.cs` in the `#region Public API for JsOps` section before wiring the VM arm — mirror the existing `BitwiseAnd`/`Power` pattern: the wrapper calls the underlying `bool`-returning method and returns `JsValue.True` or `JsValue.False`. When widening `IsProductionBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs`, also update `IsSupportedBinaryOperator` in `UnifiedBytecodeCompiler.cs` to match — these two gates are coupled but live in separate files. If the compiler gate is not widened in sync, the eligibility check passes but the compiler falls through to its default "Unsupported expression op 'Binary'" error at runtime, requiring a second build pass to fix. Treat the binary-operator widening checklist as four simultaneous updates: (1) `IsProductionBinaryOperator` in the eligibility file, (2) `IsSupportedBinaryOperator` in the compiler, (3) `ApplyBinaryOperator` case arms in the VM, (4) `FormatBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs` — replace any wildcard `_ => binaryOperator.ToString()` arm with `_ => throw new ArgumentOutOfRangeException(nameof(binaryOperator), binaryOperator, null)` so unhandled operators surface immediately at runtime and CS8524 (unnamed enum value) is suppressed without hiding real gaps. A wildcard `ToString()` arm silently returns a formatted string for future unhandled operators and defeats the compiler's exhaustiveness signal. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-30e0eb731c` / PR #2730 found 10 missing arms in the VM switch (`Power`, `NotEqual`, `BitwiseAnd`, `BitwiseOr`, `BitwiseXor`, `LeftShift`, `RightShift`, `UnsignedRightShift`, `In`, `InstanceOf`). Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-a079ef8fec` / PR #2731 found the coupled compiler gate (`IsSupportedBinaryOperator`) was not updated alongside the eligibility gate, causing a verification failure that required a second build pass to fix. Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-b71305a0ac` / PR #2734 found the `FormatBinaryOperator` wildcard arm `_ => binaryOperator.ToString()` still in place after the other three surfaces were updated; the accepted repair replaced it with a throw, making all 25 `BinaryOperator` cases explicit. Without keeping all four surfaces in sync, production widening silently produces wrong, missing, or misleadingly formatted behavior.
+40. Keep `ApplyBinaryOperator` in `UnifiedBytecodeVirtualMachine` exhaustive over every `BinaryOperator` enum member. When new enum members are added, or when a production-eligible operator subset is widened, ensure each remaining unsupported operator still has an explicit case arm that declines at eligibility as `UnsupportedPlanShape` rather than silently falling through to a default clause. For operators whose canonical evaluation path is `bool`-returning on `TypedAstEvaluator` (such as `In` and `InstanceOf`), add a `JsValue`-returning internal wrapper in `TypedAstEvaluator.JsValue.cs` in the `#region Public API for JsOps` section before wiring the VM arm — mirror the existing `BitwiseAnd`/`Power` pattern: the wrapper calls the underlying `bool`-returning method and returns `JsValue.True` or `JsValue.False`. When widening `IsProductionBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs`, also update `IsSupportedBinaryOperator` in `UnifiedBytecodeCompiler.cs` to match — these two gates are coupled but live in separate files. If the compiler gate is not widened in sync, the eligibility check passes but the compiler falls through to its default "Unsupported expression op 'Binary'" error at runtime, requiring a second build pass to fix. Treat the binary-operator widening checklist as four simultaneous updates: (1) `IsProductionBinaryOperator` in the eligibility file, (2) `IsSupportedBinaryOperator` in the compiler, (3) `ApplyBinaryOperator` case arms in the VM, (4) `FormatBinaryOperator` in `UnifiedBytecodeProductionEligibility.cs` — replace any wildcard `_ => binaryOperator.ToString()` arm with `_ => throw new ArgumentOutOfRangeException(nameof(binaryOperator), binaryOperator, null)` so unhandled operators surface immediately at runtime and CS8524 (unnamed enum value) is suppressed without hiding real gaps. A wildcard `ToString()` arm silently returns a formatted string for future unhandled operators and defeats the compiler's exhaustiveness signal. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-30e0eb731c` / PR #2730 found 10 missing arms in the VM switch (`Power`, `NotEqual`, `BitwiseAnd`, `BitwiseOr`, `BitwiseXor`, `LeftShift`, `RightShift`, `UnsignedRightShift`, `In`, `InstanceOf`). Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-a079ef8fec` / PR #2731 found the coupled compiler gate (`IsSupportedBinaryOperator`) was not updated alongside the eligibility gate, causing a verification failure that required a second build pass to fix. Issue `planitem-planmanual1780157100924814000-baseline-batch-1-value-binary-operator-wid-b71305a0ac` / PR #2734 found the `FormatBinaryOperator` wildcard arm `_ => binaryOperator.ToString()` still in place after the other three surfaces were updated; the accepted repair replaced it with a throw, making all 25 `BinaryOperator` cases explicit. Without keeping all four surfaces in sync, production widening silently produces wrong, missing, or misleadingly formatted behavior.
 
-40. When extending an existing array-literal span family with a new push-like opcode variant (e.g., adding `ArraySpread` alongside `ArrayPush`), treat it as **four coupled surfaces** that must all move together in the same delivery slice:
+41. When extending an existing array-literal span family with a new push-like opcode variant (e.g., adding `ArraySpread` alongside `ArrayPush`), treat it as **four coupled surfaces** that must all move together in the same delivery slice:
     1. **Compiler main switch** (`UnifiedBytecodeCompiler` expression switch): add a case for the new `ExpressionOpKind` value to emit the corresponding `UnifiedBytecodeOpCode`. The span helper (`TryAppendSimpleArrayLiteralSpan`) emits the opcode only inside a recognized literal span; any `ArraySpread` op encountered by the general compiler switch falls to `default` and returns "Unsupported expression op" at runtime.
     2. **Production opcode allowlist** (`TryFindPrototypeOnlyOpcode`): add the new `UnifiedBytecodeOpCode` to the production-eligible subset. A missing entry causes the post-compile opcode-subset check to reject programs that contain the new opcode even when eligibility and compilation succeeded.
     3. **Span helper pair** (eligibility's `TryMeasureSimpleArrayLiteralSpan` + compiler's `TryAppendSimpleArrayLiteralSpan`): update the push-op kind check from an exact equality to `is (existing or new)` so both measurement and emission accept the new variant. When admitting `ArraySpread`, also check whether `ArrayPushHole` (the zero-argument hole-element op) needs standalone admission in `TryMeasureSimpleArrayLiteralSpan` — hole+spread patterns (`[, ...a]`) emit `ArrayPushHole` before `ArraySpread` in the op sequence, so without standalone `ArrayPushHole` acceptance the span measurement fails and the spread admission is incomplete. If `ArrayPushHole` is already recognized as a push element, no change is needed; otherwise add it in the same slice.
@@ -847,7 +869,7 @@ all-or-nothing until a separate routing issue proves production readiness.
 
     Additionally: when a non-simple source precedes an `ArraySpread` op in an expression program, the main `TryFindExpressionDecline` left-to-right loop will encounter the source's inner ops (e.g., a `Call` in `a.slice(0, b)`) before reaching the `ArraySpread` op and may fire a more generic decline code (`CallDependency`) instead of the intended `ObjectLiteralOrSpreadDependency`. Fix this by adding a **pre-scan** before the main loop that detects `ArraySpread` ops whose immediately-preceding op is non-simple and returns `ObjectLiteralOrSpreadDependency` immediately. The pre-scan must run before the general op-by-op loop so that the specific spread-source decline supersedes any inner-op decline from the source expression. WHY: issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-300d522431` / PR #2748 wired `ArraySpread` in the span helper first but required a build-back repair to add (1) the compiler main switch case, (2) the production allowlist entry, (3) the docs contract entry, and (4) the pre-scan for non-simple spread sources. Without all four surfaces aligned, eligibility succeeds but the compiler falls through to its default error; or the compiler emits the opcode but the allowlist check rejects it at post-compile validation; or a non-simple spread source produces the wrong decline code for the caller. Confirmed by issue `planitem-planmanual1780157100924814000-baseline-batch-3-array-spread-in-array-lit-389e8f1c98` / PR #2750 (the main array spread delivery), which applied all four surfaces plus standalone `ArrayPushHole` admission in a single slice with no build-back repair needed.
 
-41. When admitting expression-level short-circuit logical (`&&`, `||`) and
+42. When admitting expression-level short-circuit logical (`&&`, `||`) and
     nullish-coalescing (`??`) operators to production unified bytecode, use
     **peek-semantics** jump opcodes — not the existing pop-semantics
     `JumpIfFalse`. The peek/pop distinction is load-bearing:
@@ -963,7 +985,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     operand admission to widen optional writes, optional calls, complex computed
     keys, dynamic lookup, or unbounded optional-chain forms.
 
-42. When admitting simple (non-chained) optional member reads to production
+43. When admitting simple (non-chained) optional member reads to production
     unified bytecode, use **dedicated null-check opcodes** and constrain
     admission to exact op-count shapes. The two admitted forms:
 
@@ -1053,7 +1075,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     was a pre-implementation guard for `a?.b.c` that was never updated after the
     admission commit; the learn-stage build-fix caught and repaired it in PR #2802.
 
-43. When admitting `ConditionalExpression` (`cond ? a : b`) to production
+44. When admitting `ConditionalExpression` (`cond ? a : b`) to production
     unified bytecode, the **only new compiler surface** is
     `ExpressionOpKind.Jump` in `TryAppendExpressionProgramOps`. No new VM
     opcodes are needed: the existing `JumpIfFalse` (for the condition),
@@ -1177,7 +1199,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     super-optional, and dynamic-lookup chains still decline as
     `OptionalChainDependency`.
 
-44. When admitting multi-hop optional call chains (`a?.b.c()`, `a?.b?.c()`)
+45. When admitting multi-hop optional call chains (`a?.b.c()`, `a?.b?.c()`)
     to production unified bytecode, classify by where the `?.` appears relative
     to the call member, and set `isCallTargetPreparationCandidate` before the
     per-op decline loop reaches any `GetNamedProperty(IsOptional:true)`:
@@ -1536,7 +1558,7 @@ that following rule #40 proactively — applying all four surfaces together, inc
 `ArrayPushHole` standalone measurement admission for hole-bearing spread arrays —
 avoids the build-back repair cycle that the sibling task (PR #2748) required.
 
-45. When admitting logical compound assignment on slot identifiers (`x &&= y`,
+46. When admitting logical compound assignment on slot identifiers (`x &&= y`,
     `x ||= y`, `x ??= y`) to production unified bytecode, reuse the existing
     peek-semantics short-circuit jump opcodes (`JumpIfShortCircuitFalse`,
     `JumpIfShortCircuitTrue`, `JumpIfShortCircuitNotNullish`) in a
@@ -1580,7 +1602,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     short-circuit path; in statement programs it is a condition-only branch that
     both paths must discard. Mixing the two roles in test or compiler analysis
     produces incorrect stack effects.
-46. When admitting direct named member logical assignment (`box.value &&= y`,
+47. When admitting direct named member logical assignment (`box.value &&= y`,
     `box.value ||= y`, `box.value ??= y`, including `this.value` bases) to
     production unified bytecode, keep the shape exact and receiver/result
     preserving. The accepted expression-program shape is:
@@ -1631,7 +1653,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     stay `PropertyWriteDependency`, private fields stay
     `PrivateFieldDependency`, and optional-chain assignment remains
     parser-rejected before eligibility.
-47. When admitting direct computed member logical assignment (`box[key] &&= y`,
+48. When admitting direct computed member logical assignment (`box[key] &&= y`,
     `box[key] ||= y`, `box[key] ??= y`) to production unified bytecode, keep
     the compiler ownership and stack invariants aligned with the existing
     computed member get-for-set model. Preserve both receiver and resolved key,
@@ -1664,7 +1686,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     predicate, with focused negative rows for near-simple but unsupported key
     operands, so eligibility cannot promise a route the compiler cannot emit.
 
-48. When moving ordinary sync production activation pre-gates into
+49. When moving ordinary sync production activation pre-gates into
     `UnifiedBytecodeProductionEligibility`, use an explicit
     `UnifiedBytecodeProductionActivationDescriptor` field and stable
     `UnifiedBytecodeProductionDeclineCode` for each blocker instead of leaving
@@ -1686,7 +1708,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     blocker reasons behind generic pre-gates or incorrectly cache an
     invocation-dependent decline at plan scope.
 
-49. When admitting class literals or other closure/environment-dependent value
+50. When admitting class literals or other closure/environment-dependent value
     literals to production unified bytecode, keep the opcode VM-owned while
     reusing the runtime helper that already owns the semantic construction. For
     class literals, lower `ExpressionOpKind.LoadClassLiteral` to a dedicated
@@ -1706,7 +1728,7 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     `LoadClassLiteral`, confirming that every newly VM-executed opcode must
     update the contract inventory as part of the delivery slice.
 
-50. When widening production unified-bytecode construct routing beyond the
+51. When widening production unified-bytecode construct routing beyond the
     identifier-only `new F(...)` lane, keep constructor-target recognition
     anchored to the terminal `Construct` op and reuse already-owned
     property-read and spread-boundary machinery instead of inventing a
@@ -1775,3 +1797,4 @@ Related ADRs:
 - `docs/adrs/0300-admit-logical-compound-assignment-on-slots-in-unified-bytecode.md`
 - `docs/adrs/0302-admit-named-member-logical-assignment-in-unified-bytecode.md`
 - `docs/adrs/0306-admit-class-literals-in-unified-bytecode-through-shared-class-creation.md`
+- `docs/adrs/0308-admit-nested-named-property-write-receiver-chains-in-unified-bytecode.md`

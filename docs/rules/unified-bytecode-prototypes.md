@@ -199,23 +199,24 @@ all-or-nothing until a separate routing issue proves production readiness.
     compound writes must keep the receiver live for `SetNamedProperty`, and
     computed compound writes must keep both the receiver and the already-resolved
     key live for `SetComputedProperty`. Keep the selector and compiler matched
-    to exact operation sequences, and leave logical assignment, nested member
-    chains, richer computed keys, optional chains, `super`, private fields,
+    to exact operation sequences, and leave nested member chains, richer
+    computed keys, optional chains, `super`, private fields,
     `delete`, calls, destructuring, and dynamic lookup as pre-VM declines until
     a later slice owns their full proof. The admitted compound-assignment
     operators are the 12 arithmetic and bitwise operators (`+=`, `-=`, `*=`,
-    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`); the three
-    logical operators (`&&=`, `||=`, `??=`) decline as `PropertyWriteDependency`
-    because their conditional short-circuit semantics require a branch opcode
-    that the compound get-for-set model does not provide. WHY: issue
+    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`). Logical
+    operators (`&&=`, `||=`, `??=`) are admitted for slot identifiers and
+    first-boundary named member targets once selector + compiler + VM + tests
+    own the short-circuit shape; computed-member logical-assignment forms remain
+    pre-VM declines pending dedicated ownership. WHY: issue
     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
     / PR #2426 widened direct named/computed compound writes by adding
     `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
     Those opcodes intentionally avoid treating compound writes as permission for
     a generic expression-stack VM or broad property-write routing. Issue
     `planitem-planmanual1780157100924814000-baseline-batch-4-compound-property-writes-8f79995e52`
-    / PR #2755 added parametric Theory coverage over all 12 admitted operators
-    and confirmed `&&=`, `||=`, and `??=` as explicit pre-VM declines.
+    / PR #2755 added parametric Theory coverage over all 12 arithmetic/bitwise
+    admitted operators.
 20. When adding a broad production proof pack for an already-admitted unified
     bytecode family, prove the accepted and rejected boundaries separately. For
     accepted source shapes, assert selector eligibility, `None` decline code,
@@ -1510,13 +1511,16 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
         path, so this test proves short-circuit opcode correctness without
         asserting `unified-bytecode-production-fast-path`.
 
-    Logical compound assignments on **member targets** (`this.x &&= y`,
-    `box.prop ||= y`) remain declined as `PropertyWriteDependency`. The
-    conditional short-circuit branch opcode does not compose with the compound
-    get-for-set model that named/computed compound writes use (ADR 0238, rule 19).
+    Logical compound assignments on first-boundary **named member targets**
+    (`this.x &&= y`, `box.prop ||= y`) are admitted when they satisfy the same
+    simple production candidate constraints as named compound writes. Computed
+    member-target logical assignments remain declined until the computed key
+    get-for-set plus short-circuit composition is fully owned and proven.
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-dad47dee93`
-    / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300).
+    / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300),
+    and the subsequent production widening admitted named member-target logical
+    assignments under the existing first-boundary named-property constraints.
     The durable lesson is that the same peek-semantics opcode serves two roles
     depending on context: in expression programs it returns the LHS value on the
     short-circuit path; in statement programs it is a condition-only branch that

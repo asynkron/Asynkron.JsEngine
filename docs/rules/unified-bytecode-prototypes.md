@@ -64,9 +64,17 @@ all-or-nothing until a separate routing issue proves production readiness.
    Binary operator must update the selector, unified compiler allowlist, and VM
    semantics in the same slice, with positive selector/route proof and a nearby
    unsupported operator decline/no-route proof. Unsupported Binary operators
-   must decline with `UnsupportedPlanShape` and operator-specific diagnostics, and labels, unproven or labeled loop-control shapes, calls,
-   dynamic lookup, noncanonical loops, and unsupported payloads must decline
-   before VM execution.
+   must decline with `UnsupportedPlanShape` and operator-specific diagnostics,
+   and labels, unproven or labeled loop-control shapes, calls, dynamic lookup,
+   noncanonical loops, and unsupported payloads must decline before VM
+   execution. WHY: issue
+   `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-4d76606d60`
+   / PR #2857 retired the stale `PrototypeOnlyBinaryOpcode`,
+   `PrototypeOnlyJumpOpcode`, and `PrototypeOnlyJumpIfFalseOpcode` decline
+   taxonomy after the proven jump subset had already moved into production.
+   Keeping unsupported binary operators under `UnsupportedPlanShape` avoids
+   preserving historical prototype-only names as active production outcomes
+   while retaining operator-specific diagnostics.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

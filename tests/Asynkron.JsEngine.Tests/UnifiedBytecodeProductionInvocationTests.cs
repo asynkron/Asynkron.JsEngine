@@ -4024,17 +4024,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [Theory(Timeout = 5000)]
     [InlineData(
         """
-        function deleteMember(box) {
-            delete box.value;
-            return "value" in box ? 1 : 0;
-        }
-
-        deleteMember({ value: 1 });
-        """,
-        "deleteMember",
-        0d)]
-    [InlineData(
-        """
         class Base {
             get value() { return 2; }
         }

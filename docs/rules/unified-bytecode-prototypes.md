@@ -127,7 +127,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     shapes. Keep concrete examples such as `box[{ value: 1 }]` and
     `box[{ ...source }]` declining as `ObjectLiteralOrSpreadDependency` so
     key-payload hazards stay visible before generic property-read boundary
-    declines.
+    declines. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-e62d6987e4`
+    / PR #2912 admitted simple object-literal spread entries, but review found
+    that the same `ObjectSpread` op can appear inside an ordinary computed
+    property-key payload. The repair kept computed-key spread payloads out of
+    production routing by sharing the computed-read key-payload bounds helper
+    and requiring object spread to belong to a measured simple object-literal
+    span.
 13. When making property-read candidates executable in production unified
     bytecode, keep the read semantics VM-owned and fallback-free. Named keys
     belong in `UnifiedBytecodeProgram.StringConstants` and must execute through

@@ -145,12 +145,10 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
         // Value is not a thenable - fulfill directly
         _state = PromiseState.Fulfilled;
-        // Async-generator iterator results can be recycled after promise reactions.
-        // Capturing here would pin them at settlement and bypass that reuse path.
-        if (!value.TryGetObject<IteratorResultObject>(out _))
-        {
-            IteratorResultObject.CaptureIfSurfaced(value);
-        }
+        // Settled promises must keep fulfilled values stable for late-attached reactions.
+        // If an iterator result escapes through settlement, capture it now so pooling cannot
+        // recycle the same instance before a later .then observes it.
+        IteratorResultObject.CaptureIfSurfaced(value);
         _value = value;
         ScheduleProcessing();
     }

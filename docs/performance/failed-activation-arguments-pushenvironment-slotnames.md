@@ -67,6 +67,23 @@ Because the experiment missed the required 10% improvement and regressed the
 selected rows, the runtime edit was reverted. No production runtime code from
 this attempt is retained.
 
+## Semantic Proof
+
+After reverting the runtime edit, the focused activation semantics proof pack
+remained green:
+
+```bash
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ActivationSemanticsProofPackTests"
+```
+
+```text
+48 tests passed, 0 warnings in 1 projects
+```
+
+The full internal quality gate is intentionally left to the Faktorial
+`run-quality` verification stage so the canonical `make quality` sequence runs
+once on the committed branch.
+
 ## Follow-Up
 
 Do not retry generic block/control-emitter `SlotNames` payload widening for this

@@ -444,6 +444,28 @@ optimization.
      `docs/performance/failed-propertyaccess-expression-boundary-direct-read.md`
      was retained. Future work should move the whole owner boundary instead of
      shaving this single dispatch edge.
+10e. The successful exception for `propertyaccess` simple named-property
+     addition chains is still shared-expression-owned, not
+     compound-assignment-plumbing-owned. If a future slice specializes
+     `obj.x + obj.y + obj.z` style expression programs, keep it under
+     `EvaluateExpressionProgram` with a narrow `ExpressionProgram` shape gate
+     and reuse the existing semantic helpers for identifier reads, named
+     property reads, and `+` application. The admissible retained shape is a
+     whole-program specialization for non-optional identifier -> named-property
+     -> `RequireObjectCoercible(depth=0)` -> `BinaryOperator.Add` families that
+     declines when identifier caching is disabled or `with` is in scope. Do not
+     turn this into a new property-read helper, direct-storage shortcut, or
+     bespoke coercion path; getter order, receiver behavior, prototype-depth
+     limits, nullish errors, and string-addition semantics must stay on the
+     existing runtime helpers. WHY: issue
+     `autrun-dix26395qm5s-46711c7275` / PR #2873 retained
+     `TryEvaluateSimpleNamedPropertyChainExpressionProgram` only after repeated
+     `propertyaccess` rows cleared the prior maintained baseline beyond noise
+     and the CPU profile still stayed on the same owner surface:
+     `EvaluateExpressionProgram -> TryEvaluateSimpleNamedPropertyChainExpressionProgram
+     -> GetProgramNamedPropertyValue`. Focused tests had to prove getter order
+     and string-addition semantics, and the retained evidence note is
+     `docs/performance/propertyaccess-simple-expression-chain-fast-path.md`.
 11. For JSON parse/stringify optimizations, keep shortcuts in `JsonHelper` or
     the owning runtime storage helper and preserve semantic fallbacks. Default
     data-property shortcuts may use `JsObject.DefineDefaultDataProperty` only

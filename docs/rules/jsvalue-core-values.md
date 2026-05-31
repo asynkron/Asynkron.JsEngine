@@ -48,6 +48,16 @@ When working inside the core engine, keep JavaScript values represented as
 4. Use shared `JsValue`/`JsOps` operations for JavaScript coercions, equality,
    truthiness, and string conversion instead of recreating object-pattern
    coercion switches.
+   When a core-runtime path already knows a `JsValue` is a string, read the
+   payload through `AsString()` or another string-aware helper such as
+   `StringLength`; do not cast `ObjectValue as string` or assume the backing
+   payload is a flat CLR string. `JsValueKind.String` also carries
+   `JsRopeString`, so direct `ObjectValue as string` reads can silently turn a
+   valid rope-backed string into `null`/`string.Empty` and corrupt equality,
+   relational, or parsing behavior. WHY: issue `gh2878` / PR #2885 fixed
+   loose String/BigInt equality and adjacent string comparisons in `JsOps`
+   after rope-built strings were being treated as empty strings on the
+   fast path.
 5. Keep the proof scoped to the migrated cluster: capture a targeted baseline
    search for the legacy signatures, rerun the matching search after the edit,
    and pair it with focused tests that cover the affected semantics.

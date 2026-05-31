@@ -998,6 +998,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.JumpIfFalse:
+                case ExpressionOpKind.JumpIfConditionalFalse:
                 case ExpressionOpKind.JumpIfTrue:
                 case ExpressionOpKind.JumpIfNotNullish:
                 case ExpressionOpKind.Jump:

@@ -4939,4 +4939,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=pick argc=3",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task Ternary_Nested_ReturnsCorrectBranch_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function classify(x) {
+                return x > 0 ? (x > 10 ? 2 : 1) : 0;
+            }
+
+            [classify(-1), classify(5), classify(15)];
+            """);
+
+        var arr = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(0d, arr.Items[0].AsDouble());
+        Assert.Equal(1d, arr.Items[1].AsDouble());
+        Assert.Equal(2d, arr.Items[2].AsDouble());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=classify argc=1",
+                StringComparison.Ordinal));
+    }
 }

@@ -1953,8 +1953,7 @@ internal static class ExpressionProgramCompiler
         }
 
         var falseBranchJumpIndex = builder.Count;
-        builder.Add(PackedExpressionOp.JumpIfFalse(-1));
-        builder.Add(PackedExpressionOp.Pop);
+        builder.Add(PackedExpressionOp.JumpIfConditionalFalse(-1));
 
         if (!TryCompileExpression(expression.Consequent, builder, out failureReason))
         {
@@ -1965,8 +1964,7 @@ internal static class ExpressionProgramCompiler
         builder.Add(PackedExpressionOp.Jump(-1));
 
         var alternateStartIndex = builder.Count;
-        builder[falseBranchJumpIndex] = PackedExpressionOp.JumpIfFalse(alternateStartIndex);
-        builder.Add(PackedExpressionOp.Pop);
+        builder[falseBranchJumpIndex] = PackedExpressionOp.JumpIfConditionalFalse(alternateStartIndex);
 
         if (!TryCompileExpression(expression.Alternate, builder, out failureReason))
         {

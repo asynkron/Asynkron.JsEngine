@@ -77,6 +77,7 @@ internal enum ExpressionOpKind : byte
     JumpIfShortCircuited,
     JumpIfTrue,
     JumpIfFalse,
+    JumpIfConditionalFalse,
     JumpIfNotNullish,
     SuperConstruct,
     Call,
@@ -333,6 +334,7 @@ internal readonly record struct ExpressionProgram
             ExpressionOpKind.JumpIfShortCircuited => 0,
             ExpressionOpKind.JumpIfTrue => 0,
             ExpressionOpKind.JumpIfFalse => 0,
+            ExpressionOpKind.JumpIfConditionalFalse => -1,
             ExpressionOpKind.JumpIfNotNullish => 0,
             ExpressionOpKind.SuperConstruct => 1 - operation.ArgumentCount,
             ExpressionOpKind.Call => -(operation.ArgumentCount + (operation.HasExplicitThis ? 1 : 0)),
@@ -563,6 +565,7 @@ internal readonly struct PackedExpressionOp
         ExpressionOpKind.JumpIfShortCircuited => true,
         ExpressionOpKind.JumpIfTrue => true,
         ExpressionOpKind.JumpIfFalse => true,
+        ExpressionOpKind.JumpIfConditionalFalse => true,
         ExpressionOpKind.JumpIfNotNullish => true,
         ExpressionOpKind.SuperConstruct => true,
         ExpressionOpKind.Call => true,
@@ -940,6 +943,11 @@ internal readonly struct PackedExpressionOp
     public static PackedExpressionOp JumpIfFalse(int Target)
     {
         return new PackedExpressionOp(ExpressionOpKind.JumpIfFalse, int0: Target);
+    }
+
+    public static PackedExpressionOp JumpIfConditionalFalse(int Target)
+    {
+        return new PackedExpressionOp(ExpressionOpKind.JumpIfConditionalFalse, int0: Target);
     }
 
     public static PackedExpressionOp JumpIfNotNullish(int Target)

@@ -215,6 +215,7 @@ internal sealed class GetNamedPropertyExpressionOp : IExpressionOpMarker { publi
 internal sealed class GetNamedSuperPropertyExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.GetNamedSuperProperty; }
 internal sealed class JumpExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.Jump; }
 internal sealed class JumpIfFalseExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.JumpIfFalse; }
+internal sealed class JumpIfConditionalFalseExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.JumpIfConditionalFalse; }
 internal sealed class JumpIfNotNullishExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.JumpIfNotNullish; }
 internal sealed class JumpIfNullishExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.JumpIfNullish; }
 internal sealed class JumpIfShortCircuitedExpressionOp : IExpressionOpMarker { public static ExpressionOpKind Kind => ExpressionOpKind.JumpIfShortCircuited; }

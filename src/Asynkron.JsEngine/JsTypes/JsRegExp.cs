@@ -158,7 +158,7 @@ public sealed class JsRegExp
     private readonly int[]? _quantifiedAncestorMap;
 
     private Regex? _compiledRegex;
-    private readonly AnchoredPropertyEscapeMatcher? _anchoredPropertyEscapeMatcher;
+    private readonly PropertyEscapeMatcher? _propertyEscapeMatcher;
     private readonly AnchoredSimpleClassEscape _anchoredSimpleClassEscape;
     private readonly byte _encodedFlags;
     private bool? _hasCapturingGroups;
@@ -197,7 +197,7 @@ public sealed class JsRegExp
         _flags = flags;
         RealmState = realmState;
         JsObject = existingObject ?? new JsObject();
-        _anchoredPropertyEscapeMatcher = TryCreateAnchoredPropertyEscapeMatcher(pattern, _encodedFlags);
+        _propertyEscapeMatcher = TryCreatePropertyEscapeMatcher(pattern, _encodedFlags);
         _anchoredSimpleClassEscape = TryCreateAnchoredSimpleClassEscape(pattern, _encodedFlags);
 
         if (existingObject is null)
@@ -206,7 +206,7 @@ public sealed class JsRegExp
                 new PropertyDescriptor { JsValue = JsValue.FromDouble(0d), Writable = true, Enumerable = false, Configurable = false });
         }
 
-        if (_anchoredPropertyEscapeMatcher is not null)
+        if (_propertyEscapeMatcher is not null)
         {
             _normalizedPattern = pattern;
             _regexOptions = RegexOptions.CultureInvariant;
@@ -293,7 +293,7 @@ public sealed class JsRegExp
     internal bool CanUseMatchOnlyFastPath =>
         !HasIndices &&
         _anchoredSimpleClassEscape == AnchoredSimpleClassEscape.None &&
-        _anchoredPropertyEscapeMatcher is null &&
+        _propertyEscapeMatcher is null &&
         !HasCapturingGroups;
 
     private bool HasCapturingGroups => _hasCapturingGroups ??= EnsureRegex().GetGroupNumbers().Length > 1;
@@ -377,15 +377,15 @@ public sealed class JsRegExp
             return true;
         }
 
-        if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
+        if (_propertyEscapeMatcher is { } propertyMatcher)
         {
-            var anchoredMatch = startIndex == 0 && anchoredMatcher.IsMatch(input);
-            if (!anchoredMatch)
+            if (!propertyMatcher.TryMatch(input, out var propertyMatchIndex, out var propertyMatchLength) ||
+                (propertyMatcher.IsWholeInputMatcher && propertyMatchIndex != startIndex))
             {
                 return false;
             }
 
-            UpdateWholeInputRegExpStatics(input);
+            RealmState.UpdateRegExpStatics(input, propertyMatchIndex, propertyMatchLength);
             return true;
         }
 
@@ -481,16 +481,18 @@ public sealed class JsRegExp
             return fastResult;
         }
 
-        if (_anchoredPropertyEscapeMatcher is { } anchoredMatcher)
+        if (_propertyEscapeMatcher is { } propertyMatcher)
         {
-            var anchoredMatch = startIndex == 0 && anchoredMatcher.IsMatch(input);
-            if (!anchoredMatch)
+            if (!propertyMatcher.TryMatch(input, out var propertyMatchIndex, out var propertyMatchLength) ||
+                (propertyMatcher.IsWholeInputMatcher && propertyMatchIndex != startIndex))
             {
                 return null;
             }
 
-            var fastResult = CreateWholeInputMatchArray(input);
-            UpdateWholeInputRegExpStatics(input);
+            var fastResult = propertyMatcher.IsWholeInputMatcher
+                ? CreateWholeInputMatchArray(input)
+                : CreateSimpleMatchArray(input, propertyMatchIndex, propertyMatchLength);
+            RealmState.UpdateRegExpStatics(input, propertyMatchIndex, propertyMatchLength);
             return fastResult;
         }
 
@@ -1667,7 +1669,7 @@ public sealed class JsRegExp
         return false;
     }
 
-    private static AnchoredPropertyEscapeMatcher? TryCreateAnchoredPropertyEscapeMatcher(
+    private static PropertyEscapeMatcher? TryCreatePropertyEscapeMatcher(
         string pattern,
         byte encodedFlags)
     {
@@ -1676,98 +1678,142 @@ public sealed class JsRegExp
             return null;
         }
 
+        if (TryCreateWholeInputPropertyEscapeMatcher(pattern, out var wholeInputMatcher))
+        {
+            return wholeInputMatcher;
+        }
+
+        if (pattern.Length < 5 ||
+            pattern[0] != '\\' ||
+            pattern[1] is not ('p' or 'P') ||
+            pattern[2] != '{')
+        {
+            return null;
+        }
+
+        var endBrace = pattern.IndexOf('}', 3);
+        if (endBrace != pattern.Length - 1)
+        {
+            return null;
+        }
+
+        return CreatePropertyEscapeMatcher(pattern, 3, endBrace, pattern[1] == 'P', PropertyEscapeMatchMode.Search);
+    }
+
+    private static bool TryCreateWholeInputPropertyEscapeMatcher(string pattern, out PropertyEscapeMatcher? matcher)
+    {
+        matcher = null;
+
         if (pattern.Length < 8 ||
             pattern[0] != '^' ||
             pattern[1] != '\\' ||
             pattern[2] is not ('p' or 'P') ||
             pattern[3] != '{')
         {
-            return null;
+            return false;
         }
 
         var endBrace = pattern.IndexOf('}', 4);
         if (endBrace < 0 ||
             endBrace + 1 >= pattern.Length)
         {
-            return null;
+            return false;
         }
 
-        var requireSingleCodePoint = false;
+        var mode = PropertyEscapeMatchMode.WholeInputOneOrMore;
         if (pattern[endBrace + 1] == '$')
         {
             if (endBrace + 2 != pattern.Length)
             {
-                return null;
+                return false;
             }
 
-            requireSingleCodePoint = true;
+            mode = PropertyEscapeMatchMode.WholeInputSingleCodePoint;
         }
         else if (pattern[endBrace + 1] == '+' &&
                  endBrace + 2 < pattern.Length &&
                  pattern[endBrace + 2] == '$' &&
                  endBrace + 3 == pattern.Length)
         {
-            requireSingleCodePoint = false;
+            mode = PropertyEscapeMatchMode.WholeInputOneOrMore;
         }
         else
         {
-            return null;
+            return false;
         }
 
-        var propertyExpression = pattern.Substring(4, endBrace - 4);
+        matcher = CreatePropertyEscapeMatcher(pattern, 4, endBrace, pattern[2] == 'P', mode);
+        return true;
+    }
+
+    private static PropertyEscapeMatcher CreatePropertyEscapeMatcher(
+        string pattern,
+        int propertyStart,
+        int endBrace,
+        bool negate,
+        PropertyEscapeMatchMode mode)
+    {
+        var propertyExpression = pattern.Substring(propertyStart, endBrace - propertyStart);
         var ranges = UnicodePropertyData.Resolve(propertyExpression);
         if (ranges is null)
         {
             throw new ParseException(
-                $"Invalid regular expression: invalid unicode property escape \\{pattern[2]}{{{propertyExpression}}}.");
+                $"Invalid regular expression: invalid unicode property escape \\{(negate ? 'P' : 'p')}{{{propertyExpression}}}.");
         }
 
-        return new AnchoredPropertyEscapeMatcher(ranges, pattern[2] == 'P', requireSingleCodePoint);
+        return new PropertyEscapeMatcher(ranges, negate, mode);
     }
 
-    private sealed class AnchoredPropertyEscapeMatcher
+    private enum PropertyEscapeMatchMode : byte
+    {
+        WholeInputOneOrMore,
+        WholeInputSingleCodePoint,
+        Search
+    }
+
+    private sealed class PropertyEscapeMatcher
     {
         private readonly (int Start, int End)[] _ranges;
         private readonly bool _negate;
         private readonly bool _matchesAllCodePoints;
         private readonly bool _useLinearRangeScan;
-        private readonly bool _requireSingleCodePoint;
+        private readonly PropertyEscapeMatchMode _mode;
 
-        public AnchoredPropertyEscapeMatcher(
+        public PropertyEscapeMatcher(
             (int Start, int End)[] ranges,
             bool negate,
-            bool requireSingleCodePoint)
+            PropertyEscapeMatchMode mode)
         {
             _ranges = ranges;
             _negate = negate;
-            _requireSingleCodePoint = requireSingleCodePoint;
+            _mode = mode;
             _matchesAllCodePoints = ranges.Length == 1 && ranges[0] is { Start: 0, End: 0x10FFFF };
             _useLinearRangeScan = ranges.Length <= 8;
         }
 
-        public bool IsMatch(string input)
+        public bool IsWholeInputMatcher => _mode != PropertyEscapeMatchMode.Search;
+
+        public bool TryMatch(string input, out int index, out int length)
         {
+            index = 0;
+            length = 0;
+
             if (input.Length == 0)
             {
                 return false;
             }
 
-            if (_matchesAllCodePoints)
+            if (_mode == PropertyEscapeMatchMode.Search)
             {
-                if (_negate)
-                {
-                    return false;
-                }
-
-                if (_requireSingleCodePoint)
-                {
-                    var singleIndex = 0;
-                    ReadCodePoint(input, ref singleIndex);
-                    return singleIndex == input.Length;
-                }
-
-                return true;
+                return TryFindFirstMatch(input, out index, out length);
             }
+
+            return IsWholeInputMatch(input, out length);
+        }
+
+        private bool IsWholeInputMatch(string input, out int length)
+        {
+            length = 0;
 
             var index = 0;
             while (index < input.Length)
@@ -1778,13 +1824,36 @@ public sealed class JsRegExp
                     return false;
                 }
 
-                if (_requireSingleCodePoint)
+                if (_mode == PropertyEscapeMatchMode.WholeInputSingleCodePoint)
                 {
+                    length = index;
                     return index == input.Length;
                 }
             }
 
+            length = input.Length;
             return true;
+        }
+
+        private bool TryFindFirstMatch(string input, out int matchIndex, out int matchLength)
+        {
+            matchIndex = 0;
+            matchLength = 0;
+
+            var index = 0;
+            while (index < input.Length)
+            {
+                var codeUnitIndex = index;
+                var codePoint = ReadCodePoint(input, ref index);
+                if (ContainsCodePoint(codePoint) != _negate)
+                {
+                    matchIndex = codeUnitIndex;
+                    matchLength = index - codeUnitIndex;
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static int ReadCodePoint(string input, ref int index)

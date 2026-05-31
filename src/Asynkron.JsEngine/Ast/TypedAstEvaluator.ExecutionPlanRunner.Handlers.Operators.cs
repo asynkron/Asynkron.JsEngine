@@ -20,8 +20,9 @@ public static partial class TypedAstEvaluator
             var instruction = Unsafe.As<IncrementSlotInstruction>(instr);
             var flatSlotId = instruction.FlatSlotId;
 
-            // Super-fast path: flat slot with number value (covers most loop counters)
-            if (flatSlotId >= 0)
+            // Super-fast path: flat slot with number value (covers most loop counters).
+            // Skip it when identifier resolution is dynamic so with-bindings remain live.
+            if (flatSlotId >= 0 && context.AllowIdentifierCache && !environment.HasWithObjectInChain())
             {
                 ref var targetVar = ref runner._flatSlots![flatSlotId];
 

@@ -846,6 +846,32 @@ public sealed class TemporalTests(ITestOutputHelper output) : InternalTestBase(o
     }
 
     [Fact]
+    public async Task Temporal_ZonedDateTime_SupportedValuesTimeZones_ConstructAndStayDistinct()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function () {
+                const ids = Intl.supportedValuesOf("timeZone");
+                let checkedDistinctPairs = 0;
+
+                for (let i = 0; i < ids.length; i++) {
+                    const instance = new Temporal.ZonedDateTime(0n, ids[i]);
+
+                    for (let j = i + 1; j < ids.length && checkedDistinctPairs < 64; j++, checkedDistinctPairs++) {
+                        if (instance.equals(instance.withTimeZone(ids[j]))) {
+                            return "equal:" + ids[i] + ":" + ids[j];
+                        }
+                    }
+                }
+
+                return true;
+            })();
+            """);
+
+        Assert.Equal(true, result);
+    }
+
+    [Fact]
     public void Temporal_ZonedDateTime_CanonicalizeTimeZoneIdForComparison_CaseVariants()
     {
         // CanonicalizeTimeZoneIdForComparison must normalize casing for supported named zones

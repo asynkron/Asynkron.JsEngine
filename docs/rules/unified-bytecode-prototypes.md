@@ -1479,6 +1479,50 @@ that following rule #40 proactively — applying all four surfaces together, inc
 `ArrayPushHole` standalone measurement admission for hole-bearing spread arrays —
 avoids the build-back repair cycle that the sibling task (PR #2748) required.
 
+45. When admitting logical compound assignment on slot identifiers (`x &&= y`,
+    `x ||= y`, `x ??= y`) to production unified bytecode, reuse the existing
+    peek-semantics short-circuit jump opcodes (`JumpIfShortCircuitFalse`,
+    `JumpIfShortCircuitTrue`, `JumpIfShortCircuitNotNullish`) in a
+    **statement-level** pattern that is distinct from the expression-level form:
+
+    ```
+    LoadSlot(slot)                    // push slot value as condition
+    JumpIfShortCircuitX(sc-pop)      // peek: if short-circuit, jump to sc-pop
+    Pop                              // proceeding: discard slot value
+    [RHS expression program ops]     // evaluate RHS
+    StoreSlot(slot)                  // write RHS result back to slot
+    Jump(end)                        // skip sc-pop
+    [sc-pop:] Pop                    // short-circuit: discard slot value from TOS
+    [end:]
+    ```
+
+    Both paths leave the operand stack balanced (zero net delta). The slot value
+    is used only as a condition and is discarded by **both** paths — contrast with
+    expression-level `&&`/`||`/`??` where the LHS value IS the result on the
+    short-circuit path and stays on TOS. The proof pack must include:
+    (a) positive fast-path route for both the short-circuit branch and the
+        proceed branch;
+    (b) a stack-balance multi-call test asserting correctness across repeated
+        invocations, which catches any `Pop`/`StoreSlot` mismatch that would
+        corrupt the stack on the second call;
+    (c) a Gate 1 side-effect test where the RHS is a global-call side effect —
+        a global identifier call without `HasExplicitThis` declines the production
+        path, so this test proves short-circuit opcode correctness without
+        asserting `unified-bytecode-production-fast-path`.
+
+    Logical compound assignments on **member targets** (`this.x &&= y`,
+    `box.prop ||= y`) remain declined as `PropertyWriteDependency`. The
+    conditional short-circuit branch opcode does not compose with the compound
+    get-for-set model that named/computed compound writes use (ADR 0238, rule 19).
+    WHY: issue
+    `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-dad47dee93`
+    / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300).
+    The durable lesson is that the same peek-semantics opcode serves two roles
+    depending on context: in expression programs it returns the LHS value on the
+    short-circuit path; in statement programs it is a condition-only branch that
+    both paths must discard. Mixing the two roles in test or compiler analysis
+    produces incorrect stack effects.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1520,3 +1564,4 @@ Related ADRs:
 - `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`
 - `docs/adrs/0298-admit-multi-hop-optional-named-chains-in-unified-bytecode-jump-based-lowering.md`
 - `docs/adrs/0299-admit-optional-call-chain-forms-in-unified-bytecode.md`
+- `docs/adrs/0300-admit-logical-compound-assignment-on-slots-in-unified-bytecode.md`

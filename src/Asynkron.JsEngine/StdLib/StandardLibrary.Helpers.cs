@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
@@ -9,8 +7,6 @@ using static Asynkron.JsEngine.StdLib.BooleanHelper;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.StringHelper;
 using static Asynkron.JsEngine.StdLib.SymbolHelper;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

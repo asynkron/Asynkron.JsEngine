@@ -1,8 +1,4 @@
-#region
-
 using Asynkron.JsEngine.Execution.Instructions;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

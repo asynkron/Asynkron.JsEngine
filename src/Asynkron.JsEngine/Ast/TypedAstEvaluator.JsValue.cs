@@ -1,12 +1,8 @@
-#region
-
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
-
-#endregion
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
 

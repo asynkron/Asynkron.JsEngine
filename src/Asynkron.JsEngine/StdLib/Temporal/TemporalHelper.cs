@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -8,8 +6,6 @@ using System.Text;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib.Intl;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib.Temporal;
 

@@ -1,5 +1,3 @@
-#region
-
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Threading.Channels;
@@ -10,8 +8,6 @@ using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Asynkron.JsEngine.StdLib.Temporal;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 namespace Asynkron.JsEngine;
 
@@ -2030,7 +2026,6 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         DrainMicrotasks(maxDrainEpoch, cancellationToken: cancellationToken);
         return await evaluationTask.ConfigureAwait(false);
     }
-
 
     /// <summary>
     ///     Registers a value in the global scope (object overload for internal use).

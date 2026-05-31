@@ -1,9 +1,5 @@
-#region
-
 using System.Diagnostics;
 using Asynkron.JsEngine.Runtime;
-
-#endregion
 
 namespace Asynkron.JsEngine;
 

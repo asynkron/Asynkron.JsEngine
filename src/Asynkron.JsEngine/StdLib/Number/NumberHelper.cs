@@ -1,13 +1,9 @@
-#region
-
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

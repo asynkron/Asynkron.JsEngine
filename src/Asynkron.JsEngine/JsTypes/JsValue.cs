@@ -1,12 +1,8 @@
-#region
-
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Ast;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

@@ -1,10 +1,6 @@
-#region
-
 using System.Collections.Immutable;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Parser;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast;
 

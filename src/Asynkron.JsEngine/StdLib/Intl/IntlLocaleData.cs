@@ -1,8 +1,4 @@
-#region
-
 using System.Text.Json;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib.Intl;
 

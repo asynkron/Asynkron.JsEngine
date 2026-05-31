@@ -1,9 +1,5 @@
-#region
-
 using System.Globalization;
 using Asynkron.JsEngine.StdLib.Temporal;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

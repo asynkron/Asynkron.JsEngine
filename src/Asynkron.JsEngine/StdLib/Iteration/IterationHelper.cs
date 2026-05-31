@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Ast;
@@ -8,8 +6,6 @@ using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.PromiseHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
 using JsEngineInstance = Asynkron.JsEngine.JsEngine;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

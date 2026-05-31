@@ -1,11 +1,7 @@
-#region
-
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.DateHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

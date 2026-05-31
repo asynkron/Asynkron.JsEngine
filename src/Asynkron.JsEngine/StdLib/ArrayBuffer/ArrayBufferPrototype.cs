@@ -1,12 +1,8 @@
-#region
-
 using Asynkron.JsEngine.Runtime.Prototypes;
 using static Asynkron.JsEngine.StdLib.ArrayBufferHelper;
 using static Asynkron.JsEngine.StdLib.NumberHelper;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

@@ -1,10 +1,6 @@
-#region
-
 using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.StdLib.Temporal;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

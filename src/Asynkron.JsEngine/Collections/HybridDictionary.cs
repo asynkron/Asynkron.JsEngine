@@ -1,10 +1,6 @@
-#region
-
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-
-#endregion
 
 namespace Asynkron.JsEngine.Collections;
 

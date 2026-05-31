@@ -1,12 +1,8 @@
-#region
-
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Runtime;
-
-#endregion
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
 

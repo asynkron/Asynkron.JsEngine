@@ -1,5 +1,3 @@
-#region
-
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
@@ -7,8 +5,6 @@ using System.Reflection;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution.Instructions;
-
-#endregion
 
 namespace Asynkron.JsEngine.Execution;
 

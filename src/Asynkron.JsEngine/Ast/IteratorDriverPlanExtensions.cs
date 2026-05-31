@@ -1,13 +1,9 @@
-#region
-
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
 

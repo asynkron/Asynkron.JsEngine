@@ -1,9 +1,5 @@
-#region
-
 using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Runtime;
-
-#endregion
 
 namespace Asynkron.JsEngine.JsTypes;
 

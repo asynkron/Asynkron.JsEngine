@@ -1,12 +1,8 @@
-#region
-
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Ast;
-
-#endregion
 
 namespace Asynkron.JsEngine.Parser;
 

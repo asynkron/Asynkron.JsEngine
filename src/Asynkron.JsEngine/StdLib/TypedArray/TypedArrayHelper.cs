@@ -1,5 +1,3 @@
-#region
-
 using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Runtime;
@@ -7,8 +5,6 @@ using Asynkron.JsEngine.StdLib.TypedArray;
 using Microsoft.Extensions.Logging;
 using static Asynkron.JsEngine.StdLib.ReflectHelper;
 using static Asynkron.JsEngine.StdLib.StandardLibrary;
-
-#endregion
 
 namespace Asynkron.JsEngine.StdLib;
 

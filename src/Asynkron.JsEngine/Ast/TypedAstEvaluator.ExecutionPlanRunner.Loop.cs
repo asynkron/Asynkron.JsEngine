@@ -1,13 +1,9 @@
-#region
-
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
-
-#endregion
 
 #pragma warning disable CS0618 // Compatibility overloads remain for dynamic/resume seams; not proof of direct runner AST fallback.
 

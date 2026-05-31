@@ -1,8 +1,4 @@
-#region
-
 using System.Collections.Immutable;
-
-#endregion
 
 namespace Asynkron.JsEngine.Ast.ShapeAnalyzer;
 

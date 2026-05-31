@@ -189,6 +189,29 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 
+    private static int GetCompiledExpressionMaxStackDepth(ExpressionProgram expressionProgram)
+    {
+        var maxStackDepth = expressionProgram.MaxStackDepth;
+        if (RequiresNestedNamedPropertyReceiverStack(expressionProgram))
+        {
+            maxStackDepth = Math.Max(maxStackDepth, 3);
+        }
+
+        return maxStackDepth;
+    }
+
+    private static bool RequiresNestedNamedPropertyReceiverStack(ExpressionProgram expressionProgram)
+    {
+        if (expressionProgram.OperationCount < 3 ||
+            expressionProgram.GetOperation(1).Kind != ExpressionOpKind.GetNamedProperty)
+        {
+            return false;
+        }
+
+        var lastOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        return lastOp.Kind is ExpressionOpKind.SetNamedProperty or ExpressionOpKind.UpdateNamedProperty;
+    }
+
     private static UnifiedBytecodeSlotLayout BuildSlotLayout(
         ExecutionPlan plan,
         bool allowsOrdinaryDynamicIdentifiers)
@@ -597,7 +620,7 @@ internal static class UnifiedBytecodeCompiler
                                 return false;
                             }
 
-                            maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                            maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(initializerProgram));
                             if (TryAppendJumpToCompiledTarget(
                                     instructionIndex,
                                     declaration.Next,
@@ -637,7 +660,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
-                        maxStackDepth = Math.Max(maxStackDepth, initializerProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(initializerProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 declaration.Next,
@@ -688,7 +711,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 stringConstants);
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-                            maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
+                            maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(valueProgram));
                             if (TryAppendJumpToCompiledTarget(
                                     instructionIndex,
                                     assignment.Next,
@@ -728,7 +751,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, assignmentSlot));
-                        maxStackDepth = Math.Max(maxStackDepth, valueProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(valueProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 assignment.Next,
@@ -788,7 +811,7 @@ internal static class UnifiedBytecodeCompiler
                                 unified,
                                 stringConstants);
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-                            maxStackDepth = Math.Max(maxStackDepth, rhsProgram.MaxStackDepth + 1);
+                            maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(rhsProgram) + 1);
                             if (TryAppendJumpToCompiledTarget(
                                     instructionIndex,
                                     compoundAssignment.Next,
@@ -825,7 +848,7 @@ internal static class UnifiedBytecodeCompiler
                             UnifiedBytecodeOpCode.Binary,
                             (int)compoundAssignment.Operator));
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, compoundSlot));
-                        maxStackDepth = Math.Max(maxStackDepth, rhsProgram.MaxStackDepth + 1);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(rhsProgram) + 1);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 compoundAssignment.Next,
@@ -884,7 +907,7 @@ internal static class UnifiedBytecodeCompiler
                         PatchOperand(unified, scJumpIndex, unified.Count);
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
                         PatchOperand(unified, skipScPopIndex, unified.Count);
-                        maxStackDepth = Math.Max(maxStackDepth, logicalRhsProgram.MaxStackDepth + 1);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(logicalRhsProgram) + 1);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 logicalAssignment.Next,
@@ -1020,7 +1043,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnterWith));
-                        maxStackDepth = Math.Max(maxStackDepth, enterWithObjectProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(enterWithObjectProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 enterWith.Next,
@@ -1108,7 +1131,7 @@ internal static class UnifiedBytecodeCompiler
                                 new UnifiedBytecodeDriverDescriptor(
                                     iteratorStateSlot,
                                     IteratorKind: iteratorInit.IteratorKind))));
-                        maxStackDepth = Math.Max(maxStackDepth, iterableProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(iterableProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 iteratorInit.Next,
@@ -1232,7 +1255,7 @@ internal static class UnifiedBytecodeCompiler
                             AddDriverDescriptor(
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(forInStateSlot))));
-                        maxStackDepth = Math.Max(maxStackDepth, objectProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(objectProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 forInInit.Next,
@@ -1309,7 +1332,7 @@ internal static class UnifiedBytecodeCompiler
                             AddDriverDescriptor(
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(destructuringStateSlot))));
-                        maxStackDepth = Math.Max(maxStackDepth, arrayDestructuringInit.SourceProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(arrayDestructuringInit.SourceProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 arrayDestructuringInit.Next,
@@ -1481,7 +1504,7 @@ internal static class UnifiedBytecodeCompiler
                             AddDriverDescriptor(
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(objectDestructuringStateSlot))));
-                        maxStackDepth = Math.Max(maxStackDepth, objectDestructuringInit.SourceProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(objectDestructuringInit.SourceProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 objectDestructuringInit.Next,
@@ -1860,7 +1883,7 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        maxStackDepth = Math.Max(maxStackDepth, branch.ConditionProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(branch.ConditionProgram));
                         var jumpIfFalseIndex = unified.Count;
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfFalse));
 
@@ -1948,7 +1971,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
-                        maxStackDepth = Math.Max(maxStackDepth, returnProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(returnProgram));
                         reason = string.Empty;
                         return true;
 
@@ -1974,7 +1997,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitedReturn));
-                        maxStackDepth = Math.Max(maxStackDepth, awaitedReturnProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitedReturnProgram));
                         reason = string.Empty;
                         return true;
 
@@ -1995,7 +2018,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitAndDiscard));
-                        maxStackDepth = Math.Max(maxStackDepth, awaitAndDiscard.AwaitedProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitAndDiscard.AwaitedProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 awaitAndDiscard.Next,
@@ -2028,7 +2051,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Yield));
-                        maxStackDepth = Math.Max(maxStackDepth, yieldProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(yieldProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 yield.Next,
@@ -2114,7 +2137,7 @@ internal static class UnifiedBytecodeCompiler
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.YieldStar,
                             yieldStarDescriptorIndex));
-                        maxStackDepth = Math.Max(maxStackDepth, iterableProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(iterableProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 yieldStar.Next,
@@ -2172,7 +2195,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Throw));
-                        maxStackDepth = Math.Max(maxStackDepth, throwProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(throwProgram));
                         reason = string.Empty;
                         return true;
 
@@ -2193,7 +2216,7 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-                        maxStackDepth = Math.Max(maxStackDepth, discardedProgram.MaxStackDepth);
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(discardedProgram));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 discard.Next,
@@ -3184,6 +3207,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryNestedNamedPropertySet(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertySet(
                 expressionProgram,
                 activationSlots,
@@ -3200,6 +3239,21 @@ internal static class UnifiedBytecodeCompiler
         }
 
         if (TryAppendFirstBoundaryNamedPropertyUpdate(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryNestedNamedPropertyUpdate(
                 expressionProgram,
                 activationSlots,
                 unified,
@@ -5940,6 +5994,131 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryAppendFirstBoundaryNestedNamedPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (propertySet.Kind != ExpressionOpKind.SetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        if (propertySet.GetString(stringTable).IsPrivateName())
+        {
+            reason = "Private nested named property writes are not supported.";
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Nested named property writes with name inference are not supported.";
+            return false;
+        }
+
+        var rhsStart = 1;
+        while (rhsStart < expressionProgram.OperationCount - 1)
+        {
+            var receiverRead = expressionProgram.GetOperation(rhsStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            rhsStart++;
+        }
+
+        if (rhsStart < 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < rhsStart; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stringConstants.Count;
+            stringConstants.Add(receiverRead.GetString(stringTable));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
+        var rhsEnd = expressionProgram.OperationCount - 2;
+        if (rhsStart == rhsEnd)
+        {
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(rhsStart),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            var rhsOp = expressionProgram.GetOperation(rhsStart);
+            if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (!TryAppendSimpleTemplateLiteralSpan(
+                    expressionProgram, rhsStart, activationSlots, unified, literalConstants, out var spanLen, out reason))
+            {
+                return false;
+            }
+
+            if (rhsStart + spanLen - 1 != rhsEnd)
+            {
+                reason = "Template literal RHS span does not match expected nested property-write boundary.";
+                return false;
+            }
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertySet.GetString(stringTable));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryAppendFirstBoundaryNamedPropertyUpdate(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -5978,6 +6157,82 @@ internal static class UnifiedBytecodeCompiler
 
         var propertyNameIndex = stringConstants.Count;
         stringConstants.Add(propertyUpdate.GetString(expressionProgram.StringConstants.AsSpan()));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.UpdateNamedProperty,
+            EncodeUpdateOperand(propertyNameIndex, propertyUpdate)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNestedNamedPropertyUpdate(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 3)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertyUpdate = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        if (propertyUpdate.GetString(stringTable).IsPrivateName())
+        {
+            reason = "Private nested named property updates are not supported.";
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount - 1; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < expressionProgram.OperationCount - 1; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stringConstants.Count;
+            stringConstants.Add(receiverRead.GetString(stringTable));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertyUpdate.GetString(stringTable));
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.UpdateNamedProperty,
             EncodeUpdateOperand(propertyNameIndex, propertyUpdate)));

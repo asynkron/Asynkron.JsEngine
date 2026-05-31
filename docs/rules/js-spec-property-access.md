@@ -17,6 +17,9 @@ the current strict/sloppy writeback rules separate:
 - if a getter, RHS side effect, compound assignment, or update operator deletes
   the binding before writeback, throw `ReferenceError` instead of recreating the
   property through the generic property setter path;
+- identifier update fast paths must fall back to assignment-reference lookup
+  when identifier caching is disabled or a `with` object is in the active
+  environment chain;
 - preserve sloppy-mode recreate-after-delete behavior only through an explicit
   sloppy/allow-missing path.
 - simple `var` declarations with initializers must also resolve the binding
@@ -197,6 +200,22 @@ operation that checks the correct stack depth instead of reordering the stack by
 running `ToPropertyKey` first. Do not repair this class of issue by routing the
 compound assignment through the legacy AST evaluator.
 
+## Computed Member Update Nullish Order
+
+For expression bytecode that lowers computed update expressions such as
+`base[key]++`, keep the reference steps separate and ordered:
+
+- evaluate the base expression;
+- evaluate the computed key expression;
+- require the base to be object-coercible before converting the key;
+- resolve the property key only after the nullish-base check succeeds;
+- then read, numerically update, and write back through the captured reference.
+
+The nullish-base `TypeError` must win over observable property-key conversion.
+This differs from the key expression itself, which ordinary computed member
+syntax still evaluates before the nullish-base check. Do not collapse those two
+steps into one `ToPropertyKey` call ahead of the base check.
+
 ## Nullable Throw State
 
 If the access helper accepts an optional `EvaluationContext`, check nullable
@@ -307,6 +326,13 @@ binding has disappeared. The durable lesson is to model object-environment
 writeback as a binding operation first and only use property setting after the
 strict missing-binding check has passed.
 
+Issue #2880 / PR #2890 confirmed that the same rule applies before taking the
+flat-slot numeric fast path for identifier update expressions. With dynamic
+object environments active, the runner must resolve the current
+assignment-reference target instead of trusting a previously stamped flat slot;
+otherwise `with` bindings, unscopables, and strict missing-binding writeback can
+be bypassed by `++`/`--`.
+
 Issue #774 / PR #950 extended that lesson to plain assignment. The RHS can
 delete the resolved `with` binding before `PutValue`; strict mode still has to
 throw through the captured object-environment reference after RHS side effects,
@@ -394,6 +420,11 @@ boundary as computed member access, but the bytecode stack shape is different:
 the compiler must check the base at the correct stack depth before
 `ToPropertyKey`, then reuse the resolved key for both the old-value read and
 final writeback.
+
+Issue #2880 / PR #2890 confirmed the same nullish-base/property-key boundary for
+computed update expressions such as `base[key]++`. The ordinary computed key
+expression is evaluated, but `ToPropertyKey` side effects must not run after a
+nullish base has already selected the `TypeError` completion.
 
 Issue #806 / PR #999 fixed the `Intl.NumberFormat`
 `constructor-locales-hasproperty` fixture after `Array.prototype.push` stored

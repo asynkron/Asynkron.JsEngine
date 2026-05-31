@@ -1115,6 +1115,12 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1216,6 +1222,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
@@ -1253,7 +1260,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.UpdateNamedProperty:
                 case ExpressionOpKind.UpdateComputedProperty:
-                    if (TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -3530,6 +3538,62 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 4)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.SetNamedProperty ||
+            lastOp.GetString(stringConstants).IsPrivateName() ||
+            lastOp.AllowNameInference ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var rhsStart = 1;
+        while (rhsStart < program.OperationCount - 1)
+        {
+            var receiverRead = program.GetOperation(rhsStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            rhsStart++;
+        }
+
+        if (rhsStart < 2)
+        {
+            return false;
+        }
+
+        var rhsEnd = program.OperationCount - 2;
+        if (rhsStart == rhsEnd)
+        {
+            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+        }
+
+        return TryMeasureSimpleTemplateLiteralSpan(
+                   program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
+               spanLen > 1 &&
+               rhsStart + spanLen - 1 == rhsEnd;
+    }
+
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -3551,6 +3615,40 @@ internal static class UnifiedBytecodeProductionEligibility
         return program.GetOperation(2).Kind == ExpressionOpKind.UpdateComputedProperty &&
                TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
                IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots);
+    }
+
+    private static bool TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 3)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var propertyUpdate = program.GetOperation(program.OperationCount - 1);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateNamedProperty ||
+            propertyUpdate.GetString(stringConstants).IsPrivateName() ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < program.OperationCount - 1; operationIndex++)
+        {
+            var receiverRead = program.GetOperation(operationIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty ||
+                receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

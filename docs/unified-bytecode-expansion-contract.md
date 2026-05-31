@@ -200,8 +200,8 @@ must still obey the no-mixed-execution rule.
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/typeof/update outside the with-backed dynamic-name path | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency"` |
 | `PropertyReadCandidateRequiresVmSupport` | Candidate recognition bucket for property-read shapes that should not route until compiler and VM support land in the same slice | Existing sync IR property route | Property read VM-support lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved boundaries | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
-| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode"` |
-| `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
+| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes and simple nested named receiver assignment shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode"` |
+| `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Super property reads/writes/updates and out-of-boundary super call targets | Existing class / constructor route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read and optional-call boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
@@ -288,8 +288,15 @@ the final post-compile production subset check before VM entry.
   writes (`box[key] &&= y`, `box[key] ||= y`, `box[key] ??= y`) are also admitted
   when they match `TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate`
   (activation-resolved base, simple key, simple RHS, non-optional/non-private
-  target). Retained declines include deeper property chains
-  (`box.child.value += …`), and computed-expression keys (`box[key+suffix] += …`).
+  target). Simple nested named receiver assignments and updates
+  (`box.child.value = y`, `box.child.value++`) are admitted through
+  `TryIsFirstBoundaryNestedNamedPropertyWriteCandidate` and
+  `TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate`, which compile the
+  receiver chain as owned `GetNamedProperty` opcodes before the final
+  `SetNamedProperty` / `UpdateNamedProperty`. Retained declines include deeper
+  compound/logical property chains (`box.child.value += …`,
+  `box.child.value &&= …`) and computed-expression keys
+  (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety

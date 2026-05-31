@@ -437,6 +437,7 @@ internal static class ExecutionPlanPrinter
             ExpressionOpKind.JumpIfShortCircuited => $"jmpS:{op.Target}",
             ExpressionOpKind.JumpIfTrue => $"jmpT:{op.Target}",
             ExpressionOpKind.JumpIfFalse => $"jmpF:{op.Target}",
+            ExpressionOpKind.JumpIfConditionalFalse => $"jmpCF:{op.Target}",
             ExpressionOpKind.JumpIfNotNullish => $"jmpNN:{op.Target}",
             ExpressionOpKind.SuperConstruct => op.GetSpreadIndices(spreadMaskConstantSpan).IsDefaultOrEmpty
                 ? $"super/{op.ArgumentCount}"

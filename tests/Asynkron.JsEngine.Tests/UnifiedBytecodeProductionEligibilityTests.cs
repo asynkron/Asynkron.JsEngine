@@ -4056,7 +4056,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Jump);
     }

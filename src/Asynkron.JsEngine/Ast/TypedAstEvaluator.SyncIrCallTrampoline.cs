@@ -417,6 +417,15 @@ public static partial class TypedAstEvaluator
 
                             break;
 
+                        case ExpressionOpKind.JumpIfConditionalFalse:
+                            if (tagIndex < 1)
+                            {
+                                return false;
+                            }
+
+                            tagIndex--;
+                            break;
+
                         case ExpressionOpKind.Call:
                             if (operation.SpreadMaskConstantIndex >= 0 ||
                                 purpose != ExpressionPurpose.Return)
@@ -766,6 +775,14 @@ public static partial class TypedAstEvaluator
                         case ExpressionOpKind.JumpIfFalse:
                             frame.ExpressionProgramCounter =
                                 !stack[frame.ExpressionStackIndex - 1].IsTruthy
+                                    ? operation.Target
+                                    : frame.ExpressionProgramCounter + 1;
+                            break;
+
+                        case ExpressionOpKind.JumpIfConditionalFalse:
+                            frame.ExpressionStackIndex--;
+                            frame.ExpressionProgramCounter =
+                                !stack[frame.ExpressionStackIndex].IsTruthy
                                     ? operation.Target
                                     : frame.ExpressionProgramCounter + 1;
                             break;

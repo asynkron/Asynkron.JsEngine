@@ -1209,6 +1209,15 @@ public static partial class TypedAstEvaluator
                                 break;
                             }
 
+                        case ExpressionOpKind.JumpIfConditionalFalse:
+                            {
+                                stackIndex--;
+                                programCounter = !stack[stackIndex].IsTruthy
+                                    ? operation.Target
+                                    : programCounter + 1;
+                                break;
+                            }
+
                         case ExpressionOpKind.JumpIfNotNullish:
                             {
                                 programCounter = !stack[stackIndex - 1].IsNullish

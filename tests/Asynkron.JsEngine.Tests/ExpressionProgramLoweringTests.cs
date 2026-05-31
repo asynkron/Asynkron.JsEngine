@@ -1383,7 +1383,7 @@ public sealed class ExpressionProgramLoweringTests : IAsyncLifetime
 
         var instruction = Assert.Single(plan.Instructions.OfType<ReturnInstruction>(), i => i.ReturnProgram is not null);
         Assert.Null(instruction.ReturnExpression);
-        AssertProgramContains<JumpIfFalseExpressionOp>(instruction.ReturnProgram);
+        AssertProgramContains<JumpIfConditionalFalseExpressionOp>(instruction.ReturnProgram);
         AssertProgramContains<JumpExpressionOp>(instruction.ReturnProgram);
     }
 

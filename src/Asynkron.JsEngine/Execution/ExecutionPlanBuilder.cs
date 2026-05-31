@@ -308,7 +308,8 @@ internal sealed partial class ExecutionPlanBuilder
             ExpressionOpKind.Pop or
             ExpressionOpKind.Jump or
             ExpressionOpKind.JumpIfTrue or
-            ExpressionOpKind.JumpIfFalse;
+            ExpressionOpKind.JumpIfFalse or
+            ExpressionOpKind.JumpIfConditionalFalse;
     }
 
     private static ActivationSlotShape BuildActivationSlotShape(

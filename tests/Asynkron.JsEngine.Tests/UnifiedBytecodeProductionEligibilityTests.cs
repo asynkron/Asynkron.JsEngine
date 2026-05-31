@@ -4234,10 +4234,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
     }
 
-    // Optional-chain-as-operand declines for &&/||/?? (ADR 0238 batch-5)
+    // Optional-chain-as-operand admission for &&/||/?? and ?: (ADR 0238 batch-5 follow-up)
 
     [Fact]
-    public void Evaluate_LogicalAndExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_LogicalAndExpression_WithOptionalChainOperand_Accepts()
     {
         var plan = GetFunctionPlan("""
             function andOpt(a, obj) {
@@ -4250,12 +4250,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
     }
 
     [Fact]
-    public void Evaluate_LogicalOrExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_LogicalOrExpression_WithOptionalChainOperand_Accepts()
     {
         var plan = GetFunctionPlan("""
             function orOpt(a, obj) {
@@ -4268,12 +4272,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitTrue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
     }
 
     [Fact]
-    public void Evaluate_NullishCoalescingExpression_WithOptionalChainOperand_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_NullishCoalescingExpression_WithOptionalChainOperand_Accepts()
     {
         var plan = GetFunctionPlan("""
             function nullishOpt(a, obj) {
@@ -4286,8 +4294,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalAndExpression_WithOptionalComputedChainOperand_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function andComputed(a, obj, key) {
+                return a && obj?.[key];
+            }
+            """,
+            "andComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
     }
 
     // Conditional (ternary) expression admission — ADR 0294
@@ -4333,7 +4367,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ConditionalExpression_WithOptionalChainBranch_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_ConditionalExpression_WithOptionalChainBranch_Accepts()
     {
         var plan = GetFunctionPlan("""
             function ternaryOpt(a, obj) {
@@ -4346,8 +4380,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyOptional);
     }
 
     [Fact]

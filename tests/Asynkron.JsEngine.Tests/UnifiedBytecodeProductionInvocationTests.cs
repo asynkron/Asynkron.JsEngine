@@ -5375,6 +5375,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task LogicalAndAssignment_SlotBased_ShortCircuitsOnFalsyLeft_RhsNeverEvaluated()
+    {
+        // Gate 1: &&= short-circuit must not invoke the RHS at all — proven by a side-effecting
+        // counter function. If RHS were evaluated, counter would be > 0 after the call.
+        // The global function call in the RHS declines the production fast path; correctness
+        // of the short-circuit opcode is verified here regardless of which path runs.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var counter = 0;
+            function sideEffect() { counter++; return 99; }
+            function andAssign(x) {
+                x &&= sideEffect();
+                return x;
+            }
+
+            andAssign(0);
+            counter;
+            """);
+
+        // counter must remain 0 — sideEffect() was never called during short-circuit
+        Assert.Equal(0d, result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LogicalAndAssignment_SlotBased_ProceedsOnTruthyLeft_SlotUpdated_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
@@ -96,37 +97,18 @@ public static partial class TypedAstEvaluator
                 throw new InvalidOperationException("Promise constructor is not available in the current environment.");
             }
 
-            var executor = new HostFunction((_, execArgs) =>
-            {
-                if (!TryGetExecutorCallbacks(execArgs, out var resolve, out var reject))
-                {
-                    return JsValue.Undefined;
-                }
-
-                // Drive the underlying generator plan by a single step and
-                // resolve/reject the Promise based on the step outcome.
-                var step = _inner.ExecuteAsyncStep(mode, argument);
-                ResolveFromStep(step, resolve, reject);
-
-                return JsValue.Undefined;
-            });
+            var executor = StepExecutor.Rent(this, mode, argument);
 
             if (promiseCtor is HostFunction hostCtor)
             {
-                return hostCtor.InvokeWithContext([(JsValue)executor], JsValue.Undefined, null, (JsValue)hostCtor);
+                return hostCtor.InvokeWithContext([JsValue.FromObjectUnsafe(executor)], JsValue.Undefined, null,
+                    (JsValue)hostCtor);
             }
 
-            return promiseCtor.Invoke(new SingleValueArgs((JsValue)executor), JsValue.Undefined);
+            return promiseCtor.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(executor)), JsValue.Undefined);
         }
 
-        private static JsObject CreateAsyncIteratorResult(JsValue value, bool done)
-        {
-            var result = new JsObject();
-            // value is already JsValue
-            result.SetProperty("value", value);
-            result.SetProperty("done", done ? JsValue.True : JsValue.False);
-            return result;
-        }
+        private static JsValue CreateAsyncIteratorResult(JsValue value, bool done) => IteratorResultObject.Create(value, done);
 
         private void ResolveFromStep(
             ExecutionPlanRunner.AsyncGeneratorStepResult step,
@@ -139,7 +121,7 @@ public static partial class TypedAstEvaluator
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Completed:
                     {
                         var iteratorResult = CreateAsyncIteratorResult(step.Value, step.Done);
-                        AsyncInvokeWithOneArg(resolve, (JsValue)iteratorResult);
+                        AsyncInvokeWithOneArg(resolve, iteratorResult);
                         break;
                     }
                 case ExecutionPlanRunner.AsyncGeneratorStepKind.Throw:
@@ -279,6 +261,61 @@ public static partial class TypedAstEvaluator
                 rejected._sibling = fulfilled;
 
                 return (fulfilled, rejected);
+            }
+
+            [Conditional("DEBUG")]
+            internal void AssertOwnership(string usage) => PoolDebug.AssertOwned(this, usage);
+        }
+
+        private sealed class StepExecutor : IJsCallable
+        {
+            private static readonly ObjectPool<StepExecutor> Pool = new(32, static () => new StepExecutor());
+
+            private AsyncGeneratorInvoker? _executor;
+            private JsValue _argument;
+            private ExecutionPlanRunner.ResumeMode _mode;
+
+            public JsValue Invoke(IReadOnlyList<JsValue> args, JsValue thisValue)
+            {
+                AssertOwnership(nameof(Invoke));
+                if (_executor is null)
+                {
+                    return JsValue.Undefined;
+                }
+
+                var executor = _executor;
+                var mode = _mode;
+                var argument = _argument;
+                try
+                {
+                    if (!TryGetExecutorCallbacks(args, out var resolve, out var reject))
+                    {
+                        return JsValue.Undefined;
+                    }
+
+                    var step = executor._inner.ExecuteAsyncStep(mode, argument);
+                    executor.ResolveFromStep(step, resolve, reject);
+                    return JsValue.Undefined;
+                }
+                finally
+                {
+                    _executor = null;
+                    _mode = default;
+                    _argument = default;
+                    Pool.Return(this);
+                }
+            }
+
+            public static StepExecutor Rent(
+                AsyncGeneratorInvoker executor,
+                ExecutionPlanRunner.ResumeMode mode,
+                JsValue argument)
+            {
+                var stepExecutor = Pool.Rent();
+                stepExecutor._executor = executor;
+                stepExecutor._mode = mode;
+                stepExecutor._argument = argument;
+                return stepExecutor;
             }
 
             [Conditional("DEBUG")]

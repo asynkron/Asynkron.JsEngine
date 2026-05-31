@@ -4339,6 +4339,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ClassMethodWithNamedSuperCall_UsesUnifiedBytecodeProductionFastPathAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                read(offset) { return this.value + offset; }
+            }
+
+            class Child extends Base {
+                constructor(value) { super(); this.value = value; }
+                readViaSuper(offset) {
+                    return super.read(offset);
+                }
+            }
+
+            new Child(40).readViaSuper(2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodWithComputedSuperCall_UsesUnifiedBytecodeProductionFastPathAndPreservesReceiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                read(offset) { return this.value + offset; }
+            }
+
+            class Child extends Base {
+                constructor(value) { super(); this.value = value; }
+                readViaSuper(name, offset) {
+                    return super[name](offset);
+                }
+            }
+
+            new Child(40).readViaSuper("read", 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

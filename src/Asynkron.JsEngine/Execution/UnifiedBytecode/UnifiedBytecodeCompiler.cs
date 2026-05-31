@@ -3641,6 +3641,18 @@ internal static class UnifiedBytecodeCompiler
                         EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex, isDirectEval: false)));
                     break;
 
+                case ExpressionOpKind.SuperConstruct:
+                    if (operation.SpreadMaskConstantIndex >= 0)
+                    {
+                        reason = "Spread super construct arguments are outside the super invocation boundary.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SuperConstructInvocationBoundary,
+                        operation.ArgumentCount));
+                    break;
+
                 case ExpressionOpKind.LoadFunctionLiteral:
                     var functionLiteralIndex = functionLiteralConstants.Count;
                     functionLiteralConstants.Add(
@@ -3794,6 +3806,44 @@ internal static class UnifiedBytecodeCompiler
             }
 
             if (TryAppendComputedMemberCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    expressionProgram.OperationCount - 1,
+                    out reason))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return false;
+            }
+
+            if (TryAppendNamedSuperCallTargetPreparation(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    expressionProgram.OperationCount - 1,
+                    out reason))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(reason))
+            {
+                return false;
+            }
+
+            if (TryAppendComputedSuperCallTargetPreparation(
                     expressionProgram,
                     slotLayout,
                     unified,
@@ -4344,6 +4394,127 @@ internal static class UnifiedBytecodeCompiler
         callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetIndexInProgram + 1,
+            call,
+            callIndex,
+            out reason);
+    }
+
+    private static bool TryAppendNamedSuperCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        out string reason)
+    {
+        var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadNamedSuperCallTarget);
+        if (callTargetIndexInProgram < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (callTargetIndexInProgram != 0)
+        {
+            reason = "Named super call targets must be the first operation in the invocation boundary.";
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
+        var propertyName = callTarget.GetString(expressionProgram.StringConstants.AsSpan());
+        if (propertyName.IsPrivateName())
+        {
+            reason = "Private named super call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(propertyName);
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedSuperMember,
+            NameConstantIndex: nameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget,
+            callTargetConstantIndex));
+
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetIndexInProgram + 1,
+            call,
+            callIndex,
+            out reason);
+    }
+
+    private static bool TryAppendComputedSuperCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var callTargetIndexInProgram = FindFirstOperation(expressionProgram, ExpressionOpKind.LoadComputedSuperCallTarget);
+        if (callTargetIndexInProgram < 0)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var keyEnd = callTargetIndexInProgram;
+        if (expressionProgram.GetOperation(keyEnd - 1).Kind == ExpressionOpKind.EnsureSuperReference)
+        {
+            keyEnd--;
+        }
+
+        var hasResolvedKey = keyEnd == 2 &&
+                             expressionProgram.GetOperation(1).Kind == ExpressionOpKind.ResolvePropertyKey;
+        if (keyEnd is not 1 && !hasResolvedKey)
+        {
+            reason = "Computed super call targets require exactly one computed key operand.";
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        if (hasResolvedKey)
+        {
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedSuperMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget,
             callTargetConstantIndex));
 
         return TryAppendCallArguments(

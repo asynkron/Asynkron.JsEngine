@@ -302,7 +302,7 @@ public static partial class TypedAstEvaluator
         return context.IsThisInitialized;
     }
 
-    private static void SetThisInitializationStatus(this JsEnvironment environment, bool initialized)
+    internal static void SetThisInitializationStatus(this JsEnvironment environment, bool initialized)
     {
         var logger = environment.RealmState?.Logger;
         if (environment.HasBinding(Symbol.ThisInitialized))

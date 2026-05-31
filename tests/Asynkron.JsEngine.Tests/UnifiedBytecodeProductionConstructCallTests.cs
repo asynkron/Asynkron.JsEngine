@@ -8,9 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <c>ConstructInvocationBoundary</c> opcode invokes <c>[[Construct]]</c> with the
 /// constructor as <c>new.target</c>.
 ///
-/// super(...) and super-member call targets stay declined: derived constructors are
-/// activation-gated by SyncFunctionInvoker.CanUseProductionUnifiedBytecode and can never
-/// reach the production pipeline (ADR 0286).
+/// Derived-constructor <c>super(...)</c> is now admitted for the proved non-spread shape
+/// through an explicit super-construct boundary. Spread super constructs still decline.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelper output)
@@ -266,7 +265,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SuperConstruct_DeclinesAndFallsBack()
+    public async Task SuperConstruct_InitializesThis()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -283,6 +282,103 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             }
 
             new Derived(42).value;
+            """);
+
+        Assert.Equal(42d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SuperConstruct_ForwardsNewTarget()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor() {
+                    this.newTargetName = new.target.name;
+                }
+            }
+
+            class Derived extends Base {
+                constructor() {
+                    super();
+                }
+            }
+
+            new Derived().newTargetName;
+            """);
+
+        Assert.Equal("Derived", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SuperConstruct_DoubleCallThrows()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            class Derived extends Base {
+                constructor() {
+                    super();
+                    try {
+                        super();
+                    } catch (error) {
+                        return { message: error.message };
+                    }
+                }
+            }
+
+            new Derived().message;
+            """);
+
+        var message = Assert.IsType<string>(result);
+        Assert.Contains("Super constructor may only be called once", message, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SuperConstructWithSpread_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(values) {
+                    super(...values);
+                }
+            }
+
+            new Derived([42]).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithInstanceField_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            class Derived extends Base {
+                value = 42;
+                constructor() {
+                    super();
+                }
+            }
+
+            new Derived().value;
             """);
 
         Assert.Equal(42d, result);

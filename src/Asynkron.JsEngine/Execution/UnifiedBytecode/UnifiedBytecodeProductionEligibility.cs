@@ -2209,7 +2209,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount < 4)
+        if (program.OperationCount != 4)
         {
             return false;
         }
@@ -2229,28 +2229,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var computedPrefixEnd = 2;
-        while (computedPrefixEnd < program.OperationCount &&
-               IsShortCircuitNamedPropertyRead(program.GetOperation(computedPrefixEnd), stringConstants))
-        {
-            computedPrefixEnd++;
-        }
-
-        var computedSuffixStart = program.OperationCount;
-        while (computedSuffixStart > computedPrefixEnd + 1 &&
-               IsShortCircuitNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
-        {
-            computedSuffixStart--;
-        }
-
-        var computedIndex = computedSuffixStart - 1;
-        if (computedIndex != computedPrefixEnd ||
-            !IsSimpleComputedPropertyKey(program.GetOperation(2), identifierConstants, activationSlots))
+        var keyOp = program.GetOperation(2);
+        if (!IsSimpleComputedPropertyKey(keyOp, identifierConstants, activationSlots))
         {
             return false;
         }
 
-        var computedOp = program.GetOperation(computedIndex);
+        var computedOp = program.GetOperation(3);
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                computedOp.ShortCircuitOnNullishTarget;
     }

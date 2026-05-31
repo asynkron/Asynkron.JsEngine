@@ -8,6 +8,14 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static class JsonHelper
 {
+    private static readonly string?[] JsonStringEscapes =
+    [
+        "\\u0000", "\\u0001", "\\u0002", "\\u0003", "\\u0004", "\\u0005", "\\u0006", "\\u0007",
+        "\\b", "\\t", "\\n", "\\u000b", "\\f", "\\r", "\\u000e", "\\u000f",
+        "\\u0010", "\\u0011", "\\u0012", "\\u0013", "\\u0014", "\\u0015", "\\u0016", "\\u0017",
+        "\\u0018", "\\u0019", "\\u001a", "\\u001b", "\\u001c", "\\u001d", "\\u001e", "\\u001f"
+    ];
+
     /// <summary>
     /// Tracks source text for the json-parse-with-source feature.
     /// Maps (holder identity, property key) -> source text.
@@ -741,11 +749,6 @@ public static class JsonHelper
     /// </summary>
     private static string QuoteString(string value)
     {
-        if (!RequiresJsonStringEscaping(value))
-        {
-            return $"\"{value}\"";
-        }
-
         var sb = new System.Text.StringBuilder(value.Length + 2);
         sb.Append('"');
         for (var i = 0; i < value.Length; i++)
@@ -759,26 +762,10 @@ public static class JsonHelper
                 case '\\':
                     sb.Append("\\\\");
                     break;
-                case '\b':
-                    sb.Append("\\b");
-                    break;
-                case '\f':
-                    sb.Append("\\f");
-                    break;
-                case '\n':
-                    sb.Append("\\n");
-                    break;
-                case '\r':
-                    sb.Append("\\r");
-                    break;
-                case '\t':
-                    sb.Append("\\t");
-                    break;
                 default:
                     if (c < 0x20)
                     {
-                        sb.Append("\\u");
-                        sb.Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+                        sb.Append(JsonStringEscapes[c]);
                     }
                     else if (char.IsHighSurrogate(c))
                     {
@@ -815,29 +802,7 @@ public static class JsonHelper
 
     private static void AppendQuotedString(StringBuilder builder, string value)
     {
-        if (!RequiresJsonStringEscaping(value))
-        {
-            builder.Append('"');
-            builder.Append(value);
-            builder.Append('"');
-            return;
-        }
-
         builder.Append(QuoteString(value));
-    }
-
-    private static bool RequiresJsonStringEscaping(string value)
-    {
-        for (var i = 0; i < value.Length; i++)
-        {
-            var c = value[i];
-            if (c < 0x20 || c == '"' || c == '\\' || char.IsSurrogate(c))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string FormatNumber(double d)

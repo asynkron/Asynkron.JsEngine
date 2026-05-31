@@ -1596,6 +1596,24 @@ public sealed class FoundationTests(ITestOutputHelper output) : InternalTestBase
             result);
     }
 
+    [Fact]
+    public async Task JSON_Stringify_EscapesAsciiControlCharactersInKeysAndValues()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           JSON.stringify({
+                                             ["name\"\\\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u001f\u001e\u001d\u001c\u001b\u001a\u0019\u0018\u0017\u0016\u0015\u0014\u0013\u0012\u0011\u0010\u000f\u000e\r\f\u000b\n\t\b\u0007\u0006\u0005\u0004\u0003\u0002\u0001\u0000\\\""]:
+                                               "\u001f\u001e\u001d\u001c\u001b\u001a\u0019\u0018\u0017\u0016\u0015\u0014\u0013\u0012\u0011\u0010\u000f\u000e\r\f\u000b\n\t\b\u0007\u0006\u0005\u0004\u0003\u0002\u0001\u0000\\\"\"\\\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001fvalue"
+                                           });
+                                           """);
+
+        var expected = """
+                        {"name\"\\\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u001f\u001e\u001d\u001c\u001b\u001a\u0019\u0018\u0017\u0016\u0015\u0014\u0013\u0012\u0011\u0010\u000f\u000e\r\f\u000b\n\t\b\u0007\u0006\u0005\u0004\u0003\u0002\u0001\u0000\\\"":"\u001f\u001e\u001d\u001c\u001b\u001a\u0019\u0018\u0017\u0016\u0015\u0014\u0013\u0012\u0011\u0010\u000f\u000e\r\f\u000b\n\t\b\u0007\u0006\u0005\u0004\u0003\u0002\u0001\u0000\\\"\"\\\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\b\t\n\u000b\f\r\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001fvalue"}
+                        """;
+
+        Assert.Equal(expected, result);
+    }
+
     #endregion
 
     #region Async/Await

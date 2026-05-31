@@ -192,6 +192,20 @@ optimization.
     WHY: issue `autrun-diwixvycrlyw-393d28c674` / PR #2790 documented the
     failed attempt; failed-attempt note:
     `docs/performance/failed-classdef-argumentsobject-constructor-fast-path.md`.
+6j. For failed-attempt performance notes, carry the same investigation-shaped
+    evidence expected by the issue before review: full-table baseline runs and
+    target-selection rationale when the acceptance criteria ask for a benchmark
+    choice, repeated focused CPU profiles with the requested depth/width, repeated
+    selected-profile final rows, internal-test gate evidence, and any smoke gate
+    the run contract required. A reverted runtime edit still needs this evidence
+    so reviewers can tell whether the retained document captures a measured
+    failed slice or only a narrative. WHY: issue
+    `autrun-diwpc6lcb3gg-ec063492f2` / PR #2822 kept only the
+    `docs/performance/failed-ir-arithmetic-fast-path-script-completion.md`
+    artifact after the attempted `ir-arithmetic` fast-path write tweak regressed,
+    but review needed an evidence-completion pass to add the 3x full benchmark
+    baseline, 3x required `--calltree-depth 40 --calltree-width 40` CPU profiles,
+    focused final benchmark medians, and explicit internal-test/smoke outcomes.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

@@ -1634,6 +1634,28 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     predicate, with focused negative rows for near-simple but unsupported key
     operands, so eligibility cannot promise a route the compiler cannot emit.
 
+48. When moving ordinary sync production activation pre-gates into
+    `UnifiedBytecodeProductionEligibility`, use an explicit
+    `UnifiedBytecodeProductionActivationDescriptor` field and stable
+    `UnifiedBytecodeProductionDeclineCode` for each blocker instead of leaving
+    it as an anonymous boolean in `CanUseProductionUnifiedBytecodeFastPath`.
+    Keep the selector and eligibility paths single-sourced by calling the same
+    activation-decline helper from the sync invoker pre-gate and from
+    `Evaluate` before plan-shape inspection. Any descriptor-owned decline must
+    also be excluded from `IsPlanStructuralDecline`, because the
+    `ExecutionPlan` permanent-decline cache is global to the immutable plan
+    while activation descriptor facts can vary per closure/invoker. Update the
+    expansion contract's decline ledger and add both eligibility-code proof and
+    public invocation no-route proof for the exact blocker family. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-d89f847aed`
+    / PR #2855 descriptorized arrow lexical this, class constructor activation,
+    function-name/parameter collision, function declarations, parameter-var
+    declarations, and materialized activation dependency. The key lesson was
+    that stable decline taxonomy, cache-safety classification, and route
+    fallback proof must move together; otherwise future widening can either hide
+    blocker reasons behind generic pre-gates or incorrectly cache an
+    invocation-dependent decline at plan scope.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1670,6 +1692,7 @@ Related ADRs:
 - `docs/adrs/0290-admit-array-and-object-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0292-admit-template-literals-in-unified-bytecode-simple-span-measurement.md`
 - `docs/adrs/0293-admit-logical-and-nullish-expressions-in-unified-bytecode-with-peek-jump-semantics.md`
+- `docs/adrs/0294-cache-plan-level-production-eligibility-permanent-decline-cross-invoker.md`
 - `docs/adrs/0295-admit-property-read-short-circuit-expressions-simple-rhs-owned.md`
 - `docs/adrs/0296-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`

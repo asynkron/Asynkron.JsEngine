@@ -3916,6 +3916,86 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Theory(Timeout = 5000)]
+    [InlineData(
+        """
+        function usesArguments() {
+            return arguments[0];
+        }
+
+        usesArguments(42);
+        """,
+        "usesArguments",
+        42d)]
+    [InlineData(
+        """
+        var arrowLexical = () => 42;
+        arrowLexical();
+        """,
+        "arrowLexical",
+        42d)]
+    [InlineData(
+        """
+        class Box {
+            constructor(value) {
+                this.value = value;
+            }
+        }
+
+        new Box(42).value;
+        """,
+        "Box",
+        42d)]
+    [InlineData(
+        """
+        var result = (function same(same) {
+            return same;
+        })(42);
+
+        result;
+        """,
+        "same",
+        42d)]
+    [InlineData(
+        """
+        function outer() {
+            function inner() {
+                return 42;
+            }
+
+            return inner();
+        }
+
+        outer();
+        """,
+        "outer",
+        42d)]
+    [InlineData(
+        """
+        function parameterVar(value) {
+            var value;
+            return value;
+        }
+
+        parameterVar(42);
+        """,
+        "parameterVar",
+        42d)]
+    public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
+        string source,
+        string functionName,
+        object expected)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(source);
+
+        Assert.Equal(expected, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
     [Fact]
     public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeGenericIr()
     {

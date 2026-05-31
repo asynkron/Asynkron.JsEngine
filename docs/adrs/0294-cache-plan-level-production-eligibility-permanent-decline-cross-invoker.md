@@ -35,12 +35,16 @@ first and `Evaluate` is skipped entirely.
 
 Not all decline codes are safe to cache at the plan level. Codes such as
 `AsyncLikeFunction`, `GeneratorFunction`, `CapturedOrDynamicActivation`,
-`ArgumentsObjectDependency`, `ThisDependency`, `NewTargetDependency` depend on the closure
-or activation descriptor seen by each concrete invoker, and could vary for a different closure
-context over the same plan.
+`ArgumentsObjectDependency`, `ThisDependency`, `NewTargetDependency`,
+`ArrowLexicalThisDependency`, `ClassConstructorActivation`,
+`FunctionNameParameterCollision`, `FunctionDeclarationDependency`,
+`ParameterVarDeclarationDependency`, and `MaterializedActivationDependency`
+depend on the closure or activation descriptor seen by each concrete invoker,
+and could vary for a different closure context over the same plan.
 
-`IsPlanStructuralDecline` excludes those six codes; all other codes represent declines that are
-purely a function of the plan structure and are safe to cache globally on the `ExecutionPlan`.
+`IsPlanStructuralDecline` excludes those descriptor-owned codes; all other codes represent
+declines that are purely a function of the plan structure and are safe to cache globally on
+the `ExecutionPlan`.
 
 ### Thread safety
 

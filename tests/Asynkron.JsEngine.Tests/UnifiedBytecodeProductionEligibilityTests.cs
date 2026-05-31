@@ -179,6 +179,45 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
     }
 
+    [Theory]
+    [InlineData("arrow lexical this", true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
+    [InlineData("class constructor activation", false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
+    [InlineData("function name parameter collision", false, false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision)]
+    [InlineData("function declaration dependency", false, false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency)]
+    [InlineData("parameter var declaration dependency", false, false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency)]
+    [InlineData("materialized activation dependency", false, false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
+    public void Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile(
+        string blocker,
+        bool arrowLexicalThis,
+        bool classConstructor,
+        bool functionNameParameterCollision,
+        bool functionDeclaration,
+        bool parameterVarDeclaration,
+        bool materializedActivation,
+        int expectedCode)
+    {
+        var plan = GetFunctionPlan("""
+            function passThrough(x) {
+                return x;
+            }
+            """,
+            "passThrough");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                HasArrowLexicalThisDependency: arrowLexicalThis,
+                HasClassConstructorActivation: classConstructor,
+                HasFunctionNameParameterCollision: functionNameParameterCollision,
+                HasFunctionDeclarationDependency: functionDeclaration,
+                HasParameterVarDeclarationDependency: parameterVarDeclaration,
+                HasMaterializedActivationDependency: materializedActivation));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.Contains(blocker.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Evaluate_TryCatchPlan_AcceptsOwnedExceptionRegionOpcodes()
     {

@@ -11,7 +11,7 @@ This page indexes the agent playbooks. MUST READ AND UNDERSTAND ALL OF THESE bef
 - [Profiling (scripts, manual traces, hotspots)](agents/how-to-profiling.md)
 - [CPU and allocation profiling workflow](agents/how-to-profile.md)
 - [Benchmarking and Asynkron/Jint allocation comparisons](agents/how-to-benchmark.md)
-- Recurring maintenance child runs: check active sibling summaries first and report the stable evidence fields `Baseline signal`, `Final signal`, `Sibling check`, `Slice check`, and `Scope note`; use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs) and durable policy in [docs/rules/recurring-maintenance-child-runs.md](docs/rules/recurring-maintenance-child-runs.md).
+- Recurring maintenance child runs: check active sibling summaries first, use the owned operational checklist in [Build/test commands and demos](agents/how-to-build-and-test.md#recurring-maintenance-child-runs), and keep durable policy in [docs/rules/recurring-maintenance-child-runs.md](docs/rules/recurring-maintenance-child-runs.md).
 
 ## Engineering Rules & Workflow
 - Durable preventive rules live in [`docs/rules/`](docs/rules/README.md), **not** `.claude/rules/` (Claude Code auto-loads that folder in full and it overflows agent prompts). Scan [`docs/rules/README.md`](docs/rules/README.md) and read only the rule files whose scope matches your task.

@@ -473,6 +473,15 @@ public static partial class TypedAstEvaluator
         return atIndex > 0 ? displayName[..atIndex] : displayName;
     }
 
+    internal static JsValue CreateClassValueFromLiteral(
+        ClassExpression classExpression,
+        JsEnvironment environment,
+        EvaluationContext context) =>
+        classExpression.Definition.CreateClassValue(
+            environment,
+            context,
+            classExpression.Name ?? context.CurrentFunctionNameHint);
+
     [UsedImplicitly]
     public static bool IsImplicitDefaultDerivedConstructor(this FunctionExpression constructor)
     {

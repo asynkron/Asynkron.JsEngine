@@ -1767,6 +1767,19 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.LoadClassLiteral:
+                    {
+                        var closureEnv = currentCallingEnvironment
+                            ?? throw new InvalidOperationException("Cannot create class literal without a calling environment.");
+                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                        stack[stackPointer++] = TypedAstEvaluator.CreateClassValueFromLiteral(
+                            classExpression,
+                            closureEnv,
+                            context);
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.EnsureHasName:
                     {
                         var targetName = program.StringConstants[instruction.Operand];

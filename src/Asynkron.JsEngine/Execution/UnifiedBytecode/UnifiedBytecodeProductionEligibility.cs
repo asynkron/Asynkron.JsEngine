@@ -1197,24 +1197,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.LoadClassLiteral:
-                {
-                    var nextIndex = operationIndex + 1;
-                    if (nextIndex < operationCount)
-                    {
-                        var nextOp = program.GetOperation(nextIndex);
-                        if ((nextOp.Kind == ExpressionOpKind.DefineObjectProperty ||
-                             nextOp.Kind == ExpressionOpKind.DefineComputedObjectProperty) &&
-                            nextOp.AllowNameInference)
-                        {
-                            break;
-                        }
-                    }
-
-                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                    declineReason =
-                        "Class literal values are not eligible for production unified bytecode routing.";
-                    return true;
-                }
+                    break;
 
                 case ExpressionOpKind.ArraySpread:
                     if (operationIndex > 0 &&
@@ -3564,6 +3547,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.EnsureHasName:
                 case UnifiedBytecodeOpCode.Return:

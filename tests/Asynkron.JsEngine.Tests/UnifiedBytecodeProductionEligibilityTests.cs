@@ -1030,6 +1030,44 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
     }
 
+    [Theory]
+    [InlineData("logicalOrWrite", "||=")]
+    [InlineData("logicalAndWrite", "&&=")]
+    [InlineData("nullishWrite", "??=")]
+    public void Evaluate_NamedLogicalAssignmentPropertyWrite_OptionalBase_Declines(
+        string functionName, string op)
+    {
+        // Optional-chain LHS is a SyntaxError per spec; the parser enforces the decline
+        // before the expression even reaches eligibility evaluation.
+        Assert.Throws<NotSupportedException>(() => GetFunctionPlan($$"""
+            function {{functionName}}(box, value) {
+                return box?.prop {{op}} value;
+            }
+            """,
+            functionName));
+    }
+
+    [Fact]
+    public void Evaluate_NamedLogicalAssignmentPropertyWrite_PrivateName_Declines()
+    {
+        var plan = GetClassMethodPlan("""
+            class C {
+                #p = 1;
+                f(box, v) {
+                    return this.#p &&= v;
+                }
+            }
+            """,
+            "C",
+            "f");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
     [Fact]
     public void Evaluate_NamedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
     {

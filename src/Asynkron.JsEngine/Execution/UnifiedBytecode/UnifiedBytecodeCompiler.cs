@@ -28,9 +28,9 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<int> LexicalSlotIndices,
         ImmutableArray<string?> SlotNames)
     {
-        // Spread-call masks discovered while compiling synchronous spread invocations
-        // (gh2676). Each entry holds the spread argument positions for one
-        // CallInvocationBoundary; the boundary operand references it by index+1.
+        // Spread masks discovered while compiling synchronous spread invocations.
+        // Each entry holds the spread argument positions for one invocation
+        // boundary; the boundary operand references it by index+1.
         public List<ImmutableArray<int>> CallSpreadMasks { get; } = [];
 
         public int RegisterSpreadMask(ImmutableArray<int> spreadIndices)
@@ -3573,6 +3573,12 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
                     break;
 
+                case ExpressionOpKind.RequireObjectCoercible:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.RequireObjectCoercible,
+                        operation.Depth));
+                    break;
+
                 case ExpressionOpKind.CreateArray:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.CreateArray));
                     break;
@@ -3608,20 +3614,17 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.Construct:
-                    // Synchronous non-spread construct calls (`new F(...)`, gh2690). The
-                    // constructor value and each simple-operand argument are lowered by their
-                    // own preceding ops in source order; this boundary opcode pops them and
-                    // invokes [[Construct]] with the constructor as new.target. Spread-onto-
-                    // construct is declined by eligibility, so guard defensively here too.
-                    if (operation.SpreadMaskConstantIndex >= 0)
-                    {
-                        reason = "Spread construct arguments are outside the construct invocation boundary.";
-                        return false;
-                    }
+                    // Synchronous construct calls. The constructor value and each logical
+                    // argument are lowered by preceding ops in source order; spread positions
+                    // hold their iterable value and are flattened by the construct boundary.
+                    var constructSpreadIndices = operation.GetSpreadIndices(expressionProgram.SpreadMaskConstants.AsSpan());
+                    var constructSpreadMaskIndex = constructSpreadIndices.IsDefaultOrEmpty
+                        ? -1
+                        : slotLayout.RegisterSpreadMask(constructSpreadIndices);
 
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.ConstructInvocationBoundary,
-                        operation.ArgumentCount));
+                        EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex)));
                     break;
 
                 case ExpressionOpKind.SuperConstruct:

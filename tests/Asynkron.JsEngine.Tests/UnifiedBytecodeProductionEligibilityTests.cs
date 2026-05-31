@@ -685,9 +685,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SpreadConstructExpressionPlan_DeclinesWithSpreadDependency()
+    public void Evaluate_SpreadConstructExpressionPlan_AcceptsConstructInvocationBoundary()
     {
-        // gh2690 admits non-spread `new F(...)` but keeps spread-onto-construct declined.
         var plan = GetFunctionPlan("""
             function invoke(ctor, args) {
                 return new ctor(...args);
@@ -699,9 +698,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
-        Assert.Contains("Spread construct", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
     }
 
     [Fact]
@@ -747,10 +748,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_MemberTargetConstructExpressionPlan_DeclinesOutOfBoundaryReceiver()
+    public void Evaluate_MemberTargetConstructExpressionPlan_AcceptsConstructInvocationBoundary()
     {
-        // gh2690 keeps `new a.b()` declined: the member receiver chain for a construct target
-        // is outside the admitted simple-identifier construct boundary.
         var plan = GetFunctionPlan("""
             function make(box) {
                 return new box.Ctor();
@@ -762,7 +761,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedMemberTargetSpreadConstructExpressionPlan_AcceptsConstructInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function make(box, key, args) {
+                return new box[key](...args);
+            }
+            """,
+            "make");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
     }
 
     [Fact]

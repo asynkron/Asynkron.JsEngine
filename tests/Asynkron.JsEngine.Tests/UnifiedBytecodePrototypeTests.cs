@@ -643,7 +643,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void TryCompile_ComputedPropertyReadOutsideBoundary_Declines()
+    public void TryCompile_ComputedPropertyReadWithExpressionKey_ProducesGeneralPropertyOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function read(box, left, right) {
@@ -652,10 +652,23 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "read");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
 
-        Assert.False(result);
-        Assert.Contains("RequireObjectCoercible", reason, StringComparison.Ordinal);
+        Assert.True(result, reason);
+        Assert.Equal(
+            new[]
+            {
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.LoadSlot,
+                UnifiedBytecodeOpCode.Binary,
+                UnifiedBytecodeOpCode.RequireObjectCoercible,
+                UnifiedBytecodeOpCode.ResolvePropertyKey,
+                UnifiedBytecodeOpCode.GetComputedProperty,
+                UnifiedBytecodeOpCode.Return
+            },
+            program.Instructions.Select(instruction => instruction.OpCode).ToArray());
+        Assert.Equal(1, program.Instructions[4].Operand);
     }
 
     [Fact]

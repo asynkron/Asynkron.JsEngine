@@ -3,13 +3,13 @@ using Xunit.Abstractions;
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-/// Covers admission of synchronous non-spread construct calls into the production unified
-/// bytecode pipeline (gh2690): <c>new F(...)</c>. The constructor value and simple-operand
-/// arguments are pushed left-to-right and the <c>ConstructInvocationBoundary</c> opcode
-/// invokes <c>[[Construct]]</c> with the constructor as <c>new.target</c>.
+/// Covers admission of synchronous construct calls into the production unified bytecode
+/// pipeline. The constructor value and argument operands are pushed left-to-right and the
+/// <c>ConstructInvocationBoundary</c> opcode invokes <c>[[Construct]]</c> with the
+/// constructor as <c>new.target</c>.
 ///
-/// Derived-constructor <c>super(...)</c> now uses an explicit super invocation
-/// boundary for the proved non-spread shape. Spread-onto-construct stays declined.
+/// Derived-constructor <c>super(...)</c> is now admitted for the proved non-spread shape
+/// through an explicit super-construct boundary. Spread super constructs still decline.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelper output)
@@ -157,7 +157,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SpreadConstruct_DeclinesAndFallsBack()
+    public async Task SpreadConstruct_UsesProductionFastPathAndMaterializesArguments()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -173,14 +173,14 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(3d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=make",
+                "unified-bytecode-production-fast-path func=make argc=2",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task MemberTargetConstruct_DeclinesAndFallsBack()
+    public async Task MemberTargetConstruct_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -196,9 +196,71 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(true, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=make",
+                "unified-bytecode-production-fast-path func=make argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedMemberTargetSpreadConstruct_PreservesEvaluationOrderOnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = "";
+
+            function Box(a, b) {
+                this.trace = log + "ctor:" + a + b;
+            }
+
+            var key = {
+                toString() {
+                    log += "key;";
+                    return "Ctor";
+                }
+            };
+
+            var args = {
+                [Symbol.iterator]() {
+                    log += "spread;";
+                    return [1, 2][Symbol.iterator]();
+                }
+            };
+
+            function make(registry, key, args) {
+                return new registry[key](...args);
+            }
+
+            make({ Ctor: Box }, key, args).trace;
+            """);
+
+        Assert.Equal("key;spread;ctor:12", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=make argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task Construct_WithArrayAndObjectLiteralArguments_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function Box(values, record) {
+                this.total = values[0] + values[1] + record.delta;
+            }
+
+            function make(Box, a, b, delta) {
+                return new Box([a, b], { delta: delta });
+            }
+
+            make(Box, 4, 5, 6).total;
+            """);
+
+        Assert.Equal(15d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=make argc=4",
                 StringComparison.Ordinal));
     }
 

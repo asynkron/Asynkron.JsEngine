@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-05-29
+Date: 2026-05-31
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -103,6 +103,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `EndFinally`
 - `EnterWith`
 - `LeaveWith`
+- `TdzHeadInit`
 - `IteratorInit`
 - `IteratorMoveNext`
 - `IteratorClose`
@@ -120,7 +121,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `PrepareDynamicIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
+- `PrepareNamedOptionalCallTarget`
+- `PrepareComputedOptionalCallTarget`
+- `PrepareNamedSuperCallTarget`
+- `PrepareComputedSuperCallTarget`
 - `CallInvocationBoundary`
+- `ConstructInvocationBoundary`
+- `SuperConstructInvocationBoundary`
 - `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`
@@ -194,7 +201,7 @@ must still obey the no-mixed-execution rule.
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `DeleteDependency` | `delete` expressions except the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
-| `SuperPropertyDependency` | Super property reads/writes/updates, super call targets, and `super(...)` | Existing class / constructor route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
+| `SuperPropertyDependency` | Super property reads/writes/updates and out-of-boundary super call targets | Existing class / constructor route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read and optional-call boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
 | `ObjectLiteralOrSpreadDependency` | Object methods/accessors/spread, unsupported array spread, class literal values, and spread construct arguments | Existing sync IR literal/spread route | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and `#name in obj` represented as named-property or private-field ops | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
@@ -229,7 +236,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:lexicalThisEnvironment` | Lexical `this` environment captured by arrow / class-derived shapes | Existing lexical-this route | This-binding lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:PrivateNameScope` | Active private-name scope on the invoker | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
 | `pre-gate:capturedPrivateNameScopes` | Captured private-name scopes from enclosing classes | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:superConstructor` | Derived-constructor `super(...)` dependency | Constructor / super route | Super / constructor lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperCall_DeclinesWithExplicitCode"` |
+| `pre-gate:superConstructor` | Derived-constructor super binding dependency outside the bounded production constructor admission path | Constructor / super route | Super / constructor lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary"` |
 | `pre-gate:superPrototype` | `super.prop` dependency on method home object state | Existing super route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
 | `pre-gate:instanceFields` | Class instance-field initialization state | Constructor / class route | Class fields lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:functionNameParameterConflict` | Named function expression whose name also appears as a parameter | Existing function-name environment route | Function-name environment lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -284,8 +291,10 @@ the final post-compile production subset check before VM entry.
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
-  net for class methods that use `super`. Super-property reads, writes, and
-  updates (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
+  net for class methods that use super-property reads, writes, and updates.
+  Super-member calls are admitted only through the first call boundary with
+  `PrepareNamedSuperCallTarget` / `PrepareComputedSuperCallTarget`.
+  Super-property reads, writes, and updates (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
   `SetNamedSuperProperty`, `SetComputedSuperProperty`,
   `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`,
   `EnsureSuperReference`) still decline before VM execution.
@@ -390,11 +399,14 @@ the final post-compile production subset check before VM entry.
   opcode (operand = pushed argument count) invokes `[[Construct]]` with the
   constructor itself as `new.target`, mirroring the spec-conformant construct
   reference helper. A non-constructor target throws `TypeError` at the boundary.
-  Spread-onto-construct (`new F(...args)`), member-target constructs (`new a.b()`),
-  non-simple argument constructs, and the super call family (`super(...)`,
-  super-member call targets) stay declined — the latter is activation-gated by the
-  derived-constructor decline in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
-  and so is unreachable (ADR 0286).
+  Spread-onto-construct (`new F(...args)`), member-target constructs
+  (`new a.b()`), and non-simple argument constructs stay declined.
+- Derived-constructor non-spread `super(...)` calls are admitted through
+  `SuperConstructInvocationBoundary`. The VM resolves the dynamic super
+  constructor from the current super binding, invokes `[[Construct]]` with the
+  caller's `new.target`, initializes `this`, and preserves the existing
+  double-super-call `ReferenceError`. Spread super constructs
+  (`super(...args)`) stay declined as spread construct arguments.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -409,6 +421,14 @@ the final post-compile production subset check before VM entry.
   stack, preserves nullish-receiver-before-key-coercion ordering, consumes the
   computed key with normal property-key semantics, loads the callee from that
   receiver, and invokes through the existing receiver-as-`this` stack contract.
+- Accepted named super-member call programs use `PrepareNamedSuperCallTarget`
+  followed by `CallInvocationBoundary`; the VM resolves the named property
+  against the active super binding and invokes with the derived receiver as
+  `this`.
+- Accepted computed super-member call programs use
+  `PrepareComputedSuperCallTarget` followed by `CallInvocationBoundary`; the VM
+  evaluates the key before resolving the super-member callee and invokes with
+  the derived receiver as `this`.
 - Accepted optional member-call programs use `PrepareNamedOptionalCallTarget`
   or `PrepareComputedOptionalCallTarget` followed by `CallInvocationBoundary`.
   Both opcodes pack a call-target constant index (low 16 bits) and a nullish
@@ -420,8 +440,8 @@ the final post-compile production subset check before VM entry.
   callee-optional computed calls (`box[key]?.(args)`). The `IsOptionalReceiverCheck`
   flag in `UnifiedBytecodeCallTarget` distinguishes the two named variants.
   (Optional calls admitted as of gh2689; ADR 0289.)
-- Direct eval, construct/super calls,
-  private/super member targets, arguments-object dependencies, unsupported
+- Direct eval, spread super constructs, super property reads/writes/updates,
+  private member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM
@@ -550,11 +570,10 @@ support today.
    object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
    (gh2705, ADR 0290); holey arrays, spread elements, computed keys,
    methods, accessors, name inference, and private names continue to decline.
-   Direct eval, super calls (`super(...)` and super-member call targets,
-   activation-gated and unreachable in production), spread-onto-optional,
-   spread-onto-construct, member-target/non-simple constructs,
+   Direct eval, super-property reads/writes/updates, spread super constructs,
+   spread-onto-optional, spread-onto-construct, member-target/non-simple constructs,
    arguments-object dependencies, unsupported non-with dynamic lookup,
-   private/super member targets, complex receiver/key shapes, and
+   private member targets, complex receiver/key shapes, and
    receiver-binding-sensitive adjacent families beyond the direct
    activation-resolved and with-backed
    dynamic-identifier boundaries must still decline before VM execution.

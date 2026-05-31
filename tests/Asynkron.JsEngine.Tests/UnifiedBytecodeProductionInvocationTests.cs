@@ -1982,6 +1982,59 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalChainComputedPlainCall_SkipsComputedKeyWhenBaseIsNullish()
+    {
+        // gh2828 AC-2: a?.b[k]() short-circuits before evaluating the computed key when base is nullish.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyEvalCount = 0;
+            function getKey() {
+                keyEvalCount++;
+                return "run";
+            }
+            function invoke(a) {
+                return a?.box[getKey()]();
+            }
+
+            var value = invoke(undefined);
+            "" + value + ":" + keyEvalCount;
+            """);
+
+        Assert.Equal("undefined:0", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalChainComputedPlainCall_BindsReceiverToNamedHopObject()
+    {
+        // gh2828 AC-3: a?.b[k]() preserves receiver binding to a.b for the computed call target.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, key) {
+                return a?.box[key]();
+            }
+
+            var captured = false;
+            var holder = {
+                box: {
+                    run: function () {
+                        captured = this === holder.box;
+                        return 7;
+                    }
+                }
+            };
+
+            var value = invoke(holder, "run");
+            "" + value + ":" + captured;
+            """);
+
+        Assert.Equal("7:true", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

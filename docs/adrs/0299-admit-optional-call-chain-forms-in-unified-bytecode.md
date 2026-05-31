@@ -7,11 +7,12 @@ Accepted
 ## Context
 
 Faktorial issue `gh2806` and PR #2806 extend the production unified-bytecode VM
-to admit two optional call-chain forms that were previously declined with
+to admit optional call-chain forms that were previously declined with
 `OptionalChainDependency`:
 
 - `a?.b.c()` — optional-start chain, plain non-optional call
 - `a?.b?.c()` — double-optional chain, receiver-optional call
+- `a?.b[k]()` — optional-start chain, computed plain non-optional call
 
 ADR 0289 admitted simple receiver-optional (`box?.read()`) and callee-optional
 (`box.read?.()`) call forms. ADR 0298 admitted multi-hop optional named property
@@ -27,7 +28,7 @@ activation-resolved base.
 
 ### Expression program IR
 
-The two new forms produce distinct expression program patterns:
+The forms produce these expression program patterns:
 
 **`a?.b.c()`** (Case 4):
 ```
@@ -45,9 +46,16 @@ true for the base; the `.c` member itself is not optional.
 The extra `JumpIfNullish` at [3] comes from `member.IsOptional=true` on the `.c`
 member expression (the `?.c` hop).
 
+**`a?.b[k]()`** (Case 6):
+```
+[base(0), GetNamedProperty(IsOptional:true, b)(1), JumpIfShortCircuited(2),
+ key(3), LoadComputedCallTarget(4), args..., Call]
+```
+The computed key at [3] must remain unevaluated when the base short-circuits.
+
 ### Eligibility gate
 
-Two new private candidate recognizers are added to
+Candidate recognizers are added to
 `UnifiedBytecodeProductionEligibility`:
 
 - `TryIsFirstBoundaryOptionalChainPlainCallCandidate` — matches the Case 4 pattern
@@ -57,9 +65,13 @@ Two new private candidate recognizers are added to
   pattern (`LoadNamedCallTarget` at index 4, preceded by `JumpIfNullish(RWU)`, preceded
   by `JumpIfShortCircuited`, preceded by `GetNamedProperty(IsOptional:true)`, preceded
   by activation-resolved base).
+- `TryIsFirstBoundaryOptionalChainComputedPlainCallCandidate` — matches the Case 6
+  pattern (`LoadComputedCallTarget` at index 4, with simple key at index 3, preceded by
+  `JumpIfShortCircuited`, preceded by `GetNamedProperty(IsOptional:true)`, preceded by
+  activation-resolved base).
 
-Both are wired into `TryIsFirstBoundaryCallTargetPreparationCandidate` alongside the
-existing Cases 1–3.
+These are wired into `TryIsFirstBoundaryCallTargetPreparationCandidate` alongside
+existing call-target cases.
 
 The `GetNamedProperty(IsOptional:true)` op at index 1 was previously declined unless it
 matched a property-read candidate. Now, when `isCallTargetPreparationCandidate` is true
@@ -67,7 +79,7 @@ matched a property-read candidate. Now, when `isCallTargetPreparationCandidate` 
 admits the op via the existing `if (isCallTargetPreparationCandidate) break;` escape
 added at the end of that branch.
 
-### Lowering — reuse `JumpIfNullishReplaceUndefined` and `PrepareNamedCallTarget`/`PrepareNamedOptionalCallTarget`
+### Lowering — reuse `JumpIfNullishReplaceUndefined` and existing prepare opcodes
 
 **Case 4 (`a?.b.c()`)** lowers to:
 ```
@@ -100,6 +112,21 @@ the same `end` PC, which is backpatched to the instruction count after the call.
 `PrepareNamedOptionalCallTarget` is emitted with `IsOptionalReceiverCheck: true`,
 matching the existing Case 1 pattern.
 
+**Case 6 (`a?.b[k]()` )** lowers to:
+```
+LoadSlot(base)
+JumpIfNullishReplaceUndefined(end)   ← short-circuits when a is null/undefined
+GetNamedProperty(b)                  ← receiver for [k]()
+key-load                             ← same simple key rules as computed member calls
+PrepareComputedCallTarget            ← loads callee, receiver stays on stack
+args...
+CallInvocationBoundary
+end:
+```
+
+`JumpIfNullishReplaceUndefined` is backpatched to the PC after the call, ensuring
+the computed key is skipped on the short-circuit path.
+
 ### Invariants preserved
 
 - Both forms require an activation-resolved base at op[0] (same as all other
@@ -107,6 +134,7 @@ matching the existing Case 1 pattern.
 - The `GetNamedProperty(IsOptional:true)` must be non-private and have
   `!ShortCircuitOnNullishTarget`.
 - The `LoadNamedCallTarget` must be non-private.
+- Case 6 computed-key operands must satisfy the existing "simple key" contract.
 - Call arguments must be simple (same admissibility rules as other call-target forms).
 - No new VM opcodes are needed.
 - The callee-optional trailing structure (`Call, Jump, SwapTopTwo, Pop`) does NOT
@@ -114,7 +142,8 @@ matching the existing Case 1 pattern.
 
 ## Consequences
 
-- `a?.b.c(args)` and `a?.b?.c(args)` now route through the production VM,
+- `a?.b.c(args)`, `a?.b?.c(args)`, and `a?.b[k](args)` now route through the
+  production VM,
   gaining the same throughput benefit as other admitted call-chain forms.
 - The gate for `a.x?.b.c()` (non-activation-resolved base) correctly remains
   declined with `OptionalChainDependency` (AC-4).

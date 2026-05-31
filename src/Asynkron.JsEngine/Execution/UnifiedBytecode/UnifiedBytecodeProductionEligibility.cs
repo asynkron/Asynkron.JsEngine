@@ -1822,7 +1822,8 @@ internal static class UnifiedBytecodeProductionEligibility
             TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots) ||
             TryIsFirstBoundaryOptionalChainPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(program, identifierConstants, stringConstants, activationSlots))
+            TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
+            TryIsFirstBoundaryOptionalChainComputedPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots))
         {
             return true;
         }
@@ -2189,6 +2190,71 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return HasSimpleCallArguments(program, identifierConstants, activationSlots, namedCallTargetIndex + 1, call);
+    }
+
+    // Case 6: a?.b[k]() — optional-start chain, computed plain non-optional call
+    // Expression program: [base(0), GetNamedProperty(IsOptional:true,b)(1), JumpIfShortCircuited(2),
+    //                       key(3), LoadComputedCallTarget(4), args..., Call]
+    private static bool TryIsFirstBoundaryOptionalChainComputedPlainCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, key, LoadComputedCallTarget, Call] = 6
+        if (program.OperationCount < 6)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        // Keep AC-4 boundary for gh2828 narrow: optional-start computed plain-call
+        // admission does not include spread arguments in this slice.
+        if (call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex != 4)
+        {
+            return false;
+        }
+
+        if (program.GetOperation(2).Kind != ExpressionOpKind.JumpIfShortCircuited)
+        {
+            return false;
+        }
+
+        var firstHop = program.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        if (!IsSimpleComputedPropertyKey(program.GetOperation(3), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var computedCallTarget = program.GetOperation(computedCallTargetIndex);
+        return !computedCallTarget.IsOptional &&
+               !computedCallTarget.ShortCircuitOnNullishTarget &&
+               HasSimpleCallArguments(program, identifierConstants, activationSlots, computedCallTargetIndex + 1, call);
     }
 
     // Returns true and the index of the Call op when the expression program ends with

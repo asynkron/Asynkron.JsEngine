@@ -445,10 +445,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     boundary operand encoding rather than requiring a new opcode, provided the
     spread flattening reuses a shared helper (`EnumerateSpread`) and the no-mixed-
     execution rule is respected — no AST/IR fallback for the spread path.
-    Optional calls, spread-onto-construct, super calls, and direct eval continue
-    to decline at their existing guards and are not affected by the spread
-    admission. Non-spread plain-constructor calls (`new F(...)`) were admitted
-    separately in issue #2690 / PR #2697 (rule #37).
+    Optional calls, super calls, and direct eval continue to decline at their
+    existing guards and are not affected by the spread admission. Non-spread
+    plain-constructor calls (`new F(...)`) were admitted separately in issue
+    #2690 / PR #2697 (rule #37); spread-onto-construct is now owned by the
+    construct boundary rather than by call-boundary admission.
     Issue #2705 / PR #2719 widened admitted call argument expressions to
     include **span-measured simple array and object literals** (`fn([a, b])`,
     `fn({x: 1})`, `fn(a, [b, c])`). The `HasSimpleCallArguments` 1-op-per-
@@ -618,10 +619,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     since landed direct computed member calls, issue #2679 / PR #2683 has
     since admitted labeled control flow (rule #36), and issue #2690 / PR #2697
     has since admitted non-spread plain-constructor calls (rule #37). Future
-    plan edits must treat spread-onto-construct, super calls, member-target
-    constructs, direct eval, dynamic lookup, and iterator/destructuring as
-    remaining lanes unless current `main` proves an even newer slice has
-    landed.
+    plan edits must treat super calls, direct eval, dynamic lookup, and
+    iterator/destructuring as remaining lanes unless current `main` proves an
+    even newer slice has landed.
 32. When preserving or widening with-backed dynamic names on the production
     unified bytecode route, keep the accepted program activation-hoist aligned
     and receiver-owned. The sync bridge must define function-scoped var bindings
@@ -776,16 +776,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     label itself — is the real boundary, and a PC-based multi-driver shortcut is
     unsound under lazy target compilation.
 
-37. When admitting synchronous non-spread construct calls (`new F(...)`) to
-    production unified bytecode, keep the `ConstructInvocationBoundary` opcode
-    receiver-free and mirror the spec-conformant construct reference helper
-    (`ExecuteProgramConstruct`). The construct model differs from call: the
-    constructor is pushed as a plain value load with no receiver or call-target
-    preparation, and `[[Construct]]` is invoked with the constructor as both the
-    target and `new.target`. Spread-onto-construct (`new F(...args)`) must
-    decline as `ObjectLiteralOrSpreadDependency`; member-target constructs
-    (`new obj.F()`) and non-simple argument expressions must decline at their
-    existing guards, matching the parallel restrictions on call targets. Keep the
+37. When admitting synchronous construct calls (`new F(...)`, `new F(...args)`,
+    `new obj.F(...)`, and `new obj[key](...)`) to production unified bytecode,
+    keep the `ConstructInvocationBoundary` opcode receiver-free and mirror the
+    spec-conformant construct reference helper (`ExecuteProgramConstruct`). The
+    construct model differs from call: the constructor is pushed as a plain
+    value load with no receiver or call-target preparation, and `[[Construct]]`
+    is invoked with the constructor as both the target and `new.target`. Spread
+    arguments may reuse the invocation-boundary packed spread-mask encoding, but
+    flattening still belongs inside the construct boundary before calling
+    `ReflectHelper.Construct`. Member and computed constructor targets may use
+    already production-owned property-read opcodes, but they must not route
+    through call-target preparation or bind a receiver as `this`. Keep the
     super call family (`SuperConstruct`, `LoadNamedSuperCallTarget`,
     `LoadComputedSuperCallTarget`) explicitly declined as
     `SuperPropertyDependency` — do not implement them in the flat-slot VM. The
@@ -804,13 +806,16 @@ all-or-nothing until a separate routing issue proves production readiness.
     function kinds cannot be proven through the normal proof pack and must not be
     added until the activation gate itself is widened and the matching VM
     semantics are demonstrable. Pair construct admission with proof-pack
-    coverage for `new.target` propagation, zero/many-arg construct, argument
-    order, not-a-constructor `TypeError`, and the spread/member-target/super
-    negative declines. WHY: issue #2690 / PR #2697 admitted `Construct` with ADR
-    0286. The super family analysis confirmed that gate-layer decisions upstream
-    of expression eligibility determine what can be demonstrably proven in the
-    flat-slot VM; future widening of the activation gate must pair with matching
-    VM semantics proof before the expression-level decline is removed.
+    coverage for `new.target` propagation, zero/many-arg construct, spread
+    materialization, member/computed constructor targets, argument order,
+    not-a-constructor `TypeError`, and the super negative decline. WHY: issue
+    #2690 / PR #2697 admitted `Construct` with ADR 0286, and the later
+    construct-boundary widening admitted spread and member/computed constructor
+    targets without mixing in call-boundary or AST fallback semantics. The super
+    family analysis confirmed that gate-layer decisions upstream of expression
+    eligibility determine what can be demonstrably proven in the flat-slot VM;
+    future widening of the activation gate must pair with matching VM semantics
+    proof before the expression-level decline is removed.
 
 38. When admitting a per-iteration TDZ head environment (`for (const/let x of/in …)`) to production unified bytecode, audit all three eligibility gate layers simultaneously — not just the first declining gate. The per-iteration TDZ head shape touches independent gates in series: (1) **`IsSupportedPushEnvironment`** by default declines any non-empty `PerIterationBindings`; admit it when all lexical slots resolve to flat activation slots. (2) The **structured loop-reconstruction gates** (`IsSupportedDriverLoopBackEdgeTarget`, `TryIsLinearCanonicalWhileBody`) — a driver loop with a per-iteration environment emits `PopEnvironment` as the back-edge source and has `Push`/`PopEnvironment` in the body; accept `PopEnvironment` as a valid back-edge source and treat the pair as linear flat-slot pass-throughs while still requiring a branch-free body to preserve no-mixed-execution. (3) The **production opcode allowlist** — a new opcode such as `TdzHeadInit` must be explicitly added to the admitted production subset even when the opcode and its VM handler already exist from a prior prototype slice. Emit `TdzHeadInit` **before** the iterable/object source expression ops so the TDZ is established before the source is evaluated (making `for (const x of [x])` throw the correct `ReferenceError`). The safety boundary is: captured/dynamic activations decline wholesale upstream, so the only case where per-iteration binding freshness is observable (a closure over the loop binding) never reaches this path — prove this with a negative routing test. When a new driver-state or per-iteration environment shape is admitted, assume it touches multiple gate layers and test each layer independently before claiming the shape is fully admitted. WHY: issue #2678 / PR #2687 admitted the per-iteration TDZ head shape (Slice A, ADR 0288). The first attempted fix targeted only one of three blocking gates; all three had to move together before the failing test passed. The useful lesson is that eligibility for a stateful driver shape is spread across the environment-support gate, the loop-reconstruction analysis, and the per-opcode allowlist — a shape that looks like a one-line eligibility change often requires synchronized updates across all three surfaces.
 

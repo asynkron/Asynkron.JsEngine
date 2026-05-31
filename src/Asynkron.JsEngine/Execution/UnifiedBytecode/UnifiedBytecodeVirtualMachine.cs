@@ -422,7 +422,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.ConstructInvocationBoundary:
                     stackPointer = ExecutePreparedConstruct(
-                        instruction.Operand,
+                        DecodeCallBoundaryArgumentCount(instruction.Operand),
+                        DecodeCallBoundarySpreadMask(program, instruction.Operand),
                         stack,
                         stackPointer,
                         context);
@@ -4170,14 +4171,13 @@ internal static class UnifiedBytecodeVirtualMachine
         return baseIndex + 1;
     }
 
-    // Synchronous non-spread construct call (`new F(...)`, gh2690). Mirrors the
-    // spec-conformant construct reference helper: the constructor and its simple
-    // arguments are already on the stack ([constructor, arg0, .. arg(n-1)]); invoke
-    // [[Construct]] with the constructor itself as new.target (per `new F()` semantics)
-    // and replace the constructor slot with the result. Spread-onto-construct is declined
-    // by eligibility, so only the no-spread path is modeled here.
+    // Synchronous construct call. Mirrors the spec-conformant construct reference
+    // helper: the constructor and its logical arguments are already on the stack
+    // ([constructor, arg0, .. arg(n-1)]); spread positions hold iterable values
+    // to flatten before invoking [[Construct]] with the constructor itself as new.target.
     private static int ExecutePreparedConstruct(
         int argumentCount,
+        ImmutableArray<int> spreadMask,
         Span<JsValue> stack,
         int stackPointer,
         EvaluationContext context)
@@ -4198,12 +4198,29 @@ internal static class UnifiedBytecodeVirtualMachine
 
         try
         {
-            stack[constructorIndex] = ConstructNoSpread(
-                callable,
-                stack,
-                constructorIndex + 1,
-                argumentCount,
-                context.RealmState);
+            if (spreadMask.IsDefaultOrEmpty)
+            {
+                stack[constructorIndex] = ConstructNoSpread(
+                    callable,
+                    stack,
+                    constructorIndex + 1,
+                    argumentCount,
+                    context.RealmState);
+            }
+            else
+            {
+                var spreadArguments = MaterializeSpreadCallArguments(
+                    argumentCount,
+                    spreadMask,
+                    stack,
+                    constructorIndex + 1,
+                    context);
+                stack[constructorIndex] = ReflectHelper.Construct(
+                    callable,
+                    spreadArguments,
+                    callable,
+                    context.RealmState);
+            }
         }
         catch (ThrowSignal signal)
         {
@@ -4274,7 +4291,7 @@ internal static class UnifiedBytecodeVirtualMachine
         return ReflectHelper.Construct(callable, arguments, callable, realm);
     }
 
-    // CallInvocationBoundary operand packing for spread calls (gh2676). Mirrors
+    // Invocation-boundary operand packing for spread calls/constructs. Mirrors
     // UnifiedBytecodeCompiler.EncodeCallBoundaryOperand: low 16 bits are the pushed
     // argument value count, high bits are spreadMaskIndex + 1 (0 means "no spread").
     private static int DecodeCallBoundaryArgumentCount(int operand) => operand & 0xFFFF;

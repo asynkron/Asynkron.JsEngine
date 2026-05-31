@@ -174,6 +174,35 @@ public sealed class RegExpTests(ITestOutputHelper output) : InternalTestBase(out
     }
 
     [Fact(Timeout = 2000)]
+    public async Task UnicodePropertyEscape_ScriptExtensionsCommonAndInherited_UnanchoredSearch_MatchesExpectedSamples()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       const common = "_";
+                                                       const inherited = "\u030F";
+                                                       const latin = "A";
+                                                       const commonMatch = /\p{Script_Extensions=Common}/u.exec(latin + common);
+                                                       const inheritedMatch = /\p{Script_Extensions=Inherited}/u.exec(latin + inherited);
+                                                       const negatedCommonMatch = /\P{Script_Extensions=Common}/u.exec(common + latin);
+                                                       const negatedInheritedMatch = /\P{Script_Extensions=Inherited}/u.exec(inherited + latin);
+                                                       [
+                                                         commonMatch === null ? "common:null" : commonMatch[0] + ":" + commonMatch.index,
+                                                         inheritedMatch === null ? "inherited:null" : inheritedMatch[0] + ":" + inheritedMatch.index,
+                                                         negatedCommonMatch === null ? "negatedCommon:null" : negatedCommonMatch[0] + ":" + negatedCommonMatch.index,
+                                                         negatedInheritedMatch === null ? "negatedInherited:null" : negatedInheritedMatch[0] + ":" + negatedInheritedMatch.index
+                                                       ];
+
+                                           """);
+
+        var values = Assert.IsType<JsArray>(result);
+        Assert.Equal("_:1", values.Items[0].AsString());
+        Assert.Equal("\u030F:1", values.Items[1].AsString());
+        Assert.Equal("A:1", values.Items[2].AsString());
+        Assert.Equal("A:1", values.Items[3].AsString());
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task RegExp_Constructor_Basic()
     {
         await using var engine = CreateEngine();

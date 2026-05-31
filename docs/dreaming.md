@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-31 (rev 5)
+Date: 2026-05-31 (rev 6)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,19 +11,15 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 4 added the JsValue struct layout diagram, bytecode instruction format specification, Mermaid component diagrams for the Concurrency Runtime (3), Platform Layer (4), Standard Library (5), and Evidence layer (6), the Worker/Realm Fabric component (14), the Compilation Artifact Cache component (15), and replaced the changelog-style critique with a forward-looking list. This rev 5 addresses six remaining gaps identified when applying the same scrutiny to rev 4:
+Rev 5 added the startup cost breakdown diagram, the JsValue ↔ .NET type conversion flow diagram at the host boundary, the host error translation path diagram, corrected the greenfield top-level system flowchart from "4-tier" to "2 strata (greenfield target)", and added precondition language to the capability lifecycle backward edges — addressing gaps 1–4 and 6 from the rev 5 self-critique. Gap 5 (proven-now table phase grouping) was listed but not resolved. This rev 6 resolves gap 5 and addresses three new coverage omissions identified by reviewing rev 5:
 
-1. **Greenfield top-level diagram labels the Execution Engine as "4-tier".** The top-level system flowchart's `Execution Engine` subgraph still carries the migration-reality label "4-tier" and exposes Tier 0–3 node labels. This contradicts the 2-stratum target stated in the same document a few sections below. The greenfield diagram should show only Stratum 0 and Stratum F; the 4-tier migration reality already has its own dedicated diagram.
+1. **Proven-now table still flat (gap 5 carried from rev 5).** The table has 24 rows in flat order with no migration-phase context. Grouped by phase — **Core runtime** (foundational invariants), **Migration active** (2-stratum target work in progress), and **Directional** (no implementation yet) — the table becomes actionable for slice selection.
 
-2. **No startup cost breakdown diagram.** The Performance SLOs section targets cold-start < 5 ms p95 and the System lifecycle section describes the startup sequence, but neither shows how the budget is distributed across phases. A slice author reducing cold-start cost has no diagram showing which phase dominates and where profiling effort should land.
+2. **No TypeScript preprocessing section.** The compilation pipeline assumes JavaScript source. TypeScript is the dominant typed JS dialect in .NET ecosystems; a source-level annotation-stripping layer before the lexer is the minimal architectural treatment. Without a section, the architecture gives no guidance on how TS support is bounded from the core pipeline.
 
-3. **No JsValue ↔ .NET type conversion flow diagram at the host boundary.** The Embedding/Host API section (component 11) describes the value conversion contract in prose but never draws the conversion paths. A host developer implementing a `HostFunction` cannot see at a glance which conversions are zero-alloc and which allocate a managed wrapper.
+3. **No module graph parallelism section.** The module loader in component 4 is described as a sequential pipeline. Specifier fetch and parse for independent modules can proceed concurrently per the ECMAScript spec (only evaluation is ordered). The architecture needs a section that separates the parallel-safe phases from the sequential evaluation phase and states the invariants.
 
-4. **No host error translation path diagram.** Component 11 documents the `EvaluateAsync` entry point and the fact that uncaught throw completions become .NET exceptions or `Task.Faulted`, but the path from JS throw completion through VM unwind to the host boundary is not drawn. An embedder cannot follow the error propagation without reading source code.
-
-5. **Proven-now table has no priority or phase grouping.** The table currently has 25+ rows in flat order. A maintainer choosing a next slice cannot distinguish which proven-now rows are foundational to the migration target from which are directional aspirations. A simple grouping by migration phase (core, migration, directional) would make the table actionable.
-
-6. **Capability lifecycle backward edges lack precondition language.** The `stateDiagram-v2` for capability lifecycle shows backward edges (e.g., `ProductionClaim --> Prototyped`) but does not state the condition that triggers each reversion. A reviewer looking at a regression cannot determine which edge applies without reading ADR text.
+4. **No proper tail call (PTC) section.** ECMAScript strict-mode mandates proper tail calls. The execution model has no section treating PTC — not even as a documented Stratum F decline boundary. A slice author cannot determine whether PTC is a Tier 0 target, an accepted structural seam, or untracked debt.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -270,6 +266,29 @@ Pipeline invariants:
 - Eligibility classifiers are the only thing allowed to inspect compiled shape boundaries at routing time.
 - Every `FBK` marker is tracked technical debt. Tier 3 volume must decrease monotonically.
 
+## TypeScript preprocessing (directional)
+
+TypeScript source is JavaScript with type annotations stripped before parsing. A preprocessing layer sits before the lexer: it removes type annotations while keeping source positions stable for downstream stack trace attribution and source map generation. This layer does not type-check; type safety is the TypeScript compiler's responsibility, not the engine's.
+
+```mermaid
+flowchart LR
+    TSS["TypeScript source\n(.ts / .tsx)"]
+    STRIP["Type annotation stripper\nidentifier-aware, position-preserving\nreplaces annotations with whitespace"]
+    JS["Stripped JavaScript source\noriginal byte positions preserved\nsource-map record: TS offset → stripped offset"]
+    LEX["Lexer (existing pipeline)"]
+
+    TSS --> STRIP --> JS --> LEX
+
+    style STRIP fill:#555,color:#fff
+```
+
+TypeScript preprocessing invariants (all directional):
+- The stripper produces JavaScript source with the same byte offsets for non-annotation tokens; type annotations are replaced with whitespace, not deleted, to preserve column positions in stack traces.
+- JSX / TSX element expressions require a separate stripping phase; they are not covered by annotation stripping alone.
+- The engine does not expose a TypeScript type checker; `.d.ts` file processing and type inference are out of scope.
+- The stripper output feeds the normal lexer → parser → lowering pipeline unchanged; no compiler phase sees TypeScript syntax.
+- This is entirely directional; no TypeScript stripping layer exists today.
+
 ## 4-tier execution model
 
 The runtime has four execution tiers. All accepted shapes should eventually reside in Tier 0. Tiers 1–3 are temporary correctness paths.
@@ -369,6 +388,7 @@ This table distinguishes near-closure seams from structural seams. Near-closure 
 | CommonJS host shim | Platform | **Structural (host layer)** | No core-engine obligation |
 | Label-dependent control flow | T2 | **Structural** | ADR 0210 |
 | Spread / construct / super call families | T2 → T0 | **Deferred** | Expansion contract bucket |
+| Proper tail calls (PTC) — strict mode | T0 (target) | **Untracked — requires ADR** | ECMAScript strict-mode mandate; no seam ADR yet |
 
 ### Dream completion condition
 
@@ -605,6 +625,54 @@ Platform invariants:
 - Module dependency fault propagation: `ModuleEntry.EvaluationTask` is the normal async dependency drain owner; `EnsureModuleEvaluatedAsync(...)` fallback activates only when no stored task exists (ADR 0212).
 - Node.js-competitive module/runtime parity language requires explicit proof; "directional" until then.
 
+### Module graph parallelism (directional)
+
+The ECMAScript specification requires sequential module **evaluation** in dependency post-order. It does not require sequential **fetch** or **parse**. The module loader can exploit this by driving a parallel-fetch phase for all reachable specifiers before the sequential evaluation phase begins.
+
+```mermaid
+flowchart TB
+    ENTRY["Entry module\nspecifier resolved"]
+
+    subgraph Parallel["Parallel phase — fetch + parse (spec-safe, independent specifiers)"]
+        direction LR
+        FA["Fetch A\nhost loader hook"]
+        FB["Fetch B\nhost loader hook"]
+        FC["Fetch C\nhost loader hook"]
+        PA["Parse A → typed module AST"]
+        PB["Parse B → typed module AST"]
+        PC["Parse C → typed module AST"]
+        FA --> PA
+        FB --> PB
+        FC --> PC
+    end
+
+    LINK["Link phase\nnamespace bindings\ncircular graph detection"]
+
+    subgraph Sequential["Sequential phase — evaluate (spec post-order, top-level await aware)"]
+        direction LR
+        EA["Evaluate A"]
+        EB["Evaluate B (depends on A)"]
+        EC["Evaluate C (depends on A, B)"]
+        EA --> EB --> EC
+    end
+
+    ENTRY --> Parallel --> LINK --> Sequential
+
+    style FA fill:#333,color:#fff
+    style FB fill:#333,color:#fff
+    style FC fill:#333,color:#fff
+    style EA fill:#060,color:#fff
+    style EB fill:#060,color:#fff
+    style EC fill:#060,color:#fff
+```
+
+Module graph parallelism invariants (all directional):
+- Evaluation order is spec-mandated depth-first post-order; parallelism applies **only** to the fetch and parse phases.
+- The host-provided loader hook must support concurrent invocation for parallel fetch to be effective; a sequential hook serializes the fetch phase regardless.
+- Circular module graphs are detected at the link phase; the parallel-fetch driver must not deadlock when a specifier appears in a cycle.
+- Top-level await in a dependency suspends its evaluation turn; parallel-fetch does not change this — it only front-loads the parse so evaluation can start without waiting for network round-trips.
+- This is directional; no parallel-fetch pipeline exists today. The current module loader drives fetch and parse sequentially.
+
 ## Layered dependency topology
 
 The cross-module dependency graph is not flat. This layering is an invariant: lower layers must not import higher-layer internals.
@@ -666,6 +734,39 @@ Seam-elimination rules:
 - When a seam is intentional (eval observability, dynamic `with`, proxy interceptors), document it in an ADR and stop treating it as debt.
 - Near-closure seams (see seam inventory table) are first in the optimization queue. Structural seams are scoped to milestones.
 - The canonical list of remaining fallback seams is maintained in the unified-bytecode expansion contract.
+
+## Proper tail calls — PTC (directional)
+
+ECMAScript strict-mode mandates proper tail calls: a call expression in tail position of a strict-mode function must not grow the call stack. The engine's treatment — opcode, frame reuse, or documented Stratum F decline — must be a first-class design decision, not an omission.
+
+```mermaid
+flowchart TB
+    SRC["Source: strict-mode function\nreturn f(args)  ← tail position"]
+    DETECT["Tail position detection\nstatic analysis at lowering time\ntail-call flag on call-site"]
+
+    subgraph Stratum0["Stratum 0 path (target)"]
+        OPCODE["TailCall opcode\nreplace current frame instead of push\nno new stack frame allocated"]
+    end
+
+    subgraph StratumF["Stratum F path (accepted decline)"]
+        GROW["Normal call\nstack grows\nnon-strict / non-tail / spread / new-target dependency"]
+    end
+
+    SRC --> DETECT
+    DETECT -->|strict + tail position + eligible shape| OPCODE
+    DETECT -->|non-strict or non-tail or ineligible| GROW
+
+    style OPCODE fill:#060,color:#fff
+    style GROW fill:#933,color:#fff
+```
+
+Tail call invariants (all directional):
+- Tail position detection is a compile-time static analysis in the lowering pass; it does not add a runtime check on the hot path.
+- A `TailCall` opcode reuses the current call frame (slot array + return address) instead of pushing a new frame; this is the mechanism that enables non-stack-growing tail recursion.
+- Non-strict mode PTC is implementation-defined by the spec; this engine may choose to apply PTC only in strict mode to match the mandatory minimum.
+- `yield`, `await`, `arguments` reference, and `new.target` use inside the tail call site are eligibility-disqualifying conditions; they must be detected at lowering time.
+- The seam inventory entry "Proper tail calls (PTC) — strict mode" is **Untracked — requires ADR**. A focused ADR must specify the eligibility criteria, frame-reuse mechanism, and decline conditions before any production claim.
+- This is entirely directional; no tail call opcode exists today.
 
 ## Capability lifecycle (claim discipline)
 
@@ -1305,32 +1406,55 @@ Boundary contract rules:
 
 ## Proven-now vs directional-next
 
+This table is grouped by migration phase. Use it to choose the next slice: **Phase 0** rows are foundational invariants — they must remain correct; **Phase 1** rows are active migration targets — pick from here for the next slice; **Phase 2** rows are directional and should not be targeted until Phase 1 is further along.
+
+### Phase 0 — Core runtime (foundational)
+
+These capabilities are the immutable structural foundation. Every slice in every other phase depends on their soundness. Regressions here are blocking regardless of priority.
+
 | Area | Proven now | Directional next (needs new proof) |
 |---|---|---|
+| JsValue struct layout | Tagged-union struct: `Kind` discriminant (4-byte int enum, tag values 0–9), `NumberValue` (8-byte IEEE 754 double; also stores Boolean as 0.0/1.0), `ObjectValue` (8-byte managed reference for String/BigInt/Symbol/Object). Total: 24 bytes on 64-bit .NET. Undefined/Null/Boolean/Number are fully inline (no heap allocation). | NaN-boxing optimization (encode tag in unused NaN mantissa bits, collapse struct to 8 bytes); `Unit` and `Uninitialized` kinds removed from public embedding surface once TDZ and statement-completion models are fully formalized. |
+| VM register model | UnifiedBytecodeVM dispatch loop uses .NET locals as the operand storage, which the JIT maps to hardware registers on the fast path. | Formal register-based instruction encoding (explicit source/destination register operands in opcode format); elimination of any remaining implicit stack-push/pop patterns in the Tier 0 instruction set. |
+| Bytecode instruction format | Register-based opcode model: .NET locals as operand storage, JIT maps to hardware registers on the hot path. `UnifiedBytecodeInstruction` carries `UnifiedBytecodeOpCode` (byte enum) + 32-bit integer operand per instruction. | Fixed 32-bit wire encoding: `[Opcode: 8][Dest: 8][Src1: 8][Src2: 8]` with wide-instruction escape prefix for large operands; max 256 registers; Src1+Src2 as 16-bit constant pool index for literal loads. Requires ADR before wire-format freeze. |
 | Compilation pipeline | Typed AST → StatementIR, ExpressionProgram, UnifiedBytecodeProgram; 4-tier routing | Full elimination of Tier 3 fallback seams from runtime |
-| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, no-spread call invocations, named/computed member calls, accepted control flow, resumable state (Yield/Await opcodes) | `this`-dependent ordinary sync functions (#2633), wider call families, label-dependent control flow |
-| Tier 1 (ExpressionProgram) | Covers most expression shapes; inline expression buffers proven | Compact ExpressionOp storage as runtime contract |
 | Realm isolation | Cross-realm error creation realm-owned (ADR 0137, 0270); brand validation JsValue-native (ADR 0196) | Broader realm-sensitivity checks in fast paths |
 | Standard Library | JsValue-native hot paths on most Array/String helpers; descriptor semantics proven | Full removal of object-overload compat tripwires |
+| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. Allocation budget table defines per-site Gen 0/1/2 targets. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. Argument array elision and stackalloc fast paths are improvement targets. |
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit; resumable Tier 0 state model (ADR 0277) | Dedicated async-generator Tier 0 executor (Milestone C) |
+
+### Phase 1 — Migration active (2-stratum target in progress)
+
+These capabilities track the active migration from 4-tier reality to the 2-stratum target. A slice author should pick from this group for the next bounded slice.
+
+| Area | Proven now | Directional next (needs new proof) |
+|---|---|---|
+| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, no-spread call invocations, named/computed member calls, accepted control flow, resumable state (Yield/Await opcodes) | `this`-dependent ordinary sync functions (#2633), wider call families, label-dependent control flow |
+| Tier 1 (ExpressionProgram) | Covers most expression shapes; inline expression buffers proven | Compact ExpressionOp storage as runtime contract |
+| Tiered execution | Unified bytecode VM is an explicit tier-1 with bounded eligibility; interpreted runner is tier-0. | Tier-2 optimizing execution (JIT or AOT shape) remains directional; profile-guided tier promotion requires separate proof. |
+| Primary sync route | 100% of accepted ordinary sync production programs attempt Tier 0 before Tier 2/Tier 3 (PR #2623) | Profile evidence for coverage claim (#2634) |
 | Module runtime | ESM lifecycle, registry, dynamic import phases, top-level await, dependency fault propagation (ADR 0212) proven | Node.js-competitive CommonJS ergonomics (host-layer work) |
 | Host interop | Host callable/global bridge boundaries explicit | Broader Node.js-style host behavior (integration-layer work) |
-| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
-| Tiered execution | Unified bytecode VM is an explicit tier-1 with bounded eligibility; interpreted runner is tier-0. | Tier-2 optimizing execution (JIT or AOT shape) remains directional; profile-guided tier promotion requires separate proof. |
-| GC model | .NET GC owns all JS object memory; no custom allocator exists; JS object graphs follow .NET root discipline. Allocation budget table defines per-site Gen 0/1/2 targets. | Finalizer discipline for JS wrapper objects, GC-aware pool allocation, and weak-reference lifetime management are directional. Argument array elision and stackalloc fast paths are improvement targets. |
-| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
-| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
-| Primary sync route | 100% of accepted ordinary sync production programs attempt Tier 0 before Tier 2/Tier 3 (PR #2623) | Profile evidence for coverage claim (#2634) |
-| Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
+| Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
 | Event loop | Microtask queue ownership proven; await/resume contract explicit. | Full host event loop lifecycle (macrotask / microtask phasing, `setTimeout`/`setInterval` host-layer scheduling, `queueMicrotask`, animation callbacks) is directional. |
 | Performance SLOs | Allocation per hot loop partially met; Tier 0 routing coverage proven. Cold-start latency and microtask drain latency have a committed ProfileRunner baseline (`startup`, `microtask` profiles in `profile-manifest.json`; `tools/perf-slo-baseline.md`; `make slo-gate`). | Full Jint allocation comparison; tightening SLO timing targets to < 5 ms p95 for cold-start and < 1 ms per 1 000 microtasks. |
 | .NET Platform Advantage | `JsValue` is a struct (no heap boxing on value-passing fast paths); `Span<JsValue>` parameter contract exists in Tier 0 call-site helpers; meta-JIT applies to the dispatch loop. | NativeAOT cold-start build; SIMD intrinsics for string/hash operations; `ValueTask<JsValue>` zero-alloc async fast path; full `Span<JsValue>`-native argument passing without `JsValue[]` backing arrays on fixed-arity calls. |
-| Embedding / Host API | `JsEngine.CreateRealm()` entry point exists; `HostFunction` delegate bridge is functional; `EvaluateAsync` is the primary async entry point. | Module loader hook (host-owned resolution strategy); capability grant surface (granular permission control); stable public API surface with no `internal`-type leakage; `ValueTask<JsValue>` fast path for already-completed async calls. |
-| VM register model | UnifiedBytecodeVM dispatch loop uses .NET locals as the operand storage, which the JIT maps to hardware registers on the fast path. | Formal register-based instruction encoding (explicit source/destination register operands in opcode format); elimination of any remaining implicit stack-push/pop patterns in the Tier 0 instruction set. |
-| JsValue struct layout | Tagged-union struct: `Kind` discriminant (4-byte int enum, tag values 0–9), `NumberValue` (8-byte IEEE 754 double; also stores Boolean as 0.0/1.0), `ObjectValue` (8-byte managed reference for String/BigInt/Symbol/Object). Total: 24 bytes on 64-bit .NET. Undefined/Null/Boolean/Number are fully inline (no heap allocation). | NaN-boxing optimization (encode tag in unused NaN mantissa bits, collapse struct to 8 bytes); `Unit` and `Uninitialized` kinds removed from public embedding surface once TDZ and statement-completion models are fully formalized. |
-| Bytecode instruction format | Register-based opcode model: .NET locals as operand storage, JIT maps to hardware registers on the hot path. `UnifiedBytecodeInstruction` carries `UnifiedBytecodeOpCode` (byte enum) + 32-bit integer operand per instruction. | Fixed 32-bit wire encoding: `[Opcode: 8][Dest: 8][Src1: 8][Src2: 8]` with wide-instruction escape prefix for large operands; max 256 registers; Src1+Src2 as 16-bit constant pool index for literal loads. Requires ADR before wire-format freeze. |
+
+### Phase 2 — Directional (no implementation yet)
+
+These capabilities are aspirational. Do not target them until Phase 1 work is further along. Each requires a focused ADR before any implementation slice.
+
+| Area | Proven now | Directional next (needs new proof) |
+|---|---|---|
+| Optimizer | IR is well-formed and lowered with explicit shape ownership; no optimization passes exist yet. | Constant folding, inline heuristics, escape analysis, and profile-guided optimization are directional next requiring new evidence gates. |
+| Dev tooling | Error stack traces and source attribution exist at the evaluator level. | Debug protocol, breakpoint handling, source map generation, and inspector integration are directional next. |
+| Security model | Realm isolation keeps per-realm globals separate; eval observability boundaries are explicit. | Permission model, capability gating, sandbox host-escape prevention, and resource quota enforcement are directional. |
+| Shape / IC system | No shape concept exists today; JsObject uses a property dictionary. | Shape (hidden-class) tracking, shape-transition table, IC call-site caches, and prototype-chain invalidation are entirely directional. Requires Tier 0 dominance as prerequisite. |
 | Worker / Realm Fabric | None — entirely directional. | Each Worker owns a dedicated `JsEngine` instance (realm-isolated); communication via structured clone only; `SharedArrayBuffer` as opt-in side channel requiring host capability grant; host-owned Worker lifecycle. |
 | Compilation Artifact Cache | None — entirely directional. | Content-addressed cache of pre-compiled `UnifiedBytecodeProgram` artifacts keyed by SHA-256(source text + realm fingerprint); cache hit skips lexer → parser → lowering → eligibility entirely; primary enabler for cold-start < 5 ms p95 SLO on repeated-script evaluations. |
+| TypeScript preprocessing | None — entirely directional. | Source-level annotation-stripping layer before the lexer; position-preserving (whitespace replacement, not deletion); no type-checking; JSX/TSX stripping as a separate phase; see "TypeScript preprocessing (directional)" section. |
+| Module graph parallelism | None — entirely directional. | Parallel-fetch phase for independent specifiers before sequential evaluation; host loader hook must support concurrent invocation; circular graph detection at link phase; see "Module graph parallelism (directional)" section. |
+| Proper tail calls (PTC) | None — entirely directional. | `TailCall` opcode reuses current frame; compile-time tail-position detection in lowering pass; strict-mode mandate; eligibility gates for `yield`/`await`/`arguments` references; requires ADR before implementation; see "Proper tail calls — PTC (directional)" section. |
 
 ## Architecture constraints (current reality)
 

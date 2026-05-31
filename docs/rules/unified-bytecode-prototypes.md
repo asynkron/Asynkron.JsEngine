@@ -960,6 +960,39 @@ all-or-nothing until a separate routing issue proves production readiness.
     is incorrect because `TryIsFirstBoundaryOptionalNamedPropertyReadCandidate`
     and `TryIsFirstBoundaryOptionalComputedPropertyReadCandidate` reject
     non-activation-resolved bases.
+    Issue planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-bbc04f2625
+    / PR #2802 (Batch 2) widened optional-chain admission to include `a?.b.c`
+    (named chain, variable-length ≥3 ops) and `a?.b[k]` (named-then-computed,
+    fixed 4 ops). Four durable lessons:
+    (a) **IR encoding of `a?.b.c`**: trailing regular hops after the optional
+    start use `GetNamedProperty(IsOptional:false, ShortCircuitOnNullishTarget:true)`,
+    NOT `JumpIfShortCircuited`. The `JumpIfShortCircuited` opcode appears only
+    in call-target expression programs; property-read chains propagate the null
+    sentinel through `ShortCircuitOnNullishTarget:true` on each regular hop.
+    Admission discriminator: first hop requires `IsOptional:true,
+    ShortCircuitOnNullishTarget:false`; each subsequent hop requires
+    `IsOptional:false, ShortCircuitOnNullishTarget:true`. A double-optional
+    second hop (`a?.b?.c`) has `IsOptional:true` on that hop and must remain
+    declined until a sentinel-propagation slice owns it.
+    (b) **Variable-length vs fixed-count predicates**: `TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate`
+    loops over ≥3 ops for any-length named chain; `TryIsFirstBoundaryOptionalNamedThenComputedCandidate`
+    checks exactly 4 ops because `a?.b[k]` has a fixed shape. When admitting a
+    new optional-chain form, decide fixed vs variable before choosing the
+    predicate structure.
+    (c) **No unconditional decline arms in `TryFindExpressionDecline`**: every
+    `OptionalChainDependency` decline arm must attempt the relevant predicates
+    before declining (AC-7). The `JumpIfShortCircuited` arm was also widened to
+    try `TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate` even though
+    property-read chains never contain `JumpIfShortCircuited` — the principle is
+    that future chain predicates may eventually cover the arm, so it must not be
+    left permanently unconditional.
+    (d) **Stale pre-batch guard tests**: when a shape is admitted in a batch
+    delivery, any test named `_StillDeclines…` that asserts `IsEligible = false`
+    for that shape must be renamed to `_IsAdmitted` and the assertion flipped in
+    the same slice. Leaving it creates a test that silently documents an admitted
+    shape as declined. WHY: `Evaluate_OptionalThenRegularPropertyChain_StillDeclinesWithOptionalChainDependency`
+    was a pre-implementation guard for `a?.b.c` that was never updated after the
+    admission commit; the learn-stage build-fix caught and repaired it in PR #2802.
 
 43. When admitting `ConditionalExpression` (`cond ? a : b`) to production
     unified bytecode, the **only new compiler surface** is

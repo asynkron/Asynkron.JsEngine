@@ -67,6 +67,14 @@ generator and prove the generated resolver behavior through focused tests.
     narrow script row produce invalid .NET regex ranges. Keep the fix in
     `BuildSurrogatePairRanges` or its direct caller, and add focused coverage
     for both positive and negated property escapes before widening.
+13. Keep bare `u`-only property escapes such as `/\p{...}/u` and `/\P{...}/u`
+    in the same narrow `JsRegExp` runtime matcher family when generated
+    Test262 fixtures use them as unanchored searches. The matcher must return
+    the first matching code point and correct match index/statics, remain
+    non-global, non-sticky, capture-free, and decline mixed patterns back to
+    the normal .NET regex bridge. When adding regression samples for
+    `Script_Extensions`, choose code points from the resolved generated ranges
+    instead of assuming a combining mark belongs to `Inherited`.
 
 ## Why
 
@@ -136,3 +144,15 @@ coverage for positive and negated forms plus the issue-listed Release Test262
 rows. Future agents should treat similar astral script-property crashes as a
 runtime encoder boundary first, not as permission to hand-edit generated data
 or widen harness policy.
+
+Issue #2882 / PR #2894 exposed the unanchored-search side of the generated
+property-escape performance boundary. The existing anchored matcher avoided
+large .NET regex construction for whole-input generated fixtures, but bare
+`u`-only `Script_Extensions=Common` and `Script_Extensions=Inherited` property
+escapes still routed through the expanded .NET pattern. The durable lesson is
+to extend the narrow matcher by RegExp shape, not by generated-data edits or
+harness timeouts, and to prove `exec` result/index/statics for positive and
+negated searches. The focused regression also showed that `\u0300` was not a
+valid `Script_Extensions=Inherited` sample in the generated data; future tests
+should pick samples from the actual resolved ranges, such as U+030F for the
+issue #2882 inherited fixture.

@@ -1663,6 +1663,26 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     blocker reasons behind generic pre-gates or incorrectly cache an
     invocation-dependent decline at plan scope.
 
+49. When admitting class literals or other closure/environment-dependent value
+    literals to production unified bytecode, keep the opcode VM-owned while
+    reusing the runtime helper that already owns the semantic construction. For
+    class literals, lower `ExpressionOpKind.LoadClassLiteral` to a dedicated
+    `UnifiedBytecodeOpCode.LoadClassLiteral`, execute it through
+    `TypedAstEvaluator.CreateClassValueFromLiteral(...)`, and require the sync
+    bridge to provide a calling environment before VM execution. Do not duplicate
+    class-definition, `extends`, static-element, private-name, or name-inference
+    semantics inside the VM, and do not satisfy the route by falling back to
+    `ExpressionProgram`, `ExecutionPlanRunner`, or raw AST evaluation. Keep the
+    opcode allowlist, compiler lowering, VM handler, environment preflight,
+    `docs/unified-bytecode-expansion-contract.md` opcode inventory, and focused
+    eligibility/runtime proof in the same slice. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-ad43f135ac`
+    / PR #2858 admitted class literal values after they had been declining as
+    `ObjectLiteralOrSpreadDependency`. The quality-gate re-entry fix found the
+    expansion contract still listed `LoadFunctionLiteral` twice and omitted
+    `LoadClassLiteral`, confirming that every newly VM-executed opcode must
+    update the contract inventory as part of the delivery slice.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1707,3 +1727,4 @@ Related ADRs:
 - `docs/adrs/0301-admit-optional-call-chain-forms-in-unified-bytecode.md`
 - `docs/adrs/0300-admit-logical-compound-assignment-on-slots-in-unified-bytecode.md`
 - `docs/adrs/0302-admit-named-member-logical-assignment-in-unified-bytecode.md`
+- `docs/adrs/0306-admit-class-literals-in-unified-bytecode-through-shared-class-creation.md`

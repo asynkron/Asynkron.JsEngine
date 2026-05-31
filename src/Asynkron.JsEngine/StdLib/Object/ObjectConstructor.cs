@@ -86,10 +86,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var values = new JsArray(realmState);
-        var receiver = JsValue.FromObjectUnsafe(obj);
+        var receiver = obj is JsProxy proxy ? proxy.AsJsValue : JsValue.FromObjectUnsafe(obj);
         foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
-            obj.TryGetProperty(key, receiver, out var value);
+            JsOps.TryGetPropertyValue(receiver, key, out var value);
             values.Push(value);
         }
 
@@ -106,10 +106,10 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
         }
 
         var entries = new JsArray(realmState);
-        var receiver = JsValue.FromObjectUnsafe(obj);
+        var receiver = obj is JsProxy proxy ? proxy.AsJsValue : JsValue.FromObjectUnsafe(obj);
         foreach (var key in EnumerateEnumerableOwnStringKeys(obj))
         {
-            obj.TryGetProperty(key, receiver, out var value);
+            JsOps.TryGetPropertyValue(receiver, key, out var value);
             var entry = new JsArray([new JsValue(key), value], realmState);
             entries.Push(JsValue.FromJsArray(entry));
         }
@@ -532,7 +532,20 @@ public sealed partial class ObjectConstructor(IJsObjectLike prototype, RealmStat
                 continue;
             }
 
-            descriptors.SetProperty(key, (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()));
+            // Define the descriptor record as an own data property so keys such as
+            // "__proto__" cannot route through prototype mutation semantics.
+            TryDefinePropertyOnTarget(
+                descriptors,
+                key,
+                new PropertyDescriptor
+                {
+                    JsValue = (JsValue)(FromPropertyDescriptor(descriptor, realmState) ?? new JsObject()),
+                    Writable = true,
+                    Enumerable = true,
+                    Configurable = true
+                },
+                realmState,
+                true);
         }
 
         return JsValue.FromJsObject(descriptors);

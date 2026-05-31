@@ -49,6 +49,48 @@ public sealed class StaticMethodsTests(ITestOutputHelper output) : InternalTestB
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ObjectValues_Proxy_Getter_Sees_Proxy_Receiver()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let receiverWasProxy = false;
+                                                       let target = {
+                                                           get value() {
+                                                               receiverWasProxy = this === proxy;
+                                                               return 42;
+                                                           }
+                                                       };
+                                                       let proxy = new Proxy(target, {});
+
+                                                       let values = Object.values(proxy);
+                                                       receiverWasProxy && values[0] === 42;
+
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task ObjectGetOwnPropertyDescriptors_Preserves_Proto_Key_As_Data_Property()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                                       let obj = Object.create(null);
+                                                       Object.defineProperty(obj, '__proto__', {
+                                                           value: 7,
+                                                           enumerable: true,
+                                                           configurable: true
+                                                       });
+
+                                                       let descriptors = Object.getOwnPropertyDescriptors(obj);
+                                                       descriptors.__proto__.value === 7 && Object.getPrototypeOf(descriptors) === Object.prototype;
+
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task ObjectAssign()
     {
         await using var engine = CreateEngine();

@@ -3818,9 +3818,73 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalNamedPropertyReadChainExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefined()
+    {
+        // AC-1: a?.b.c with an activation-resolved base is admitted.
+        var plan = GetFunctionPlan("""
+            function optChainRead(obj) {
+                return obj?.value.length;
+            }
+            """,
+            "optChainRead");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalNamedThenComputedReadExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefined()
+    {
+        // AC-1 variant: a?.b[k] — optional named then computed.
+        var plan = GetFunctionPlan("""
+            function optChainComputed(obj, key) {
+                return obj?.items[key];
+            }
+            """,
+            "optChainComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_OptionalNamedPropertyReadChainWithNonActivationResolvedBase_Declines()
+    {
+        // AC-3: a?.b.c with a non-activation-resolved base (obj.nested) continues to decline.
+        // The decline code reflects the first failing arm (PropertyReadBoundaryOutOfScope for the
+        // non-activation-resolved named read, or OptionalChainDependency for the optional part).
+        var plan = GetFunctionPlan("""
+            function optChainNonResolved(obj) {
+                return obj.nested?.value.length;
+            }
+            """,
+            "optChainNonResolved");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_ChainedOptionalPropertyReadExpressionPlan_StillDeclinesWithOptionalChainDependency()
     {
-        // Chained optional forms (a?.b?.c) use ShortCircuitOnNullishTarget and are deferred.
+        // AC-4: Chained optional forms (a?.b?.c) use IsOptional+ShortCircuitOnNullishTarget and remain declined.
         var plan = GetFunctionPlan("""
             function chainedOptChain(a) {
                 return a?.b?.c;
@@ -3837,10 +3901,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalThenRegularPropertyChain_StillDeclinesWithOptionalChainDependency()
+    public void Evaluate_OptionalThenRegularPropertyChain_IsAdmitted()
     {
-        // a?.b.c: first hop is optional, second hop is regular — second hop emits
-        // ShortCircuitOnNullishTarget:true and is caught by OptionalChainDependency gate.
+        // a?.b.c: admitted since Batch 2 widened the optional-chain fast-path to include
+        // trailing regular property reads after an optional hop.
         var plan = GetFunctionPlan("""
             function f(a) {
                 return a?.b.c;
@@ -3852,8 +3916,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]

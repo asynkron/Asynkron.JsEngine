@@ -830,6 +830,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
+                        // a?.b.c chain — admitted when the program matches the optional named property read chain shape.
+                        if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                         declineReason =
                             "Optional-chain property reads are outside the first production property-read boundary.";
@@ -840,6 +846,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         // Simple a?.b form — admitted when the program is exactly [activation-resolved base, GetNamedPropertyOptional].
                         if (TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
+                        // a?.b.c chain or a?.b[k] shape.
+                        if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                            TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
                         }
@@ -896,6 +909,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.GetComputedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
+                        // a?.b[k] shape — admitted when the program matches the optional named then computed shape.
+                        if (TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                         declineReason =
                             "Optional-chain computed property reads are outside the first production property-read boundary.";
@@ -1027,6 +1046,13 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.JumpIfShortCircuited:
                     if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    // JumpIfShortCircuited only appears in call-target programs; property-read chains
+                    // use GetNamedProperty(ShortCircuitOnNullishTarget:true) instead.
+                    if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1590,6 +1616,87 @@ internal static class UnifiedBytecodeProductionEligibility
                getNamedOp.IsOptional &&
                !getNamedOp.ShortCircuitOnNullishTarget &&
                !getNamedOp.GetString(program.StringConstants.AsSpan()).IsPrivateName();
+    }
+
+    // Admits the a?.b.c chain shape:
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
+    // The optional guard on the first access is converted to JumpIfNullishReplaceUndefined in the compiler;
+    // subsequent accesses are regular GetNamedProperty ops (throwing TypeError on null base, which is correct for a?.b.c).
+    private static bool TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 3)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var firstPropOp = program.GetOperation(1);
+        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstPropOp.IsOptional ||
+            firstPropOp.ShortCircuitOnNullishTarget ||
+            firstPropOp.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        for (var index = 2; index < program.OperationCount; index++)
+        {
+            var op = program.GetOperation(index);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+                op.IsOptional ||
+                !op.ShortCircuitOnNullishTarget ||
+                op.GetString(stringConstants).IsPrivateName())
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Admits the a?.b[k] shape:
+    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple-key, GetComputedProperty(SC:true)]
+    private static bool TryIsFirstBoundaryOptionalNamedThenComputedCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 4)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var firstPropOp = program.GetOperation(1);
+        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstPropOp.IsOptional ||
+            firstPropOp.ShortCircuitOnNullishTarget ||
+            firstPropOp.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        if (!IsSimpleComputedPropertyKey(program.GetOperation(2), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var computedOp = program.GetOperation(3);
+        return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
+               computedOp.ShortCircuitOnNullishTarget;
     }
 
     // Admits the simple a?.[k] shape:

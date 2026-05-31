@@ -4537,4 +4537,64 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
     }
+
+    [Theory]
+    [InlineData(
+        """
+        function logicalAndComputedWrite(box, key, value) {
+            return box[key] &&= value;
+        }
+        """,
+        "logicalAndComputedWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        function logicalAndNestedWrite(box, value) {
+            return box.child.value &&= value;
+        }
+        """,
+        "logicalAndNestedWrite",
+        null,
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData(
+        """
+        class Counter {
+            update(value) {
+                return this.#p &&= value;
+            }
+        }
+        """,
+        "Counter",
+        "update",
+        (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
+    public void Evaluate_LogicalAndAssignment_NonFirstBoundaryOrUnsupportedShapes_DeclineWithExplicitCodes(
+        string source,
+        string functionOrClassName,
+        string? methodName,
+        int expectedCode)
+    {
+        var plan = methodName is null
+            ? GetFunctionPlan(source, functionOrClassName)
+            : GetClassMethodPlan(source, functionOrClassName, methodName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalAndAssignment_OptionalNamedBase_IsParserRejected()
+    {
+        Assert.Throws<NotSupportedException>(() => GetFunctionPlan(
+            """
+            function logicalAndOptionalWrite(box, value) {
+                return box?.prop &&= value;
+            }
+            """,
+            "logicalAndOptionalWrite"));
+    }
 }

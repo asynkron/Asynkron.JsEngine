@@ -3218,6 +3218,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CreateProductionUnifiedBytecodeActivationDescriptor(
                     newTarget,
                     CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
+                    CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan),
                     CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget)));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
@@ -3267,11 +3268,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
+            var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
             var canUseDerivedClassConstructorPath =
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget);
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 newTarget,
                 canUseDynamicNamePath,
+                canUseOrdinaryDynamicNamePath,
                 canUseDerivedClassConstructorPath);
             if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
                     activation,
@@ -3294,16 +3297,21 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
-            return CreateProductionUnifiedBytecodeActivationDescriptor(JsValue.Undefined, canUseDynamicNamePath);
+            return CreateProductionUnifiedBytecodeActivationDescriptor(
+                JsValue.Undefined,
+                canUseDynamicNamePath,
+                canUseOrdinaryDynamicNamePath: false);
         }
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor(
             JsValue newTarget,
             bool canUseDynamicNamePath,
+            bool canUseOrdinaryDynamicNamePath,
             bool canUseDerivedClassConstructorPath = false)
         {
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
+                                               !canUseOrdinaryDynamicNamePath &&
                                                !_hasDirectEvalInBodyOrParameters;
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
@@ -3324,7 +3332,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
                 HasMaterializedActivationDependency: false,
                 HasCallDependency: false,
-                HasDynamicLookupDependency: hasUnprovenDynamicActivation);
+                HasDynamicLookupDependency: hasUnprovenDynamicActivation,
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);
         }
 
         private bool HasParameterNamed(Symbol name)
@@ -3668,6 +3677,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&
                    !_usesArguments;
+        }
+
+        private bool CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(ExecutionPlan plan)
+        {
+            return !_hasBodyWithStatement &&
+                   !_hasDirectEvalInBodyOrParameters &&
+                   !_hasClosureWithObject &&
+                   !_hasCapturedActivationInClosure &&
+                   !_usesArguments &&
+                   UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan);
         }
 
         private bool CanUseProductionUnifiedBytecodePlanShape(

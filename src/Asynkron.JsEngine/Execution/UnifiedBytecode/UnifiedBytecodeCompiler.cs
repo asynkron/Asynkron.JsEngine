@@ -26,7 +26,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> FlatSlotMappings,
         ImmutableArray<int> ParameterSlotIndices,
         ImmutableArray<int> LexicalSlotIndices,
-        ImmutableArray<string?> SlotNames)
+        ImmutableArray<string?> SlotNames,
+        bool AllowsOrdinaryDynamicIdentifiers)
     {
         // Spread masks discovered while compiling synchronous spread invocations.
         // Each entry holds the spread argument positions for one invocation
@@ -71,7 +72,8 @@ internal static class UnifiedBytecodeCompiler
         bool isAsync,
         bool isGenerator,
         out UnifiedBytecodeProgram program,
-        out string reason)
+        out string reason,
+        bool allowsOrdinaryDynamicIdentifiers = false)
     {
         if ((uint)plan.EntryPoint >= (uint)plan.Instructions.Length)
         {
@@ -98,7 +100,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var slotLayout = BuildSlotLayout(plan);
+        var slotLayout = BuildSlotLayout(plan, allowsOrdinaryDynamicIdentifiers);
 
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
@@ -187,7 +189,9 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
 
-    private static UnifiedBytecodeSlotLayout BuildSlotLayout(ExecutionPlan plan)
+    private static UnifiedBytecodeSlotLayout BuildSlotLayout(
+        ExecutionPlan plan,
+        bool allowsOrdinaryDynamicIdentifiers)
     {
         var activationSlots = plan.ActivationSlots!;
         var flatSlotMappings = plan.FlatSlotMappings ??
@@ -210,7 +214,8 @@ internal static class UnifiedBytecodeCompiler
             flatSlotMappings,
             parameterSlotIndices,
             lexicalSlotIndices,
-            names);
+            names,
+            allowsOrdinaryDynamicIdentifiers);
     }
 
     private static ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> EnsureActivationSlotMappings(
@@ -523,7 +528,8 @@ internal static class UnifiedBytecodeCompiler
                 activeInstructions.Add(instructionIndex);
                 activated.Add(instructionIndex);
                 instructionPcMap[instructionIndex] = unified.Count;
-                var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
+                var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0 ||
+                                               slotLayout.AllowsOrdinaryDynamicIdentifiers;
 
                 switch (instructions[instructionIndex])
                 {
@@ -898,6 +904,13 @@ internal static class UnifiedBytecodeCompiler
                         {
                             TargetSymbol: { } incrementTargetSymbol
                         } increment:
+                        if (TryResolveInstructionSlot(incrementTargetSymbol, increment.FlatSlotId, slotLayout, out _))
+                        {
+                            reason =
+                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
+                            return false;
+                        }
+
                         if (!allowsDynamicIdentifiers)
                         {
                             reason =
@@ -3371,6 +3384,13 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var referenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (TryResolveActivationSlot(referenceIdentifier, slotLayout, out _))
+                    {
+                        reason =
+                            $"Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.";
+                        return false;
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -3398,6 +3418,13 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreResolvedIdentifier:
                     var storeReferenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (TryResolveActivationSlot(storeReferenceIdentifier, slotLayout, out _))
+                    {
+                        reason =
+                            $"Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.";
+                        return false;
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -3425,6 +3452,13 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreIdentifier:
                     var storeIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (TryResolveActivationSlot(storeIdentifier, slotLayout, out _))
+                    {
+                        reason =
+                            $"Identifier '{storeIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.";
+                        return false;
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -3569,6 +3603,13 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var updateIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (TryResolveActivationSlot(updateIdentifier, slotLayout, out _))
+                    {
+                        reason =
+                            $"Update target '{updateIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode updates.";
+                        return false;
+                    }
+
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =

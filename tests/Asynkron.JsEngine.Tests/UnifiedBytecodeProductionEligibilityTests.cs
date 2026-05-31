@@ -2143,6 +2143,59 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OrdinaryDynamicIdentifierOperations_AcceptsEnvironmentOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function useGlobals(delta) {
+                externalValue = externalValue + delta;
+                ++globalCount;
+                var missingType = typeof missing;
+                var deleteResult = delete removable;
+                return externalValue + globalCount;
+            }
+            """,
+            "useGlobals");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeGlobal(delta) {
+                return externalValue += delta;
+            }
+            """,
+            "writeGlobal");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+    }
+
+    [Fact]
     public void Evaluate_LabeledLoop_Accepts()
     {
         var plan = GetFunctionPlan("""

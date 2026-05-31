@@ -550,6 +550,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OrdinaryGlobalDynamicIdentifierOperations_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            externalValue = 1;
+            globalCount = 4;
+            removable = 9;
+
+            function run(delta) {
+                externalValue = externalValue + delta;
+                ++globalCount;
+                var missingType = typeof missing;
+                var deleteResult = delete removable;
+                var removableType = typeof removable;
+                return externalValue + ":" +
+                    globalCount + ":" +
+                    missingType + ":" +
+                    deleteResult + ":" +
+                    removableType;
+            }
+
+            run(2) + ":" + externalValue + ":" + globalCount + ":" + typeof removable;
+            """);
+
+        Assert.Equal("3:5:undefined:true:undefined:3:5:undefined", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalDeclarationDynamicLookup_DeclinesOrdinaryDynamicProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run() {
+                eval("var value = 41;");
+                return value + 1;
+            }
+
+            run();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=run",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task WithDynamicIdentifierCallTarget_UsesWithReceiverOnProductionFastPath()
     {
         await using var engine = CreateEngine();

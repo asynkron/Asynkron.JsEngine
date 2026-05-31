@@ -26,6 +26,9 @@ boundary:
 - catch binding slots must become inactive after leaving catch, so a direct
   read behaves like a `ReferenceError` while `typeof` remains non-throwing;
 - returns through nested finally blocks must keep the VM operand stack clean;
+- handled throws that resume inside the same VM instance must not leak prepared
+  call/construct/super operands or other speculative temporaries into the
+  handler path;
 - iterator `return()` throws must not replace an already pending body throw
   during finally cleanup;
 - nested `for..of` inner breaks must close the inner iterator before the return
@@ -36,6 +39,14 @@ sufficient topology oracle. The inner iterator can already be closed when its
 pending break reaches an outer synthetic for-of finally frame, so the VM must
 compare compiled driver descriptors and break targets rather than infer cleanup
 from currently active driver state alone.
+
+Issue
+`planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-409e9e2030`
+/ PR #2872 widened ordinary dynamic-name production routing and exposed the
+same stack-discipline boundary at invocation-owned throws. A handled throw from
+the unified bytecode call boundary could leave receiver/callee/argument values
+on the operand stack; when the enclosing handler resumed, that leaked state
+later overflowed the fixed stack in `ThrowBugTests.AssertThrowsPattern_ShouldCatchErrorObject`.
 
 ## Decision
 
@@ -56,6 +67,11 @@ and fallback-free.
 - Route throws to catch only before the frame has scheduled finally. Throws
   raised by a scheduled finally block must continue outward rather than being
   caught by the same frame.
+- After `HandleContextThrow` retargets control flow into a catch/finally path
+  and execution will continue in the same VM instance, reset the current
+  operand stack to the handler-owned baseline before resuming. Prepared
+  receiver/callee/new-target/argument values and other speculative temporaries
+  belong to the faulting instruction, not to the resumed handler.
 - Keep catch binding environments and flat slots aligned. Mark catch binding
   slots inactive after the catch scope leaves so later direct slot reads throw
   through the VM-owned ReferenceError path.
@@ -72,6 +88,9 @@ and fallback-free.
   descriptors, VM completion semantics, catch binding behavior, route proof,
   no-route proof for unsupported neighbors, expansion-contract inventory, and
   no-mixed-execution source gates together.
+- Invocation-boundary proof near exception regions must include handled-throw
+  regressions for call/construct/super paths and adjacent cleanup flows, not
+  only body-local `throw` instructions.
 - Iterator cleanup and exception-region proof must include nested loop
   topologies, not only single-loop break/continue cases.
 - Review fixes in this area should preserve the no-mixed-execution boundary.
@@ -85,6 +104,10 @@ and fallback-free.
 - Delivery-branch final repair commit:
   `df0798ad39eba2b8d5e368608035af2a1b6dd3a0` ("Fix unified for-of nested break
   cleanup").
+- PR #2872 later reinforced the same contract for handled invocation-boundary
+  throws; repair commit `3a5e5841` ("Clear unified bytecode stack on handled
+  throws") reset the operand stack after `HandleContextThrow` resumed
+  execution.
 - The final run-quality gate passed after that repair.
 - Build-stage proof recorded:
   - `rtk git diff --check origin/main...HEAD` passed.
@@ -97,11 +120,14 @@ and fallback-free.
   `try/catch`, catch binding inactivity, return/throw replacement through
   finally, break/continue through finally, and nested for-of inner-break cleanup
   ordering.
+- PR #2872's focused verification also passed
+  `ThrowBugTests.AssertThrowsPattern_ShouldCatchErrorObject` alongside the
+  unified-bytecode production eligibility/invocation packs.
 
 ## Related
 
 - `docs/unified-bytecode-expansion-contract.md`
-- `.claude/rules/unified-bytecode-prototypes.md`
+- `docs/rules/unified-bytecode-prototypes.md`
 - ADR 0201: `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - ADR 0204: `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`
 - ADR 0251: `docs/adrs/0251-keep-unified-bytecode-iterator-and-destructuring-drivers-model-first.md`

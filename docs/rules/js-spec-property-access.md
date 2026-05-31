@@ -138,6 +138,27 @@ area. The issue #1751 / PR #1790 incident showed that data/accessor
 configurability and strictness are separate axes: tests that cover only simple
 object-literal properties can miss descriptor-backed delete crashes.
 
+## Descriptor-Preserving Assignment Fast Paths
+
+When optimizing ordinary property assignment, bypass descriptor materialization
+only when the candidate write is proven to be an existing writable own data
+property update on the same receiver/target object.
+
+- require receiver identity, such as `ReferenceEquals(receiverObject, target)`;
+- use a helper that fails for missing, accessor, non-writable, inherited, proxy,
+  exotic, or otherwise descriptor-sensitive writes;
+- preserve the generic descriptor/prototype path for strict-mode failure,
+  inherited setters, non-target receivers, and typed-array exotic behavior; and
+- pair the positive fast path with tests for descriptor flag preservation and
+  negative strict-mode non-writable behavior.
+
+WHY: issue gh2843 / PR #2846 removed the `PropertyDescriptor` allocation owner in
+computed symbol assignment by adding a guarded `TrySetExistingJsValue(...)` path.
+The guard matters because descriptor allocation was the cost, but descriptor
+semantics still own accessors, read-only writes, prototype setters, and receiver
+identity. Related ADR:
+`docs/adrs/0303-keep-computed-symbol-assignment-descriptor-fast-path-guarded.md`.
+
 ## Computed Member Nullish Read Order
 
 For expression bytecode that lowers ordinary computed reads such as

@@ -3421,6 +3421,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NamedLogicalAssignmentPropertyWrite_PreservesOriginalReceiverWhenGetterMutatesBaseBinding()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var original = {};
+            function write(box, value) {
+                var replacement = {};
+                var current = box;
+                Object.defineProperty(current, "prop", {
+                    get() {
+                        current = replacement;
+                        return 1;
+                    },
+                    set(v) {
+                        this.written = v;
+                    }
+                });
+
+                current.prop &&= value;
+                return String(box.written) + ":" + String(replacement.written === undefined) + ":" + String(current === replacement);
+            }
+
+            write(original, 7);
+            """);
+
+        Assert.Equal("7:true:true", result);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {
         await using var engine = CreateEngine();

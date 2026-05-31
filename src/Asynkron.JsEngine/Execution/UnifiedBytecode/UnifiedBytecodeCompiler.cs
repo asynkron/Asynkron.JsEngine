@@ -22,6 +22,7 @@ internal static class UnifiedBytecodeCompiler
 
     private sealed record UnifiedBytecodeSlotLayout(
         int SlotCount,
+        int ScratchSlotIndex,
         ActivationSlotShape ActivationSlots,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> FlatSlotMappings,
         ImmutableArray<int> ParameterSlotIndices,
@@ -174,7 +175,9 @@ internal static class UnifiedBytecodeCompiler
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
         flatSlotMappings = EnsureActivationSlotMappings(activationSlots, flatSlotMappings);
-        var slotCount = GetSlotCount(plan.FlatSlotCount, flatSlotMappings);
+        var baseSlotCount = GetSlotCount(plan.FlatSlotCount, flatSlotMappings);
+        var slotCount = baseSlotCount + 1;
+        var scratchSlotIndex = baseSlotCount;
         var names = BuildSlotNames(plan.Instructions, activationSlots, flatSlotMappings, slotCount);
         var parameterSlotIndices = RemapParameterSlotIndices(
             activationSlots.ScopeId,
@@ -187,6 +190,7 @@ internal static class UnifiedBytecodeCompiler
 
         return new UnifiedBytecodeSlotLayout(
             slotCount,
+            scratchSlotIndex,
             activationSlots,
             flatSlotMappings,
             parameterSlotIndices,
@@ -3032,7 +3036,7 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryNamedLogicalAssignmentPropertySet(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -4965,16 +4969,20 @@ internal static class UnifiedBytecodeCompiler
 
     // Shape: [base, DuplicateTop, GetNamedProperty(prop), JumpIfFalse|JumpIfTrue|JumpIfNotNullish(target), Pop, simple-rhs, SetNamedProperty(prop), DuplicateTop, SwapTopTwo, Pop]
     // Exactly 10 ops. Jump target == OperationCount - 2 (the SwapTopTwo index).
-    // Compiled to: [LoadSlot(base), GetNamedProperty(prop), JumpIfShortCircuitXxx(7), Pop, LoadSlot(base), LoadSlot(rhs), SetNamedProperty(prop)]
-    // The base is re-loaded on the truthy path to avoid needing a SwapTopTwo opcode.
+    // Compiled to:
+    // [LoadSlot(base), StoreSlot(scratch), LoadSlot(scratch), GetNamedProperty(prop),
+    //  JumpIfShortCircuitXxx(9), Pop, LoadSlot(scratch), LoadSlot(rhs), SetNamedProperty(prop)].
+    // Keeping the receiver in a scratch slot preserves reference semantics if a getter mutates
+    // the original binding before the eventual SetNamedProperty.
     private static bool TryAppendFirstBoundaryNamedLogicalAssignmentPropertySet(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount != 10)
         {
             reason = string.Empty;
@@ -5038,6 +5046,8 @@ internal static class UnifiedBytecodeCompiler
             literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
             return false;
         }
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, slotLayout.ScratchSlotIndex));
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotLayout.ScratchSlotIndex));
 
         var propertyName = propertyRead.GetString(expressionStringConstants);
         var propertyNameIndex = stringConstants.Count;
@@ -5057,12 +5067,7 @@ internal static class UnifiedBytecodeCompiler
 
         candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
-        // Re-load the base for the truthy path (avoids SwapTopTwo).
-        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, candidateUnified, out reason))
-        {
-            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
-            return false;
-        }
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotLayout.ScratchSlotIndex));
 
         var rhs = expressionProgram.GetOperation(5);
         if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, candidateUnified, literalConstants, out reason))

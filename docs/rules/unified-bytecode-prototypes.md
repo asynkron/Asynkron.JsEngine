@@ -206,15 +206,18 @@ all-or-nothing until a separate routing issue proves production readiness.
     compound writes must keep the receiver live for `SetNamedProperty`, and
     computed compound writes must keep both the receiver and the already-resolved
     key live for `SetComputedProperty`. Keep the selector and compiler matched
-    to exact operation sequences, and leave logical assignment, nested member
-    chains, richer computed keys, optional chains, `super`, private fields,
+    to exact operation sequences, and leave nested member chains, richer
+    computed keys, optional chains, `super`, private fields,
     `delete`, calls, destructuring, and dynamic lookup as pre-VM declines until
     a later slice owns their full proof. The admitted compound-assignment
     operators are the 12 arithmetic and bitwise operators (`+=`, `-=`, `*=`,
-    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`); the three
-    logical operators (`&&=`, `||=`, `??=`) decline as `PropertyWriteDependency`
-    because their conditional short-circuit semantics require a branch opcode
-    that the compound get-for-set model does not provide. WHY: issue
+    `/=`, `%=`, `**=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `>>>=`). In this
+    compound-write slice, the three logical operators (`&&=`, `||=`, `??=`)
+    decline as `PropertyWriteDependency` because their conditional
+    short-circuit semantics require a branch opcode that the compound get-for-set
+    model does not provide. Direct member logical assignment routing is owned by
+    the dedicated logical-assignment rules below, not by this compound-write
+    rule. WHY: issue
     `planitem-planmanual1779887420937175000-batch-1-boundary-and-baseline-gate-batch-4-f0057ffdc4`
     / PR #2426 widened direct named/computed compound writes by adding
     `GetNamedPropertyForCompoundSet` and `GetComputedPropertyForCompoundSet`.
@@ -1518,10 +1521,10 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
         asserting `unified-bytecode-production-fast-path`.
 
     Computed logical compound assignments and unowned member forms remain
-    declined as `PropertyWriteDependency`. Direct named member logical
-    assignments are now admitted by rule 46 / ADR 0302; do not reuse this slot
-    pattern for member targets without preserving the receiver and the
-    expression result through the dedicated named-member cleanup shape.
+    declined as `PropertyWriteDependency`. Direct named and direct computed
+    member logical assignments are admitted by the dedicated member rules below;
+    do not reuse this slot pattern for member targets without preserving the
+    receiver and the expression result through the dedicated cleanup shape.
     WHY: issue
     `planitem-planmanual1780198120145433000-widen-unified-bytecode-production-conditio-dad47dee93`
     / PR #2810 admitted slot-identifier logical compound assignment (ADR 0300).
@@ -1580,6 +1583,20 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     stay `PropertyWriteDependency`, private fields stay
     `PrivateFieldDependency`, and optional-chain assignment remains
     parser-rejected before eligibility.
+47. When admitting direct computed member logical assignment (`box[key] &&= y`,
+    `box[key] ||= y`, `box[key] ??= y`) to production unified bytecode, keep
+    the compiler ownership and stack invariants aligned with the existing
+    computed member get-for-set model. Preserve both receiver and resolved key,
+    thread the matching peek-semantics short-circuit jump, and keep cleanup
+    balanced so short-circuit returns the current property value while proceed
+    returns the assigned RHS value.
+
+    Keep selector and compiler probes exact: activation-resolved base, direct
+    computed read/write with matching key payload, non-optional/non-private
+    access, and simple RHS/key payloads already owned by the computed member
+    write boundary. Optional chains, deeper member chains, private fields,
+    `super`, destructuring, dynamic lookup, and unsupported key/RHS payloads
+    remain pre-VM declines.
 
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`

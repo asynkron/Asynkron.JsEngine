@@ -979,11 +979,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     pattern used by `JumpIfFalse/JumpIfConditionalFalse/True/NotNullish`
     (ADR 0293): emit `UnifiedBytecodeOpCode.Jump(0)` as a placeholder, record
     a patch entry, and backpatch the operand after all ops are emitted. Add
-    both `case ExpressionOpKind.Jump:` and `case ExpressionOpKind.JumpIfConditionalFalse:`
-    to `TryFindExpressionDecline`'s allowed-op set alongside `JumpIfFalse`,
-    `JumpIfTrue`, and `JumpIfNotNullish`. When testing unified-bytecode
-    eligibility for ternary programs, assert `UnifiedBytecodeOpCode.JumpIfFalse`
-    for the condition jump — not `JumpIfShortCircuitFalse`.
+    `case ExpressionOpKind.Jump:`, `case ExpressionOpKind.JumpIfConditionalFalse:`,
+    and `case ExpressionOpKind.Pop:` to `TryFindExpressionDecline`'s allowed-op set
+    alongside `JumpIfFalse`, `JumpIfTrue`, and `JumpIfNotNullish`. `Pop` is required
+    because the ternary execution model emits `Pop` on both branches to discard the
+    condition value (see the code diagram above); without this case, eligibility
+    declines valid ternary programs on `Pop` even after `Jump` and
+    `JumpIfConditionalFalse` are admitted. When testing unified-bytecode eligibility
+    for ternary programs, assert `UnifiedBytecodeOpCode.JumpIfFalse` for the
+    condition jump — not `JumpIfShortCircuitFalse`.
 
     Note: optional-call expression programs (`box.read?.()`) also contain
     `ExpressionOpKind.Jump` but are attached to
@@ -1009,6 +1013,15 @@ all-or-nothing until a separate routing issue proves production readiness.
     mapping; only their expression-op kinds differ. Any future expression-level
     conditional opcode must classify its stack effect (consume vs peek) before
     deciding how it maps to the unified VM layer.
+    Issue widen-unified-bytecode-production-conditio-0c8d5a9dc7 / PR #2795
+    then completed ternary eligibility by adding `ExpressionOpKind.Pop` to
+    `TryFindExpressionDecline`'s allowed-op set; without it, the `Pop`
+    condition-discard ops on both ternary branches caused eligibility to decline
+    valid ternary programs. The delivery also added AC-2 (consume-semantics
+    proof: both truthy and falsy branches produce correct results in sequence,
+    which would fail if the condition were left on the stack) and AC-3 (nested
+    ternary `c1 ? c2 ? a : b : d` for all four condition combinations on the
+    production fast path), completing the ternary production proof pack.
 
 ## Why
 

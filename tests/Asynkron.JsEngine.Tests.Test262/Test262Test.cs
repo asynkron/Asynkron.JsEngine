@@ -631,18 +631,18 @@ try {
     internal static TimeSpan GetTest262ExecutionTimeout(string fileName)
     {
         var normalizedFileName = NormalizeTest262Path(fileName);
-        return normalizedFileName is
-            DecodeURIFourByteTest or
-            DecodeURIComponentFourByteTest or
-            RegExpCharacterClassEscapeNonWhitespaceTest or
-            RegExpLiteralFirstCharRoundTripTest or
-            RegExpLiteralFirstCharEscapeRoundTripTest or
-            RegExpLiteralCharsRoundTripTest or
-            RegExpLiteralCharsEscapeRoundTripTest or
-            IntlLocaleInvalidTagThrowsTest or
-            FunctionPrototypeToStringBuiltInFunctionObjectTest
+        return normalizedFileName is DecodeURIFourByteTest or DecodeURIComponentFourByteTest
             ? TimeSpan.FromSeconds(180)
-            : TimeSpan.FromSeconds(30);
+            : normalizedFileName is
+                RegExpCharacterClassEscapeNonWhitespaceTest or
+                RegExpLiteralFirstCharRoundTripTest or
+                RegExpLiteralFirstCharEscapeRoundTripTest or
+                RegExpLiteralCharsRoundTripTest or
+                RegExpLiteralCharsEscapeRoundTripTest or
+                IntlLocaleInvalidTagThrowsTest or
+                FunctionPrototypeToStringBuiltInFunctionObjectTest
+                ? TimeSpan.FromSeconds(90)
+                : TimeSpan.FromSeconds(30);
     }
 
     private static string NormalizeTest262Path(string fileName)

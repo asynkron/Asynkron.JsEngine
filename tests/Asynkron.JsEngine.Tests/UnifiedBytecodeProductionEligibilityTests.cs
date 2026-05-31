@@ -1764,8 +1764,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedCode;
+        if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)
+        {
+            Assert.True(result.IsEligible);
+            Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+            return;
+        }
+
         Assert.False(result.IsEligible);
-        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.Equal(expectedDeclineCode, result.Code);
     }
 
     [Fact]

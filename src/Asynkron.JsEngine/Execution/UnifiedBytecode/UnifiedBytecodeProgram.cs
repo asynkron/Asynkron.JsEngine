@@ -44,6 +44,7 @@ internal enum UnifiedBytecodeOpCode : byte
     UnaryVoid,
     ToString,
     Pop,
+    SwapTopTwo,
     CreateArray,
     ArrayPush,
     ArrayPushHole,

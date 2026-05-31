@@ -1743,7 +1743,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function logicalAndWrite(box, value) {
@@ -1751,7 +1751,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalAndWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function nullishWrite(box, value) {
@@ -1759,7 +1759,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "nullishWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         var externalValue = 42;
@@ -1805,8 +1805,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedCode;
+        if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)
+        {
+            Assert.True(result.IsEligible);
+            Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+            return;
+        }
+
         Assert.False(result.IsEligible);
-        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.Equal(expectedDeclineCode, result.Code);
     }
 
     [Fact]
@@ -4450,7 +4458,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LogicalAndAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_LogicalAndAssignment_ThisPropertyBase_AcceptsWithOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4466,12 +4474,18 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
     }
 
     [Fact]
-    public void Evaluate_LogicalOrAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_LogicalOrAssignment_ThisPropertyBase_AcceptsWithOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4487,12 +4501,18 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitTrue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
     }
 
     [Fact]
-    public void Evaluate_NullishAssignment_ThisPropertyBase_DeclinesWithExplicitCode()
+    public void Evaluate_NullishAssignment_ThisPropertyBase_AcceptsWithOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Obj {
@@ -4508,7 +4528,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
     }
 }

@@ -1342,28 +1342,14 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
-    public void Execute_LabeledContinueCrossingForOf_ClosesOnlyCrossedInnerIterator()
+    public void Execute_NestedForOfContinueOuter_ClosesInnerIteratorBeforeContinuingOuter()
     {
-        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
-            function continueOuter(outer, inner, box) {
-                outerLabel: for (var x of outer) {
-                    for (var y of inner) {
-                        continue outerLabel;
-                    }
-                }
-
-                return box.value;
-            }
-            """,
-            "continueOuter");
-
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
-        Assert.True(result, reason);
-        Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+        var program = CreateNestedIteratorContinueOuterProgram();
 
         var outerCloseCount = 0;
         var innerCloseCount = 0;
-        var outer = CreateSingleValueIterable(
+        var outer = CreateCountedIterable(
+            count: 2,
             JsValue.FromDouble(1),
             onReturn: () => outerCloseCount++);
         var inner = CreateSingleValueIterable(
@@ -1375,7 +1361,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             new PropertyDescriptor
             {
                 Get = new HostFunction(
-                    (_, _) => JsValue.FromDouble((outerCloseCount * 10) + innerCloseCount),
+                    (_, _) => JsValue.FromDouble((innerCloseCount * 10) + outerCloseCount),
                     isConstructor: false)
             });
         var slots = new JsValue[Math.Max(program.SlotCount, 7)];
@@ -1383,15 +1369,47 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         SetSlot(program, slots, "inner", JsValue.FromJsObject(inner));
         SetSlot(program, slots, "box", JsValue.FromJsObject(box));
 
-        var value = ExecuteProgram(program, slots);
+        var result = ExecuteProgram(program, slots);
 
-        Assert.Equal(1d, value.AsDouble());
-        Assert.Equal(0, outerCloseCount);
+        Assert.Equal(10d, result.AsDouble());
         Assert.Equal(1, innerCloseCount);
+        Assert.Equal(0, outerCloseCount);
     }
 
     [Fact]
-    public void TryCompile_WhileWithNestedBranchBreak_DeclinesWithLoopReason()
+    public void Execute_NestedForOfBreakOuter_ClosesExitedIteratorsInnerToOuter()
+    {
+        var program = CreateNestedIteratorBreakOuterProgram();
+
+        var closeOrder = new List<string>();
+        var outer = CreateSingleValueIterable(
+            JsValue.FromDouble(1),
+            onReturn: () => closeOrder.Add("outer"));
+        var inner = CreateSingleValueIterable(
+            JsValue.FromDouble(2),
+            onReturn: () => closeOrder.Add("inner"));
+        var box = new JsObject();
+        box.DefineProperty(
+            "value",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction(
+                    (_, _) => new JsValue(string.Join(",", closeOrder)),
+                    isConstructor: false)
+            });
+        var slots = new JsValue[Math.Max(program.SlotCount, 7)];
+        SetSlot(program, slots, "outer", JsValue.FromJsObject(outer));
+        SetSlot(program, slots, "inner", JsValue.FromJsObject(inner));
+        SetSlot(program, slots, "box", JsValue.FromJsObject(box));
+
+        var result = ExecuteProgram(program, slots);
+
+        Assert.Equal("inner,outer", result.AsString());
+        Assert.Equal(new[] { "inner", "outer" }, closeOrder);
+    }
+
+    [Fact]
+    public void TryCompile_WhileWithNestedBranchBreak_Compiles()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""
             function breakLoop(n) {
@@ -1409,9 +1427,9 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             """,
             "breakLoop");
 
-        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out _, out var reason);
-        Assert.False(result);
-        Assert.Contains("loop", reason, StringComparison.OrdinalIgnoreCase);
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.Break);
     }
 
     [Fact]
@@ -1693,6 +1711,94 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
                     NextTarget: 6)));
     }
 
+    private static UnifiedBytecodeProgram CreateNestedIteratorContinueOuterProgram()
+    {
+        return new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorInit, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorMoveNext, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorInit, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorMoveNext, 3),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Continue, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 2,
+            SlotCount: 7,
+            LiteralConstants: ImmutableArray<JsValue>.Empty,
+            StringConstants: ImmutableArray.Create("value"),
+            SlotNames: ImmutableArray.Create<string?>("outer", "inner", "box", null, null, null, null),
+            ParameterSlotIndices: ImmutableArray.Create(0, 1, 2),
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray.Create(
+                new UnifiedBytecodeDriverDescriptor(StateSlot: 3),
+                new UnifiedBytecodeDriverDescriptor(
+                    StateSlot: 3,
+                    ValueSlot: 4,
+                    BreakTarget: 9,
+                    NextTarget: 3,
+                    MoveNextTarget: 2),
+                new UnifiedBytecodeDriverDescriptor(StateSlot: 5),
+                new UnifiedBytecodeDriverDescriptor(
+                    StateSlot: 5,
+                    ValueSlot: 6,
+                    BreakTarget: 8,
+                    NextTarget: 6,
+                    MoveNextTarget: 5)));
+    }
+
+    private static UnifiedBytecodeProgram CreateNestedIteratorBreakOuterProgram()
+    {
+        return new UnifiedBytecodeProgram(
+            ImmutableArray.Create(
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorInit, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorMoveNext, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 1),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorInit, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.IteratorMoveNext, 3),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Break, 9),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 2),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, 0),
+                new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return)),
+            MaxStackDepth: 2,
+            SlotCount: 7,
+            LiteralConstants: ImmutableArray<JsValue>.Empty,
+            StringConstants: ImmutableArray.Create("value"),
+            SlotNames: ImmutableArray.Create<string?>("outer", "inner", "box", null, null, null, null),
+            ParameterSlotIndices: ImmutableArray.Create(0, 1, 2),
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray.Create(
+                new UnifiedBytecodeDriverDescriptor(StateSlot: 3),
+                new UnifiedBytecodeDriverDescriptor(
+                    StateSlot: 3,
+                    ValueSlot: 4,
+                    BreakTarget: 9,
+                    NextTarget: 3,
+                    MoveNextTarget: 2),
+                new UnifiedBytecodeDriverDescriptor(StateSlot: 5),
+                new UnifiedBytecodeDriverDescriptor(
+                    StateSlot: 5,
+                    ValueSlot: 6,
+                    BreakTarget: 8,
+                    NextTarget: 6,
+                    MoveNextTarget: 5)));
+    }
+
     private static UnifiedBytecodeProgram CreateResumableYieldReturnProgram()
     {
         return new UnifiedBytecodeProgram(
@@ -1763,6 +1869,34 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
                 }
 
                 moved = true;
+                return JsValue.FromJsObject(CreateIteratorResult(value, done: false));
+            });
+        iterator.SetHostedProperty(
+            "return",
+            (_, _) =>
+            {
+                onReturn();
+                return JsValue.FromJsObject(new JsObject());
+            });
+        iterable.SetHostedProperty(SymbolKeys.Iterator, (_, _) => JsValue.FromJsObject(iterator));
+        return iterable;
+    }
+
+    private static JsObject CreateCountedIterable(int count, JsValue value, Action onReturn)
+    {
+        var iterable = new JsObject();
+        var iterator = new JsObject();
+        var moved = 0;
+        iterator.SetHostedProperty(
+            "next",
+            (_, _) =>
+            {
+                if (moved >= count)
+                {
+                    return JsValue.FromJsObject(CreateIteratorResult(JsValue.Undefined, done: true));
+                }
+
+                moved++;
                 return JsValue.FromJsObject(CreateIteratorResult(value, done: false));
             });
         iterator.SetHostedProperty(

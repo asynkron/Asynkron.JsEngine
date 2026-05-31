@@ -1056,21 +1056,114 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task LabeledBreakCrossingForOf_ClosesInnerAndOuterDriversOnProductionFastPath()
+    public async Task LabeledContinueAcrossNestedForOf_ClosesInnerIteratorOnly()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            function makeIterable(limit, closeValue, box) {
+            function makeOuterIterable(box) {
                 return {
                     [Symbol.iterator]: function() {
                         var i = 0;
                         return {
                             next: function() {
                                 i = i + 1;
-                                return { done: i > limit, value: i };
+                                return { done: i > 2, value: i };
                             },
                             return: function() {
-                                box.value = box.value + closeValue;
+                                box.outerCloses = box.outerCloses + 1;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function makeInnerIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.innerCloses = box.innerCloses + 1;
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function probe(outer, inner, box) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        continue outerLabel;
+                    }
+                }
+
+                return 0;
+            }
+
+            var box = { innerCloses: 0, outerCloses: 0 };
+            probe(makeOuterIterable(box), makeInnerIterable(box), box);
+            (box.innerCloses * 10) + box.outerCloses;
+            """);
+
+        Assert.Equal(20d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledBreakAcrossNestedForOf_ClosesExitedIteratorsInnerToOuter()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeOuterIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.order = box.order + "o";
+                                return {};
+                            }
+                        };
+                    }
+                };
+            }
+
+            function makeInnerIterable(box) {
+                return {
+                    [Symbol.iterator]: function() {
+                        var seen = false;
+                        return {
+                            next: function() {
+                                if (seen) {
+                                    return { done: true };
+                                }
+
+                                seen = true;
+                                return { done: false, value: 1 };
+                            },
+                            return: function() {
+                                box.order = box.order + "i";
                                 return {};
                             }
                         };
@@ -1083,23 +1176,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                     for (var y of inner) {
                         break outerLabel;
                     }
-
-                    return -1;
                 }
 
-                return box.value;
+                return box.order;
             }
 
-            var box = { value: 0 };
-            var result = probe(makeIterable(2, 100, box), makeIterable(3, 1, box), box);
-            result + ":" + box.value;
+            var box = { order: "" };
+            probe(makeOuterIterable(box), makeInnerIterable(box), box);
             """);
 
-        // break outer crosses the inner iterator and exits the outer loop, so both returns run.
-        Assert.Equal("101:101", result);
+        Assert.Equal("io", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task LabeledContinueAcrossNestedForIn_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(outer, inner) {
+                var total = 0;
+                outerLabel: for (var x in outer) {
+                    for (var y in inner) {
+                        continue outerLabel;
+                    }
+
+                    total = total + 100;
+                }
+
+                return total;
+            }
+
+            probe({ a: 1, b: 2 }, { c: 3 });
+            """);
+
+        Assert.Equal(0d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=probe argc=3",
+                "unified-bytecode-production-fast-path func=probe argc=2",
                 StringComparison.Ordinal));
     }
 

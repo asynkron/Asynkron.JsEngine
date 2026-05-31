@@ -2158,8 +2158,9 @@ internal static class UnifiedBytecodeVirtualMachine
         int target,
         int loopBreakTarget)
     {
-        foreach (var descriptor in program.DriverDescriptors)
+        for (var index = program.DriverDescriptors.Length - 1; index >= 0; index--)
         {
+            var descriptor = program.DriverDescriptors[index];
             // The inner driver can already be closed when its pending break reaches an outer frame.
             // Use descriptor topology instead of active driver state to mirror the runner's breakable stack.
             if (descriptor.BreakTarget < 0)
@@ -2170,6 +2171,11 @@ internal static class UnifiedBytecodeVirtualMachine
             if (IsSameLoopControlTarget(program, target, descriptor.BreakTarget))
             {
                 return descriptor.BreakTarget != loopBreakTarget;
+            }
+
+            if (descriptor.BreakTarget == loopBreakTarget)
+            {
+                return false;
             }
         }
 
@@ -3603,12 +3609,13 @@ internal static class UnifiedBytecodeVirtualMachine
         JsEnvironment?[]? slotEnvironments,
         EvaluationContext context)
     {
+        var effectiveTarget = ResolveBytecodeCleanupChainTarget(program.Instructions, controlTarget);
         List<ActiveDriverSlot>? activeDriverSlots = null;
         var targetDriverOrdinal = isBreak ? int.MaxValue : 0;
         foreach (var descriptor in program.DriverDescriptors)
         {
             if (descriptor.StateSlot < 0 ||
-                descriptor.BreakTarget < 0 ||
+                !ShouldCleanupDriverForControlTarget(descriptor, controlTarget, effectiveTarget, program.Instructions) ||
                 !TryGetActiveDriverOrdinal(slots, descriptor.StateSlot, out var ordinal))
             {
                 continue;
@@ -4560,6 +4567,56 @@ internal static class UnifiedBytecodeVirtualMachine
                 slots[i] = environment.GetSlotByIndex(i).Value;
             }
         }
+    }
+
+    private static bool ShouldCleanupDriverForControlTarget(
+        UnifiedBytecodeDriverDescriptor descriptor,
+        int controlTarget,
+        int effectiveTarget,
+        ImmutableArray<UnifiedBytecodeInstruction> instructions)
+    {
+        if (descriptor.BreakTarget < 0)
+        {
+            return false;
+        }
+
+        var effectiveBreakTarget = ResolveBytecodeCleanupChainTarget(instructions, descriptor.BreakTarget);
+        if (controlTarget == descriptor.BreakTarget ||
+            effectiveTarget == descriptor.BreakTarget ||
+            controlTarget == effectiveBreakTarget ||
+            effectiveTarget == effectiveBreakTarget)
+        {
+            return true;
+        }
+
+        if (descriptor.MoveNextTarget < 0)
+        {
+            return false;
+        }
+
+        if (effectiveTarget == descriptor.MoveNextTarget)
+        {
+            return false;
+        }
+
+        return effectiveTarget < descriptor.MoveNextTarget ||
+               effectiveTarget >= effectiveBreakTarget;
+    }
+
+    private static int ResolveBytecodeCleanupChainTarget(
+        ImmutableArray<UnifiedBytecodeInstruction> instructions,
+        int target)
+    {
+        var current = target;
+        var remainingCleanupDepth = instructions.Length;
+        while ((uint)current < (uint)instructions.Length &&
+               remainingCleanupDepth-- > 0 &&
+               instructions[current].OpCode is UnifiedBytecodeOpCode.PopEnvironment or UnifiedBytecodeOpCode.LeaveWith)
+        {
+            current++;
+        }
+
+        return current;
     }
 
     // Synchronous non-spread construct call (`new F(...)`, gh2690). Mirrors the

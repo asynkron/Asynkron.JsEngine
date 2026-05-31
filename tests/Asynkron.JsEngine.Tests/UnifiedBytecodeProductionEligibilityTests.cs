@@ -2449,15 +2449,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         // outer continue target.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
-                var total = 0;
                 outerLabel: for (var x of outer) {
                     for (var y of inner) {
                         continue outerLabel;
-                        total = total + 1;
                     }
                 }
 
-                return total;
+                return 0;
             }
             """,
             "labeled");
@@ -2468,6 +2466,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Continue);
         Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
@@ -2503,6 +2503,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Break);
         Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
+    }
+
+    [Fact]
+    public void Evaluate_LabeledContinueCrossingForInDriverLoop_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function labeled(outer, inner) {
+                var total = 0;
+                outerLabel: for (var x in outer) {
+                    for (var y in inner) {
+                        continue outerLabel;
+                    }
+
+                    total = total + 1;
+                }
+
+                return total;
+            }
+            """,
+            "labeled");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
     }
 
     [Fact]

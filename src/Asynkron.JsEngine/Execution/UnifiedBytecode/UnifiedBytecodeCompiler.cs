@@ -4927,45 +4927,63 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var literalConstantsStart = literalConstants.Count;
+        var candidateUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        var candidateStringConstants = ImmutableArray.CreateBuilder<string>();
         var baseOp = expressionProgram.GetOperation(0);
-        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, candidateUnified, out reason))
         {
+            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
             return false;
         }
 
+        var propertyName = propertyRead.GetString(expressionStringConstants);
         var propertyNameIndex = stringConstants.Count;
-        stringConstants.Add(propertyRead.GetString(expressionStringConstants));
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
+        candidateStringConstants.Add(propertyName);
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
 
         // JumpIfShortCircuitXxx: target is the compiled end (7 instructions total, index 7 = OperationCount of compiled program + 1)
         // We'll patch this after building the rest. Track the patch index.
-        var jumpUnifiedIndex = unified.Count;
+        var jumpUnifiedIndex = candidateUnified.Count;
         var jumpOpCode = jumpOp.Kind switch
         {
             ExpressionOpKind.JumpIfFalse => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
             ExpressionOpKind.JumpIfTrue => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
             _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
         };
-        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
+        candidateUnified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
         // Re-load the base for the truthy path (avoids SwapTopTwo).
-        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, candidateUnified, out reason))
         {
+            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
             return false;
         }
 
         var rhs = expressionProgram.GetOperation(5);
-        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, candidateUnified, literalConstants, out reason))
         {
+            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
             return false;
         }
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
 
         // Patch the jump to point past SetNamedProperty.
-        unified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, unified.Count);
+        candidateUnified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, unified.Count + candidateUnified.Count);
+
+        for (var i = 0; i < candidateStringConstants.Count; i++)
+        {
+            stringConstants.Add(candidateStringConstants[i]);
+        }
+
+        for (var i = 0; i < candidateUnified.Count; i++)
+        {
+            unified.Add(candidateUnified[i]);
+        }
+
         reason = string.Empty;
         return true;
     }

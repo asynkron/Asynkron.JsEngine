@@ -510,6 +510,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
     }
 
     [Fact]
@@ -677,6 +678,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor());
 
         Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
     }
 
     [Fact]

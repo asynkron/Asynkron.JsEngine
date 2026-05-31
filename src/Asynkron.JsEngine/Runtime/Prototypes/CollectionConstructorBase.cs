@@ -1,3 +1,5 @@
+using Asynkron.JsEngine.StdLib;
+
 namespace Asynkron.JsEngine.Runtime.Prototypes;
 
 /// <summary>
@@ -21,6 +23,32 @@ public abstract class CollectionConstructorBase<TInstance>(
     ///     Populates the instance with data from the constructor arguments.
     /// </summary>
     protected abstract void PopulateInstance(TInstance instance, IReadOnlyList<JsValue> args);
+
+    /// <summary>
+    ///     Populates a collection instance from an iterable using a named adder method.
+    /// </summary>
+    protected void PopulateCollectionFromIterable(
+        TInstance instance,
+        IReadOnlyList<JsValue> args,
+        string adderPropertyName,
+        string adderNotCallableMessage,
+        string operation,
+        Action<IJsCallable, JsValue, JsValue> populateEntry)
+    {
+        if (args.Count == 0 || args[0].IsNull || args[0].IsUndefined)
+        {
+            return;
+        }
+
+        if (!instance.TryGetProperty(adderPropertyName, out var adderValue) ||
+            !adderValue.TryGetObject<IJsCallable>(out var adder))
+        {
+            throw StandardLibrary.ThrowTypeError(adderNotCallableMessage, realm: Realm);
+        }
+
+        var instanceValue = JsValue.FromObjectUnsafe(instance);
+        MapSetIterationHelper.Iterate(args[0], Realm, operation, entry => populateEntry(adder, entry, instanceValue));
+    }
 
     /// <summary>
     ///     Configures realm-specific properties (e.g., Realm.XxxConstructor, Realm.XxxPrototype).

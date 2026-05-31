@@ -54,6 +54,13 @@ checks separate.
    proceeds). Do not share the optional preparation opcode with non-optional
    member calls; the nullish-check and jump-target operand encoding must be
    self-contained and visible at the opcode level.
+8a. For optional-start computed plain calls such as `a?.b[k](...)`, keep the
+    first optional hop's nullish check before the computed key load, then use
+    the ordinary computed call-target preparation only after the receiver object
+    has been loaded. Treat spread arguments as a separate capability boundary:
+    unless the slice explicitly proves spread-mask handling for this exact
+    optional-start shape, decline `a?.b[k](...args)` instead of letting generic
+    simple-argument checks admit it accidentally.
 9. When adding a new `if`/`else-if` branch to a pattern-dispatch chain where a
    non-match means "not my responsibility," always close every new arm with
    `else { return false; }` (or equivalent silent-decline) before any
@@ -111,3 +118,13 @@ caused 196 test failures because `TryAppendExpressionProgramOps` received a
 non-empty failure reason and could not fall through to the per-op dispatch loop
 for those programs. The fix — `else { return false; }` for the unrecognized
 trailing-op case — is now rule 9 above.
+
+Issue #2828 / PR #2832 widened ADR 0301's optional call-chain route from named
+optional-start forms to the computed plain-call form `a?.b[k](...)`. The
+important distinction is evaluation order: the computed key must not execute
+when `a` is nullish, while the eventual `PrepareComputedCallTarget` still has to
+preserve `a.b` as the receiver. Review also caught that the new recognizer could
+have admitted `a?.b[k](...args)` through the generic argument path; that spread
+variant was outside the slice and now declines explicitly. Future optional-start
+computed-call slices need to prove key skipping, receiver binding, and
+shape-specific spread handling separately.

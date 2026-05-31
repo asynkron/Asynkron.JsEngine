@@ -1,4 +1,3 @@
-using System.Globalization;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
@@ -12,45 +11,6 @@ namespace Asynkron.JsEngine.StdLib;
 
 public static partial class StandardLibrary
 {
-    [Obsolete("Legacy object? overload. Use TryGetObject(JsValue, ...) instead.", false)]
-    internal static bool TryGetObject(object? candidate, RealmState realm, out IJsObjectLike accessor)
-    {
-        while (true)
-        {
-            switch (candidate)
-            {
-                case null:
-                case Symbol sym when ReferenceEquals(sym, Symbol.Undefined):
-                    accessor = null!;
-                    return false;
-                case JsValue jsValue:
-                    // Delegate to the JsValue-specific overload which handles all kinds properly
-                    return TryGetObject(jsValue, realm, out accessor);
-                case IJsObjectLike objectLike:
-                    accessor = objectLike;
-                    return true;
-                case JsSymbol symbol:
-                    accessor = CreateSymbolWrapper(symbol, realm: realm);
-                    return true;
-                case bool b:
-                    accessor = CreateBooleanWrapper(b, realm: realm);
-                    return true;
-                case string s:
-                    accessor = CreateStringWrapper(s, realm: realm);
-                    return true;
-                case JsBigInt bigInt:
-                    accessor = CreateBigIntWrapper(bigInt, realm: realm);
-                    return true;
-                case double or float or decimal or int or uint or long or ulong or short or ushort or byte or sbyte:
-                    accessor = CreateNumberWrapper(Convert.ToDouble(candidate, CultureInfo.InvariantCulture), realm: realm);
-                    return true;
-                default:
-                    accessor = null!;
-                    return false;
-            }
-        }
-    }
-
     /// <summary>
     /// JsValue overload for TryGetObject. Handles JsValue kinds directly without boxing.
     /// </summary>

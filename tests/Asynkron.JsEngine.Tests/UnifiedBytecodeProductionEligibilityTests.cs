@@ -1749,15 +1749,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("RequireObjectCoercible", result.Reason, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Evaluate_DirectEvalExpressionPlan_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invokeEval(source) {
+                return eval(source);
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
     [Theory]
-    [InlineData(
-        """
-        function invokeEval(source) {
-            return eval(source);
-        }
-        """,
-        "invokeEval",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
     [InlineData(
         """
         function invokeComputedExpressionKey(box, left, right) {

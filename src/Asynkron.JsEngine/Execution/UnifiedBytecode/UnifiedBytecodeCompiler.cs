@@ -41,16 +41,30 @@ internal static class UnifiedBytecodeCompiler
         }
     }
 
-    // CallInvocationBoundary operand packing for spread calls (gh2676):
+    // CallInvocationBoundary operand packing for spread calls (gh2676) and direct eval:
     // low 16 bits hold the pushed argument value count, the high bits hold
-    // spreadMaskIndex + 1 (0 means "no spread").
+    // spreadMaskIndex + 1 (0 means "no spread"). Bit 30 marks syntactic direct eval.
     private const int CallBoundaryArgumentMask = 0xFFFF;
     private const int CallBoundarySpreadShift = 16;
+    private const int CallBoundarySpreadMask = 0x3FFF;
+    private const int CallBoundaryDirectEvalFlag = 1 << 30;
 
-    private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex) =>
-        spreadMaskIndex < 0
-            ? argumentValueCount
-            : (argumentValueCount & CallBoundaryArgumentMask) | ((spreadMaskIndex + 1) << CallBoundarySpreadShift);
+    private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex, bool isDirectEval)
+    {
+        var operand = argumentValueCount & CallBoundaryArgumentMask;
+        if (spreadMaskIndex >= 0)
+        {
+            var encodedSpreadMask = spreadMaskIndex + 1;
+            if ((encodedSpreadMask & ~CallBoundarySpreadMask) != 0)
+            {
+                throw new InvalidOperationException("Call spread mask index exceeds the call boundary operand capacity.");
+            }
+
+            operand |= encodedSpreadMask << CallBoundarySpreadShift;
+        }
+
+        return isDirectEval ? operand | CallBoundaryDirectEvalFlag : operand;
+    }
 
     public static bool TryCompile(
         ExecutionPlan plan,
@@ -3624,7 +3638,7 @@ internal static class UnifiedBytecodeCompiler
 
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.ConstructInvocationBoundary,
-                        EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex)));
+                        EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex, isDirectEval: false)));
                     break;
 
                 case ExpressionOpKind.LoadFunctionLiteral:
@@ -3728,18 +3742,16 @@ internal static class UnifiedBytecodeCompiler
         if (lastOp.Kind == ExpressionOpKind.Call)
         {
             var call = lastOp;
-            if (!call.HasExplicitThis)
+            if (!call.HasExplicitThis && !call.IsDirectEval)
             {
                 reason = "Only direct identifier and member calls with explicit receiver records are supported.";
                 return false;
             }
 
-            // Synchronous spread calls are admitted (gh2676); spread flattening happens
-            // at the invocation boundary using the registered spread mask. Direct eval
-            // stays out of scope.
-            if (call.IsDirectEval)
+            if (call.IsDirectEval &&
+                (call.ArgumentCount != 1 || call.SpreadMaskConstantIndex >= 0))
             {
-                reason = "Direct eval invocation semantics are outside the call-target preparation boundary.";
+                reason = "Only one-argument non-spread direct eval is supported by the call-target preparation boundary.";
                 return false;
             }
 
@@ -3886,9 +3898,18 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        var isDirectEval = call.IsDirectEval &&
+                           string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal);
+        if (call.IsDirectEval && !isDirectEval)
+        {
+            reason = "Direct eval call-target preparation requires an eval identifier target.";
+            return false;
+        }
+
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
-            if (!allowsDynamicIdentifiers &&
+            if (!isDirectEval &&
+                !allowsDynamicIdentifiers &&
                 !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
             {
                 reason =
@@ -4808,7 +4829,9 @@ internal static class UnifiedBytecodeCompiler
             {
                 // Spread arguments push the iterable value; flattening happens at the
                 // invocation boundary using the registered spread mask (gh2676).
-                if (!TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out reason))
+                if (!TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out reason) &&
+                    (!call.IsDirectEval ||
+                     !TryAppendDirectEvalArgumentLoad(op, expressionProgram, unified, stringConstants, out reason)))
                 {
                     return false;
                 }
@@ -4832,7 +4855,28 @@ internal static class UnifiedBytecodeCompiler
 
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
-            EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex)));
+            EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex, call.IsDirectEval)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendDirectEvalArgumentLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            reason = $"Unsupported direct eval argument op '{operation.Kind}'.";
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(identifier.Name.Name ?? string.Empty);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadDynamicIdentifier, nameIndex));
         reason = string.Empty;
         return true;
     }

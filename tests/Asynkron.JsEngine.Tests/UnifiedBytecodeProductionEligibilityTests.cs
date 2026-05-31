@@ -1006,6 +1006,69 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box) {
+                return delete box.value;
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
+        Assert.Equal("value", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box) {
+                return delete box.child.value;
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, key) {
+                return delete box[key];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+    }
+
+    [Fact]
     public void Evaluate_NamedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -1791,14 +1854,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
-        function remove(box) {
-            return delete box.value;
-        }
-        """,
-        "remove",
-        (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
-    [InlineData(
-        """
         function readLiteral(box) {
             return { ...box }.value;
         }
@@ -2103,6 +2158,59 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.False(result.IsEligible);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
         Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateNamedPropertyDelete_DeclinesWithExplicitCode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                remove(receiver) {
+                    return delete receiver.#field;
+                }
+            }
+            """,
+            "Holder",
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
+        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        function remove(box) {
+            return delete box?.value;
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box?.[key];
+        }
+        """,
+        "remove")]
+    public void Evaluate_OptionalPropertyDelete_DeclinesWithExplicitCode(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.Contains("Optional-chain", result.Reason, StringComparison.Ordinal);
     }
 
     [Fact]

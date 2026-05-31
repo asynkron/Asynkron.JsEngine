@@ -1131,6 +1131,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -1277,9 +1282,41 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.DeleteNamedProperty:
-                case ExpressionOpKind.DeleteComputedProperty:
+                    if (HasOptionalDeleteOperation(program))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain delete expressions are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
-                    declineReason = "delete expressions are not eligible for production unified bytecode routing.";
+                    declineReason =
+                        "Named property deletes are outside the first production boundary unless they use an activation-resolved non-private base/property chain.";
+                    return true;
+
+                case ExpressionOpKind.DeleteComputedProperty:
+                    if (HasOptionalDeleteOperation(program))
+                    {
+                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
+                        declineReason =
+                            "Optional-chain delete expressions are not eligible for production unified bytecode routing.";
+                        return true;
+                    }
+
+                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
+                    declineReason =
+                        "Computed property deletes are outside the first production boundary unless they use activation-resolved/simple base and key operands.";
                     return true;
 
                 case ExpressionOpKind.EnsureSuperReference:
@@ -1464,6 +1501,20 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool HasOptionalDeleteOperation(ExpressionProgram program)
+    {
+        var hasDelete = false;
+        var hasNullishJump = false;
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            hasDelete |= operation.Kind is ExpressionOpKind.DeleteNamedProperty or ExpressionOpKind.DeleteComputedProperty;
+            hasNullishJump |= operation.Kind == ExpressionOpKind.JumpIfNullish;
+        }
+
+        return hasDelete && hasNullishJump;
     }
 
     private static bool TryIsConstructInvocationCandidate(
@@ -1969,6 +2020,54 @@ internal static class UnifiedBytecodeProductionEligibility
         var getComputedProperty = program.GetOperation(4);
         return getComputedProperty.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedProperty.ShortCircuitOnNullishTarget;
+    }
+
+    private static bool TryIsFirstBoundaryNamedPropertyDeleteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 2)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var index = 1; index < program.OperationCount - 1; index++)
+        {
+            var operation = program.GetOperation(index);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.GetString(stringConstants).IsPrivateName() ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        var deleteProperty = program.GetOperation(program.OperationCount - 1);
+        return deleteProperty.Kind == ExpressionOpKind.DeleteNamedProperty &&
+               !deleteProperty.GetString(stringConstants).IsPrivateName();
+    }
+
+    private static bool TryIsFirstBoundaryComputedPropertyDeleteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount != 3)
+        {
+            return false;
+        }
+
+        return TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
+               IsSimpleComputedPropertyKeyOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
+               program.GetOperation(2).Kind == ExpressionOpKind.DeleteComputedProperty;
     }
 
     // Admits the simple a?.b shape: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)].
@@ -3744,7 +3843,8 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         return (operation.Kind is ExpressionOpKind.GetNamedProperty
                                or ExpressionOpKind.SetNamedProperty
-                               or ExpressionOpKind.UpdateNamedProperty) &&
+                               or ExpressionOpKind.UpdateNamedProperty
+                               or ExpressionOpKind.DeleteNamedProperty) &&
                operation.GetString(stringConstants).IsPrivateName();
     }
 
@@ -3956,6 +4056,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.TypeOfIdentifier:
                 case UnifiedBytecodeOpCode.TypeOfDynamicIdentifier:
                 case UnifiedBytecodeOpCode.DeleteDynamicIdentifier:
+                case UnifiedBytecodeOpCode.DeleteNamedProperty:
+                case UnifiedBytecodeOpCode.DeleteComputedProperty:
                 case UnifiedBytecodeOpCode.UnaryPlus:
                 case UnifiedBytecodeOpCode.UnaryMinus:
                 case UnifiedBytecodeOpCode.UnaryLogicalNot:

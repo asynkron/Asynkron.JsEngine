@@ -37,6 +37,8 @@ internal enum UnifiedBytecodeOpCode : byte
     TypeOfIdentifier,
     TypeOfDynamicIdentifier,
     DeleteDynamicIdentifier,
+    DeleteNamedProperty,
+    DeleteComputedProperty,
     UnaryPlus,
     UnaryMinus,
     UnaryLogicalNot,

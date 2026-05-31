@@ -266,6 +266,33 @@ Pipeline invariants:
 - Eligibility classifiers are the only thing allowed to inspect compiled shape boundaries at routing time.
 - Every `FBK` marker is tracked technical debt. Tier 3 volume must decrease monotonically.
 
+## IR pipeline (greenfield target)
+
+The current migration stack emits Statement IR, ExpressionProgram payloads, and UnifiedBytecode artifacts directly from analyzed AST. The greenfield compiler pipeline adds explicit IR strata so optimization passes can be scoped by responsibility:
+
+- **HIR (High-level IR):** SSA-friendly three-address form that preserves JavaScript control-flow and lexical binding semantics.
+- **MIR (Mid-level IR):** lower-level normalized form after optimization passes (constant folding, dead-code elimination, loop canonicalization, register-pressure shaping).
+- **LIR (Low-level IR):** VM-targeted instruction selection and register-slot assignment just before `UnifiedBytecodeProgram` emission.
+
+```mermaid
+flowchart LR
+    AST["Typed AST\n(current parser output)"]
+    HIR["HIR (greenfield target)\nSSA-friendly, three-address form\nscope + control-flow explicit"]
+    OPT["Optimizer passes (greenfield target)\nconst fold, DCE, loop canonicalization,\ncopy propagation, guard simplification"]
+    MIR["MIR (greenfield target)\nregister-pressure aware,\nloop structure preserved"]
+    SEL["Instruction selection (greenfield target)\nopcode family + operand shaping"]
+    LIR["LIR (greenfield target)\nVM-targeted low-level IR"]
+    EMIT["Bytecode emission (greenfield target)\nUnifiedBytecodeProgram"]
+
+    AST --> HIR --> OPT --> MIR --> SEL --> LIR --> EMIT
+```
+
+IR pipeline invariants (all directional):
+- No stage in this HIR→MIR→LIR pipeline exists today; this section defines target compiler layering, not current implementation.
+- HIR owns JavaScript semantic fidelity (scope, completion behavior, and observable evaluation order).
+- MIR owns optimization profitability and legality checks before bytecode emission.
+- LIR owns final opcode/operand encoding and keeps VM execution shape stable across compiler pass changes.
+
 ## TypeScript preprocessing (directional)
 
 TypeScript source is JavaScript with type annotations stripped before parsing. A preprocessing layer sits before the lexer: it removes type annotations while keeping source positions stable for downstream stack trace attribution and source map generation. This layer does not type-check; type safety is the TypeScript compiler's responsibility, not the engine's.
@@ -735,39 +762,6 @@ Seam-elimination rules:
 - Near-closure seams (see seam inventory table) are first in the optimization queue. Structural seams are scoped to milestones.
 - The canonical list of remaining fallback seams is maintained in the unified-bytecode expansion contract.
 
-## Proper tail calls — PTC (directional)
-
-ECMAScript strict-mode mandates proper tail calls: a call expression in tail position of a strict-mode function must not grow the call stack. The engine's treatment — opcode, frame reuse, or documented Stratum F decline — must be a first-class design decision, not an omission.
-
-```mermaid
-flowchart TB
-    SRC["Source: strict-mode function\nreturn f(args)  ← tail position"]
-    DETECT["Tail position detection\nstatic analysis at lowering time\ntail-call flag on call-site"]
-
-    subgraph Stratum0["Stratum 0 path (target)"]
-        OPCODE["TailCall opcode\nreplace current frame instead of push\nno new stack frame allocated"]
-    end
-
-    subgraph StratumF["Stratum F path (accepted decline)"]
-        GROW["Normal call\nstack grows\nnon-strict / non-tail / spread / new-target dependency"]
-    end
-
-    SRC --> DETECT
-    DETECT -->|strict + tail position + eligible shape| OPCODE
-    DETECT -->|non-strict or non-tail or ineligible| GROW
-
-    style OPCODE fill:#060,color:#fff
-    style GROW fill:#933,color:#fff
-```
-
-Tail call invariants (all directional):
-- Tail position detection is a compile-time static analysis in the lowering pass; it does not add a runtime check on the hot path.
-- A `TailCall` opcode reuses the current call frame (slot array + return address) instead of pushing a new frame; this is the mechanism that enables non-stack-growing tail recursion.
-- Non-strict mode PTC is implementation-defined by the spec; this engine may choose to apply PTC only in strict mode to match the mandatory minimum.
-- `yield`, `await`, `arguments` reference, and `new.target` use inside the tail call site are eligibility-disqualifying conditions; they must be detected at lowering time.
-- The seam inventory entry "Proper tail calls (PTC) — strict mode" is **Untracked — requires ADR**. A focused ADR must specify the eligibility criteria, frame-reuse mechanism, and decline conditions before any production claim.
-- This is entirely directional; no tail call opcode exists today.
-
 ## Capability lifecycle (claim discipline)
 
 ```mermaid
@@ -797,6 +791,7 @@ Goal: deterministic, side-effect-free source → artifact transformation.
 ```mermaid
 flowchart TD
     subgraph LC["Language Compiler"]
+        NRM[Source Normalization — directional\nTypeScript annotation stripping + JSX/TSX lowering]
         LEX[Lexer\ntokens + unicode categories]
         PAR[Parser\nrecursive descent → TypedAST]
         SSM[Static Semantics\nhoisting, binding analysis, dynamic-scope flags]
@@ -807,7 +802,7 @@ flowchart TD
         SLA[Slot and Layout Assignment\nplan-owned, runtime-consumed]
     end
 
-    LEX --> PAR --> SSM
+    NRM --> LEX --> PAR --> SSM
     SSM --> SLW --> SLA
     SSM --> ELW --> ELC
     SSM --> UBC --> ELC
@@ -841,6 +836,39 @@ flowchart TD
     T2 --> CPL
     T2 -.near-closure and structural seams.-> T3
 ```
+
+#### Proper tail calls (PTC) — directional
+
+ECMAScript strict-mode mandates proper tail calls: a call expression in tail position of a strict-mode function must not grow the call stack. The engine's treatment — opcode, frame reuse, or documented Tier 3/Stratum F decline — must be explicit in the Execution Engine contract.
+
+```mermaid
+flowchart TB
+    SRC["Source: strict-mode function\nreturn f(args)  ← tail position"]
+    DETECT["Tail position detection\nstatic analysis at lowering time\ntail-call flag on call-site"]
+
+    subgraph Stratum0["Stratum 0 path (target)"]
+        OPCODE["TailCall opcode\nreplace current frame instead of push\nno new stack frame allocated"]
+    end
+
+    subgraph StratumF["Stratum F path (accepted decline)"]
+        GROW["Normal call\nstack grows\nnon-strict / non-tail / spread / new-target dependency"]
+    end
+
+    SRC --> DETECT
+    DETECT -->|strict + tail position + eligible shape| OPCODE
+    DETECT -->|non-strict or non-tail or ineligible| GROW
+
+    style OPCODE fill:#060,color:#fff
+    style GROW fill:#933,color:#fff
+```
+
+Tail call invariants (all directional):
+- Tail position detection is a compile-time static analysis in the lowering pass; it does not add a runtime check on the hot path.
+- A `TailCall` opcode reuses the current call frame (slot array + return address) instead of pushing a new frame; this is the mechanism that enables non-stack-growing tail recursion.
+- Non-strict mode PTC is implementation-defined by the spec; this engine may choose to apply PTC only in strict mode to match the mandatory minimum.
+- `yield`, `await`, `arguments` reference, and `new.target` use inside the tail call site are eligibility-disqualifying conditions; they must be detected at lowering time.
+- The seam inventory entry "Proper tail calls (PTC) — strict mode" is **Untracked — requires ADR**. A focused ADR must specify the eligibility criteria, frame-reuse mechanism, and decline conditions before any production claim.
+- This is entirely directional; no tail call opcode exists today.
 
 #### Bytecode instruction format (committed direction — requires ADR before wire-format freeze)
 

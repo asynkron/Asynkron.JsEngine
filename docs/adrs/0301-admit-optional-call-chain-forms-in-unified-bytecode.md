@@ -1,4 +1,4 @@
-# ADR 0299: Admit optional call-chain forms in unified bytecode via jump-based lowering
+# ADR 0301: Admit optional call-chain forms in unified bytecode via jump-based lowering
 
 ## Status
 
@@ -6,9 +6,9 @@ Accepted
 
 ## Context
 
-Faktorial issue `gh2806` and PR #2806 extend the production unified-bytecode VM
-to admit optional call-chain forms that were previously declined with
-`OptionalChainDependency`:
+Faktorial issues `gh2806` / `gh2828` and PRs #2814 / #2832 extend the
+production unified-bytecode VM to admit optional call-chain forms that were
+previously declined with `OptionalChainDependency`:
 
 - `a?.b.c()` — optional-start chain, plain non-optional call
 - `a?.b?.c()` — double-optional chain, receiver-optional call
@@ -18,7 +18,7 @@ ADR 0289 admitted simple receiver-optional (`box?.read()`) and callee-optional
 (`box.read?.()`) call forms. ADR 0298 admitted multi-hop optional named property
 read chains (`a?.b.c`, `a?.b?.c`) via a jump-based lowering that avoids a
 sentinel-value propagation scheme. This ADR extends the call-target compiler path
-to reuse the same jump-based lowering for the two new call-chain forms.
+to reuse the same jump-based lowering for these call-chain forms.
 
 The form `a?.b()` (single-hop optional start into an immediate call) was already
 admitted by ADR 0289 Case 1 as `box?.read()` — the receiver chain is just the
@@ -129,7 +129,7 @@ the computed key is skipped on the short-circuit path.
 
 ### Invariants preserved
 
-- Both forms require an activation-resolved base at op[0] (same as all other
+- These forms require an activation-resolved base at op[0] (same as all other
   admitted call-chain forms).
 - The `GetNamedProperty(IsOptional:true)` must be non-private and have
   `!ShortCircuitOnNullishTarget`.
@@ -143,10 +143,10 @@ the computed key is skipped on the short-circuit path.
 ## Consequences
 
 - `a?.b.c(args)`, `a?.b?.c(args)`, and `a?.b[k](args)` now route through the
-  production VM,
-  gaining the same throughput benefit as other admitted call-chain forms.
+  production VM, gaining the same throughput benefit as other admitted
+  call-chain forms.
 - The gate for `a.x?.b.c()` (non-activation-resolved base) correctly remains
   declined with `OptionalChainDependency` (AC-4).
 - Previously-admitted optional call patterns (Cases 1–3) are unaffected.
 - Lineage: ADR 0289 (Cases 1–3), ADR 0296 (simple optional reads),
-  ADR 0298 (multi-hop optional property read chains), gh2806.
+  ADR 0298 (multi-hop optional property read chains), gh2806, gh2828.

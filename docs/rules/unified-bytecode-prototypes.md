@@ -1160,7 +1160,7 @@ all-or-nothing until a separate routing issue proves production readiness.
     `undefined`, live chain → computed value, and base-evaluated-once (side
     effects on the base are not repeated on short-circuit).
 
-    WHY: issue gh2806 / PR #2814 (ADR 0299) extended Cases 4–5 for optional call
+    WHY: issue gh2806 / PR #2814 (ADR 0301) extended Cases 4–5 for optional call
     chains, reusing the `JumpIfNullishReplaceUndefined` jump-based pattern from
     ADR 0298 (multi-hop optional property reads). The durable lesson is that
     `JumpIfShortCircuited` is an IR artifact of `HasOptionalChaining(member.Target)`
@@ -1567,5 +1567,5 @@ Related ADRs:
 - `docs/adrs/0296-admit-optional-member-access-in-unified-bytecode-with-null-check-opcodes.md`
 - `docs/adrs/0297-admit-conditional-ternary-expression-in-unified-bytecode.md`
 - `docs/adrs/0298-admit-multi-hop-optional-named-chains-in-unified-bytecode-jump-based-lowering.md`
-- `docs/adrs/0299-admit-optional-call-chain-forms-in-unified-bytecode.md`
+- `docs/adrs/0301-admit-optional-call-chain-forms-in-unified-bytecode.md`
 - `docs/adrs/0300-admit-logical-compound-assignment-on-slots-in-unified-bytecode.md`

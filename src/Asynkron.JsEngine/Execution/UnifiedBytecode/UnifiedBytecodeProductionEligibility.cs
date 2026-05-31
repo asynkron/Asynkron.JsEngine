@@ -830,8 +830,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
-                        // a?.b.c chain — admitted when the program matches the optional named property read chain shape.
-                        if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
+                        // Continuation hop of a multi-hop optional named chain (a?.b.c / a?.b?.c).
+                        if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
                         }
@@ -850,8 +850,8 @@ internal static class UnifiedBytecodeProductionEligibility
                             break;
                         }
 
-                        // a?.b.c chain or a?.b[k] shape.
-                        if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                        // a?.b.c / a?.b?.c chain, or a?.b[k] shape.
+                        if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots) ||
                             TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
                         {
                             break;
@@ -1618,6 +1618,54 @@ internal static class UnifiedBytecodeProductionEligibility
                !getNamedOp.GetString(program.StringConstants.AsSpan()).IsPrivateName();
     }
 
+    // Admits multi-hop optional named chains a?.b.c and a?.b?.c:
+    // [activation-resolved base,
+    //  GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
+    //  GetNamedProperty(ShortCircuitOnNullishTarget:true, non-private)+].
+    // The compiler lowers this to a jump-based form (JumpIfNullishReplaceUndefined at each
+    // optional hop targeting the chain end, plus plain GetNamedProperty reads), so the VM
+    // never needs the parallel short-circuit flag array.
+    private static bool TryIsFirstBoundaryOptionalNamedChainCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Two-op programs are the simple a?.b form handled by the dedicated candidate above.
+        if (program.OperationCount < 3)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+
+        var firstHop = program.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        for (var index = 2; index < program.OperationCount; index++)
+        {
+            var op = program.GetOperation(index);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+                !op.ShortCircuitOnNullishTarget ||
+                op.GetString(stringConstants).IsPrivateName())
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // Admits the a?.b.c chain shape:
     // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
     // The optional guard on the first access is converted to JumpIfNullishReplaceUndefined in the compiler;
@@ -1698,6 +1746,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                computedOp.ShortCircuitOnNullishTarget;
     }
+
 
     // Admits the simple a?.[k] shape:
     // [activation-resolved base, JumpIfNullish(ReplaceWithUndefined:true), simple key, GetComputedProperty(!ShortCircuitOnNullishTarget)].

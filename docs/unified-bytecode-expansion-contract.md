@@ -184,9 +184,13 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   (activation-resolved base — `this.prop` or `box.prop`, named key, production
   binary operator e.g. `+=`, simple RHS) via
   `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`. Retained declines
-  include logical-assignment operators (`||=`, `&&=`, `??=`), deeper property
-  chains (`box.child.value += …`), and computed-expression keys
-  (`box[key+suffix] += …`).
+  include logical-assignment operators (`||=`, `&&=`, `??=`) on **member targets**
+  (`this.x &&= y`, `box.prop ||= y`), deeper property chains
+  (`box.child.value += …`), and computed-expression keys (`box[key+suffix] += …`).
+  Note: `&&=`, `||=`, `??=` on **slot identifiers** (`x &&= y`) are admitted
+  (PR #2810, ADR 0300); the retained decline here applies only to member-target
+  logical compound writes where the conditional short-circuit branch cannot compose
+  with the compound get-for-set model.
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
   net for class methods that use `super`. Super-property reads, writes, and

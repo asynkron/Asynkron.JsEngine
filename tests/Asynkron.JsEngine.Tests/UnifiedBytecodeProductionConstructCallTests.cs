@@ -270,7 +270,8 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             new Derived().message;
             """);
 
-        Assert.Contains("Super constructor may only be called once", result.AsString(), StringComparison.Ordinal);
+        var message = Assert.IsType<string>(result);
+        Assert.Contains("Super constructor may only be called once", message, StringComparison.Ordinal);
     }
 
     [Fact(Timeout = 5000)]

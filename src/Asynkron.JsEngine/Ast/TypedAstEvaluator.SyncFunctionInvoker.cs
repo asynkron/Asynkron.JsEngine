@@ -3084,7 +3084,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.LoadFunctionLiteral or
                     UnifiedBytecodeOpCode.EnterWith or
                     UnifiedBytecodeOpCode.LeaveWith or
-                    UnifiedBytecodeOpCode.LoadFunctionLiteral)
+                    UnifiedBytecodeOpCode.LoadFunctionLiteral or
+                    UnifiedBytecodeOpCode.LoadClassLiteral)
                 {
                     return true;
                 }

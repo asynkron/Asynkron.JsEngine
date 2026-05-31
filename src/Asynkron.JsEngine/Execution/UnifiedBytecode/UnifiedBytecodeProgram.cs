@@ -94,6 +94,7 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareComputedOptionalCallTarget,
     CallInvocationBoundary,
     ConstructInvocationBoundary,
+    LoadClassLiteral,
     LoadFunctionLiteral,
     Yield,
     StoreResumeValue,
@@ -263,4 +264,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeCatchDescriptor> CatchDescriptors,
     ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors,
     ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
-    ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default);
+    ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default,
+    ImmutableArray<ClassExpression> ClassLiteralConstants = default);

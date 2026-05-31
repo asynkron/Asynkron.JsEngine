@@ -1636,6 +1636,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "computedNamedFunctionValue")]
+    [InlineData(
+        """
+        function namedClassValue() {
+            return { value: class {} };
+        }
+        """,
+        "namedClassValue")]
     public void Evaluate_ObjectLiteralNameInferenceShapes_AcceptWithNoneCode(
         string source,
         string functionName)
@@ -1648,6 +1655,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_ClassLiteralValuePlan_AcceptsAndCompilesClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeClass(baseValue) {
+                return class extends baseValue {
+                    value() { return 1; }
+                };
+            }
+            """,
+            "makeClass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
     [Theory]

@@ -958,6 +958,10 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         break;
                     }
+                    if (TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
 
                     if (ContainsPropertyWriteOperation(program))
                     {
@@ -985,7 +989,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -2779,6 +2784,56 @@ internal static class UnifiedBytecodeProductionEligibility
         var stringConstants = program.StringConstants.AsSpan();
         var propertyName = propertyRead.GetString(stringConstants);
         return !propertyName.IsPrivateName() && propertyName == propertyWrite.GetString(stringConstants);
+    }
+
+    private static bool TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Shape: [base, key, RequireObjectCoercible, ResolvePropertyKey, DuplicateTopTwo, GetComputedProperty,
+        // JumpIf*, Pop, rhs, SetComputedProperty, DuplicateTop, DuplicateTop, RotateTopThreeRight, Pop, Pop]
+        if (program.OperationCount != 15)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) ||
+            !IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var requireObjectCoercible = program.GetOperation(2);
+        var resolvePropertyKey = program.GetOperation(3);
+        var duplicateTargetAndKey = program.GetOperation(4);
+        var propertyRead = program.GetOperation(5);
+        var jump = program.GetOperation(6);
+        var pop = program.GetOperation(7);
+        var rhs = program.GetOperation(8);
+        var propertyWrite = program.GetOperation(9);
+        var duplicateAssignedValue = program.GetOperation(10);
+        var duplicateAssignedValueAgain = program.GetOperation(11);
+        var rotateTopThreeRight = program.GetOperation(12);
+        var cleanupPop = program.GetOperation(13);
+        var cleanupPop2 = program.GetOperation(14);
+        return requireObjectCoercible.Kind == ExpressionOpKind.RequireObjectCoercible &&
+               requireObjectCoercible.Depth == 1 &&
+               resolvePropertyKey.Kind == ExpressionOpKind.ResolvePropertyKey &&
+               duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
+               propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
+               !propertyRead.ShortCircuitOnNullishTarget &&
+               jump.Kind is (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) &&
+               pop.Kind == ExpressionOpKind.Pop &&
+               IsSimpleOperand(rhs, identifierConstants, activationSlots) &&
+               propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
+               !propertyWrite.AllowNameInference &&
+               duplicateAssignedValue.Kind == ExpressionOpKind.DuplicateTop &&
+               duplicateAssignedValueAgain.Kind == ExpressionOpKind.DuplicateTop &&
+               rotateTopThreeRight.Kind == ExpressionOpKind.RotateTopThreeRight &&
+               cleanupPop.Kind == ExpressionOpKind.Pop &&
+               cleanupPop2.Kind == ExpressionOpKind.Pop &&
+               jump.Target == 12;
     }
 
     private static bool TryIsFirstBoundaryPropertyWriteCandidate(

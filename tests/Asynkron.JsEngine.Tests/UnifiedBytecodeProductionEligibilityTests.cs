@@ -4546,8 +4546,45 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalAndComputedWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData(
+        """
+        function logicalOrComputedWrite(box, key, value) {
+            return box[key] ||= value;
+        }
+        """,
+        "logicalOrComputedWrite",
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData(
+        """
+        function logicalNullishComputedWrite(box, key, value) {
+            return box[key] ??= value;
+        }
+        """,
+        "logicalNullishComputedWrite",
+        (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void Evaluate_ComputedLogicalAssignment_AcceptsWithOwnedOpcodes(
+        string source,
+        string functionName,
+        int expectedJumpOpCode)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedJumpOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Theory]
     [InlineData(
         """
         function logicalAndNestedWrite(box, value) {
@@ -4568,7 +4605,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
-    public void Evaluate_LogicalAndAssignment_NonFirstBoundaryOrUnsupportedShapes_DeclineWithExplicitCodes(
+    public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
         string source,
         string functionOrClassName,
         string? methodName,

@@ -3394,6 +3394,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndPreservesShortCircuitSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return 0;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+
+            function write(box, key, value) {
+                return box[key] &&= value;
+            }
+
+            String(write(box, key, 5)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("0:key,get", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {
         await using var engine = CreateEngine();

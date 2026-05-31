@@ -3150,32 +3150,31 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation or
                 UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
                 UnifiedBytecodeProductionDeclineCode.ThisDependency or
-                UnifiedBytecodeProductionDeclineCode.NewTargetDependency);
+                UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
+                UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
+                UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
+                UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision or
+                UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency or
+                UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency or
+                UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
         }
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
-            if (!newTarget.IsUndefined ||
-                IsClassConstructor ||
-                IsArrowFunction ||
-                IsAsyncLike ||
-                _function.IsGenerator ||
+            var activation = CreateProductionUnifiedBytecodeActivationDescriptor(newTarget, canUseDynamicNamePath);
+            if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
+                    activation,
+                    out _,
+                    out _) ||
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
-                _usesArguments ||
-                _needsArgumentsBinding && !canUseDynamicNamePath ||
-                (_hasFunctionDeclarations || _hasParameterVarDeclarationWithoutInitializer) &&
-                !canUseDynamicNamePath ||
-                !_allowIdentifierCache && !canUseDynamicNamePath ||
-                _lexicalThisEnvironment is not null ||
                 PrivateNameScope is not null ||
                 !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
                 _superConstructor is not null ||
                 _superPrototype is not null ||
-                !_instanceFields.IsDefaultOrEmpty ||
-                _function.Name is { } functionName && HasParameterNamed(functionName))
+                !_instanceFields.IsDefaultOrEmpty)
             {
                 return false;
             }
@@ -3186,12 +3185,28 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
+            return CreateProductionUnifiedBytecodeActivationDescriptor(JsValue.Undefined, canUseDynamicNamePath);
+        }
+
+        private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor(
+            JsValue newTarget,
+            bool canUseDynamicNamePath)
+        {
             return new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: IsAsyncLike,
                 IsGenerator: _function.IsGenerator,
                 HasCapturedOrDynamicActivation:
                     _hasCapturedActivationInClosure || !_allowIdentifierCache && !canUseDynamicNamePath,
                 HasArgumentsObjectDependency: _usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath,
+                HasThisDependency: false,
+                HasNewTargetDependency: !newTarget.IsUndefined,
+                HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
+                HasClassConstructorActivation: IsClassConstructor,
+                HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
+                HasFunctionDeclarationDependency: _hasFunctionDeclarations && !canUseDynamicNamePath,
+                HasParameterVarDeclarationDependency:
+                    _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
+                HasMaterializedActivationDependency: false,
                 HasCallDependency: _hasNonParameterCalleeCall && !canUseDynamicNamePath,
                 HasDynamicLookupDependency: !_allowIdentifierCache && !canUseDynamicNamePath);
         }

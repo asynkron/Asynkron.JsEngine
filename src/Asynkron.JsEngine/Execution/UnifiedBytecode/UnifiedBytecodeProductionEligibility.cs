@@ -13,6 +13,12 @@ internal enum UnifiedBytecodeProductionDeclineCode
     ArgumentsObjectDependency,
     ThisDependency,
     NewTargetDependency,
+    ArrowLexicalThisDependency,
+    ClassConstructorActivation,
+    FunctionNameParameterCollision,
+    FunctionDeclarationDependency,
+    ParameterVarDeclarationDependency,
+    MaterializedActivationDependency,
     CallDependency,
     DynamicLookupDependency,
     PropertyReadCandidateRequiresVmSupport,
@@ -42,6 +48,12 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasArgumentsObjectDependency = false,
     bool HasThisDependency = false,
     bool HasNewTargetDependency = false,
+    bool HasArrowLexicalThisDependency = false,
+    bool HasClassConstructorActivation = false,
+    bool HasFunctionNameParameterCollision = false,
+    bool HasFunctionDeclarationDependency = false,
+    bool HasParameterVarDeclarationDependency = false,
+    bool HasMaterializedActivationDependency = false,
     bool HasCallDependency = false,
     bool HasDynamicLookupDependency = false);
 
@@ -82,60 +94,9 @@ internal static class UnifiedBytecodeProductionEligibility
         ExecutionPlan plan,
         in UnifiedBytecodeProductionActivationDescriptor activation)
     {
-        if (activation.IsAsyncLike)
+        if (TryFindOrdinarySyncActivationDecline(activation, out var activationDeclineCode, out var activationDeclineReason))
         {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction,
-                "Async-like functions are not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.IsGenerator)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.GeneratorFunction,
-                "Generator functions are not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasCapturedOrDynamicActivation)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation,
-                "Captured or dynamic activation is not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasArgumentsObjectDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency,
-                "Arguments-object-dependent execution is not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasThisDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.ThisDependency,
-                "'this' dependency is not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasNewTargetDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.NewTargetDependency,
-                "new.target dependency is not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasCallDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.CallDependency,
-                "Call/construct dependency is not eligible for production unified bytecode routing.");
-        }
-
-        if (activation.HasDynamicLookupDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency,
-                "Dynamic lookup dependency is not eligible for production unified bytecode routing.");
+            return UnifiedBytecodeProductionEligibilityResult.Decline(activationDeclineCode, activationDeclineReason);
         }
 
         if (plan.ActivationSlots is not { } activationSlots)
@@ -165,15 +126,33 @@ internal static class UnifiedBytecodeProductionEligibility
         return UnifiedBytecodeProductionEligibilityResult.Accept(program);
     }
 
+    internal static bool TryFindOrdinarySyncActivationDecline(
+        in UnifiedBytecodeProductionActivationDescriptor activation,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (TryFindSharedActivationDecline(activation, isResumable: false, out declineCode, out declineReason))
+        {
+            return true;
+        }
+
+        if (activation.HasThisDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.ThisDependency;
+            declineReason = "'this' dependency is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        return TryFindOrdinarySyncOnlyActivationDecline(activation, out declineCode, out declineReason);
+    }
+
     public static UnifiedBytecodeProductionEligibilityResult EvaluateResumable(
         ExecutionPlan plan,
         in UnifiedBytecodeProductionActivationDescriptor activation)
     {
-        if (activation.IsAsyncLike && activation.IsGenerator)
+        if (TryFindSharedActivationDecline(activation, isResumable: true, out var activationDeclineCode, out var activationDeclineReason))
         {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction,
-                "Async-like generator activation is not eligible for resumable unified bytecode routing.");
+            return UnifiedBytecodeProductionEligibilityResult.Decline(activationDeclineCode, activationDeclineReason);
         }
 
         if (!activation.IsAsyncLike && !activation.IsGenerator)
@@ -183,43 +162,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 "Only async-like or generator functions are currently eligible for resumable unified bytecode routing.");
         }
 
-        if (activation.HasCapturedOrDynamicActivation)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation,
-                "Captured or dynamic activation is not eligible for resumable unified bytecode routing.");
-        }
-
-        if (activation.HasArgumentsObjectDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency,
-                "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing.");
-        }
-
         // 'this'-dependent resumable programs are accepted: the strict/sloppy-coerced binding is
         // threaded through UnifiedBytecodeResumeState and pushed by the ExecuteResumable LoadThis
         // case (mirrors the production sync route landed in #2633/#2643). new.target, captured/dynamic
         // activation, arguments-object, call, and dynamic-lookup shapes still decline below.
-        if (activation.HasNewTargetDependency)
+        if (TryFindOrdinarySyncOnlyActivationDecline(activation, out activationDeclineCode, out activationDeclineReason))
         {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.NewTargetDependency,
-                "new.target dependency is not eligible for resumable unified bytecode routing.");
-        }
-
-        if (activation.HasCallDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.CallDependency,
-                "Call/construct dependency is not eligible for resumable unified bytecode routing.");
-        }
-
-        if (activation.HasDynamicLookupDependency)
-        {
-            return UnifiedBytecodeProductionEligibilityResult.Decline(
-                UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency,
-                "Dynamic lookup dependency is not eligible for resumable unified bytecode routing.");
+            return UnifiedBytecodeProductionEligibilityResult.Decline(activationDeclineCode, activationDeclineReason);
         }
 
         if (plan.ActivationSlots is not { } activationSlots)
@@ -254,6 +203,137 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return UnifiedBytecodeProductionEligibilityResult.Accept(program);
+    }
+
+    private static bool TryFindSharedActivationDecline(
+        in UnifiedBytecodeProductionActivationDescriptor activation,
+        bool isResumable,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (activation.IsAsyncLike && activation.IsGenerator)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
+            declineReason = isResumable
+                ? "Async-like generator activation is not eligible for resumable unified bytecode routing."
+                : "Async-like functions are not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (!isResumable && activation.IsAsyncLike)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
+            declineReason = "Async-like functions are not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (!isResumable && activation.IsGenerator)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.GeneratorFunction;
+            declineReason = "Generator functions are not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasCapturedOrDynamicActivation)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation;
+            declineReason = isResumable
+                ? "Captured or dynamic activation is not eligible for resumable unified bytecode routing."
+                : "Captured or dynamic activation is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasArgumentsObjectDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+            declineReason = isResumable
+                ? "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing."
+                : "Arguments-object-dependent execution is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasNewTargetDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.NewTargetDependency;
+            declineReason = isResumable
+                ? "new.target dependency is not eligible for resumable unified bytecode routing."
+                : "new.target dependency is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasCallDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+            declineReason = isResumable
+                ? "Call/construct dependency is not eligible for resumable unified bytecode routing."
+                : "Call/construct dependency is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasDynamicLookupDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+            declineReason = isResumable
+                ? "Dynamic lookup dependency is not eligible for resumable unified bytecode routing."
+                : "Dynamic lookup dependency is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
+    }
+
+    private static bool TryFindOrdinarySyncOnlyActivationDecline(
+        in UnifiedBytecodeProductionActivationDescriptor activation,
+        out UnifiedBytecodeProductionDeclineCode declineCode,
+        out string declineReason)
+    {
+        if (activation.HasArrowLexicalThisDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency;
+            declineReason = "Arrow lexical this/new.target activation is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasClassConstructorActivation)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation;
+            declineReason = "Class constructor activation is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasFunctionNameParameterCollision)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision;
+            declineReason = "Function name and parameter name collision is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasFunctionDeclarationDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
+            declineReason = "Function declaration hoisting is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasParameterVarDeclarationDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency;
+            declineReason = "Parameter var declaration activation is not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        if (activation.HasMaterializedActivationDependency)
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency;
+            declineReason = "Materialized activation binding requirements are not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        declineCode = UnifiedBytecodeProductionDeclineCode.None;
+        declineReason = string.Empty;
+        return false;
     }
 
     private static bool TryFindPlanDecline(

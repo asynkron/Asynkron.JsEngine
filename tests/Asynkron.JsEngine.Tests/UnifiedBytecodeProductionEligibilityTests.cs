@@ -923,6 +923,114 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LogicalOrAssignmentPropertyWrite_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, value) {
+                return box.prop ||= value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_LogicalAndAssignmentPropertyWrite_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, value) {
+                return box.prop &&= value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NullishAssignmentPropertyWrite_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, value) {
+                return box.prop ??= value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Theory]
+    [InlineData("logicalOrWrite", "||=")]
+    [InlineData("logicalAndWrite", "&&=")]
+    [InlineData("nullishWrite", "??=")]
+    public void Evaluate_NamedLogicalAssignmentPropertyWrite_ComputedBase_Declines(
+        string functionName, string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function {{functionName}}(box, key, value) {
+                return box[key] {{op}} value;
+            }
+            """,
+            functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Theory]
+    [InlineData("logicalOrWrite", "||=")]
+    [InlineData("logicalAndWrite", "&&=")]
+    [InlineData("nullishWrite", "??=")]
+    public void Evaluate_NamedLogicalAssignmentPropertyWrite_DeeperChain_Declines(
+        string functionName, string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function {{functionName}}(box, value) {
+                return box.child.prop {{op}} value;
+            }
+            """,
+            functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_NamedPropertyUpdateCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -1631,30 +1739,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readComputedAfterNamed",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
-    [InlineData(
-        """
-        function logicalWrite(box, value) {
-            return box.value ||= value;
-        }
-        """,
-        "logicalWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
-        function logicalAndWrite(box, value) {
-            return box.value &&= value;
-        }
-        """,
-        "logicalAndWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
-        function nullishWrite(box, value) {
-            return box.value ??= value;
-        }
-        """,
-        "nullishWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """
         var externalValue = 42;

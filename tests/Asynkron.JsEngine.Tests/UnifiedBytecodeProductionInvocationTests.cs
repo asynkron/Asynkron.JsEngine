@@ -3340,6 +3340,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Theory(Timeout = 5000)]
+    [InlineData("||=", 0, 42d, 42d)]
+    [InlineData("||=", 1, 42d, 1d)]
+    [InlineData("&&=", 1, 42d, 42d)]
+    [InlineData("&&=", 0, 42d, 0d)]
+    [InlineData("??=", "null", 42d, 42d)]
+    [InlineData("??=", 1, 42d, 1d)]
+    public async Task NamedLogicalAssignmentPropertyWrite_UsesUnifiedBytecodeProductionFastPath(
+        string op, object initialValue, double rhsValue, double expected)
+    {
+        await using var engine = CreateEngine();
+        var init = initialValue is string s ? s : initialValue.ToString()!;
+        var result = await engine.Evaluate($$"""
+            function write(box, value) {
+                return box.prop {{op}} value;
+            }
+
+            write({ prop: {{init}} }, {{rhsValue}});
+            """);
+
+        Assert.Equal(expected, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {
@@ -3708,36 +3735,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readDynamic",
         2d)]
-    [InlineData(
-        """
-        function logicalWrite(box, value) {
-            return box.value ||= value;
-        }
-
-        logicalWrite({ value: 0 }, 42);
-        """,
-        "logicalWrite",
-        42d)]
-    [InlineData(
-        """
-        function logicalAndWrite(box, value) {
-            return box.value &&= value;
-        }
-
-        logicalAndWrite({ value: 1 }, 42);
-        """,
-        "logicalAndWrite",
-        42d)]
-    [InlineData(
-        """
-        function logicalNullishWrite(box, value) {
-            return box.value ??= value;
-        }
-
-        logicalNullishWrite({ value: null }, 42);
-        """,
-        "logicalNullishWrite",
-        42d)]
     [InlineData(
         """
         var externalValue = 42;

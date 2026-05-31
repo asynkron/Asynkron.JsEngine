@@ -722,6 +722,7 @@ internal static class UnifiedBytecodeProductionEligibility
             stringConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+        var isConstructInvocationCandidate = TryIsConstructInvocationCandidate(program, identifierConstants, activationSlots);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
@@ -825,19 +826,6 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.Construct:
-                    // Synchronous non-spread construct calls (`new F(...)`) are admitted (gh2690):
-                    // the constructor value and simple-operand arguments are pushed left-to-right
-                    // and the ConstructInvocationBoundary opcode invokes [[Construct]] with the
-                    // constructor as new.target. Spread-onto-construct stays declined — spread
-                    // flattening for construct is not yet modeled at the invocation boundary.
-                    if (operation.SpreadMaskConstantIndex >= 0)
-                    {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                        declineReason =
-                            "Spread construct arguments are not eligible for production unified bytecode routing.";
-                        return true;
-                    }
-
                     break;
 
                 case ExpressionOpKind.SuperConstruct:
@@ -974,6 +962,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (isConstructInvocationCandidate)
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1047,6 +1040,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryOptionalComputedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    if (isConstructInvocationCandidate)
                     {
                         break;
                     }
@@ -1273,6 +1271,77 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool TryIsConstructInvocationCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 2 ||
+            program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.Construct)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount - 1; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (IsPrivateNamedPropertyOperation(operation, stringConstants))
+            {
+                return false;
+            }
+
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional || operation.ShortCircuitOnNullishTarget)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.GetComputedProperty:
+                    if (operation.ShortCircuitOnNullishTarget ||
+                        !TryIsConstructComputedPropertyRead(program, operationIndex, identifierConstants, activationSlots))
+                    {
+                        return false;
+                    }
+
+                    break;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryIsConstructComputedPropertyRead(
+        ExpressionProgram program,
+        int getComputedIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (getComputedIndex < 4)
+        {
+            return false;
+        }
+
+        var requireObjectCoercible = program.GetOperation(getComputedIndex - 2);
+        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+            requireObjectCoercible.Depth != 1)
+        {
+            return false;
+        }
+
+        if (program.GetOperation(getComputedIndex - 1).Kind != ExpressionOpKind.ResolvePropertyKey)
+        {
+            return false;
+        }
+
+        return TryGetActivationResolvedValue(program.GetOperation(getComputedIndex - 4), identifierConstants, activationSlots) &&
+               IsSimpleComputedPropertyKey(program.GetOperation(getComputedIndex - 3), identifierConstants, activationSlots);
     }
 
     private static bool IsSupportedPushEnvironment(

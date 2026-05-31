@@ -382,19 +382,23 @@ the final post-compile production subset check before VM entry.
   VM flattens spread iterables left-to-right at the boundary via the shared
   `TypedAstEvaluator.EnumerateSpread` helper, preserving iteration order and
   side-effects, then invokes through the existing callable helpers with
-  receiver-as-`this`. Direct eval, construct/super spread, and optional spread
-  calls stay declined.
-- Synchronous non-spread construct calls are admitted (gh2690): `new F(...)`. The
-  constructor value and each simple-operand argument are pushed left-to-right by
-  their own loads (no receiver/`this`), then a single `ConstructInvocationBoundary`
-  opcode (operand = pushed argument count) invokes `[[Construct]]` with the
+  receiver-as-`this`. Direct eval, super spread, and optional spread calls stay
+  declined.
+- Synchronous construct calls are admitted (gh2690 plus the construct-boundary
+  widening): `new F(...)`, `new F(...args)`, `new box.Ctor(...)`, and
+  `new box[key](...)` when the constructor/key/argument subexpressions are
+  already production-safe. The constructor value and each logical argument are
+  pushed left-to-right by their own loads (no receiver/`this`), then a single
+  `ConstructInvocationBoundary` opcode invokes `[[Construct]]` with the
   constructor itself as `new.target`, mirroring the spec-conformant construct
-  reference helper. A non-constructor target throws `TypeError` at the boundary.
-  Spread-onto-construct (`new F(...args)`), member-target constructs (`new a.b()`),
-  non-simple argument constructs, and the super call family (`super(...)`,
-  super-member call targets) stay declined — the latter is activation-gated by the
-  derived-constructor decline in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
-  and so is unreachable (ADR 0286).
+  reference helper. Its operand uses the same low-16-bit argument count plus
+  high-bit spread-mask reference encoding as `CallInvocationBoundary`; the VM
+  flattens spread iterables at the construct boundary before calling
+  `ReflectHelper.Construct`. A non-constructor target throws `TypeError` at the
+  boundary. The super call family (`super(...)`, super-member call targets)
+  stays declined — it is activation-gated by the derived-constructor decline in
+  `SyncFunctionInvoker.CanUseProductionUnifiedBytecode` and so is unreachable
+  (ADR 0286).
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
   by `CallInvocationBoundary`; the VM resolves the callable from unified
   bytecode-owned slot state and invokes it through existing callable invocation
@@ -545,14 +549,14 @@ support today.
 1. Wider call invocation remains the highest-impact unsupported bucket.
    Synchronous spread calls are now admitted (gh2676). Optional calls are
    now admitted (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`,
-   and `box[key]?.(args)`. Synchronous non-spread construct calls
-   (`new F(...)`) are now admitted (gh2690, ADR 0286). Simple array and
+   and `box[key]?.(args)`. Synchronous construct calls
+   (`new F(...)`, spread arguments, and member/computed constructor targets)
+   are now admitted (gh2690, ADR 0286 plus construct-boundary widening). Simple array and
    object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
    (gh2705, ADR 0290); holey arrays, spread elements, computed keys,
    methods, accessors, name inference, and private names continue to decline.
    Direct eval, super calls (`super(...)` and super-member call targets,
    activation-gated and unreachable in production), spread-onto-optional,
-   spread-onto-construct, member-target/non-simple constructs,
    arguments-object dependencies, unsupported non-with dynamic lookup,
    private/super member targets, complex receiver/key shapes, and
    receiver-binding-sensitive adjacent families beyond the direct

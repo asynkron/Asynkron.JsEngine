@@ -22,10 +22,7 @@ public sealed class SymbolHybridDictionary<TValue>
     private const int InitialArraySize = 4;
     private int _count;
 
-    // Large storage - full dictionary with reference equality
     private Dictionary<Symbol, TValue>? _dictionary;
-
-    // Small storage - array of key-value pairs
     private Entry[]? _entries;
 
     public TValue this[Symbol key]
@@ -38,12 +35,9 @@ public sealed class SymbolHybridDictionary<TValue>
                 return _dictionary[key];
             }
 
-            for (var i = 0; i < _count; i++)
+            if (TryFindEntry(key, out var index))
             {
-                if (ReferenceEquals(_entries![i].Key, key))
-                {
-                    return _entries[i].Value;
-                }
+                return _entries![index].Value;
             }
 
             throw new KeyNotFoundException($"Key not found: {key}");
@@ -57,19 +51,12 @@ public sealed class SymbolHybridDictionary<TValue>
                 return;
             }
 
-            // Try to find existing entry using reference equality
-            for (var i = 0; i < _count; i++)
+            if (TryFindEntry(key, out var index))
             {
-                if (!ReferenceEquals(_entries![i].Key, key))
-                {
-                    continue;
-                }
-
-                _entries[i].Value = value;
+                _entries![index].Value = value;
                 return;
             }
 
-            // Not found, add new
             AddInternal(key, value);
         }
     }
@@ -105,12 +92,10 @@ public sealed class SymbolHybridDictionary<TValue>
 
         if (_entries is null)
         {
-            // Start with small array - most environments have few bindings
             _entries = new Entry[InitialArraySize];
         }
         else if (_count >= _entries.Length)
         {
-            // Grow array when needed (double size up to cutover)
             var newSize = Math.Min(_entries.Length * 2, CutoverPoint);
             var newEntries = new Entry[newSize];
             Array.Copy(_entries, newEntries, _count);
@@ -132,12 +117,9 @@ public sealed class SymbolHybridDictionary<TValue>
             return ref CollectionsMarshal.GetValueRefOrNullRef(_dictionary, key);
         }
 
-        for (var i = 0; i < _count; i++)
+        if (TryFindEntry(key, out var index))
         {
-            if (ReferenceEquals(_entries![i].Key, key))
-            {
-                return ref _entries[i].Value;
-            }
+            return ref _entries![index].Value;
         }
 
         return ref Unsafe.NullRef<TValue>();
@@ -163,15 +145,7 @@ public sealed class SymbolHybridDictionary<TValue>
             return _dictionary.ContainsKey(key);
         }
 
-        for (var i = 0; i < _count; i++)
-        {
-            if (ReferenceEquals(_entries![i].Key, key))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return TryFindEntry(key, out _);
     }
 
     [MethodImpl(JsEngineConstants.Inlining)]
@@ -182,13 +156,10 @@ public sealed class SymbolHybridDictionary<TValue>
             return _dictionary.TryGetValue(key, out value);
         }
 
-        for (var i = 0; i < _count; i++)
+        if (TryFindEntry(key, out var index))
         {
-            if (ReferenceEquals(_entries![i].Key, key))
-            {
-                value = _entries[i].Value;
-                return true;
-            }
+            value = _entries![index].Value;
+            return true;
         }
 
         value = default;
@@ -202,22 +173,18 @@ public sealed class SymbolHybridDictionary<TValue>
             return _dictionary.Remove(key);
         }
 
-        for (var i = 0; i < _count; i++)
+        if (!TryFindEntry(key, out var index))
         {
-            if (ReferenceEquals(_entries![i].Key, key))
-            {
-                // Shift entries down to fill the gap
-                for (var j = i; j < _count - 1; j++)
-                {
-                    _entries![j] = _entries[j + 1];
-                }
-
-                _entries![--_count] = default;
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        for (var j = index; j < _count - 1; j++)
+        {
+            _entries![j] = _entries[j + 1];
+        }
+
+        _entries![--_count] = default;
+        return true;
     }
 
     public void Clear()
@@ -252,6 +219,22 @@ public sealed class SymbolHybridDictionary<TValue>
         {
             yield return new KeyValuePair<Symbol, TValue>(_entries![i].Key, _entries[i].Value);
         }
+    }
+
+    [MethodImpl(JsEngineConstants.Inlining)]
+    private bool TryFindEntry(Symbol key, out int index)
+    {
+        for (var i = 0; i < _count; i++)
+        {
+            if (ReferenceEquals(_entries![i].Key, key))
+            {
+                index = i;
+                return true;
+            }
+        }
+
+        index = -1;
+        return false;
     }
 
     private struct Entry

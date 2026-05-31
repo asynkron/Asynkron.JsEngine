@@ -2442,8 +2442,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledContinueCrossingDriverLoop_Accepts()
+    public void Evaluate_LabeledContinueCrossingDriverLoop_AcceptsWithDriverCleanupTopology()
     {
+        // A labeled continue that re-enters an outer loop from inside an enclosing for-of driver
+        // loop is eligible now that cleanup closes the crossed inner driver before jumping to the
+        // outer continue target.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 outerLabel: for (var x of outer) {
@@ -2467,11 +2470,15 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+        Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
     }
 
     [Fact]
-    public void Evaluate_LabeledBreakCrossingDriverLoop_Accepts()
+    public void Evaluate_LabeledBreakCrossingDriverLoop_AcceptsWithDriverCleanupTopology()
     {
+        // A labeled break that exits an enclosing for-of driver loop it is not directly targeting
+        // (here: break outerLabel from inside the inner for-of) is eligible now that cleanup closes
+        // all crossed active drivers in innermost-first order.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 outerLabel: for (var x of outer) {
@@ -2495,6 +2502,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Break);
+        Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
     }
 
     [Fact]

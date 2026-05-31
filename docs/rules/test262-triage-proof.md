@@ -179,30 +179,18 @@ closeouts (#869 / #1223 / #1224 ToIndex regressions in the same test file);
 resolve those by keeping both non-overlapping test blocks rather than
 collapsing one closeout into the other.
 
-Issue #876 repeated this pattern for `TypedArray_prototype_at`: the stale batch
-listed only the strict and sloppy
-`built-ins/TypedArray/prototype/at/returns-undefined-for-holes-in-sparse-arrays.js`
-rows, while current main passed the exact fixture filter (2/2) and the full
-method group (28/28). Future TypedArray Test262 issues should still inspect the
-owner surface enough to understand the claimed failure, but once the focused
-proof is green, stop without inventing a nearby runtime or harness patch.
-
-Issue #877 repeated the no-source-change variant for
-`TypedArray_prototype_fill`. The 2026-05-17 testrunner summary listed the
-strict and sloppy `fill-values-conversion-operations.js` rows as failures, but
-the build-stage proof on 2026-05-20 passed the issue-supplied method group
-66/66 on current `origin/main`. Future agents should stop at that proof result
-for this class of stale batch report unless a current failing fixture row is
-reproduced.
-
-Issue #878 repeated the same no-source-change closeout for
-`TypedArray_prototype_indexOf`. The investigation identified
-`TypedArrayBase.IndexOfInternal` as the plausible owner for fromIndex coercion
-and strict comparison, but the build-stage proof on 2026-05-20 passed the
-issue-supplied method group 86/86 on current `origin/main`. Future agents should
-treat that owner lookup as context only: once the exact focused proof is green,
-do not patch strict equality, signed-zero, or fromIndex handling without a
-current failing fixture row.
+Issues #876–#879 all repeated the no-source-change closeout for TypedArray
+prototype methods from the 2026-05-17 testrunner summary. `TypedArray_prototype_at`
+(#876): the exact sparse-array holes fixture passed 2/2 and the method group
+passed 28/28. `TypedArray_prototype_fill` (#877): the fill-value conversion rows
+passed 66/66 on current `origin/main`. `TypedArray_prototype_indexOf` (#878) and
+`TypedArray_prototype_indexOf_BigInt` (#879): both targeted
+`TypedArrayBase.IndexOfInternal` for fromIndex coercion and strict comparison;
+the #878 method group passed 86/86 and the #879 BigInt group passed with no
+source or test diff. Future TypedArray prototype crash reports should map the
+owner surface, but once the current focused proof is green, stop without patching
+fromIndex coercion, signed-zero comparison, fill-value conversion, sparse-array
+access, or BigInt equality code.
 
 Issue #1065 repeated the fixture-exact fallback for `Statements_forAwaitOf`.
 The issue listed seven crashed `async-func-dstr-const-ary-ptrn-*` rows from the
@@ -211,15 +199,6 @@ local 60 second inactivity guard, but each listed fixture pattern passed when
 run directly on current `origin/main`. The durable lesson is the same: a broad
 generated group hang is proof friction, not source evidence, when the exact
 reported rows are green.
-
-Issue #879 repeated the same current-proof boundary for
-`TypedArray_prototype_indexOf_BigInt`: investigation still identified
-`TypedArrayBase.IndexOfInternal` and BigInt strict equality as the plausible
-owner surface, but the build-stage focused proof
-`Name=TypedArray_prototype_indexOf_BigInt` passed on current main with no
-source or test diff. A stale BigInt TypedArray row is therefore not enough to
-change `fromIndex`, signed-zero, or equality code after the current method
-group is green.
 
 Issue #1043 repeated the same current-proof boundary for
 `Language_evalCode_indirect`, and added a proof-command pitfall. The directory

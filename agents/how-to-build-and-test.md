@@ -48,9 +48,10 @@ maintenance pass, keep the slice repo-local and reviewable:
   `docs/rules/recurring-maintenance-child-runs.md`; keep this section
   focused on the operational checklist and Build Update template.
 
-1. Check active sibling child log summaries before choosing a slice so this
-   run intentionally avoids overlapping sibling work; record the sibling check
-   in the issue update.
+1. Check active sibling child log summaries and recently merged sibling work
+   against current `origin/main` before choosing a slice so this run
+   intentionally avoids overlapping active or already-delivered sibling work;
+   record the sibling check in the issue update.
    If sibling summaries or other issue context are unavailable, record that
    lookup as unavailable evidence and continue from maintained repository docs
    and local code context instead of blocking the run.

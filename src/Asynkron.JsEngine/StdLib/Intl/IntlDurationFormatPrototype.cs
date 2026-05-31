@@ -526,17 +526,13 @@ public sealed partial class IntlDurationFormatPrototype
             // Digital style needs the minute slot even when the leading hour is omitted,
             // but numeric/short mixed styles should not force an extra zero minute.
             var displayRequired = false;
-            if (unit == "minutes")
+            if (unit == "minutes" && needSeparator)
             {
-                var lowerUnitsDisplayable = opts.UnitDisplays[6] == "always" || // secondsDisplay
-                                            duration.Seconds != 0 ||
-                                            duration.Milliseconds != 0 ||
-                                            duration.Microseconds != 0 ||
-                                            duration.Nanoseconds != 0;
-
-                displayRequired = opts.Style == "digital"
-                    ? lowerUnitsDisplayable
-                    : needSeparator && lowerUnitsDisplayable;
+                displayRequired = opts.UnitDisplays[6] == "always" || // secondsDisplay
+                                  duration.Seconds != 0 ||
+                                  duration.Milliseconds != 0 ||
+                                  duration.Microseconds != 0 ||
+                                  duration.Nanoseconds != 0;
             }
 
             var remainingHasDisplayableUnit = false;
@@ -572,11 +568,9 @@ public sealed partial class IntlDurationFormatPrototype
 
                     // If this is the first displayed unit and value is 0, but duration is negative,
                     // display as -0
-                    if (valueIsZero)
+                    if (valueIsZero && values.Any(v => v < 0))
                     {
-                        var hasNegativeValue = values.Any(v => v < 0);
-                        var hasNonZeroValue = values.Any(v => v != 0);
-                        value = hasNegativeValue && hasNonZeroValue ? NegativeZero() : 0.0;
+                        value = NegativeZero();
                     }
                 }
                 else

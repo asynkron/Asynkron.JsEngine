@@ -216,6 +216,19 @@ optimization.
     but review needed an evidence-completion pass to add the 3x full benchmark
     baseline, 3x required `--calltree-depth 40 --calltree-width 40` CPU profiles,
     focused final benchmark medians, and explicit internal-test/smoke outcomes.
+6k. Do not retain or retry a `simplearithmetic` return-cleanup-only optimization
+    merely because it removes the sampled `CompleteReturn -> CloseActiveIterators
+    -> ScanEnvironmentForActiveIterators` subtree. A plan-proven
+    `MayCreateActiveIteratorState` skip can make the CPU call tree cleaner, but
+    PR #2848 / issue `autrun-diwvrsz5equg-75bc74c803` failed the repeated
+    selected-profile timing gate and reverted the runtime edit. Future agents
+    should only revisit `CompleteReturn` active-iterator scan skips with a
+    quieter or more isolated workload where return cleanup is a larger measured
+    owner and same-window A/B rows clear the issue threshold. WHY: the failed
+    experiment passed focused iterator/finally semantics and removed the sampled
+    subtree, but comparable timings regressed or stayed too noisy to retain a
+    wall-clock win. Related ADR:
+    `docs/adrs/0304-keep-simplearithmetic-return-cleanup-iterator-skip-performance-gated.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

@@ -3960,6 +3960,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedNamedReceiverComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndKeySemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function remove(box, key) {
+                return delete box.child[key];
+            }
+
+            var child = { value: 42 };
+            var box = { child: child };
+            remove(box, key) && hits === 1 && !Object.prototype.hasOwnProperty.call(child, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {
         await using var engine = CreateEngine();
@@ -3999,6 +4028,49 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(logRecords,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=strictRemove argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedReceiverComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { child: {} };
+            Object.defineProperty(box.child, "value", {
+                value: 1,
+                configurable: false
+            });
+
+            function sloppyRemove(box, key) {
+                return delete box.child[key];
+            }
+
+            function strictRemove(box, key) {
+                "use strict";
+                return delete box.child[key];
+            }
+
+            var sloppyResult = sloppyRemove(box, "value");
+            var strictThrew = false;
+            try {
+                strictRemove(box, "value");
+            } catch (error) {
+                strictThrew = error instanceof TypeError;
+            }
+
+            sloppyResult === false && strictThrew && Object.prototype.hasOwnProperty.call(box.child, "value");
+            """);
+
+        var logRecords = CurrentLogger!.Collector.Snapshot();
+        Assert.Equal(true, result);
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sloppyRemove argc=2",
+                StringComparison.Ordinal));
+        Assert.Contains(logRecords,
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=strictRemove argc=2",
                 StringComparison.Ordinal));
     }
 

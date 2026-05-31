@@ -36,8 +36,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   classification for one runnable bounded child delivery, not as a request to
   design persistent setup or scheduler behavior in this repository.
 - Treat named compaction markers such as `local:adr-rule-compaction` as the
-  same bounded child-run classification signal for this rule's semantic-home
-  update path, not as a request for new recurrence infrastructure.
+  bounded semantic-home classification signal for this rule. Use the overlap
+  check and evidence shape below; do not turn the marker into new recurrence
+  infrastructure.
 - Treat recurrence-normalization wording in issue handoffs as the same bounded
   child-run classification signal: normalize the evidence shape for this run,
   but do not convert that wording into persistent setup, scheduler, or
@@ -165,9 +166,9 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   current semantic home first and update that existing document when guidance
   is already covered. Do not create duplicate ADRs, rules, or durable notes
   for guidance that already has an owned home.
-- Treat `local:adr-rule-compaction` as the explicit marker for this class of
-  recurring-child slice; keep the overlap proof and final handoff evidence
-  anchored to this semantic-home compaction boundary.
+- For persistent ADR/rule compaction children, keep the overlap proof and
+  final handoff evidence anchored to the same semantic-home boundary used in
+  the rule above; do not duplicate the marker-based classification here.
 - When overlap spans a cross-cutting rule and accepted helper-specific ADRs,
   keep the detailed decisions in the ADRs and add a short ownership note to the
   rule instead of copying every helper boundary into the rule body.

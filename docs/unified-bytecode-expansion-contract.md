@@ -73,6 +73,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `UnaryBitwiseNot`
 - `UnaryVoid`
 - `ToString`
+- `SwapTopTwo`
 - `Pop`
 - `CreateArray`
 - `ArrayPush`
@@ -183,14 +184,12 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
   applies: compound read-then-write is admitted for the named-property shape
   (activation-resolved base — `this.prop` or `box.prop`, named key, production
   binary operator e.g. `+=`, simple RHS) via
-  `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`. Retained declines
-  include deeper property chains (`box.child.value += …`) and computed-expression
-  keys (`box[key+suffix] += …`).
-  Note: `&&=`, `||=`, `??=` are admitted on slot identifiers (`x &&= y`) and on
-  first-boundary named member targets (`this.x &&= y`, `box.prop ||= y`) when the
-  production candidate shape constraints remain satisfied (simple activation-resolved
-  base, named key, simple RHS). Computed member-target logical assignments remain
-  declined until short-circuit and get-for-set composition is owned for computed keys.
+  `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate`, and logical-assignment
+  member writes (`&&=`, `||=`, `??=`) via
+  `TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate`. Retained declines
+  include deeper property chains
+  (`box.child.value += …`), and computed-expression keys (`box[key+suffix] += …`).
+  Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - The plan-level `SuperPropertyDependency` decline in
   `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
   net for class methods that use `super`. Super-property reads, writes, and

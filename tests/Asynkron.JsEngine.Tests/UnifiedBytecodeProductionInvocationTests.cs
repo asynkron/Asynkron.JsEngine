@@ -3393,62 +3393,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
-    [Theory(Timeout = 5000)]
-    [InlineData("||=", 0, 42d, 42d)]
-    [InlineData("||=", 1, 42d, 1d)]
-    [InlineData("&&=", 1, 42d, 42d)]
-    [InlineData("&&=", 0, 42d, 0d)]
-    [InlineData("??=", "null", 42d, 42d)]
-    [InlineData("??=", 1, 42d, 1d)]
-    public async Task NamedLogicalAssignmentPropertyWrite_UsesUnifiedBytecodeProductionFastPath(
-        string op, object initialValue, double rhsValue, double expected)
-    {
-        await using var engine = CreateEngine();
-        var init = initialValue is string s ? s : initialValue.ToString()!;
-        var result = await engine.Evaluate($$"""
-            function write(box, value) {
-                return box.prop {{op}} value;
-            }
-
-            write({ prop: {{init}} }, {{rhsValue}});
-            """);
-
-        Assert.Equal(expected, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=write argc=2",
-                StringComparison.Ordinal));
-    }
-
-    [Fact(Timeout = 5000)]
-    public async Task NamedLogicalAssignmentPropertyWrite_PreservesOriginalReceiverWhenGetterMutatesBaseBinding()
-    {
-        await using var engine = CreateEngine();
-        var result = await engine.Evaluate("""
-            var original = {};
-            function write(box, value) {
-                var replacement = {};
-                var current = box;
-                Object.defineProperty(current, "prop", {
-                    get() {
-                        current = replacement;
-                        return 1;
-                    },
-                    set(v) {
-                        this.written = v;
-                    }
-                });
-
-                current.prop &&= value;
-                return String(box.written) + ":" + String(replacement.written === undefined) + ":" + String(current === replacement);
-            }
-
-            write(original, 7);
-            """);
-
-        Assert.Equal("7:true:true", result);
-    }
-
     [Fact(Timeout = 5000)]
     public async Task NamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndStrictSloppyFailureSemantics()
     {

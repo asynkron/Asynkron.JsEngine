@@ -901,6 +901,10 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         break;
                     }
+                    if (TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
 
                     if (TryIsFirstBoundaryPropertyReadBinaryExpressionCandidate(program, identifierConstants, activationSlots))
                     {
@@ -908,11 +912,6 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate(program, identifierConstants, activationSlots))
-                    {
-                        break;
-                    }
-
-                    if (TryIsFirstBoundaryNamedLogicalAssignmentPropertyWriteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -985,8 +984,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryNamedLogicalAssignmentPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                        TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -2644,84 +2643,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // Shape: [base, DuplicateTop, GetNamedProperty(prop), JumpIfFalse|JumpIfTrue|JumpIfNotNullish(target), Pop, simple-rhs, SetNamedProperty(prop), DuplicateTop, SwapTopTwo, Pop]
-    // Exactly 10 ops. Jump target == OperationCount - 2.
-    private static bool TryIsFirstBoundaryNamedLogicalAssignmentPropertyWriteCandidate(
-        ExpressionProgram program,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        if (program.OperationCount != 10)
-        {
-            return false;
-        }
-
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        if (program.GetOperation(1).Kind != ExpressionOpKind.DuplicateTop)
-        {
-            return false;
-        }
-
-        var propertyRead = program.GetOperation(2);
-        var stringConstants = program.StringConstants.AsSpan();
-        if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
-            propertyRead.IsOptional ||
-            propertyRead.ShortCircuitOnNullishTarget ||
-            propertyRead.GetString(stringConstants).IsPrivateName())
-        {
-            return false;
-        }
-
-        var jumpOp = program.GetOperation(3);
-        if (jumpOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish))
-        {
-            return false;
-        }
-
-        if (jumpOp.Target != program.OperationCount - 2)
-        {
-            return false;
-        }
-
-        if (program.GetOperation(4).Kind != ExpressionOpKind.Pop)
-        {
-            return false;
-        }
-
-        if (!IsSimpleOperand(program.GetOperation(5), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        var propertyWrite = program.GetOperation(6);
-        if (propertyWrite.Kind != ExpressionOpKind.SetNamedProperty ||
-            propertyWrite.AllowNameInference)
-        {
-            return false;
-        }
-
-        if (propertyRead.GetString(stringConstants) != propertyWrite.GetString(stringConstants))
-        {
-            return false;
-        }
-
-        if (program.GetOperation(7).Kind != ExpressionOpKind.DuplicateTop)
-        {
-            return false;
-        }
-
-        if (program.GetOperation(8).Kind != ExpressionOpKind.SwapTopTwo)
-        {
-            return false;
-        }
-
-        return program.GetOperation(9).Kind == ExpressionOpKind.Pop;
-    }
-
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2811,6 +2732,53 @@ internal static class UnifiedBytecodeProductionEligibility
                IsProductionBinaryOperator(binary.Operator) &&
                propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
                !propertyWrite.AllowNameInference;
+    }
+
+    private static bool TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        // Shape: [base, DuplicateTop, GetNamedProperty, JumpIf*, Pop, rhs, SetNamedProperty, DuplicateTop, SwapTopTwo, Pop]
+        if (program.OperationCount != 10)
+        {
+            return false;
+        }
+
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var duplicateTarget = program.GetOperation(1);
+        var propertyRead = program.GetOperation(2);
+        var jump = program.GetOperation(3);
+        var pop = program.GetOperation(4);
+        var rhs = program.GetOperation(5);
+        var propertyWrite = program.GetOperation(6);
+        var duplicateAssignedValue = program.GetOperation(7);
+        var swap = program.GetOperation(8);
+        var cleanupPop = program.GetOperation(9);
+        if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
+            propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
+            pop.Kind != ExpressionOpKind.Pop ||
+            propertyWrite.Kind != ExpressionOpKind.SetNamedProperty ||
+            duplicateAssignedValue.Kind != ExpressionOpKind.DuplicateTop ||
+            swap.Kind != ExpressionOpKind.SwapTopTwo ||
+            cleanupPop.Kind != ExpressionOpKind.Pop ||
+            propertyWrite.AllowNameInference ||
+            propertyRead.IsOptional ||
+            propertyRead.ShortCircuitOnNullishTarget ||
+            jump.Target != 8 ||
+            !IsSimpleOperand(rhs, identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var propertyName = propertyRead.GetString(stringConstants);
+        return !propertyName.IsPrivateName() && propertyName == propertyWrite.GetString(stringConstants);
     }
 
     private static bool TryIsFirstBoundaryPropertyWriteCandidate(
@@ -3270,6 +3238,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UnaryVoid:
                 case UnifiedBytecodeOpCode.ToString:
                 case UnifiedBytecodeOpCode.Pop:
+                case UnifiedBytecodeOpCode.SwapTopTwo:
                 case UnifiedBytecodeOpCode.CreateArray:
                 case UnifiedBytecodeOpCode.ArrayPush:
                 case UnifiedBytecodeOpCode.ArrayPushHole:

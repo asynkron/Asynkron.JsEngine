@@ -22,7 +22,6 @@ internal static class UnifiedBytecodeCompiler
 
     private sealed record UnifiedBytecodeSlotLayout(
         int SlotCount,
-        int ScratchSlotIndex,
         ActivationSlotShape ActivationSlots,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> FlatSlotMappings,
         ImmutableArray<int> ParameterSlotIndices,
@@ -175,9 +174,7 @@ internal static class UnifiedBytecodeCompiler
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
         flatSlotMappings = EnsureActivationSlotMappings(activationSlots, flatSlotMappings);
-        var baseSlotCount = GetSlotCount(plan.FlatSlotCount, flatSlotMappings);
-        var slotCount = baseSlotCount + 1;
-        var scratchSlotIndex = baseSlotCount;
+        var slotCount = GetSlotCount(plan.FlatSlotCount, flatSlotMappings);
         var names = BuildSlotNames(plan.Instructions, activationSlots, flatSlotMappings, slotCount);
         var parameterSlotIndices = RemapParameterSlotIndices(
             activationSlots.ScopeId,
@@ -190,7 +187,6 @@ internal static class UnifiedBytecodeCompiler
 
         return new UnifiedBytecodeSlotLayout(
             slotCount,
-            scratchSlotIndex,
             activationSlots,
             flatSlotMappings,
             parameterSlotIndices,
@@ -3034,9 +3030,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (TryAppendFirstBoundaryNamedLogicalAssignmentPropertySet(
+        if (TryAppendFirstBoundaryNamedCompoundPropertySet(
                 expressionProgram,
-                slotLayout,
+                activationSlots,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3050,7 +3046,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (TryAppendFirstBoundaryNamedCompoundPropertySet(
+        if (TryAppendFirstBoundaryNamedLogicalPropertySet(
                 expressionProgram,
                 activationSlots,
                 unified,
@@ -4967,134 +4963,6 @@ internal static class UnifiedBytecodeCompiler
         return -1;
     }
 
-    // Shape: [base, DuplicateTop, GetNamedProperty(prop), JumpIfFalse|JumpIfTrue|JumpIfNotNullish(target), Pop, simple-rhs, SetNamedProperty(prop), DuplicateTop, SwapTopTwo, Pop]
-    // Exactly 10 ops. Jump target == OperationCount - 2 (the SwapTopTwo index).
-    // Compiled to:
-    // [LoadSlot(base), StoreSlot(scratch), LoadSlot(scratch), GetNamedProperty(prop),
-    //  JumpIfShortCircuitXxx(9), Pop, LoadSlot(scratch), LoadSlot(rhs), SetNamedProperty(prop)].
-    // Keeping the receiver in a scratch slot preserves reference semantics if a getter mutates
-    // the original binding before the eventual SetNamedProperty.
-    private static bool TryAppendFirstBoundaryNamedLogicalAssignmentPropertySet(
-        ExpressionProgram expressionProgram,
-        UnifiedBytecodeSlotLayout slotLayout,
-        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
-        ImmutableArray<JsValue>.Builder literalConstants,
-        ImmutableArray<string>.Builder stringConstants,
-        out string reason)
-    {
-        var activationSlots = slotLayout.ActivationSlots;
-        if (expressionProgram.OperationCount != 10)
-        {
-            reason = string.Empty;
-            return false;
-        }
-
-        var duplicateTop = expressionProgram.GetOperation(1);
-        var propertyRead = expressionProgram.GetOperation(2);
-        var jumpOp = expressionProgram.GetOperation(3);
-        var popOp = expressionProgram.GetOperation(4);
-        var propertySet = expressionProgram.GetOperation(6);
-        var duplicateTop2 = expressionProgram.GetOperation(7);
-        var swapTopTwo = expressionProgram.GetOperation(8);
-        var popOp2 = expressionProgram.GetOperation(9);
-
-        if (duplicateTop.Kind != ExpressionOpKind.DuplicateTop ||
-            propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
-            jumpOp.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
-            jumpOp.Target != expressionProgram.OperationCount - 2 ||
-            popOp.Kind != ExpressionOpKind.Pop ||
-            propertySet.Kind != ExpressionOpKind.SetNamedProperty ||
-            duplicateTop2.Kind != ExpressionOpKind.DuplicateTop ||
-            swapTopTwo.Kind != ExpressionOpKind.SwapTopTwo ||
-            popOp2.Kind != ExpressionOpKind.Pop)
-        {
-            reason = string.Empty;
-            return false;
-        }
-
-        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
-        if (propertyRead.GetString(expressionStringConstants).IsPrivateName())
-        {
-            reason = "Private named logical assignment property writes are not supported.";
-            return false;
-        }
-
-        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
-        {
-            reason = "Optional named logical assignment property writes are not supported.";
-            return false;
-        }
-
-        if (propertySet.AllowNameInference)
-        {
-            reason = "Named logical assignment property writes with name inference are not supported.";
-            return false;
-        }
-
-        if (propertyRead.GetString(expressionStringConstants) != propertySet.GetString(expressionStringConstants))
-        {
-            reason = "Mismatched named logical assignment property read/write operands are not supported.";
-            return false;
-        }
-
-        var literalConstantsStart = literalConstants.Count;
-        var candidateUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
-        var candidateStringConstants = ImmutableArray.CreateBuilder<string>();
-        var baseOp = expressionProgram.GetOperation(0);
-        if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, candidateUnified, out reason))
-        {
-            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
-            return false;
-        }
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.StoreSlot, slotLayout.ScratchSlotIndex));
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotLayout.ScratchSlotIndex));
-
-        var propertyName = propertyRead.GetString(expressionStringConstants);
-        var propertyNameIndex = stringConstants.Count;
-        candidateStringConstants.Add(propertyName);
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
-
-        // JumpIfShortCircuitXxx: target is the compiled end (7 instructions total, index 7 = OperationCount of compiled program + 1)
-        // We'll patch this after building the rest. Track the patch index.
-        var jumpUnifiedIndex = candidateUnified.Count;
-        var jumpOpCode = jumpOp.Kind switch
-        {
-            ExpressionOpKind.JumpIfFalse => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
-            ExpressionOpKind.JumpIfTrue => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
-            _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
-        };
-        candidateUnified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
-
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotLayout.ScratchSlotIndex));
-
-        var rhs = expressionProgram.GetOperation(5);
-        if (!TryAppendSimpleOperandLoad(rhs, expressionProgram, activationSlots, candidateUnified, literalConstants, out reason))
-        {
-            literalConstants.RemoveRange(literalConstantsStart, literalConstants.Count - literalConstantsStart);
-            return false;
-        }
-
-        candidateUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
-
-        // Patch the jump to point past SetNamedProperty.
-        candidateUnified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, unified.Count + candidateUnified.Count);
-
-        for (var i = 0; i < candidateStringConstants.Count; i++)
-        {
-            stringConstants.Add(candidateStringConstants[i]);
-        }
-
-        for (var i = 0; i < candidateUnified.Count; i++)
-        {
-            unified.Add(candidateUnified[i]);
-        }
-
-        reason = string.Empty;
-        return true;
-    }
-
     private static bool TryAppendFirstBoundaryNamedCompoundPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -5298,6 +5166,125 @@ internal static class UnifiedBytecodeCompiler
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendFirstBoundaryNamedLogicalPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 10)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var duplicateTarget = expressionProgram.GetOperation(1);
+        var propertyRead = expressionProgram.GetOperation(2);
+        var jump = expressionProgram.GetOperation(3);
+        var pop = expressionProgram.GetOperation(4);
+        var rhs = expressionProgram.GetOperation(5);
+        var propertySet = expressionProgram.GetOperation(6);
+        var duplicateAssignedValue = expressionProgram.GetOperation(7);
+        var swap = expressionProgram.GetOperation(8);
+        var cleanupPop = expressionProgram.GetOperation(9);
+        if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
+            propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
+            pop.Kind != ExpressionOpKind.Pop ||
+            propertySet.Kind != ExpressionOpKind.SetNamedProperty ||
+            duplicateAssignedValue.Kind != ExpressionOpKind.DuplicateTop ||
+            swap.Kind != ExpressionOpKind.SwapTopTwo ||
+            cleanupPop.Kind != ExpressionOpKind.Pop)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertyRead.IsOptional || propertyRead.ShortCircuitOnNullishTarget)
+        {
+            reason = "Optional named logical property writes are not supported.";
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Named logical property writes with name inference are not supported.";
+            return false;
+        }
+
+        if (jump.Target != 8)
+        {
+            reason = "Logical named property writes require jump target at cleanup start.";
+            return false;
+        }
+
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        var propertyName = propertyRead.GetString(stringTable);
+        if (propertyName.IsPrivateName())
+        {
+            reason = "Private named logical property writes are not supported.";
+            return false;
+        }
+
+        if (propertyName != propertySet.GetString(stringTable))
+        {
+            reason = "Mismatched named logical property read/write operands are not supported.";
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(propertyName);
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
+            propertyNameIndex));
+
+        var jumpOpCode = jump.Kind switch
+        {
+            ExpressionOpKind.JumpIfFalse => UnifiedBytecodeOpCode.JumpIfShortCircuitFalse,
+            ExpressionOpKind.JumpIfTrue => UnifiedBytecodeOpCode.JumpIfShortCircuitTrue,
+            _ => UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish
+        };
+        var jumpUnifiedIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+
+        if (!TryAppendSimpleOperandLoad(
+                rhs,
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetNamedProperty, propertyNameIndex));
+        var endJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+
+        var cleanupIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SwapTopTwo));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+
+        unified[jumpUnifiedIndex] = new UnifiedBytecodeInstruction(jumpOpCode, cleanupIndex);
+        unified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, unified.Count);
         reason = string.Empty;
         return true;
     }

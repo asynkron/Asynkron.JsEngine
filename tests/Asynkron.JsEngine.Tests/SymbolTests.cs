@@ -180,4 +180,56 @@ public sealed class SymbolTests(ITestOutputHelper output) : InternalTestBase(out
                                            """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Symbol_Assignment_Preserves_Explicit_Writable_Descriptor_Flags()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const sym = Symbol("x");
+                                           const obj = {};
+                                           Object.defineProperty(obj, sym, {
+                                             value: 1,
+                                             writable: true,
+                                             enumerable: false,
+                                             configurable: false
+                                           });
+                                           obj[sym] = 9;
+                                           const desc = Object.getOwnPropertyDescriptor(obj, sym);
+                                           desc.value === 9 &&
+                                             desc.writable === true &&
+                                             desc.enumerable === false &&
+                                             desc.configurable === false;
+                                           """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
+    public async Task Symbol_Assignment_To_NonWritable_Descriptor_Throws_In_Strict_Mode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+                                           const sym = Symbol("locked");
+                                           const obj = {};
+                                           Object.defineProperty(obj, sym, {
+                                             value: 1,
+                                             writable: false,
+                                             enumerable: true,
+                                             configurable: true
+                                           });
+
+                                           let threw = false;
+                                           try {
+                                             (function () {
+                                               "use strict";
+                                               obj[sym] = 2;
+                                             })();
+                                           } catch (e) {
+                                             threw = e instanceof TypeError;
+                                           }
+
+                                           threw && obj[sym] === 1;
+                                           """);
+        Assert.True((bool)result!);
+    }
 }

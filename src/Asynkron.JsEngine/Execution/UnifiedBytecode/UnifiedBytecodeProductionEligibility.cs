@@ -841,6 +841,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
+                        if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         // Continuation hop of a multi-hop optional named chain (a?.b.c / a?.b?.c).
                         if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
                         {
@@ -855,6 +860,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (operation.IsOptional)
                     {
+                        if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         // Simple a?.b form — admitted when the program is exactly [activation-resolved base, GetNamedPropertyOptional].
                         if (TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
                         {
@@ -930,8 +940,18 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.GetComputedProperty:
+                    if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (operation.ShortCircuitOnNullishTarget)
                     {
+                        if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         // a?.b[k] shape — admitted when the program matches the optional named then computed shape.
                         if (TryIsFirstBoundaryOptionalNamedThenComputedCandidate(program, identifierConstants, activationSlots))
                         {
@@ -1053,6 +1073,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.JumpIfNullish:
                     if (isCallTargetPreparationCandidate || !operation.ReplaceWithUndefined)
+                    {
+                        break;
+                    }
+
+                    if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1804,6 +1829,148 @@ internal static class UnifiedBytecodeProductionEligibility
         var getComputedOp = program.GetOperation(3);
         return getComputedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                !getComputedOp.ShortCircuitOnNullishTarget;
+    }
+
+    private static bool TryIsEmbeddedOptionalReadOperandOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (!HasOwningControlExpression(program))
+        {
+            return false;
+        }
+
+        return TryIsEmbeddedOptionalNamedReadSpanOperation(program, operationIndex, identifierConstants, activationSlots) ||
+               TryIsEmbeddedOptionalComputedReadSpanOperation(program, operationIndex, identifierConstants, activationSlots);
+    }
+
+    private static bool HasOwningControlExpression(ExpressionProgram program)
+    {
+        for (var index = 0; index < program.OperationCount; index++)
+        {
+            switch (program.GetOperation(index).Kind)
+            {
+                case ExpressionOpKind.JumpIfFalse:
+                case ExpressionOpKind.JumpIfTrue:
+                case ExpressionOpKind.JumpIfNotNullish:
+                case ExpressionOpKind.JumpIfConditionalFalse:
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryIsEmbeddedOptionalNamedReadSpanOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operationIndex < 0 || operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var spanStart = 0; spanStart + 1 < program.OperationCount; spanStart++)
+        {
+            var spanEnd = spanStart + 1;
+            var namedRead = program.GetOperation(spanEnd);
+            if (namedRead.Kind != ExpressionOpKind.GetNamedProperty ||
+                !namedRead.IsOptional ||
+                namedRead.ShortCircuitOnNullishTarget ||
+                namedRead.GetString(stringConstants).IsPrivateName())
+            {
+                continue;
+            }
+
+            if (!TryGetActivationResolvedValue(program.GetOperation(spanStart), identifierConstants, activationSlots))
+            {
+                continue;
+            }
+
+            if (operationIndex >= spanStart && operationIndex <= spanEnd)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryIsEmbeddedOptionalComputedReadSpanOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operationIndex < 0 || operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        for (var spanStart = 0; spanStart + 3 < program.OperationCount; spanStart++)
+        {
+            var jumpOp = program.GetOperation(spanStart + 1);
+            if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+            {
+                continue;
+            }
+
+            if (!TryGetActivationResolvedValue(program.GetOperation(spanStart), identifierConstants, activationSlots) ||
+                !IsSimpleComputedPropertyKey(program.GetOperation(spanStart + 2), identifierConstants, activationSlots))
+            {
+                continue;
+            }
+
+            var shortShapeComputedRead = program.GetOperation(spanStart + 3);
+            if (shortShapeComputedRead.Kind == ExpressionOpKind.GetComputedProperty &&
+                !shortShapeComputedRead.ShortCircuitOnNullishTarget &&
+                jumpOp.Target == spanStart + 4)
+            {
+                if (operationIndex >= spanStart && operationIndex < spanStart + 4)
+                {
+                    return true;
+                }
+            }
+
+            if (spanStart + 5 >= program.OperationCount)
+            {
+                continue;
+            }
+
+            var requireObjectCoercible = program.GetOperation(spanStart + 3);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible || requireObjectCoercible.Depth != 1)
+            {
+                continue;
+            }
+
+            if (program.GetOperation(spanStart + 4).Kind != ExpressionOpKind.ResolvePropertyKey)
+            {
+                continue;
+            }
+
+            var computedRead = program.GetOperation(spanStart + 5);
+            if (computedRead.Kind != ExpressionOpKind.GetComputedProperty || computedRead.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (jumpOp.Target != spanStart + 6)
+            {
+                continue;
+            }
+
+            if (operationIndex >= spanStart && operationIndex < spanStart + 6)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(

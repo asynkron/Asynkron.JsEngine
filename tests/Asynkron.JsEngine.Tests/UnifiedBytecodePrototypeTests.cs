@@ -643,6 +643,37 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void TryCompile_ObjectLiteralWithSimpleSpread_ProducesObjectSpreadOp()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function create(source) {
+                return { a: 1, ...source, b: 2 };
+            }
+            """,
+            "create");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.ObjectSpread);
+
+        var source = new JsObject();
+        source.DefineDefaultDataProperty("a", JsValue.FromDouble(7));
+        source.DefineDefaultDataProperty("c", JsValue.FromDouble(33));
+        var slots = new JsValue[Math.Max(program.SlotCount, 1)];
+        SetSlot(program, slots, "source", JsValue.FromJsObject(source));
+        var value = ExecuteProgram(program, slots);
+
+        Assert.True(value.TryGetObject(out var obj));
+        Assert.True(obj.TryGetProperty("a", out var a));
+        Assert.Equal(7d, a.AsDouble());
+        Assert.True(obj.TryGetProperty("b", out var b));
+        Assert.Equal(2d, b.AsDouble());
+        Assert.True(obj.TryGetProperty("c", out var c));
+        Assert.Equal(33d, c.AsDouble());
+    }
+
+    [Fact]
     public void TryCompile_ComputedPropertyReadWithExpressionKey_ProducesGeneralPropertyOps()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

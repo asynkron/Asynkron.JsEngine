@@ -3740,6 +3740,10 @@ internal static class UnifiedBytecodeCompiler
                         operation.AllowNameInference ? DefineObjectPropertyAllowNameInferenceFlag : 0));
                     break;
 
+                case ExpressionOpKind.ObjectSpread:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ObjectSpread));
+                    break;
+
                 case ExpressionOpKind.Construct:
                     // Synchronous construct calls. The constructor value and each logical
                     // argument are lowered by preceding ops in source order; spread positions
@@ -5240,9 +5244,10 @@ internal static class UnifiedBytecodeCompiler
     }
 
     // Compiles a simple object literal span starting at startIndex in the expression program.
-    // Emits: CreateObject, then N property triples:
+    // Emits: CreateObject, then N property triples/spreads:
     //   Static:   [simple-value-load, DefineObjectProperty(non-private, no name inference)]
     //   Computed: [simple-key-load, ResolvePropertyKey, simple-value-load, DefineComputedObjectProperty(no name inference)]
+    //   Spread:   [simple-spread-source-load, ObjectSpread]
     private static bool TryAppendSimpleObjectLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -5339,10 +5344,15 @@ internal static class UnifiedBytecodeCompiler
                 unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectProperty, 0));
                 i++;
             }
+            else if (secondOp.Kind == ExpressionOpKind.ObjectSpread)
+            {
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ObjectSpread));
+                i++;
+            }
             else
             {
                 spanLength = 0;
-                reason = "Computed keys, private names, and name inference are not admitted in simple object literals.";
+                reason = "Object methods, object accessors, private names, and name inference are not admitted in simple object literals.";
                 return false;
             }
         }

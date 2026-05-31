@@ -1720,14 +1720,46 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
     }
 
+    [Fact]
+    public void Evaluate_SimpleObjectSpreadLiteral_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function spreadObject(source) {
+                return { a: 1, ...source, b: 2 };
+            }
+            """,
+            "spreadObject");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectSpread);
+    }
+
+    [Fact]
+    public void Evaluate_NonSimpleObjectSpreadSource_DeclinesWithExplicitCode()
+    {
+        var plan = GetFunctionPlan("""
+            function spreadObject(source) {
+                return { ...source.slice(0) };
+            }
+            """,
+            "spreadObject");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
+        Assert.Contains("Object spread", result.Reason, StringComparison.Ordinal);
+    }
+
     [Theory]
-    [InlineData(
-        """
-        function spreadObject(source) {
-            return { ...source };
-        }
-        """,
-        "spreadObject")]
     [InlineData(
         """
         function methodObject() {
@@ -1906,7 +1938,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readLiteral",
-        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
     [InlineData(
         """
         function readDynamic(box) {
@@ -1931,14 +1963,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "readComputedObjectLiteralKey",
         (int)UnifiedBytecodeProductionDeclineCode.None)]
-    [InlineData(
-        """
-        function readComputedSpreadKey(box, source) {
-            return box[{ ...source }];
-        }
-        """,
-        "readComputedSpreadKey",
-        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
     [InlineData(
         """
         function logicalWrite(box, value) {

@@ -5252,6 +5252,100 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_UsesUnifiedBytecodeProductionFastPathAndCopiesSymbolKeys()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function copy(source) {
+                return { ...source };
+            }
+
+            var sym = Symbol("answer");
+            var source = { a: 1 };
+            source[sym] = 41;
+            var out = copy(source);
+            out[sym] + out.a;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=copy argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_PreservesOverwriteOrder_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function merge(source) {
+                return { a: 1, ...source, b: 2, a: 3 };
+            }
+
+            var out = merge({ a: 9, c: 37 });
+            out.a + out.b + out.c;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=merge argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_NullAndUndefinedSourcesAreNoOps_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function build(left, right) {
+                return { ...left, value: 42, ...right };
+            }
+
+            build(null, undefined).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=build argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpread_InvokesEnumerableGetters_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function copy(source) {
+                return { ...source, other: 1 };
+            }
+
+            var hits = 0;
+            var source = {};
+            Object.defineProperty(source, "value", {
+                get: function () {
+                    hits = hits + 1;
+                    return 41;
+                },
+                enumerable: true
+            });
+
+            var out = copy(source);
+            [out.value + out.other, hits];
+            """);
+
+        var values = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(42d, values.Items[0].AsDouble());
+        Assert.Equal(1d, values.Items[1].AsDouble());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=copy argc=1",
+                StringComparison.Ordinal));
+    }
+
     // gh2742: computed-key object literals in call-argument position
 
     [Fact(Timeout = 5000)]

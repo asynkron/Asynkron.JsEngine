@@ -2442,16 +2442,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_LabeledContinueCrossingDriverLoop_DoesNotDeclineWithLabelControlFlow()
+    public void Evaluate_LabeledContinueCrossingDriverLoop_AcceptsWithDriverCleanupTopology()
     {
         // A labeled continue that re-enters an outer loop from inside an enclosing for-of driver
-        // loop no longer uses the coarse LabelControlFlow decline; this shape still has a
-        // compiler-owned active loop-control topology that remains outside this cleanup slice.
+        // loop is eligible now that cleanup closes the crossed inner driver before jumping to the
+        // outer continue target.
         var plan = GetFunctionPlan("""
             function labeled(outer, inner) {
                 var total = 0;
-                outerLabel: for (var x in outer) {
-                    for (var y in inner) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
                         continue outerLabel;
                         total = total + 1;
                     }
@@ -2466,9 +2466,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.LabelControlFlow, result.Code);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+        Assert.True(result.Program.DriverDescriptors.Count(static descriptor => descriptor.BreakTarget >= 0) >= 2);
     }
 
     [Fact]

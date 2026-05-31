@@ -1342,6 +1342,55 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void Execute_LabeledContinueCrossingForOf_ClosesOnlyCrossedInnerIterator()
+    {
+        var (plan, isAsync, isGenerator) = GetFunctionPlan("""
+            function continueOuter(outer, inner, box) {
+                outerLabel: for (var x of outer) {
+                    for (var y of inner) {
+                        continue outerLabel;
+                    }
+                }
+
+                return box.value;
+            }
+            """,
+            "continueOuter");
+
+        var result = UnifiedBytecodeCompiler.TryCompile(plan, isAsync, isGenerator, out var program, out var reason);
+        Assert.True(result, reason);
+        Assert.Contains(program.Instructions, static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Continue);
+
+        var outerCloseCount = 0;
+        var innerCloseCount = 0;
+        var outer = CreateSingleValueIterable(
+            JsValue.FromDouble(1),
+            onReturn: () => outerCloseCount++);
+        var inner = CreateSingleValueIterable(
+            JsValue.FromDouble(2),
+            onReturn: () => innerCloseCount++);
+        var box = new JsObject();
+        box.DefineProperty(
+            "value",
+            new PropertyDescriptor
+            {
+                Get = new HostFunction(
+                    (_, _) => JsValue.FromDouble((outerCloseCount * 10) + innerCloseCount),
+                    isConstructor: false)
+            });
+        var slots = new JsValue[Math.Max(program.SlotCount, 7)];
+        SetSlot(program, slots, "outer", JsValue.FromJsObject(outer));
+        SetSlot(program, slots, "inner", JsValue.FromJsObject(inner));
+        SetSlot(program, slots, "box", JsValue.FromJsObject(box));
+
+        var value = ExecuteProgram(program, slots);
+
+        Assert.Equal(1d, value.AsDouble());
+        Assert.Equal(0, outerCloseCount);
+        Assert.Equal(1, innerCloseCount);
+    }
+
+    [Fact]
     public void TryCompile_WhileWithNestedBranchBreak_DeclinesWithLoopReason()
     {
         var (plan, isAsync, isGenerator) = GetFunctionPlan("""

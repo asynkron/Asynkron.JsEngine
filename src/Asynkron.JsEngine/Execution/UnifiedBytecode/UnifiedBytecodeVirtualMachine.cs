@@ -2323,16 +2323,13 @@ internal static class UnifiedBytecodeVirtualMachine
                 return false;
             }
 
-            if (pending.Kind == AbruptKind.Break)
-            {
-                CleanupDriverStatesForControlTarget(
-                    pending.Target,
-                    isBreak: true,
-                    program,
-                    slots,
-                    slotEnvironments,
-                    context);
-            }
+            CleanupDriverStatesForControlTarget(
+                pending.Target,
+                isBreak: pending.Kind == AbruptKind.Break,
+                program,
+                slots,
+                slotEnvironments,
+                context);
 
             programCounter = pending.Target >= 0 ? pending.Target : nextTarget;
             return false;

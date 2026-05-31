@@ -2700,8 +2700,7 @@ internal static class UnifiedBytecodeCompiler
     {
         if ((uint)sourceInstructionIndex >= (uint)instructions.Length ||
             (uint)targetIndex >= (uint)instructions.Length ||
-            instructions[targetIndex] is not BranchInstruction branch ||
-            !HasLoopContinueTarget(targetIndex, branch.AlternateIndex, instructions))
+            !IsSupportedLoopContinueTarget(targetIndex, instructions))
         {
             return false;
         }
@@ -2710,6 +2709,25 @@ internal static class UnifiedBytecodeCompiler
         {
             LeaveTryInstruction leaveTry => leaveTry.Next == targetIndex,
             EndFinallyInstruction endFinally => endFinally.Next == targetIndex,
+            _ => false
+        };
+    }
+
+    private static bool IsSupportedLoopContinueTarget(
+        int targetIndex,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        return instructions[targetIndex] switch
+        {
+            BranchInstruction branch => HasLoopContinueTarget(targetIndex, branch.AlternateIndex, instructions),
+            IteratorMoveNextInstruction iteratorMoveNext => HasLoopContinueTarget(
+                targetIndex,
+                iteratorMoveNext.BreakIndex,
+                instructions),
+            ForInMoveNextInstruction forInMoveNext => HasLoopContinueTarget(
+                targetIndex,
+                forInMoveNext.BreakIndex,
+                instructions),
             _ => false
         };
     }

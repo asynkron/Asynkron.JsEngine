@@ -106,6 +106,9 @@ script_for() {
 node_mode_for() {
   local profile=$1
   case "$profile" in
+    startup)
+      printf 'fresh-context'
+      ;;
     microtask)
       printf 'async-drain'
       ;;
@@ -269,10 +272,15 @@ const iterations = Number(iterationText);
 const raw = fs.readFileSync(scriptPath, 'utf8');
 const code = '(function(){\n' + raw + '\n}());';
 const script = new vm.Script(code);
-const context = vm.createContext({});
+const sharedContext = mode === 'fresh-context' ? null : vm.createContext({});
 
 async function runOnce() {
-  script.runInContext(context);
+  if (mode === 'fresh-context') {
+    script.runInContext(vm.createContext({}));
+    return;
+  }
+
+  script.runInContext(sharedContext);
   if (mode === 'async-drain') {
     await new Promise(resolve => setImmediate(resolve));
   }
@@ -344,8 +352,9 @@ if [[ "$update_baseline" == true ]]; then
     echo "# Values are ProfileRunner --force-timing avg ms per iteration."
     echo "# Timing is hardware-dependent; regenerate on a new machine with --update then commit."
     echo "# Hard baseline tolerance: 200% by default (gate fails only at >3x baseline)."
-    echo "# Override with TIMING_GATE_TOLERANCE or --tolerance."
-    echo "# Directional target status is printed by tools/check-slo-gate but is non-failing evidence only."
+    echo "# Override with TIMING_GATE_TOLERANCE or ./tools/check-slo-gate --tolerance."
+    echo "# Directional p95 target status and same-run Node.js comparison are printed by"
+    echo "# tools/check-slo-gate but are non-failing evidence only."
     echo "# The startup target in docs/dreaming.md is p95; this file stores avg-ms guardrail values."
     echo "#"
     echo "# format: <profile> <avg_ms_per_iteration>"

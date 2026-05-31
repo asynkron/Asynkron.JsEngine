@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Roadmap
 
-_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777, #2783, #2787, #2788, #2795, #2804, #2805)_
+_Last updated: 2026-05-31 (PRs #2750, #2755, #2758, #2761, #2768, #2772, #2777, #2783, #2787, #2788, #2795, #2804, #2805, #2814, #2816)_
 
 ## Current State
 
@@ -55,6 +55,8 @@ Asynkron.JsEngine is a JavaScript engine for .NET with broad ECMAScript coverage
 - **Ternary edge-case: `Pop` and `Jump` admitted in `TryFindExpressionDecline`** (PR #2795). Added explicit `case ExpressionOpKind.Pop:` to the allowed-op group alongside `Jump` in `TryFindExpressionDecline`, ensuring the condition-discard op on both ternary paths is not misread as a decline signal. AC-2/AC-3 tests added: consume-semantics regression (truthy/falsy branches produce correct results sequentially, ruling out peek-semantics regression) and nested ternary all-combinations test (`c1 ? c2 ? a : b : d`). Rule 43 updated.
 
 - **Unified-bytecode production routing widened to admit multi-hop optional named chains** (`a?.b.c`, `a?.b?.c`) (PR #2804, ADR 0298, rule 42). All optional hops lower to `JumpIfNullishReplaceUndefined(chain-end)` pointing at the same chain-end PC, so nullish anywhere short-circuits to `undefined` with no new opcode or sentinel array. Real-`undefined` non-nullish intermediates still throw on the following plain read (`a?.b.c` with `b === undefined` still TypeErrors; only `a?.b?.c` skips). Decision recorded in ADR 0298; rule 42 updated (PR #2805).
+- **Unified-bytecode production routing widened to admit optional call-chain forms** (`a?.b.c()`, `a?.b?.c()`) by lowering Cases 4/5 in `TryAppendNamedMemberCallTargetPreparation` through existing jump and call-target-preparation opcodes (`JumpIfNullishReplaceUndefined`, `PrepareNamedCallTarget`, `PrepareNamedOptionalCallTarget`) (PR #2814, issue gh2806, ADR 0299).
+- **`SymbolHybridDictionary` loops consolidated to `TryFindEntry`** (PR #2816) to reduce duplicated lookup-loop code in one maintained hot-path surface. Treat this as maintainability evidence; profile/benchmark proof is still required before broader performance claims.
 
 Architecture direction is tracked in docs rather than as runtime parity claims: unified-bytecode primary sync-route coverage is recorded (PR #2644), the ordinary sync `this`-binding route is recorded in ADR 0279 (issue #2633), its resumable async/generator counterpart accepting `this`-dependent suspendable functions is recorded in ADR 0283 (issue #2675), and the typed-AST/"dreaming" target is refined in `docs/dreaming.md` — a 4-tier execution model (PR #2647) followed by a self-critique revision (PR #2663), with tier-numbering disambiguation captured as rule 14 (PR #2650). These describe a staged migration with allocation budgets and escape hatches, not current parity.
 
@@ -72,6 +74,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] Widen unified bytecode to admit array spread in array literals including hole+spread patterns; rule 40 four-surface coupling (PR #2750).
 - [x] Expand compound property write test coverage to this-base shapes and all 12 production operators; ADR 0238 batch-4 evidence (PRs #2755, #2758).
 - [x] Widen unified bytecode to admit &&, ||, ?? expressions via peek-semantics jump opcodes; ADR 0293 and rule 41 (PR #2761).
+- [x] Widen unified bytecode to admit optional call-chain forms (`a?.b.c()`, `a?.b?.c()`) through named member call-target-preparation Cases 4/5 (PR #2814, issue gh2806, ADR 0299).
 - [ ] Reduce allocations in async/generator resumption paths (active GC budget target: Gen 0 only per resumption cycle — see `docs/dreaming.md` allocation budget table).
 - [ ] Continue reducing allocations in the evaluator hot paths (call frames, argument arrays).
 - [ ] Expand `JsValue` struct adoption to remaining boxed numeric/string paths (follow `[Obsolete]` markers added in PR #2704).
@@ -108,7 +111,9 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [x] (landed, gh2770 / PR #2772) Widened unified bytecode to admit ternary/conditional expression (`?:`) via `ExpressionOpKind.Jump` backpatch in `TryAppendExpressionProgramOps`; no new opcodes required (ADR 0297).
 - [x] (landed, gh2771) Widened unified bytecode to admit simple optional member access (`?.prop`, `?.[k]`) via new `GetNamedPropertyOptional` and `JumpIfNullishReplaceUndefined` opcodes; chained forms (`a?.b?.c`) were declined pending a later slice (ADR 0296) — see follow-on below.
 - [x] (landed, PR #2804) Widened unified bytecode to admit multi-hop optional named chains (`a?.b.c`, `a?.b?.c`) — natural follow-on to gh2771. All optional hops emit `JumpIfNullishReplaceUndefined(chain-end)`; no new opcode. ADR 0298, rule 42.
-- [x] (landed, gh2806) Widen unified bytecode to admit optional call-chain forms (`a?.b.c()`, `a?.b?.c()`) — Cases 4/5 in `TryAppendNamedMemberCallTargetPreparation`; jump-based lowering reusing `JumpIfNullishReplaceUndefined` + `PrepareNamedCallTarget`/`PrepareNamedOptionalCallTarget`. ADR 0299.
+- [x] (landed, [gh2806](https://github.com/asynkron/Asynkron.JsEngine/issues/2806)) Widen unified bytecode to admit optional call-chain forms (`a?.b.c()`, `a?.b?.c()`) — Cases 4/5 in `TryAppendNamedMemberCallTargetPreparation`; jump-based lowering reusing `JumpIfNullishReplaceUndefined` + `PrepareNamedCallTarget`/`PrepareNamedOptionalCallTarget`. Landed in PR #2814. ADR 0299.
 - [ ] (open, gh2807) Reduce allocations in async generator resumption path (targeted slice of gh2712) — profile and reduce Gen 1/2 escapes in the \`async function*\` resumption path; target Gen 0 only per resume cycle per \`docs/dreaming.md\` allocation budget table.
+- [ ] (open, [gh2828](https://github.com/asynkron/Asynkron.JsEngine/issues/2828)) Widen optional call-chain admission to computed/member variants — extend optional call-target coverage beyond the named Cases 4/5 slice from PR #2814 while preserving explicit decline boundaries for unsupported shapes.
+- [ ] (open, [gh2829](https://github.com/asynkron/Asynkron.JsEngine/issues/2829)) Profile `SymbolHybridDictionary` post-PR #2816 and pick one measured next allocation-cut slice — require focused baseline/final memory evidence before roadmap claims.
 
 _Generated and maintained by the recurring Roadmapper run._

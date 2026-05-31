@@ -571,7 +571,10 @@ support today.
    now admitted (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`,
    and `box[key]?.(args)`. Synchronous construct calls
    (`new F(...)`, spread arguments, and member/computed constructor targets)
-   are now admitted (gh2690, ADR 0286 plus construct-boundary widening). Simple array and
+   are now admitted (gh2690, ADR 0286 plus construct-boundary widening). The
+   first bounded super invocation shapes are now admitted too (PR #2862, ADR
+   0307): non-spread derived-constructor `super(...)` plus named/computed
+   super-member calls. Simple array and
    object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
    (gh2705, ADR 0290); holey arrays, spread elements, computed keys,
    methods, accessors, name inference, and private names continue to decline.

@@ -776,46 +776,41 @@ all-or-nothing until a separate routing issue proves production readiness.
     label itself — is the real boundary, and a PC-based multi-driver shortcut is
     unsound under lazy target compilation.
 
-37. When admitting synchronous construct calls (`new F(...)`, `new F(...args)`,
-    `new obj.F(...)`, and `new obj[key](...)`) to production unified bytecode,
-    keep the `ConstructInvocationBoundary` opcode receiver-free and mirror the
-    spec-conformant construct reference helper (`ExecuteProgramConstruct`). The
-    construct model differs from call: the constructor is pushed as a plain
-    value load with no receiver or call-target preparation, and `[[Construct]]`
-    is invoked with the constructor as both the target and `new.target`. Spread
-    arguments may reuse the invocation-boundary packed spread-mask encoding, but
-    flattening still belongs inside the construct boundary before calling
-    `ReflectHelper.Construct`. Member and computed constructor targets may use
-    already production-owned property-read opcodes, but they must not route
-    through call-target preparation or bind a receiver as `this`. Keep the
-    super call family (`SuperConstruct`, `LoadNamedSuperCallTarget`,
-    `LoadComputedSuperCallTarget`) explicitly declined as
-    `SuperPropertyDependency` — do not implement them in the flat-slot VM. The
-    activation gate in `SyncFunctionInvoker.CanUseProductionUnifiedBytecode`
-    already blocks derived class constructors (`IsClassConstructor`,
-    `_superConstructor`, `_lexicalThisEnvironment`, `newTarget`, etc.) before
-    expression eligibility runs, making any `SuperConstruct` expression
-    unreachable in production. Implementing the ~170-line super construction
-    machinery (super binding resolution, `ThisInitialized` guard,
-    `MarkThisInitialized`, class-field initializers) in the VM would be
-    untestable, unprovable dead code — a direct contradiction of the proof-pack
-    requirement that every admitted shape be demonstrable. The principle is:
-    **activation-gate unreachability is a proof-pack blocker**. If the
-    activation layer already prevents a function kind from routing through
-    unified bytecode, implementing VM semantics for ops that appear only in those
-    function kinds cannot be proven through the normal proof pack and must not be
-    added until the activation gate itself is widened and the matching VM
-    semantics are demonstrable. Pair construct admission with proof-pack
-    coverage for `new.target` propagation, zero/many-arg construct, spread
-    materialization, member/computed constructor targets, argument order,
-    not-a-constructor `TypeError`, and the super negative decline. WHY: issue
-    #2690 / PR #2697 admitted `Construct` with ADR 0286, and the later
-    construct-boundary widening admitted spread and member/computed constructor
-    targets without mixing in call-boundary or AST fallback semantics. The super
-    family analysis confirmed that gate-layer decisions upstream of expression
-    eligibility determine what can be demonstrably proven in the flat-slot VM;
-    future widening of the activation gate must pair with matching VM semantics
-    proof before the expression-level decline is removed.
+37. When admitting synchronous construct and super invocation to production
+    unified bytecode, keep constructor and super ownership split and prove the
+    activation contract in the same slice. `ConstructInvocationBoundary` stays
+    receiver-free and mirrors the spec-conformant construct reference helper
+    (`ExecuteProgramConstruct`): the constructor is pushed as a plain value
+    load, `[[Construct]]` runs with the constructor as both the target and
+    `new.target`, spread flattening stays inside the boundary, and member or
+    computed constructor targets may reuse already owned property-read opcodes
+    without binding a receiver as `this`. Super invocation is a narrower,
+    separately owned lane: only non-spread derived-constructor `super(...)`
+    plus named/computed super-member calls may route, and only when
+    `SyncFunctionInvoker` can create the required call environment and super
+    binding itself. The VM must own `SuperConstructInvocationBoundary`,
+    `PrepareNamedSuperCallTarget`, and `PrepareComputedSuperCallTarget`;
+    resolve the super binding there; preserve the derived receiver / `this`
+    contract for super-member calls; and preserve the existing derived-
+    constructor completion rules (`new.target` propagation, double-super guard,
+    object-or-undefined return rule). Do not hide super under generic
+    call-target preparation, AST fallback, or a partial activation shortcut.
+    If the route still needs instance fields, private scopes, spread super
+    constructs, super property reads/writes/updates, or other unproven
+    activation metadata, decline before VM entry. The principle remains:
+    **activation-gate unreachability is a proof-pack blocker**. VM semantics
+    for a function kind are only admissible once the invoker can supply the
+    matching activation contract and the route is demonstrably reachable in the
+    same proof pack. Pair construct/super admission with proof for
+    `new.target` propagation, construct argument order, not-a-constructor
+    `TypeError`, derived-constructor `super(...)` initialization and
+    double-super behavior, super-member receiver-as-`this` behavior, and the
+    retained spread/instance-field/super-property declines. WHY: issue #2690 /
+    PR #2697 recorded the original activation-gated super decline in ADR 0286.
+    Issue `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-d41d47d2fc`
+    / PR #2862 then widened the invoker, selector, compiler, and VM together so
+    the first bounded super invocation shapes became reachable and provable
+    without mixed execution.
 
 38. When admitting a per-iteration TDZ head environment (`for (const/let x of/in …)`) to production unified bytecode, audit all three eligibility gate layers simultaneously — not just the first declining gate. The per-iteration TDZ head shape touches independent gates in series: (1) **`IsSupportedPushEnvironment`** by default declines any non-empty `PerIterationBindings`; admit it when all lexical slots resolve to flat activation slots. (2) The **structured loop-reconstruction gates** (`IsSupportedDriverLoopBackEdgeTarget`, `TryIsLinearCanonicalWhileBody`) — a driver loop with a per-iteration environment emits `PopEnvironment` as the back-edge source and has `Push`/`PopEnvironment` in the body; accept `PopEnvironment` as a valid back-edge source and treat the pair as linear flat-slot pass-throughs while still requiring a branch-free body to preserve no-mixed-execution. (3) The **production opcode allowlist** — a new opcode such as `TdzHeadInit` must be explicitly added to the admitted production subset even when the opcode and its VM handler already exist from a prior prototype slice. Emit `TdzHeadInit` **before** the iterable/object source expression ops so the TDZ is established before the source is evaluated (making `for (const x of [x])` throw the correct `ReferenceError`). The safety boundary is: captured/dynamic activations decline wholesale upstream, so the only case where per-iteration binding freshness is observable (a closure over the loop binding) never reaches this path — prove this with a negative routing test. When a new driver-state or per-iteration environment shape is admitted, assume it touches multiple gate layers and test each layer independently before claiming the shape is fully admitted. WHY: issue #2678 / PR #2687 admitted the per-iteration TDZ head shape (Slice A, ADR 0288). The first attempted fix targeted only one of three blocking gates; all three had to move together before the failing test passed. The useful lesson is that eligibility for a stateful driver shape is spread across the environment-support gate, the loop-reconstruction analysis, and the per-opcode allowlist — a shape that looks like a one-line eligibility change often requires synchronized updates across all three surfaces.
 
@@ -1741,6 +1736,7 @@ Related ADRs:
 - `docs/adrs/0283-accept-this-dependent-async-generator-in-resumable-unified-bytecode.md`
 - `docs/adrs/0285-admit-labeled-control-flow-in-unified-bytecode-and-decline-driver-crossing.md`
 - `docs/adrs/0286-accept-unified-bytecode-construct-calls-and-decline-super-calls.md`
+- `docs/adrs/0307-admit-bounded-super-invocation-in-production-unified-bytecode.md`
 - `docs/adrs/0287-accept-unified-bytecode-spread-calls-spreadmask-indexed-and-receiver-owned.md`
 - `docs/adrs/0288-admit-tdz-head-environments-for-sync-iterator-and-for-in-drivers.md`
 - `docs/adrs/0289-admit-optional-calls-in-unified-bytecode-nullish-short-circuit-receiver-owned.md`

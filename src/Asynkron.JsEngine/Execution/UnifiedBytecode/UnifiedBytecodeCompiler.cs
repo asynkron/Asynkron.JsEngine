@@ -4178,6 +4178,27 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Case 6: optional-chain computed plain call — a?.b[k](args)
+        // Pattern: [base, GetNamedProperty(opt,b), JumpIfShortCircuited, key, LoadComputedCallTarget, args..., Call]
+        if (callTargetIndexInProgram == 4)
+        {
+            var maybeShortCircuit = expressionProgram.GetOperation(callTargetIndexInProgram - 2);
+            if (maybeShortCircuit.Kind == ExpressionOpKind.JumpIfShortCircuited)
+            {
+                return TryAppendOptionalChainComputedPlainCallTarget(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    call,
+                    callIndex,
+                    callTargetIndexInProgram,
+                    out reason);
+            }
+        }
+
         // Case 3: callee-optional computed call — box[key]?.()
         // Pattern: [Receiver, Key, LoadComputedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
         if (callTargetIndexInProgram + 1 < callIndex &&
@@ -4307,6 +4328,87 @@ internal static class UnifiedBytecodeCompiler
         unified[prepareIndex] = new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
             callTargetConstantIndex | (unified.Count << 16));
+        return true;
+    }
+
+    // Case 6: a?.b[k](args) — optional-start chain, computed plain non-optional call.
+    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    //            key-load, PrepareComputedCallTarget, args, (end:)
+    private static bool TryAppendOptionalChainComputedPlainCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        var firstHop = expressionProgram.GetOperation(1);
+        var receiverName = firstHop.GetString(expressionStringConstants);
+        if (receiverName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var receiverNameIndex = stringConstants.Count;
+        stringConstants.Add(receiverName);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+
+        var keyIndex = callTargetIndexInProgram - 1;
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(keyIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            unified.Count);
         return true;
     }
 

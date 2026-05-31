@@ -1728,6 +1728,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyReadChain_ReturnsUndefinedWhenBaseIsNull()
+    {
+        // AC-2: a?.b.c short-circuits to undefined when a is null/undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptChain(box) {
+                return box?.value.length;
+            }
+
+            readOptChain(null);
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalComputedPropertyRead_ReturnsUndefinedWhenBaseIsUndefined()
     {
         // gh2771: a?.[k] short-circuits to undefined when base is undefined (not only null).
@@ -1744,6 +1764,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=readOptionalComputedUndef",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyReadChain_ReturnsPropertyValueWhenBaseIsNonNull()
+    {
+        // AC-2: a?.b.c returns the correct property value when a is non-null.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readOptChain(box) {
+                return box?.value.length;
+            }
+
+            readOptChain({ value: "hello" });
+            """);
+
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptChain",
                 StringComparison.Ordinal));
     }
 
@@ -1784,6 +1824,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             }
             countedOptComputed();
             callCount;
+            """);
+
+        Assert.Equal(1d, result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalNamedPropertyReadChain_BaseEvaluatedOnceWhenShortCircuiting()
+    {
+        // AC-2 gate: the base is evaluated exactly once even when short-circuiting.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var count = 0;
+            function makeNull() { count++; return null; }
+            function readOptChain(box) {
+                return box?.value.length;
+            }
+
+            readOptChain(makeNull());
+            count;
             """);
 
         Assert.Equal(1d, result);

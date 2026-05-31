@@ -3094,6 +3094,37 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryOptionalNamedPropertyReadChain(
+                expressionProgram,
+                activationSlots,
+                unified,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendFirstBoundaryOptionalNamedThenComputed(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryPropertyReadBinaryExpression(
                 expressionProgram,
                 activationSlots,
@@ -5091,6 +5122,130 @@ internal static class UnifiedBytecodeCompiler
         var propertyNameIndex = stringConstants.Count;
         stringConstants.Add(getNamedOp.GetString(expressionProgram.StringConstants.AsSpan()));
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedPropertyOptional, propertyNameIndex));
+        reason = string.Empty;
+        return true;
+    }
+
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
+    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(first), GetNamedProperty(rest)+
+    // The IsOptional guard on the first property access is lowered to an explicit null-check jump so the
+    // short-circuit information is represented in control flow, not an opcode flag.
+    private static bool TryAppendFirstBoundaryOptionalNamedPropertyReadChain(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 3)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var baseLoad = expressionProgram.GetOperation(0);
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var firstPropOp = expressionProgram.GetOperation(1);
+
+        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstPropOp.IsOptional ||
+            firstPropOp.ShortCircuitOnNullishTarget ||
+            firstPropOp.GetString(expressionStringConstants).IsPrivateName())
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        for (var i = 2; i < expressionProgram.OperationCount; i++)
+        {
+            var op = expressionProgram.GetOperation(i);
+            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+                op.IsOptional ||
+                !op.ShortCircuitOnNullishTarget ||
+                op.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = string.Empty;
+                return false;
+            }
+        }
+
+        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        {
+            return false;
+        }
+
+        var jumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        for (var i = 1; i < expressionProgram.OperationCount; i++)
+        {
+            var op = expressionProgram.GetOperation(i);
+            var propNameIndex = stringConstants.Count;
+            stringConstants.Add(op.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propNameIndex));
+        }
+
+        unified[jumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
+        reason = string.Empty;
+        return true;
+    }
+
+    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple-key, GetComputedProperty(SC:true)]
+    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key_load, GetComputedProperty
+    private static bool TryAppendFirstBoundaryOptionalNamedThenComputed(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount != 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var baseLoad = expressionProgram.GetOperation(0);
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var firstPropOp = expressionProgram.GetOperation(1);
+        var keyOp = expressionProgram.GetOperation(2);
+        var computedOp = expressionProgram.GetOperation(3);
+
+        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstPropOp.IsOptional ||
+            firstPropOp.ShortCircuitOnNullishTarget ||
+            firstPropOp.GetString(expressionStringConstants).IsPrivateName())
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty || !computedOp.ShortCircuitOnNullishTarget)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        {
+            return false;
+        }
+
+        var jumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        var propNameIndex = stringConstants.Count;
+        stringConstants.Add(firstPropOp.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propNameIndex));
+
+        if (!TryAppendComputedPropertyKeyLoad(keyOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+        unified[jumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, unified.Count);
         reason = string.Empty;
         return true;
     }

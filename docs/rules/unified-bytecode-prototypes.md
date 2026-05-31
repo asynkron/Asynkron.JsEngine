@@ -1751,6 +1751,35 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     assertion for `box[left + right]`, proving that construct-boundary
     widening and prototype compiler-surface expectations drift together.
 
+52. When admitting ordinary property delete to production unified bytecode, keep
+    the delete lane descriptor-aware, strictness-threaded, and narrower than the
+    full delete family. Named deletes may route only when the receiver is
+    activation-resolved, every intermediate receiver hop is non-optional and
+    non-private, and the final operation is a non-private
+    `DeleteNamedProperty`. Computed deletes may route only when the receiver is
+    activation-resolved, the key operand is compiler-owned, and the final
+    operation is `DeleteComputedProperty`.
+
+    Lower accepted shapes to dedicated `DeleteNamedProperty` and
+    `DeleteComputedProperty` opcodes and execute them through the runtime
+    property-handle delete semantics with the active strictness. Do not satisfy
+    the route through `ExpressionProgram`, `ExecutionPlanRunner`, AST
+    evaluation, or internal force-delete helpers. Keep optional-chain deletes,
+    private names, `super`, and out-of-boundary dynamic identifier deletes as
+    pre-VM declines until a later slice owns selector, compiler, VM, and route
+    proof for those exact shapes.
+
+    Pair each positive widening with opcode proof, public fast-path route logs,
+    computed-key coercion/order proof for computed deletes, strict/sloppy
+    descriptor failure proof, and adjacent negative decline coverage. WHY:
+    issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-df696bb0ff`
+    / PR #2900 admitted ordinary named, nested named, and computed property
+    delete (ADR 0309). The important boundary is that `DeleteDependency` was
+    narrowed, not retired: descriptor-aware ordinary deletes now have owned VM
+    opcodes, while optional-chain, private-name, and super delete semantics
+    remain separate dependency families.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1798,3 +1827,4 @@ Related ADRs:
 - `docs/adrs/0302-admit-named-member-logical-assignment-in-unified-bytecode.md`
 - `docs/adrs/0306-admit-class-literals-in-unified-bytecode-through-shared-class-creation.md`
 - `docs/adrs/0308-admit-nested-named-property-write-receiver-chains-in-unified-bytecode.md`
+- `docs/adrs/0309-admit-ordinary-property-delete-in-unified-bytecode.md`

@@ -145,6 +145,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
 
         // Value is not a thenable - fulfill directly
         _state = PromiseState.Fulfilled;
+        IteratorResultObject.CaptureIfSurfaced(value);
         _value = value;
         ScheduleProcessing();
     }
@@ -201,6 +202,7 @@ public sealed class JsPromise(JsEngine engine) : IMicrotask
         }
 
         _state = PromiseState.Rejected;
+        IteratorResultObject.CaptureIfSurfaced(reason);
         _value = reason;
         ScheduleProcessing();
     }

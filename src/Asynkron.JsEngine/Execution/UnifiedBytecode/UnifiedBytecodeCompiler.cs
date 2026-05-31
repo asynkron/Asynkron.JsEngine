@@ -3563,6 +3563,24 @@ internal static class UnifiedBytecodeCompiler
                         deleteNameIndex));
                     break;
 
+                case ExpressionOpKind.DeleteNamedProperty:
+                    if (operation.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+                    {
+                        reason = "Private named property deletes are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    var deletePropertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DeleteNamedProperty,
+                        deletePropertyNameIndex));
+                    break;
+
+                case ExpressionOpKind.DeleteComputedProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeleteComputedProperty));
+                    break;
+
                 case ExpressionOpKind.UnaryPlus:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryPlus));
                     break;

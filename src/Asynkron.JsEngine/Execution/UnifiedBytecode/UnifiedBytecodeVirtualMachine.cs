@@ -992,6 +992,50 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DeleteNamedProperty:
+                    stack[stackPointer - 1] = DeleteNamedProperty(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        isStrict)
+                        ? JsValue.True
+                        : JsValue.False;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteComputedProperty:
+                    var deleteComputedKey = stack[--stackPointer];
+                    var deleteComputedTarget = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = DeleteComputedProperty(
+                        deleteComputedTarget,
+                        deleteComputedKey,
+                        context,
+                        isStrict)
+                        ? JsValue.True
+                        : JsValue.False;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.UnaryPlus:
                     var plusOperand = stack[stackPointer - 1];
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in plusOperand, context));
@@ -2863,6 +2907,36 @@ internal static class UnifiedBytecodeVirtualMachine
 
         var outcome = environment.DeleteBinding(Symbol.Intern(name));
         return outcome is DeleteBindingResult.Deleted or DeleteBindingResult.NotFound;
+    }
+
+    private static bool DeleteNamedProperty(
+        JsValue target,
+        string propertyName,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var handle = PropertyHandle.Resolve(
+            target,
+            propertyName,
+            context,
+            context.CurrentScope.IsStrict || isStrict,
+            allowPrivate: false);
+        return handle.Delete();
+    }
+
+    private static bool DeleteComputedProperty(
+        JsValue target,
+        JsValue propertyKey,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var handle = PropertyHandle.Resolve(
+            target,
+            propertyKey,
+            context,
+            context.CurrentScope.IsStrict || isStrict,
+            allowPrivate: false);
+        return handle.Delete();
     }
 
     private static void PrepareDynamicIdentifierCallTarget(

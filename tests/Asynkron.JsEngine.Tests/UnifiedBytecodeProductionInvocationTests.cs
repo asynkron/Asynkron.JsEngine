@@ -98,6 +98,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NamedFunctionExpressionParameterCollision_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var result = (function same(same) {
+                return same;
+            })(42);
+
+            result;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=same argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NestedClassDeclaration_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -4928,16 +4947,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         new Box(42).value;
         """,
         "Box",
-        42d)]
-    [InlineData(
-        """
-        var result = (function same(same) {
-            return same;
-        })(42);
-
-        result;
-        """,
-        "same",
         42d)]
     public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
         string source,

@@ -3269,7 +3269,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
                 UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
-                UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision or
                 UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
         }
 
@@ -3334,25 +3333,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
-                HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
                 HasMaterializedActivationDependency: false,
                 HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);
-        }
-
-        private bool HasParameterNamed(Symbol name)
-        {
-            var parameters = _parameterNames;
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                if (string.Equals(parameters[i].Name, name.Name, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

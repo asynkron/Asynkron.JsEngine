@@ -36,7 +36,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:superConstructor",
         "pre-gate:superPrototype",
         "pre-gate:instanceFields",
-        "pre-gate:functionNameParameterConflict",
         "pre-gate:activationSlotShape"
     ];
 

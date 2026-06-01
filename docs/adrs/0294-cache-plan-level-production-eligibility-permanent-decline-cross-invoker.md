@@ -37,8 +37,7 @@ Not all decline codes are safe to cache at the plan level. Codes such as
 `AsyncLikeFunction`, `GeneratorFunction`, `CapturedOrDynamicActivation`,
 `ArgumentsObjectDependency`, `ThisDependency`, `NewTargetDependency`,
 `ArrowLexicalThisDependency`, `ClassConstructorActivation`,
-`FunctionNameParameterCollision`, `FunctionDeclarationDependency`,
-`ParameterVarDeclarationDependency`, and `MaterializedActivationDependency`
+and `MaterializedActivationDependency`
 depend on the closure or activation descriptor seen by each concrete invoker,
 and could vary for a different closure context over the same plan.
 

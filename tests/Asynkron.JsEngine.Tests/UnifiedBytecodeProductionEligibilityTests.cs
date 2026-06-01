@@ -251,15 +251,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData("arrow lexical this", true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
-    [InlineData("class constructor activation", false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
-    [InlineData("function name parameter collision", false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision)]
-    [InlineData("materialized activation dependency", false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
+    [InlineData("arrow lexical this", true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
+    [InlineData("class constructor activation", false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
+    [InlineData("materialized activation dependency", false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
     public void Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile(
         string blocker,
         bool arrowLexicalThis,
         bool classConstructor,
-        bool functionNameParameterCollision,
         bool materializedActivation,
         int expectedCode)
     {
@@ -275,7 +273,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasArrowLexicalThisDependency: arrowLexicalThis,
                 HasClassConstructorActivation: classConstructor,
-                HasFunctionNameParameterCollision: functionNameParameterCollision,
                 HasMaterializedActivationDependency: materializedActivation));
 
         Assert.False(result.IsEligible);

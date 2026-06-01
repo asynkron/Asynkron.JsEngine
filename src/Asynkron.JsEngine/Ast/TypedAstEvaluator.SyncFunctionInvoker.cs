@@ -3944,7 +3944,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_hasDirectEvalInBodyOrParameters &&
                    !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&
-                   UnifiedBytecodeProductionEligibility.ContainsOnlyImplicitArgumentsObjectReadDependency(plan);
+                   UnifiedBytecodeProductionEligibility.ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(plan);
         }
 
         private bool CanUseProductionUnifiedBytecodePlanShape(

@@ -17,6 +17,7 @@ profiler_ready=false
 engine_args=()
 profiler_args=()
 jsengine_scope="Asynkron.JsEngine"
+route_hits=false
 
 log() {
   printf '%s\n' "$*" >&2
@@ -34,6 +35,7 @@ Profiles:
 Common flags:
   -h, --help         Show this help and exit
   --compare          Run benchmark comparison and exit
+  --route-hits       Report production unified-bytecode route-hit count
   --debug            Use local profiler build (Debug)
   --engine <name>    Pass engine selection through to ProfileRunner
   --jint|--asynkron  Pass engine selection through to ProfileRunner
@@ -258,6 +260,12 @@ while [[ $i -lt ${#args[@]} ]]; do
       i=$((i + 1))
       continue
       ;;
+    --route-hits)
+      route_hits=true
+      engine_args+=("$arg")
+      i=$((i + 1))
+      continue
+      ;;
     --jit-method|--jit-altjit-path|--jit-altjit-name|--input|--root|--root-mode|--calltree-depth|--calltree-width|--calltree-sibling-cutoff|--exception-type|--filter|--tfm|--theme|--timeline-width|--hot)
       if [[ $((i + 1)) -lt ${#args[@]} ]]; then
         profiler_args+=("$arg" "${args[$((i + 1))]}")
@@ -429,6 +437,27 @@ PY
 fi
 
 build_runner
+if [[ "$route_hits" == "true" && ${#profiler_args[@]} -eq 0 ]]; then
+  route_runner_args=("${engine_args[@]}")
+  has_fresh_engine_arg=false
+  for engine_arg in "${route_runner_args[@]}"; do
+    if [[ "$engine_arg" == "--fresh-engine-per-iteration" ]]; then
+      has_fresh_engine_arg=true
+      break
+    fi
+  done
+  if [[ "$has_fresh_engine_arg" == "false" ]]; then
+    route_runner_args+=("--fresh-engine-per-iteration")
+  fi
+
+  if [[ ${#route_runner_args[@]} -gt 0 ]]; then
+    "${runner_cmd[@]}" "${route_runner_args[@]}" "$profile_key"
+  else
+    "${runner_cmd[@]}" "$profile_key"
+  fi
+  exit 0
+fi
+
 if has_profiler_flag "--cpu" "-c" || has_profiler_flag "--memory" "-m"; then
   run_mode_profile_with_scope_defaults "$profile_key"
 else

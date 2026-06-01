@@ -86,6 +86,11 @@ statement interpretation.
   are admitted only through narrow shape helpers, while private property
   reads/writes/updates, generic call-target stack shuffles, and
   some call/reference helpers remain outside general unified bytecode lowering.
+- The remaining direct general-expression lowering gaps are drift-checked under
+  `### General Expression Lowering Gaps (current)`. Property set/update
+  operations and `SwapTopTwo` are no longer helper-only compiler shapes; they
+  lower through the general expression loop, subject to the same private-name and
+  name-inference semantic guards as the owned property-write helpers.
 - The current `ExpressionOpKind` names with no unified compiler reference list is
   empty. Computed super-property operations also route their required
   `EnsureSuperReference` op through the general unified expression loop.
@@ -94,10 +99,11 @@ statement interpretation.
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
   continue to use `UpdateDynamicIdentifier`.
 - Resumable async/generator unified bytecode is narrower than ordinary sync
-  production bytecode. `EvaluateResumable` currently admits only a small
-  instruction and opcode subset; broad async/generator control flow, calls,
-  dynamic lookup, arguments, awaited iterator sources, and async-generator
-  delegated yield shapes still decline.
+  production bytecode. The resumable eligibility opcode allow-list is now
+  audited against the `ExecuteResumable` switch, so opcodes already implemented
+  by the resumable VM cannot remain stale declines. Broad async/generator
+  control flow, calls, dynamic lookup, arguments, awaited iterator sources, and
+  async-generator delegated yield shapes still decline.
 - `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
   the VM owns dispatch and stack/slot state, then applies an already-lowered
   `BindingTargetProgram` for assignment destructuring parity. This is not a
@@ -348,6 +354,17 @@ the final post-compile production subset check before VM entry.
 - Unary, binary, and conversion operations
 - Control flow, stack mechanics, and invocation
 - Stateful iterator, for-in, and array destructuring driver operations
+
+### General Expression Lowering Gaps (current)
+- `Call`
+- `DuplicateTopTwo`
+- `JumpIfShortCircuited`
+- `LoadComputedCallTarget`
+- `LoadComputedSuperCallTarget`
+- `LoadIdentifierCallTarget`
+- `LoadNamedCallTarget`
+- `LoadNamedSuperCallTarget`
+- `RotateTopThreeRight`
 
 ## Production This-Binding Boundary
 - Ordinary sync functions that reference `this` are admitted to the production

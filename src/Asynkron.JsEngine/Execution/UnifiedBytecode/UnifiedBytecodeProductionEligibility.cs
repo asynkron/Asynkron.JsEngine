@@ -601,8 +601,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.Pop or
                 UnifiedBytecodeOpCode.DuplicateTop or
+                UnifiedBytecodeOpCode.SwapTopTwo or
                 UnifiedBytecodeOpCode.Jump or
                 UnifiedBytecodeOpCode.JumpIfFalse or
+                UnifiedBytecodeOpCode.JumpIfShortCircuitFalse or
+                UnifiedBytecodeOpCode.JumpIfShortCircuitTrue or
+                UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish or
                 UnifiedBytecodeOpCode.Return or
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or

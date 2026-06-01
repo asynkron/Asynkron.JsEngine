@@ -152,6 +152,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
     }
 
+    [Theory]
+    [InlineData("&&", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData("||", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData("??", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void EvaluateResumable_ShortCircuitReturnExpression_AcceptsImplementedVmOpcodes(
+        string operatorText,
+        int expectedOpcode)
+    {
+        var plan = GetFunctionPlan($$"""
+            function* gen(left, right) {
+                return left {{operatorText}} right;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == (UnifiedBytecodeOpCode)expectedOpcode);
+    }
+
     [Fact]
     public void EvaluateResumable_AsyncLikeGeneratorActivation_DeclinesBeforeExecution()
     {

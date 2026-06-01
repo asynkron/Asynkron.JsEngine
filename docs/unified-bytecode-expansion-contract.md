@@ -336,7 +336,7 @@ must still obey the no-mixed-execution rule.
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalChainNamedPrefixPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary"` |
-| `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread super construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
+| `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Binding declarations with defaults, computed binding names, assignment targets, awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
@@ -580,12 +580,12 @@ the final post-compile production subset check before VM entry.
   `CallInvocationBoundary`; the VM flattens spread iterables at the construct
   boundary before calling `ReflectHelper.Construct`. A non-constructor target
   throws `TypeError` at the boundary.
-- Derived-constructor non-spread `super(...)` calls are admitted through
-  `SuperConstructInvocationBoundary`. The VM resolves the dynamic super
-  constructor from the current super binding, invokes `[[Construct]]` with the
-  caller's `new.target`, initializes `this`, and preserves the existing
-  double-super-call `ReferenceError`. Spread super constructs
-  (`super(...args)`) stay declined as spread construct arguments.
+- Derived-constructor `super(...)` calls are admitted through
+  `SuperConstructInvocationBoundary`, including spread arguments such as
+  `super(...args)`. The VM resolves the dynamic super constructor from the
+  current super binding, flattens spread iterables at the boundary when needed,
+  invokes `[[Construct]]` with the caller's `new.target`, initializes `this`,
+  and preserves the existing double-super-call `ReferenceError`.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget` or
   `PrepareIdentifierOptionalCallTarget` followed by `CallInvocationBoundary`;
   the VM resolves the callable from unified bytecode-owned slot state and
@@ -637,12 +637,12 @@ the final post-compile production subset check before VM entry.
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host
   with the caller environment and syncs mutated caller slots back into unified
   bytecode-owned slots before execution continues.
-- Spread super constructs, private-adjacent member targets outside the admitted
-  direct named method-call shape, arguments-object dependencies, unsupported
-  non-with dynamic lookup, deeper computed-member call receiver chains,
-  complex receiver/key shapes, spread-onto-optional calls, and
-  receiver-binding-sensitive adjacent families still decline before VM
-  execution. (Synchronous spread calls are admitted as of gh2676; synchronous
+- Private-adjacent member targets outside the admitted direct named method-call
+  shape, arguments-object dependencies, unsupported non-with dynamic lookup,
+  deeper computed-member call receiver chains, complex receiver/key shapes,
+  spread-onto-optional calls, and receiver-binding-sensitive adjacent families
+  still decline before VM execution. (Synchronous spread calls are admitted as
+  of gh2676; synchronous
   non-spread construct calls are admitted as of gh2690.)
 - Accepted programs must still satisfy the no-mixed-execution rule: no
   callback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation
@@ -799,8 +799,9 @@ support today.
    arguments, member/computed constructor targets, and trailing plain named
    result reads such as `new F(...args).x`) are now admitted (gh2690, ADR 0286
    plus construct-boundary widening). The first bounded super invocation shapes
-   are now admitted too (PR #2862, ADR 0307): non-spread derived-constructor
-   `super(...)` plus named/computed super-member calls.
+   are now admitted too (PR #2862, ADR 0307): derived-constructor
+   `super(...)`, including spread arguments, plus named/computed super-member
+   calls.
    Simple array and object literal arguments (`fn([a, b])`, `fn({x: a})`) are
    now admitted (gh2705, ADR 0290). Optional-start computed member spread calls
    (`a?.box[key](...args)`) are also admitted through the shared spread-mask
@@ -809,11 +810,11 @@ support today.
    the prefix is resolved by owned named-property reads. Simple object literal
    spread entries are now admitted through the `ObjectSpread` opcode when their
    spread source is a simple operand. Direct eval outside the one-argument
-   non-spread eval-identifier boundary, spread super constructs,
-   private-adjacent member targets outside the admitted direct named method-call
-   shape, complex receiver/key shapes, non-simple literal argument spans, and receiver-binding-sensitive adjacent families beyond the
-   direct activation-resolved and with-backed dynamic-identifier boundaries must
-   still decline before VM execution.
+   non-spread eval-identifier boundary, private-adjacent member targets outside
+   the admitted direct named method-call shape, complex receiver/key shapes,
+   non-simple literal argument spans, and receiver-binding-sensitive adjacent
+   families beyond the direct activation-resolved and with-backed
+   dynamic-identifier boundaries must still decline before VM execution.
 3. Property and assignment widening is no longer a blanket property-read/write
    gap, but several member-expression neighbors remain outside production:
    private receiver-chain/mutation neighbors outside the admitted direct named

@@ -668,7 +668,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.SuperConstructInvocationBoundary:
                     stackPointer = ExecutePreparedSuperConstruct(
-                        instruction.Operand,
+                        DecodeCallBoundaryArgumentCount(instruction.Operand),
+                        DecodeCallBoundarySpreadMask(program, instruction.Operand),
                         stack,
                         stackPointer,
                         slots,
@@ -5911,6 +5912,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static int ExecutePreparedSuperConstruct(
         int argumentCount,
+        ImmutableArray<int> spreadMask,
         Span<JsValue> stack,
         int stackPointer,
         Span<JsValue> slots,
@@ -5989,13 +5991,24 @@ internal static class UnifiedBytecodeVirtualMachine
                 ? nt
                 : callable;
 
-            var result = ConstructNoSpread(
-                callable,
-                newTargetCallable,
-                stack,
-                baseIndex,
-                argumentCount,
-                context.RealmState);
+            var result = spreadMask.IsDefaultOrEmpty
+                ? ConstructNoSpread(
+                    callable,
+                    newTargetCallable,
+                    stack,
+                    baseIndex,
+                    argumentCount,
+                    context.RealmState)
+                : ReflectHelper.Construct(
+                    callable,
+                    MaterializeSpreadCallArguments(
+                        argumentCount,
+                        spreadMask,
+                        stack,
+                        baseIndex,
+                        context),
+                    newTargetCallable,
+                    context.RealmState);
 
             var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
             object? thisAfterSuper = callResultObject;

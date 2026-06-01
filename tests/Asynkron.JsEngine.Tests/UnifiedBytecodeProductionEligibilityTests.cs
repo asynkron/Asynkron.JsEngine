@@ -248,14 +248,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData("arrow lexical this", true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
-    [InlineData("class constructor activation", false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
-    [InlineData("materialized activation dependency", false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
+    [InlineData("arrow lexical this", true, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
+    [InlineData("class constructor activation", false, true, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
     public void Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile(
         string blocker,
         bool arrowLexicalThis,
         bool classConstructor,
-        bool materializedActivation,
         int expectedCode)
     {
         var plan = GetFunctionPlan("""
@@ -269,8 +267,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasArrowLexicalThisDependency: arrowLexicalThis,
-                HasClassConstructorActivation: classConstructor,
-                HasMaterializedActivationDependency: materializedActivation));
+                HasClassConstructorActivation: classConstructor));
 
         Assert.False(result.IsEligible);
         Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);

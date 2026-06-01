@@ -14,7 +14,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     NewTargetDependency,
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
-    MaterializedActivationDependency,
     CallDependency,
     DynamicLookupDependency,
     PropertyReadBoundaryOutOfScope,
@@ -40,7 +39,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasNewTargetDependency = false,
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
-    bool HasMaterializedActivationDependency = false,
     bool HasCallDependency = false,
     bool HasDynamicLookupDependency = false,
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false);
@@ -327,13 +325,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation;
             declineReason = "Class constructor activation is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasMaterializedActivationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency;
-            declineReason = "Materialized activation binding requirements are not eligible for production unified bytecode routing.";
             return true;
         }
 

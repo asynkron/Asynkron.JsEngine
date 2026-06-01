@@ -36,8 +36,7 @@ first and `Evaluate` is skipped entirely.
 Not all decline codes are safe to cache at the plan level. Codes such as
 `AsyncLikeFunction`, `GeneratorFunction`, `CapturedOrDynamicActivation`,
 `ArgumentsObjectDependency`, `NewTargetDependency`,
-`ArrowLexicalThisDependency`, `ClassConstructorActivation`,
-and `MaterializedActivationDependency`
+`ArrowLexicalThisDependency`, and `ClassConstructorActivation`
 depend on the closure or activation descriptor seen by each concrete invoker,
 and could vary for a different closure context over the same plan.
 

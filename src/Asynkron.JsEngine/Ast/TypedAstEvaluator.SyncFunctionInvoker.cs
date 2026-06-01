@@ -3267,8 +3267,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
                 UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
-                UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
-                UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
+                UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation);
         }
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
@@ -3331,7 +3330,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
-                HasMaterializedActivationDependency: false,
                 HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);

@@ -1064,6 +1064,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
@@ -2093,8 +2098,8 @@ internal static class UnifiedBytecodeProductionEligibility
                !getNamedOp.GetString(program.StringConstants.AsSpan()).IsPrivateName();
     }
 
-    // Admits multi-hop optional named chains a?.b.c and a?.b?.c:
-    // [activation-resolved base,
+    // Admits multi-hop optional named chains a?.b.c, a?.b?.c, and a.b?.c:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
     //  GetNamedProperty(ShortCircuitOnNullishTarget:true, non-private)+].
     // The compiler lowers this to a jump-based form (JumpIfNullishReplaceUndefined at each
@@ -2117,8 +2122,27 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var stringConstants = program.StringConstants.AsSpan();
+        var optionalStartIndex = 1;
+        while (optionalStartIndex < program.OperationCount)
+        {
+            var prefixOp = program.GetOperation(optionalStartIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget ||
+                prefixOp.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
 
-        var firstHop = program.GetOperation(1);
+            optionalStartIndex++;
+        }
+
+        if (optionalStartIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var firstHop = program.GetOperation(optionalStartIndex);
         if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
             !firstHop.IsOptional ||
             firstHop.ShortCircuitOnNullishTarget ||
@@ -2127,7 +2151,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        for (var index = 2; index < program.OperationCount; index++)
+        for (var index = optionalStartIndex + 1; index < program.OperationCount; index++)
         {
             var op = program.GetOperation(index);
             if (op.Kind != ExpressionOpKind.GetNamedProperty ||

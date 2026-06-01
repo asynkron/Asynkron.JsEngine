@@ -2578,6 +2578,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedChainAfterNamedPrefix_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a.box?.value;
+            }
+
+            var whenNull = readChain({ box: null });
+            var whenPresent = readChain({ box: { value: 42 } });
+            "" + whenNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedThenComputedRichKey_ReadsValueThroughProductionFastPath()
     {
         // a?.b[left + right]: rich key continuations use the production fast path.

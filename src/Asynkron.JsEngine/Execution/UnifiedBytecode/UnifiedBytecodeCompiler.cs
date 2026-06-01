@@ -7131,10 +7131,12 @@ internal static class UnifiedBytecodeCompiler
 
     // Handles multi-hop optional named chains a?.b.c and a?.b?.c:
     //   [activation-resolved base,
+    //    GetNamedProperty(non-optional, non-private)*,
     //    GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
     //    GetNamedProperty(ShortCircuitOnNullishTarget:true, non-private)+]
     // Emits a jump-based lowering that keeps the operand stack a plain JsValue[]:
     //   LoadSlot,
+    //   [GetNamedProperty,]                               // non-optional receiver prefix
     //   JumpIfNullishReplaceUndefined(END), GetNamedProperty,   // first optional hop
     //   [JumpIfNullishReplaceUndefined(END),] GetNamedProperty, // each subsequent hop (jump only when ?. optional)
     //   END:
@@ -7155,8 +7157,33 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var optionalStartIndex = 1;
+        while (optionalStartIndex < expressionProgram.OperationCount)
+        {
+            var prefixOp = expressionProgram.GetOperation(optionalStartIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
 
-        var firstHop = expressionProgram.GetOperation(1);
+            if (prefixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            optionalStartIndex++;
+        }
+
+        if (optionalStartIndex >= expressionProgram.OperationCount)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var firstHop = expressionProgram.GetOperation(optionalStartIndex);
         if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
             !firstHop.IsOptional ||
             firstHop.ShortCircuitOnNullishTarget ||
@@ -7166,7 +7193,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        for (var operationIndex = 2; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        for (var operationIndex = optionalStartIndex + 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var op = expressionProgram.GetOperation(operationIndex);
             if (op.Kind != ExpressionOpKind.GetNamedProperty ||
@@ -7198,7 +7225,7 @@ internal static class UnifiedBytecodeCompiler
         {
             var op = expressionProgram.GetOperation(operationIndex);
 
-            // Each optional hop (the leading ?.b and any ?. continuation) emits a boundary jump
+            // Each optional hop (the leading ?.b or prefixed b?.c and any ?. continuation) emits a boundary jump
             // that short-circuits the rest of the chain to undefined when its target is nullish.
             if (op.IsOptional)
             {

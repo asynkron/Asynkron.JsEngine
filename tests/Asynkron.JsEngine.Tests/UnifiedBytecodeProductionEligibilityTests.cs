@@ -5306,11 +5306,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalNamedPropertyReadChainWithNonActivationResolvedBase_Declines()
+    public void Evaluate_OptionalNamedPropertyReadChainWithNamedPrefix_Accepts()
     {
-        // AC-3: a?.b.c with a non-activation-resolved base (obj.nested) continues to decline.
-        // The decline code reflects the first failing arm (PropertyReadBoundaryOutOfScope for the
-        // non-activation-resolved named read, or OptionalChainDependency for the optional part).
+        // a.b?.c.d keeps the activation-resolved root, lowers the named prefix as a plain
+        // receiver read, then uses the same jump-owned optional-chain boundary as a?.b.c.
         var plan = GetFunctionPlan("""
             function optChainNonResolved(obj) {
                 return obj.nested?.value.length;
@@ -5322,7 +5321,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.True(
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 3);
     }
 
     [Fact]

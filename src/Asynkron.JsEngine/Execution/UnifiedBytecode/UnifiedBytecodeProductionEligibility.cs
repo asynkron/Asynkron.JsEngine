@@ -37,7 +37,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasArgumentsObjectDependency = false,
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
-    bool HasCallDependency = false,
     bool HasDynamicLookupDependency = false,
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false);
 
@@ -302,15 +301,6 @@ internal static class UnifiedBytecodeProductionEligibility
             declineReason = isResumable
                 ? "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing."
                 : "Arguments-object-dependent execution is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasCallDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
-            declineReason = isResumable
-                ? "Call/construct dependency is not eligible for resumable unified bytecode routing."
-                : "Call/construct dependency is not eligible for production unified bytecode routing.";
             return true;
         }
 
@@ -887,9 +877,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     // preparation candidate check accepts them. Anything reaching here is
                     // an out-of-boundary call shape.
                     //
-                    // Use CallInvocationBoundary (not CallDependency) for this plan-structural
-                    // decline so IsPlanStructuralDecline can distinguish it from the
-                    // descriptor-level HasCallDependency decline and cache it permanently.
+                    // Use CallInvocationBoundary for plan-structural call boundaries.
+                    // Direct eval remains CallDependency because it is context-sensitive.
                     declineCode = operation.IsDirectEval
                         ? UnifiedBytecodeProductionDeclineCode.CallDependency  // direct eval is context-sensitive
                         : UnifiedBytecodeProductionDeclineCode.CallInvocationBoundary;

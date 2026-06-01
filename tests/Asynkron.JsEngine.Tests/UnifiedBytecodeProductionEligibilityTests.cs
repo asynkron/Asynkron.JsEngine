@@ -288,14 +288,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
-    [InlineData(false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
-    [InlineData(false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(true, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
+    [InlineData(false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
+    [InlineData(false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     public void Evaluate_ActivationDependencies_DeclineBeforeCompile(
         bool capturedOrDynamic,
         bool argumentsDependency,
-        bool callDependency,
         bool dynamicLookupDependency,
         int expectedCode)
     {
@@ -311,7 +309,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasCapturedOrDynamicActivation: capturedOrDynamic,
                 HasArgumentsObjectDependency: argumentsDependency,
-                HasCallDependency: callDependency,
                 HasDynamicLookupDependency: dynamicLookupDependency));
 
         Assert.False(result.IsEligible);

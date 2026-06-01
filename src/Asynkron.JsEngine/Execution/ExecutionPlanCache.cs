@@ -18,6 +18,11 @@ internal sealed class ExecutionPlanCache
 
     public bool Succeeded => Plan is not null;
 
+    internal static ExecutionPlanCache FromPlan(ExecutionPlan plan)
+    {
+        return new ExecutionPlanCache(ExecutionPlanBuildResult.Success(plan));
+    }
+
     public static ExecutionPlanCache Build(FunctionExpression function, bool reportDiagnostics = true)
     {
         return new ExecutionPlanCache(ExecutionPlanBuilder.Build(function, reportDiagnostics));

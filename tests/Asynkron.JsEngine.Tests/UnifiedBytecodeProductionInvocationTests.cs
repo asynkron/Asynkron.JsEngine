@@ -4562,6 +4562,48 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWriteWithBinaryRhs_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            function makeBox(initialValue) {
+                var store = initialValue;
+                var box = {};
+                Object.defineProperty(box, "value", {
+                    get() {
+                        events.push("get");
+                        return store;
+                    },
+                    set(value) {
+                        events.push("set:" + value);
+                        store = value;
+                    }
+                });
+                return box;
+            }
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "value";
+                }
+            };
+            function write(box, key, value) {
+                return box[key] &&= (value + 1);
+            }
+
+            String(write(makeBox(0), key, 6)) + ":" +
+                String(write(makeBox(1), key, 6)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("0:7:key,get,key,get,set:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData("&&=", "1", "0", "7", "7", "0")]
     [InlineData("||=", "0", "5", "7", "7", "5")]

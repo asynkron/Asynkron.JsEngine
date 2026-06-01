@@ -3789,6 +3789,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 switch (operation.Kind)
                 {
                     case ExpressionOpKind.LoadThis:
+                        break;
                     case ExpressionOpKind.LoadNamedSuperCallTarget:
                     case ExpressionOpKind.LoadComputedSuperCallTarget:
                     case ExpressionOpKind.EnsureSuperReference:

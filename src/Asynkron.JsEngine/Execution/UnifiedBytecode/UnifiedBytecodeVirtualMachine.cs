@@ -274,7 +274,17 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.LoadThis:
-                    PushValue(thisValue);
+                    PushValue(ResolveCurrentThisValue(currentCallingEnvironment, thisValue, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
                     programCounter++;
                     break;
 
@@ -6266,6 +6276,45 @@ internal static class UnifiedBytecodeVirtualMachine
 
         return arguments.ToArray();
     }
+
+    private static JsValue ResolveCurrentThisValue(
+        JsEnvironment? currentCallingEnvironment,
+        JsValue fallbackThisValue,
+        EvaluationContext context)
+    {
+        if (currentCallingEnvironment is not null &&
+            currentCallingEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var environmentThis))
+        {
+            if (IsUninitializedThisValue(environmentThis))
+            {
+                var error = StandardLibrary.CreateReferenceError(
+                    "ReferenceError: this is not defined - must call super() in derived class constructor",
+                    context,
+                    context.RealmState);
+                context.SetThrow(error);
+                return error;
+            }
+
+            return environmentThis;
+        }
+
+        if (IsUninitializedThisValue(fallbackThisValue))
+        {
+            var error = StandardLibrary.CreateReferenceError(
+                "ReferenceError: this is not defined - must call super() in derived class constructor",
+                context,
+                context.RealmState);
+            context.SetThrow(error);
+            return error;
+        }
+
+        return fallbackThisValue;
+    }
+
+    private static bool IsUninitializedThisValue(JsValue value) =>
+        value.IsUninitialized ||
+        value.Kind == JsValueKind.Object &&
+        ReferenceEquals(value.ObjectValue, JsEnvironment.Uninitialized);
 
     private static IReadOnlyList<JsValue> MaterializeCallArguments(
         int argumentCount,

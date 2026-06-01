@@ -1081,6 +1081,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DerivedThisAssignmentAfterSuper_AcceptsOwnedPropertyWrite()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+            }
+            class Derived extends Base {
+                constructor(value) {
+                    super();
+                    this.value = value;
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadThis);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
     public void Evaluate_OptionalIdentifierSpreadCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         // Activation-slot optional identifier spread calls skip argument lowering when nullish.

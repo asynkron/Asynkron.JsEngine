@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
 {
     public sealed partial class SyncFunctionInvoker : IJsEnvironmentAwareCallable, IJsObjectLike,
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
-        IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
+        IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue, IHomeObjectConfigurableCallable
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));
@@ -100,7 +100,6 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasFunctionDeclarations;
-        private readonly bool _hasParameterVarDeclarationWithoutInitializer;
         private readonly bool _hasHoistableDeclarations;
         private readonly bool _hasBodyWithStatement;
         private readonly bool _hasDirectEvalInBodyOrParameters;
@@ -240,7 +239,6 @@ public static partial class TypedAstEvaluator
             _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
 
             _hasFunctionDeclarationParameterConflict = invokerStatics.HasFunctionDeclarationParameterConflict;
-            _hasParameterVarDeclarationWithoutInitializer = invokerStatics.HasParameterVarDeclarationWithoutInitializer;
             _hasNonParameterCalleeCall = invokerStatics.HasNonParameterCalleeCall;
 
             // Recursive/self-call-like shapes must get a fresh activation per invocation.
@@ -2802,7 +2800,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 context.MarkThisInitialized();
 
-                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
                 RealmState.Logger?.LogInformation(
                     "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
@@ -3073,11 +3071,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
                 var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
-                if (RequiresProductionUnifiedBytecodeCallEnvironment(program))
+                if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
                         ? CreateSimpleDerivedClassConstructorEnvironment(arguments, newTarget, plan)
-                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
                 }
 
                 RealmState.Logger?.LogInformation(
@@ -3169,7 +3167,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.SuperConstructInvocationBoundary or
                     UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
                     UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget or
+                    UnifiedBytecodeOpCode.EnsureSuperReference or
+                    UnifiedBytecodeOpCode.GetNamedSuperProperty or
+                    UnifiedBytecodeOpCode.GetComputedSuperProperty or
+                    UnifiedBytecodeOpCode.SetNamedSuperProperty or
+                    UnifiedBytecodeOpCode.SetComputedSuperProperty or
+                    UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
+                    UnifiedBytecodeOpCode.UpdateComputedSuperProperty or
                     UnifiedBytecodeOpCode.DeclareDynamicVar or
+                    UnifiedBytecodeOpCode.LoadImportMeta or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifier or
                     UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or
@@ -3181,6 +3187,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                     UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
                     UnifiedBytecodeOpCode.ApplyBindingTarget or
+                    UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget or
+                    UnifiedBytecodeOpCode.DeclareClass or
+                    UnifiedBytecodeOpCode.DeclareFunction or
                     UnifiedBytecodeOpCode.LoadFunctionLiteral or
                     UnifiedBytecodeOpCode.EnterWith or
                     UnifiedBytecodeOpCode.LeaveWith or
@@ -3256,14 +3265,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
                 UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation or
                 UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
-                UnifiedBytecodeProductionDeclineCode.ThisDependency or
-                UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
-                UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
-                UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision or
-                UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency or
-                UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency or
-                UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
+                UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation);
         }
 
         private bool CanUseProductionUnifiedBytecodeFastPath(ExecutionPlan plan, JsValue newTarget)
@@ -3323,32 +3326,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
-                HasThisDependency: false,
-                HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
-                HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
-                HasFunctionDeclarationDependency: _hasFunctionDeclarations && !canUseDynamicNamePath,
-                HasParameterVarDeclarationDependency:
-                    _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
-                HasMaterializedActivationDependency: false,
                 HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);
-        }
-
-        private bool HasParameterNamed(Symbol name)
-        {
-            var parameters = _parameterNames;
-            for (var i = 0; i < parameters.Length; i++)
-            {
-                if (string.Equals(parameters[i].Name, name.Name, StringComparison.Ordinal))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -3698,7 +3680,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.ScopeId != plan.RootScopeId ||
                 activationSlots.LayoutId != plan.LayoutId)
             {
-                return _hasDirectEvalInBodyOrParameters && plan.ActivationSlots is not null;
+                return plan.ActivationSlots is not null &&
+                       (_hasDirectEvalInBodyOrParameters || HasClassDeclarationInstruction(plan));
             }
 
             if (!activationSlots.ParameterSlotIndices.IsDefault)
@@ -3707,6 +3690,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return canUseDynamicNamePath || _hasDirectEvalInBodyOrParameters;
+        }
+
+        private static bool HasClassDeclarationInstruction(ExecutionPlan plan)
+        {
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (instructions[i] is ClassDeclarationInstruction)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasCapturedActivationInClosure(JsEnvironment closure)
@@ -3729,7 +3726,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private JsEnvironment CreateSimpleIrActivationEnvironment<TArgs>(
             TArgs arguments,
             JsValue thisValue,
-            ExecutionPlan plan)
+            ExecutionPlan plan,
+            EvaluationContext context)
             where TArgs : IReadOnlyList<JsValue>
         {
             var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
@@ -3797,6 +3795,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            HoistFunctionDeclarationsForFastActivation(executionEnvironment, context);
             if (_argumentsObjectNeeded)
             {
                 var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment,
@@ -3932,6 +3931,38 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !executionEnvironment.HasBinding(hoistedName))
             {
                 executionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false);
+            }
+        }
+
+        private void HoistFunctionDeclarationsForFastActivation(
+            JsEnvironment executionEnvironment,
+            EvaluationContext context)
+        {
+            if (!_hasFunctionDeclarations)
+            {
+                return;
+            }
+
+            var lexicalNames = RentSymbolSet(_lexicalTemplate);
+            var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
+            var catchParameterNames = RentSymbolSet();
+            try
+            {
+                simpleCatchParameterNames.Clear();
+                var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+                using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
+                _function.Body.HoistVarDeclarations(
+                    executionEnvironment,
+                    context,
+                    lexicalNames: lexicalNames,
+                    catchParameterNames: catchParameterNames,
+                    simpleCatchParameterNames: simpleCatchParameterNames);
+            }
+            finally
+            {
+                ReturnSymbolSet(catchParameterNames);
+                ReturnSymbolSet(simpleCatchParameterNames);
+                ReturnSymbolSet(lexicalNames);
             }
         }
 

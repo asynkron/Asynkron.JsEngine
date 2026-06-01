@@ -55,50 +55,89 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedFunctionDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task NestedFunctionDeclaration_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function outer() {
                 function inner() {
-                    return 40;
+                    return 42;
                 }
 
-                return inner() + 2;
+                return inner();
             }
 
             outer();
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=outer",
+                "unified-bytecode-production-fast-path func=outer argc=0",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedClassDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task ParameterVarDeclarationWithoutInitializer_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            function create() {
-                class Local {
-                    value() {
-                        return 42;
-                    }
-                }
-
-                return new Local().value();
+            function parameterVar(value) {
+                var value;
+                return value;
             }
 
-            create();
+            parameterVar(42);
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=create",
+                "unified-bytecode-production-fast-path func=parameterVar argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedFunctionExpressionParameterCollision_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var result = (function same(same) {
+                return same;
+            })(42);
+
+            result;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=same argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedClassDeclaration_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function create(seed) {
+                class Local {
+                    static {
+                        seed = seed + 1;
+                    }
+                }
+
+                return seed;
+            }
+
+            create(41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create argc=1",
                 StringComparison.Ordinal));
     }
 
@@ -119,6 +158,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=readAb argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedStaticBindingDeclaration_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function destructure(source) {
+                {
+                    let { nested: { value } } = source;
+                    return value;
+                }
+            }
+
+            destructure({ nested: { value: 42 } });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=destructure argc=1",
                 StringComparison.Ordinal));
     }
 
@@ -3555,7 +3616,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "methodObject",
         42d)]
-    public async Task ExcludedLiteralConstructionShapes_DeclineUnifiedBytecodeAndFallBack(
+    public async Task ObjectMethodLiteralConstruction_UsesUnifiedBytecodeProductionFastPath(
         string source,
         string functionName,
         object expected)
@@ -3564,7 +3625,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var result = await engine.Evaluate(source);
 
         Assert.Equal(expected, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
                 StringComparison.Ordinal));
@@ -4887,41 +4948,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "Box",
         42d)]
-    [InlineData(
-        """
-        var result = (function same(same) {
-            return same;
-        })(42);
-
-        result;
-        """,
-        "same",
-        42d)]
-    [InlineData(
-        """
-        function outer() {
-            function inner() {
-                return 42;
-            }
-
-            return inner();
-        }
-
-        outer();
-        """,
-        "outer",
-        42d)]
-    [InlineData(
-        """
-        function parameterVar(value) {
-            var value;
-            return value;
-        }
-
-        parameterVar(42);
-        """,
-        "parameterVar",
-        42d)]
     public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
@@ -5195,27 +5221,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ClassMethodWithSuperProperty_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task ClassMethodWithSuperPropertyRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            class Base {
-                get value() { return 42; }
-            }
+            class Base {}
+            Base.prototype.value = 21;
 
             class Child extends Base {
-                readSuper() {
-                    return super.value;
+                readSuper(name) {
+                    return super.value + super[name];
                 }
             }
 
-            new Child().readSuper();
+            new Child().readSuper("value");
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=readSuper",
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodWithSuperPropertyWriteAndUpdate_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {}
+            Base.prototype.value = 0;
+
+            class Child extends Base {
+                mutateSuper(name) {
+                    super.value = 1;
+                    super[name] = 2;
+                    super.value++;
+                    ++super[name];
+                    return this.value;
+                }
+            }
+
+            new Child().mutateSuper("value");
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 

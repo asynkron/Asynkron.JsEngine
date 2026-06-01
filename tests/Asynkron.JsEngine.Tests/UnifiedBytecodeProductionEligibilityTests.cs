@@ -214,17 +214,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
-    [InlineData(false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
-    [InlineData(false, false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ThisDependency)]
-    [InlineData(false, false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.NewTargetDependency)]
-    [InlineData(false, false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(false, false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
+    [InlineData(false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
+    [InlineData(false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     public void Evaluate_ActivationDependencies_DeclineBeforeCompile(
         bool capturedOrDynamic,
         bool argumentsDependency,
-        bool thisDependency,
-        bool newTargetDependency,
         bool callDependency,
         bool dynamicLookupDependency,
         int expectedCode)
@@ -241,8 +237,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasCapturedOrDynamicActivation: capturedOrDynamic,
                 HasArgumentsObjectDependency: argumentsDependency,
-                HasThisDependency: thisDependency,
-                HasNewTargetDependency: newTargetDependency,
                 HasCallDependency: callDependency,
                 HasDynamicLookupDependency: dynamicLookupDependency));
 
@@ -251,20 +245,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData("arrow lexical this", true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
-    [InlineData("class constructor activation", false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
-    [InlineData("function name parameter collision", false, false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision)]
-    [InlineData("function declaration dependency", false, false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency)]
-    [InlineData("parameter var declaration dependency", false, false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency)]
-    [InlineData("materialized activation dependency", false, false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
+    [InlineData("arrow lexical this", true, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
+    [InlineData("class constructor activation", false, true, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
     public void Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile(
         string blocker,
         bool arrowLexicalThis,
         bool classConstructor,
-        bool functionNameParameterCollision,
-        bool functionDeclaration,
-        bool parameterVarDeclaration,
-        bool materializedActivation,
         int expectedCode)
     {
         var plan = GetFunctionPlan("""
@@ -278,11 +264,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasArrowLexicalThisDependency: arrowLexicalThis,
-                HasClassConstructorActivation: classConstructor,
-                HasFunctionNameParameterCollision: functionNameParameterCollision,
-                HasFunctionDeclarationDependency: functionDeclaration,
-                HasParameterVarDeclarationDependency: parameterVarDeclaration,
-                HasMaterializedActivationDependency: materializedActivation));
+                HasClassConstructorActivation: classConstructor));
 
         Assert.False(result.IsEligible);
         Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
@@ -290,7 +272,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_FunctionDeclarationInstruction_DeclinesBeforeCompile()
+    public void Evaluate_FunctionDeclarationInstruction_AcceptsHoistedNoOp()
     {
         var plan = GetFunctionPlan("""
             function outer() {
@@ -308,13 +290,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency, result.Code);
-        Assert.Contains("Function declaration instructions", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.DoesNotContain(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
     }
 
     [Fact]
-    public void Evaluate_ClassDeclarationInstruction_DeclinesBeforeCompile()
+    public void Evaluate_ParameterVarDeclarationWithoutInitializer_AcceptsHoistedNoOp()
+    {
+        var plan = GetFunctionPlan("""
+            function parameterVar(value) {
+                var value;
+                return value;
+            }
+            """,
+            "parameterVar");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.DoesNotContain(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.InitializeSlot);
+    }
+
+    [Fact]
+    public void Evaluate_ClassDeclarationInstruction_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""
             function outer() {
@@ -331,9 +333,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ClassDeclarationDependency, result.Code);
-        Assert.Contains("Class declaration instructions", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void Execute_ClassDeclarationInstruction_RunsClassDefinitionSideEffectsInProductionVm()
+    {
+        var plan = GetFunctionPlan("""
+            function outer(seed) {
+                class Local {
+                    static {
+                        seed = seed + 1;
+                    }
+                }
+
+                return seed;
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+        Assert.True(result.IsEligible, result.Reason);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        slots.AsSpan(0, result.Program.SlotCount).Fill(JsValue.Undefined);
+        SetSlot(result.Program, slots, "seed", JsValue.FromDouble(41));
+        engine.GlobalEnvironment.DefineJsValue(Symbol.Intern("seed"), JsValue.FromDouble(41));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        Assert.Equal(42d, vmResult.AsDouble());
     }
 
     [Fact]
@@ -1681,17 +1721,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
-        function destructure(source) {
-            {
-                let { value } = source;
-                return value;
-            }
-        }
-        """,
-        "destructure",
-        (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
-    [InlineData(
-        """
         function directEval() {
             eval("var value = 1");
             return value;
@@ -1941,31 +1970,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             return { value() { return 1; } };
         }
         """,
-        "methodObject")]
+        "methodObject",
+        (int)UnifiedBytecodeOpCode.DefineObjectMethod,
+        false)]
     [InlineData(
         """
         function accessorObject() {
             return { get value() { return 1; } };
         }
         """,
-        "accessorObject")]
+        "accessorObject",
+        (int)UnifiedBytecodeOpCode.DefineObjectAccessor,
+        true)]
     [InlineData(
         """
         function computedMethodObject(key) {
             return { [key]() { return 1; } };
         }
         """,
-        "computedMethodObject")]
+        "computedMethodObject",
+        (int)UnifiedBytecodeOpCode.DefineComputedObjectMethod,
+        false)]
     [InlineData(
         """
         function computedAccessorObject(key) {
             return { get [key]() { return 1; } };
         }
         """,
-        "computedAccessorObject")]
-    public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
+        "computedAccessorObject",
+        (int)UnifiedBytecodeOpCode.DefineComputedObjectAccessor,
+        true)]
+    public void Evaluate_ObjectMethodAndAccessorLiteralShapes_AcceptAndVmDefinesProperty(
         string source,
-        string functionName)
+        string functionName,
+        int expectedOpcode,
+        bool isAccessor)
     {
         var plan = GetFunctionPlan(source, functionName);
 
@@ -1973,9 +2012,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
-        Assert.NotEmpty(result.Reason);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => (int)instruction.OpCode == expectedOpcode);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        if (result.Program.SlotNames.IndexOf("key") >= 0)
+        {
+            SetSlot(result.Program, slots, "key", JsValue.FromString("value"));
+        }
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        var obj = Assert.IsType<JsObject>(vmResult.ObjectValue);
+        var descriptor = obj.GetOwnPropertyDescriptor("value");
+        Assert.NotNull(descriptor);
+        if (isAccessor)
+        {
+            Assert.True(descriptor!.IsAccessorDescriptor);
+            Assert.NotNull(descriptor.Get);
+        }
+        else
+        {
+            Assert.True(descriptor!.JsValue.TryGetObject<IJsCallable>(out _));
+            Assert.True(descriptor.Writable);
+        }
     }
 
     [Theory]
@@ -2241,7 +2308,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode()
+    public void Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Base {
@@ -2251,8 +2318,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             }
 
             class Derived extends Base {
-                read() {
-                    return super.value;
+                read(name) {
+                    return super.value + super[name];
                 }
             }
             """,
@@ -2263,9 +2330,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
-        Assert.Contains("super", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedSuperProperty);
     }
 
     [Fact]
@@ -2355,7 +2425,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateFieldIn_DeclinesWithExplicitCode()
+    public void Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -2372,9 +2442,25 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
-        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrivateFieldIn);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var privateNameScope = new PrivateNameScope(engine.RealmState);
+        _ = privateNameScope.GetKey("#value");
+        using var privateScopeHandle = context.EnterPrivateNameScope(privateNameScope);
+        var receiver = new JsObject { RealmState = engine.RealmState };
+        receiver.AddPrivateBrand(privateNameScope.BrandToken);
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "receiver", JsValue.FromJsObject(receiver));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.True(vmResult.AsBoolean());
     }
 
     [Theory]
@@ -2582,6 +2668,220 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
         Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
         Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_ActivationSlotIncrementInstruction_AcceptsUpdateSlotOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function bump(x) {
+                x++;
+                return x;
+            }
+            """,
+            "bump");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "x", JsValue.FromDouble(41));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.Equal(42d, vmResult.AsDouble());
+    }
+
+    [Theory]
+    [InlineData("function post(x) { return x++; }", "post", 4d)]
+    [InlineData("function pre(x) { return ++x; }", "pre", 5d)]
+    public void Evaluate_ActivationSlotUpdateExpression_AcceptsUpdateSlotOpcode(
+        string source,
+        string functionName,
+        double expectedResult)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "x", JsValue.FromDouble(4));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.Equal(expectedResult, vmResult.AsDouble());
+    }
+
+    [Fact]
+    public void Evaluate_RegexLiteralReturn_AcceptsLoadRegexLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeRegex() {
+                return /hello/gi;
+            }
+            """,
+            "makeRegex");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadRegexLiteral);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        var regexObject = Assert.IsType<JsObject>(vmResult.ObjectValue, exactMatch: false);
+        Assert.True(regexObject.TryGetProperty("__regex__", out var regexMarker));
+        var regex = Assert.IsType<JsRegExp>(regexMarker.ObjectValue);
+        Assert.Equal("hello", regex.Pattern);
+        Assert.Equal("gi", regex.Flags);
+        Assert.True(regex.Global);
+        Assert.True(regex.IgnoreCase);
+    }
+
+    [Fact]
+    public void Evaluate_ThrowReferenceErrorExpression_AcceptsAndVmThrowsReferenceError()
+    {
+        var message = "Unsupported reference to 'super'";
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.ThrowReferenceError(0)),
+            stringConstants: ImmutableArray.Create(message));
+        var seedPlan = GetFunctionPlan("function thrower() { return 0; }", "thrower");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ThrowReferenceError);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        _ = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.True(context.IsThrow);
+        var error = Assert.IsType<JsObject>(context.FlowValue.ObjectValue, exactMatch: false);
+        Assert.True(error.TryGetProperty("name", out var name));
+        Assert.Equal("ReferenceError", name.AsString());
+        Assert.True(error.TryGetProperty("message", out var actualMessage));
+        Assert.Equal(message, actualMessage.AsString());
+    }
+
+    [Fact]
+    public void Evaluate_LoadImportMetaExpression_AcceptsAndVmReadsCallingEnvironmentBinding()
+    {
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadImportMeta));
+        var seedPlan = GetFunctionPlan("function meta() { return 0; }", "meta");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadImportMeta);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        var moduleEnvironment = JsEnvironment.CreateInstance(engine.GlobalEnvironment, description: "module");
+        var importMeta = new JsObject { RealmState = engine.RealmState };
+        moduleEnvironment.DefineJsValue(
+            Symbol.ImportMeta,
+            JsValue.FromJsObject(importMeta),
+            isConst: true,
+            isLexicalBinding: true);
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context, moduleEnvironment);
+
+        Assert.False(context.ShouldStopEvaluation);
+        Assert.Same(importMeta, vmResult.ObjectValue);
+    }
+
+    [Fact]
+    public void Evaluate_LoadTemplateObjectExpression_AcceptsAndVmCachesTemplateObject()
+    {
+        var descriptor = new TaggedTemplateDescriptor(
+            ImmutableArray.Create(JsValue.FromString("x")),
+            ImmutableArray.Create(JsValue.FromString("x")));
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadTemplateObject(0)),
+            objectConstants: ImmutableArray.Create<object>(descriptor));
+        var seedPlan = GetFunctionPlan("function template() { return 0; }", "template");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadTemplateObject);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var firstResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+        var secondResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        var templateObject = Assert.IsType<JsArray>(firstResult.ObjectValue);
+        Assert.Same(templateObject, secondResult.ObjectValue);
+        Assert.Equal("x", templateObject.Items[0].AsString());
+        Assert.True(templateObject.TryGetProperty("raw", out var rawValue));
+        var rawArray = Assert.IsType<JsArray>(rawValue.ObjectValue);
+        Assert.Equal("x", rawArray.Items[0].AsString());
     }
 
     [Fact]
@@ -3079,6 +3379,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_BindingVariableDeclaration_StaticPattern_AcceptsDescriptorOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function destructure(source) {
+                {
+                    let { nested: { value } } = source;
+                    return value;
+                }
+            }
+            """,
+            "destructure");
+
+        Assert.Contains(plan.Instructions, static instruction => instruction is BindingVariableDeclarationInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
+    }
+
+    [Fact]
     public void Evaluate_AssignmentDestructuringApplyBindingTarget_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -3118,14 +3444,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readObjectComputed")]
-    [InlineData(
-        """
-        function readObjectNested(source) {
-            var { a: { b } } = source;
-            return b;
-        }
-        """,
-        "readObjectNested")]
     public void Evaluate_UnsupportedObjectDestructuringShapes_DeclineWithExplicitReason(
         string source,
         string functionName)
@@ -3965,28 +4283,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ClassMethodWithSuperProperty_DeclinesSuperPropertyDependency()
+    public void Evaluate_ClassMethodWithSuperPropertyWritesAndUpdates_AcceptsOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Base {
-                get value() { return 1; }
+                get value() { return this._value; }
+                set value(next) { this._value = next; }
             }
 
             class Child extends Base {
-                readSuper() {
+                mutateSuper(name) {
+                    super.value = 1;
+                    super[name] = 2;
+                    super.value++;
+                    ++super[name];
                     return super.value;
                 }
             }
             """,
             "Child",
-            "readSuper");
+            "mutateSuper");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedSuperProperty);
     }
 
     // Array-literal and object-literal operand widening (gh2705)
@@ -5546,17 +5877,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
-    [InlineData(
-        """
-        class Child extends Base {
-            update(key, value) {
-                return super[key] &&= value;
-            }
-        }
-        """,
-        "Child",
-        "update",
-        (int)UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency)]
     [InlineData(
         """
         function logicalAndComputedComplexKeyWrite(box, key, suffix, value) {

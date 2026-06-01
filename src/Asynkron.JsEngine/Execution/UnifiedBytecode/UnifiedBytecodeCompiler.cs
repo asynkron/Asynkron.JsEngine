@@ -14,6 +14,8 @@ internal static class UnifiedBytecodeCompiler
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+    private const int DeclarationBindingTargetHasInitializerFlag = 8;
+    private const int DeclarationBindingTargetShift = 4;
 
     private readonly record struct UnifiedBytecodeScopeFrame(
         int ScopeId,
@@ -49,6 +51,8 @@ internal static class UnifiedBytecodeCompiler
     private const int CallBoundarySpreadShift = 16;
     private const int CallBoundarySpreadMask = 0x3FFF;
     private const int CallBoundaryDirectEvalFlag = 1 << 30;
+    private const int FunctionDeclarationIndexMask = 0xFFFF;
+    private const int FunctionDeclarationNameIndexShift = 16;
 
     private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex, bool isDirectEval)
     {
@@ -65,6 +69,17 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return isDirectEval ? operand | CallBoundaryDirectEvalFlag : operand;
+    }
+
+    private static int EncodeFunctionDeclarationOperand(int functionConstantIndex, int nameConstantIndex)
+    {
+        if ((functionConstantIndex & ~FunctionDeclarationIndexMask) != 0 ||
+            (nameConstantIndex & ~FunctionDeclarationIndexMask) != 0)
+        {
+            throw new InvalidOperationException("Function declaration constant index exceeds operand capacity.");
+        }
+
+        return functionConstantIndex | (nameConstantIndex << FunctionDeclarationNameIndexShift);
     }
 
     public static bool TryCompile(
@@ -108,6 +123,8 @@ internal static class UnifiedBytecodeCompiler
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
         var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var classDeclarationConstants = ImmutableArray.CreateBuilder<ClassDeclarationDescriptor>();
+        var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
         var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
         var catchDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeCatchDescriptor>();
@@ -136,6 +153,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -171,9 +190,15 @@ internal static class UnifiedBytecodeCompiler
             classLiteralConstants.Count == 0
                 ? ImmutableArray<ClassExpression>.Empty
                 : classLiteralConstants.ToImmutable(),
+            classDeclarationConstants.Count == 0
+                ? ImmutableArray<ClassDeclarationDescriptor>.Empty
+                : classDeclarationConstants.ToImmutable(),
             bindingTargetConstants.Count == 0
                 ? ImmutableArray<BindingTargetProgram>.Empty
-                : bindingTargetConstants.ToImmutable());
+                : bindingTargetConstants.ToImmutable(),
+            templateObjectConstants.Count == 0
+                ? ImmutableArray<TaggedTemplateDescriptor>.Empty
+                : templateObjectConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -520,6 +545,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -562,6 +589,91 @@ internal static class UnifiedBytecodeCompiler
 
                 switch (instructions[instructionIndex])
                 {
+                    case FunctionDeclarationInstruction { Descriptor: null } functionDeclaration:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                functionDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = functionDeclaration.Next;
+                        continue;
+
+                    case FunctionDeclarationInstruction { Descriptor: { } functionDeclarationDescriptor } functionDeclaration:
+                        var functionDeclarationFunctionIndex = functionLiteralConstants.Count;
+                        functionLiteralConstants.Add(new FunctionLiteralDescriptor(
+                            functionDeclarationDescriptor.Function,
+                            functionDeclarationDescriptor.PlanSeed));
+                        var functionDeclarationNameIndex = stringConstants.Count;
+                        stringConstants.Add(functionDeclarationDescriptor.Name.Name);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.DeclareFunction,
+                            EncodeFunctionDeclarationOperand(
+                                functionDeclarationFunctionIndex,
+                                functionDeclarationNameIndex)));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                functionDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = functionDeclaration.Next;
+                        continue;
+
+                    case ClassDeclarationInstruction classDeclaration:
+                        var classDeclarationIndex = classDeclarationConstants.Count;
+                        classDeclarationConstants.Add(classDeclaration.Descriptor);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.DeclareClass,
+                            classDeclarationIndex));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                classDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = classDeclaration.Next;
+                        continue;
+
+                    case SimpleVariableDeclarationInstruction
+                        {
+                            VarKind: VariableKind.Var,
+                            InitializerProgram: null,
+                            AwaitedProgram: null
+                        } varDeclaration:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                varDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = varDeclaration.Next;
+                        continue;
+
                     case SimpleVariableDeclarationInstruction
                         {
                             InitializerProgram: null,
@@ -621,6 +733,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -654,6 +767,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -669,6 +783,75 @@ internal static class UnifiedBytecodeCompiler
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(initializerProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                declaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = declaration.Next;
+                        continue;
+
+                    case BindingVariableDeclarationInstruction
+                        {
+                            AwaitedProgram: null
+                        } declaration:
+                        if (!IsSupportedDeclarationBindingTarget(declaration.TargetProgram))
+                        {
+                            reason =
+                                "Binding declaration targets with defaults, computed names, or assignment targets are not eligible for unified bytecode storage.";
+                            return false;
+                        }
+
+                        var hasBindingInitializer = declaration.InitializerProgram is not null;
+                        if (declaration.InitializerProgram is { } bindingInitializerProgram)
+                        {
+                            if (!TryAppendExpressionProgramOps(
+                                    bindingInitializerProgram,
+                                    slotLayout,
+                                    allowsDynamicIdentifiers,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    functionLiteralConstants,
+                                    classLiteralConstants,
+                                    templateObjectConstants,
+                                    out reason,
+                                    bindingTargetConstants))
+                            {
+                                return false;
+                            }
+
+                            maxStackDepth = Math.Max(
+                                maxStackDepth,
+                                GetCompiledExpressionMaxStackDepth(bindingInitializerProgram));
+                        }
+                        else
+                        {
+                            var bindingUndefinedIndex = literalConstants.Count;
+                            literalConstants.Add(JsValue.Undefined);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadLiteral,
+                                bindingUndefinedIndex));
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+
+                        var declarationBindingTargetIndex = bindingTargetConstants.Count;
+                        bindingTargetConstants.Add(declaration.TargetProgram);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
+                            EncodeDeclarationBindingTargetOperand(
+                                declarationBindingTargetIndex,
+                                declaration.VarKind,
+                                hasBindingInitializer)));
+
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 declaration.Next,
@@ -708,6 +891,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -747,6 +931,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -807,6 +992,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -850,6 +1036,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -908,6 +1095,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -940,28 +1128,38 @@ internal static class UnifiedBytecodeCompiler
                         {
                             TargetSymbol: { } incrementTargetSymbol
                         } increment:
-                        if (TryResolveInstructionSlot(incrementTargetSymbol, increment.FlatSlotId, slotLayout, out _))
+                        if (TryResolveInstructionSlot(
+                                incrementTargetSymbol,
+                                increment.FlatSlotId,
+                                slotLayout,
+                                out var incrementSlot))
                         {
-                            reason =
-                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
-                            return false;
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.UpdateSlot,
+                                EncodeUpdateOperand(
+                                    incrementSlot,
+                                    increment.IsIncrement,
+                                    increment.IsPrefix)));
+                        }
+                        else
+                        {
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                reason =
+                                    $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
+                                return false;
+                            }
+
+                            var dynamicUpdateNameIndex = stringConstants.Count;
+                            stringConstants.Add(incrementTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
+                                EncodeUpdateOperand(
+                                    dynamicUpdateNameIndex,
+                                    increment.IsIncrement,
+                                    increment.IsPrefix)));
                         }
 
-                        if (!allowsDynamicIdentifiers)
-                        {
-                            reason =
-                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
-                            return false;
-                        }
-
-                        var dynamicUpdateNameIndex = stringConstants.Count;
-                        stringConstants.Add(incrementTargetSymbol.Name);
-                        unified.Add(new UnifiedBytecodeInstruction(
-                            UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
-                            EncodeUpdateOperand(
-                                dynamicUpdateNameIndex,
-                                increment.IsIncrement,
-                                increment.IsPrefix)));
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
                         maxStackDepth = Math.Max(maxStackDepth, 1);
                         if (TryAppendJumpToCompiledTarget(
@@ -1050,6 +1248,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1133,6 +1332,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1184,6 +1384,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1261,6 +1463,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1310,6 +1513,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1340,6 +1545,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1513,6 +1719,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1684,6 +1891,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1709,6 +1918,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1734,6 +1945,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1774,6 +1987,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1822,6 +2037,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1847,6 +2064,8 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1904,6 +2123,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1944,6 +2164,8 @@ internal static class UnifiedBytecodeCompiler
                                      callTargetConstants,
                                      functionLiteralConstants,
                                      classLiteralConstants,
+                                     classDeclarationConstants,
+                                     templateObjectConstants,
                                      scopeDescriptors,
                                      tryDescriptors,
                                      catchDescriptors,
@@ -1969,6 +2191,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                classDeclarationConstants,
+                                templateObjectConstants,
                                 scopeDescriptors,
                                 tryDescriptors,
                                 catchDescriptors,
@@ -1994,6 +2218,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2021,6 +2246,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2043,6 +2269,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2077,6 +2304,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2158,6 +2386,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2223,6 +2452,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2245,6 +2475,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2303,6 +2534,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2343,6 +2576,8 @@ internal static class UnifiedBytecodeCompiler
             callTargetConstants,
             functionLiteralConstants,
             classLiteralConstants,
+            classDeclarationConstants,
+            templateObjectConstants,
             scopeDescriptors,
             tryDescriptors,
             catchDescriptors,
@@ -2366,6 +2601,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2392,6 +2629,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2418,6 +2657,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2444,6 +2685,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2549,6 +2792,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2593,6 +2838,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2618,6 +2865,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2649,6 +2898,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2711,6 +2962,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -3226,6 +3479,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
         ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
@@ -3240,6 +3494,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 out reason))
         {
             return true;
@@ -3668,6 +3923,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
                     break;
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureSuperReference));
+                    break;
+
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
@@ -3690,8 +3949,29 @@ internal static class UnifiedBytecodeCompiler
                         namedPropNameIndex));
                     break;
 
+                case ExpressionOpKind.GetNamedSuperProperty:
+                    var namedSuperPropNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.GetNamedSuperProperty,
+                        namedSuperPropNameIndex));
+                    break;
+
                 case ExpressionOpKind.LoadNewTarget:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
+                    break;
+
+                case ExpressionOpKind.LoadImportMeta:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadImportMeta));
+                    break;
+
+                case ExpressionOpKind.LoadTemplateObject:
+                    var templateObjectIndex = templateObjectConstants.Count;
+                    templateObjectConstants.Add(operation.GetObject<TaggedTemplateDescriptor>(
+                        expressionProgram.ObjectConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadTemplateObject,
+                        templateObjectIndex));
                     break;
 
                 case ExpressionOpKind.LoadLiteral:
@@ -3701,8 +3981,24 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
+                case ExpressionOpKind.LoadRegexLiteral:
+                    var regexPatternIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadRegexLiteral,
+                        EncodeRegexLiteralOperand(regexPatternIndex, operation.EncodedRegexFlags)));
+                    break;
+
                 case ExpressionOpKind.TypeOf:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
+                    break;
+
+                case ExpressionOpKind.ThrowReferenceError:
+                    var referenceErrorMessageIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ThrowReferenceError,
+                        referenceErrorMessageIndex));
                     break;
 
                 case ExpressionOpKind.TypeOfIdentifier:
@@ -3792,6 +4088,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryVoid));
                     break;
 
+                case ExpressionOpKind.PrivateFieldIn:
+                    var privateFieldNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrivateFieldIn,
+                        privateFieldNameIndex));
+                    break;
+
                 case ExpressionOpKind.ToString:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
                     break;
@@ -3831,11 +4135,12 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var updateIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (TryResolveActivationSlot(updateIdentifier, slotLayout, out _))
+                    if (TryResolveActivationSlot(updateIdentifier, slotLayout, out var updateSlot))
                     {
-                        reason =
-                            $"Update target '{updateIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode updates.";
-                        return false;
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.UpdateSlot,
+                            EncodeUpdateOperand(updateSlot, operation)));
+                        break;
                     }
 
                     if (!allowsDynamicIdentifiers)
@@ -3850,6 +4155,34 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
                         EncodeUpdateOperand(updateNameIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.SetNamedSuperProperty:
+                    var setNamedSuperPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SetNamedSuperProperty,
+                        EncodeDynamicStoreOperand(setNamedSuperPropertyIndex, operation.AllowNameInference)));
+                    break;
+
+                case ExpressionOpKind.SetComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SetComputedSuperProperty,
+                        operation.AllowNameInference ? DynamicStoreAllowNameInferenceFlag : 0));
+                    break;
+
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                    var updateNamedSuperPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateNamedSuperProperty,
+                        EncodeUpdateOperand(updateNamedSuperPropertyIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateComputedSuperProperty,
+                        EncodeUpdateOperand(0, operation)));
                     break;
 
                 case ExpressionOpKind.ResolvePropertyKey:
@@ -3894,6 +4227,32 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.DefineComputedObjectProperty,
                         operation.AllowNameInference ? DefineObjectPropertyAllowNameInferenceFlag : 0));
+                    break;
+
+                case ExpressionOpKind.DefineObjectMethod:
+                    var methodNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectMethod,
+                        methodNameIndex));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectMethod:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectMethod));
+                    break;
+
+                case ExpressionOpKind.DefineObjectAccessor:
+                    var accessorNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectAccessor,
+                        EncodeObjectAccessorOperand(accessorNameIndex, operation.AccessorKind)));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectAccessor:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineComputedObjectAccessor,
+                        EncodeObjectAccessorOperand(0, operation.AccessorKind)));
                     break;
 
                 case ExpressionOpKind.ObjectSpread:
@@ -3981,6 +4340,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
                     break;
 
+                case ExpressionOpKind.GetComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedSuperProperty));
+                    break;
+
                 default:
                     reason = $"Unsupported expression op '{operation.Kind}'.";
                     return false;
@@ -4013,6 +4376,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason)
     {
         reason = string.Empty;
@@ -7524,6 +7888,9 @@ internal static class UnifiedBytecodeCompiler
         return (stringConstantIndex << 2) | flags;
     }
 
+    private static int EncodeRegexLiteralOperand(int patternStringConstantIndex, byte encodedFlags) =>
+        (patternStringConstantIndex << 8) | encodedFlags;
+
     private static int EncodeDynamicStoreOperand(int stringConstantIndex, PackedExpressionOp store)
     {
         var flags = store.AllowNameInference ? DynamicStoreAllowNameInferenceFlag : 0;
@@ -7534,6 +7901,15 @@ internal static class UnifiedBytecodeCompiler
     {
         var flags = allowNameInference ? DynamicStoreAllowNameInferenceFlag : 0;
         return (stringConstantIndex << 1) | flags;
+    }
+
+    private static int EncodeDeclarationBindingTargetOperand(
+        int bindingTargetIndex,
+        VariableKind varKind,
+        bool hasInitializer)
+    {
+        var flags = hasInitializer ? DeclarationBindingTargetHasInitializerFlag : 0;
+        return (bindingTargetIndex << DeclarationBindingTargetShift) | (int)varKind | flags;
     }
 
     private static bool TryAppendDynamicVarDeclaration(
@@ -7547,6 +7923,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
         ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
@@ -7572,6 +7949,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 out reason,
                 bindingTargetConstants))
         {
@@ -7584,6 +7962,46 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
         reason = string.Empty;
         return true;
+    }
+
+    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram:
+                return true;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultProgram is not null ||
+                        element.Target is { } elementTarget &&
+                        !IsSupportedDeclarationBindingTarget(elementTarget))
+                    {
+                        return false;
+                    }
+                }
+
+                return arrayBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.DefaultProgram is not null ||
+                        property.NameProgram is not null ||
+                        !IsSupportedDeclarationBindingTarget(property.Target))
+                    {
+                        return false;
+                    }
+                }
+
+                return objectBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
+
+            default:
+                return false;
+        }
     }
 
     private static void AppendDynamicStoreInstruction(
@@ -7614,6 +8032,9 @@ internal static class UnifiedBytecodeCompiler
 
         return (stringConstantIndex << 3) | flags;
     }
+
+    private static int EncodeObjectAccessorOperand(int stringConstantIndex, ObjectAccessorKind accessorKind) =>
+        (stringConstantIndex << 1) | (accessorKind == ObjectAccessorKind.Setter ? 1 : 0);
 
     private static int EncodeUpdateFlags(PackedExpressionOp update)
     {

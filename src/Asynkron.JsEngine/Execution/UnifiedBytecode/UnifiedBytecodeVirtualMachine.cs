@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -14,6 +15,10 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+    private const int DeclarationBindingTargetHasInitializerFlag = 8;
+    private const int DeclarationBindingTargetShift = 4;
+    private const int FunctionDeclarationIndexMask = 0xFFFF;
+    private const int FunctionDeclarationNameIndexShift = 16;
 
     private readonly record struct EnvironmentScopeFrame(
         JsEnvironment Environment,
@@ -88,6 +93,11 @@ internal static class UnifiedBytecodeVirtualMachine
         var slotEnvironments = callingEnvironment is null
             ? null
             : InitializeSlotEnvironments(program, callingEnvironment);
+        if (callingEnvironment is not null)
+        {
+            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, callingEnvironment);
+        }
+
         EnvironmentScopeFrame[]? environmentStack = null;
         var environmentStackCount = 0;
         AssignmentReference[]? dynamicIdentifierReferences = null;
@@ -182,8 +192,29 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadImportMeta:
+                    stack[stackPointer++] = GetImportMeta(currentCallingEnvironment, context);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadTemplateObject:
+                    stack[stackPointer++] = JsValue.FromJsArray(GetOrCreateTemplateObject(
+                        program.TemplateObjectConstants[instruction.Operand],
+                        context));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadLiteral:
                     stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
+                    stack[stackPointer++] = JsValue.FromObjectUnsafe(
+                        RegExpHelper.CreateRegExpLiteral(
+                            program.StringConstants[DecodeRegexLiteralPatternOperand(instruction.Operand)],
+                            DecodeRegexLiteralFlagsOperand(instruction.Operand),
+                            context.RealmState));
                     programCounter++;
                     break;
 
@@ -515,6 +546,54 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateSlot:
+                    var updateSlotIndex = DecodeUpdateIndex(instruction.Operand);
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, updateSlotIndex))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, updateSlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    var updateSlotValue = slots[updateSlotIndex];
+                    if (updateSlotValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, updateSlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    GetUpdatedNumericValue(
+                        updateSlotValue,
+                        DecodeIsIncrement(instruction.Operand),
+                        context,
+                        out var oldSlotNumericValue,
+                        out var newSlotValue);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    slots[updateSlotIndex] = newSlotValue;
+                    SyncSlotEnvironment(slotEnvironments, updateSlotIndex, newSlotValue);
+                    stack[stackPointer++] = DecodeIsPrefix(instruction.Operand) ? newSlotValue : oldSlotNumericValue;
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.InitializeSlot:
                     var initializedValue = stack[--stackPointer];
                     slots[instruction.Operand] = initializedValue;
@@ -763,6 +842,57 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.EnsureSuperReference:
+                    if (!EnsureSuperReference(RequireDynamicEnvironment(currentCallingEnvironment), context))
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetNamedSuperProperty:
+                    stack[stackPointer++] = GetNamedSuperPropertyValue(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedSuperProperty:
+                    var computedSuperKey = stack[--stackPointer];
+                    stack[stackPointer++] = GetComputedSuperPropertyValue(
+                        computedSuperKey,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
                     var namedCompoundTarget = stack[stackPointer - 1];
                     stack[stackPointer++] = GetNamedPropertyValue(
@@ -855,6 +985,94 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     stack[stackPointer - 1] = computedPropertyValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetNamedSuperProperty:
+                    var namedSuperPropertyValue = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = SetNamedSuperPropertyValue(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        namedSuperPropertyValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedSuperProperty:
+                    var computedSuperPropertyValue = stack[--stackPointer];
+                    var computedSuperSetKey = stack[--stackPointer];
+                    stack[stackPointer++] = SetComputedSuperPropertyValue(
+                        computedSuperSetKey,
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        computedSuperPropertyValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateNamedSuperProperty:
+                    stack[stackPointer++] = UpdateNamedSuperPropertyValue(
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedSuperProperty:
+                    var computedSuperUpdateKey = stack[--stackPointer];
+                    stack[stackPointer++] = UpdateComputedSuperPropertyValue(
+                        computedSuperUpdateKey,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
                     programCounter++;
                     break;
 
@@ -1107,6 +1325,30 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrivateFieldIn:
+                    if (stack[stackPointer - 1] is not { Kind: JsValueKind.Object, ObjectValue: JsObject privateFieldTarget })
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot use 'in' operator to search for a private field in a non-object",
+                            context,
+                            context.RealmState));
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    stack[stackPointer - 1] = HasPrivateField(
+                            privateFieldTarget,
+                            program.StringConstants[instruction.Operand],
+                            context)
+                        ? JsValue.True
+                        : JsValue.False;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.ToString:
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
@@ -1144,6 +1386,36 @@ internal static class UnifiedBytecodeVirtualMachine
                         context,
                         allowNameInference: false);
                     SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
+                    var declarationBindingValue = stack[--stackPointer];
+                    var declarationBindingEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, declarationBindingEnvironment);
+                    TypedAstEvaluator.ApplyLoweredDeclarationBindingTargetProgram(
+                        program.BindingTargetConstants[DecodeDeclarationBindingTargetIndex(instruction.Operand)],
+                        declarationBindingValue,
+                        declarationBindingEnvironment,
+                        context,
+                        DecodeDeclarationBindingTargetVariableKind(instruction.Operand),
+                        DecodeDeclarationBindingTargetHasInitializer(instruction.Operand),
+                        allowNameInference: false);
+                    SyncEnvironmentToUnifiedSlots(
+                        program,
+                        slots,
+                        slotEnvironments,
+                        declarationBindingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -1260,6 +1532,89 @@ internal static class UnifiedBytecodeVirtualMachine
                         computedObjectPropertyName,
                         instruction.Operand,
                         computedObjectPropertyValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineObjectMethod:
+                    var methodValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var methodObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object method unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralMethod(
+                        methodObjectLiteralTarget,
+                        program.StringConstants[instruction.Operand],
+                        methodValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectMethod:
+                    var computedMethodValue = stack[--stackPointer];
+                    var computedMethodKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedMethodObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object method unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedMethodName = JsOps.GetRequiredPropertyName(computedMethodKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    DefineObjectLiteralMethod(computedMethodObjectLiteralTarget, computedMethodName, computedMethodValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineObjectAccessor:
+                    var accessorValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var accessorObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object accessor unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralAccessor(
+                        accessorObjectLiteralTarget,
+                        program.StringConstants[DecodeObjectAccessorNameOperand(instruction.Operand)],
+                        DecodeObjectAccessorKind(instruction.Operand),
+                        accessorValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectAccessor:
+                    var computedAccessorValue = stack[--stackPointer];
+                    var computedAccessorKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedAccessorObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object accessor unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedAccessorName = JsOps.GetRequiredPropertyName(computedAccessorKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    DefineObjectLiteralAccessor(
+                        computedAccessorObjectLiteralTarget,
+                        computedAccessorName,
+                        DecodeObjectAccessorKind(instruction.Operand),
+                        computedAccessorValue);
                     programCounter++;
                     break;
 
@@ -1928,6 +2283,73 @@ internal static class UnifiedBytecodeVirtualMachine
                     context.SetThrow(thrownValue);
                     CleanupActiveDriverStates(slots, slotEnvironments, context, true);
                     return JsValue.Undefined;
+
+                case UnifiedBytecodeOpCode.ThrowReferenceError:
+                    throw StandardLibrary.ThrowReferenceError(
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        context.RealmState);
+
+                case UnifiedBytecodeOpCode.DeclareClass:
+                    {
+                        var classDeclarationEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, classDeclarationEnvironment);
+                        var classDeclaration = program.ClassDeclarationConstants[instruction.Operand];
+                        var classValue = TypedAstEvaluator.CreateClassValueFromDeclaration(
+                            classDeclaration,
+                            classDeclarationEnvironment,
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+
+                        classDeclarationEnvironment.DefineJsValue(
+                            classDeclaration.Name,
+                            classValue,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            classDeclarationEnvironment);
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.DeclareFunction:
+                    {
+                        var functionDeclarationEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, functionDeclarationEnvironment);
+                        DeclareFunction(
+                            program,
+                            instruction.Operand,
+                            functionDeclarationEnvironment,
+                            context);
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            functionDeclarationEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
 
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                     {
@@ -3047,6 +3469,138 @@ internal static class UnifiedBytecodeVirtualMachine
             context: context);
     }
 
+    private static void DeclareFunction(
+        UnifiedBytecodeProgram program,
+        int operand,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var descriptor = program.FunctionLiteralConstants[DecodeFunctionDeclarationIndex(operand)];
+        var name = Symbol.Intern(program.StringConstants[DecodeFunctionDeclarationNameIndex(operand)]);
+        var functionValue = TypedAstEvaluator.CreateFunctionValueFromDeclaration(
+            descriptor,
+            environment,
+            context);
+        var functionJsValue = JsValue.FromObjectUnsafe(functionValue);
+        var varEnvironment = environment.GetVarEnvironment();
+        var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
+                                 environment.IsEvalDeclarationEnvironment;
+        var suppressAnnexBVarUpdate = (descriptor.Function.IsAsync ||
+                                       descriptor.Function.WasAsync ||
+                                       descriptor.Function.IsGenerator) &&
+                                      context.ExecutionKind != ExecutionKind.Eval;
+
+        var isHoistedUndefinedBinding = false;
+        if (!suppressAnnexBVarUpdate &&
+            isAtVarEnvironment &&
+            !context.CurrentScope.IsStrict &&
+            varEnvironment.HasFunctionScopedBinding(name))
+        {
+            var existingValue = varEnvironment.GetBindingValueDirect(name);
+            if (existingValue.IsUndefined)
+            {
+                isHoistedUndefinedBinding = true;
+            }
+        }
+
+        if (isAtVarEnvironment)
+        {
+            if (isHoistedUndefinedBinding && !environment.IsAnnexBBlocked(name))
+            {
+                varEnvironment.AssignJsValue(name, functionJsValue);
+
+                if (varEnvironment.IsGlobalFunctionScope)
+                {
+                    varEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, functionJsValue);
+                }
+            }
+
+            return;
+        }
+
+        var isBlocked = !varEnvironment.IsStrict &&
+                        (environment.IsAnnexBBlocked(name) ||
+                         HasEnclosingLexicalBinding(environment.Enclosing, name));
+        if (!isBlocked || !environment.IsBodyEnvironment)
+        {
+            environment.DefineJsValue(
+                name,
+                functionJsValue,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+
+        if (suppressAnnexBVarUpdate || varEnvironment.IsStrict || isBlocked)
+        {
+            return;
+        }
+
+        if (varEnvironment.HasFunctionScopedBinding(name))
+        {
+            varEnvironment.AssignJsValue(name, functionJsValue);
+        }
+        else
+        {
+            varEnvironment.DefineFunctionScoped(
+                name,
+                functionJsValue,
+                hasInitializer: true,
+                isFunctionDeclaration: true,
+                context: context);
+        }
+
+        UpdateIntermediateVarBindings(environment.Enclosing, varEnvironment, name, functionJsValue);
+    }
+
+    private static bool HasEnclosingLexicalBinding(JsEnvironment? start, Symbol name)
+    {
+        var current = start;
+        while (current is not null)
+        {
+            if (current.IsFunctionScope)
+            {
+                break;
+            }
+
+            if (current.IsBodyEnvironment || current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current.TryGetSlotIndex(name, out var slotIndex))
+            {
+                ref var slot = ref current.GetSlotByIndex(slotIndex);
+                if (slot.IsLexical && slot.BlocksFunctionScopeOverride)
+                {
+                    return true;
+                }
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
+    }
+
+    private static void UpdateIntermediateVarBindings(
+        JsEnvironment? start,
+        JsEnvironment stop,
+        Symbol name,
+        JsValue value)
+    {
+        var current = start;
+        while (current is not null && !ReferenceEquals(current, stop))
+        {
+            if (current.TryGetSlotIndex(name, out var slotIndex))
+            {
+                current.SetSlotDirect(slotIndex, value);
+            }
+
+            current = current.Enclosing;
+        }
+    }
+
     private static JsValue UpdateDynamicIdentifierValue(
         string name,
         bool isIncrement,
@@ -3237,6 +3791,54 @@ internal static class UnifiedBytecodeVirtualMachine
             context,
             context.RealmState));
         return JsValue.Undefined;
+    }
+
+    private static JsValue GetImportMeta(JsEnvironment? environment, EvaluationContext context)
+    {
+        if (environment is not null &&
+            environment.TryFindBindingJsValue(Symbol.ImportMeta, true, out _, out var importMeta))
+        {
+            return importMeta;
+        }
+
+        throw StandardLibrary.ThrowReferenceError("import.meta is not defined", context, context.RealmState);
+    }
+
+    private static bool HasPrivateField(
+        JsObject target,
+        string privateName,
+        EvaluationContext context)
+    {
+        var resolvedKey = context.ResolvePrivateNameKey($"#{privateName}");
+        if (resolvedKey is null)
+        {
+            return false;
+        }
+
+        if (target.HasPrivateField(resolvedKey))
+        {
+            return true;
+        }
+
+        return PrivateNameScope.TryResolveScope(context.RealmState, resolvedKey, out var scope) &&
+               scope is not null &&
+               target.HasPrivateBrand(scope.BrandToken);
+    }
+
+    private static JsArray GetOrCreateTemplateObject(
+        TaggedTemplateDescriptor descriptor,
+        EvaluationContext context)
+    {
+        if (context.RealmState.TemplateObjectCache.TryGetValue(descriptor, out var cachedTemplate))
+        {
+            return (JsArray)cachedTemplate;
+        }
+
+        var stringsArray = new JsArray(descriptor.CookedStrings, context.RealmState);
+        var rawStringsArray = new JsArray(descriptor.RawStrings, context.RealmState);
+        var templateObject = stringsArray.CreateTemplateObject(rawStringsArray);
+        context.RealmState.TemplateObjectCache[descriptor] = templateObject;
+        return templateObject;
     }
 
     private static JsEnvironment?[] InitializeSlotEnvironments(
@@ -5456,8 +6058,27 @@ internal static class UnifiedBytecodeVirtualMachine
                 : JsValue.Undefined;
     }
 
+    private static bool EnsureSuperReference(JsEnvironment environment, EvaluationContext context)
+    {
+        if (environment.IsThisInitializationKnownTrue(context))
+        {
+            return true;
+        }
+
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            "Super is not available in this context.",
+            context,
+            context.RealmState));
+        return false;
+    }
+
     private static SuperBinding? GetSuperBindingForRead(JsEnvironment environment, EvaluationContext context)
     {
+        if (!EnsureSuperReference(environment, context))
+        {
+            return null;
+        }
+
         var binding = environment.ExpectSuperBinding(context);
         if (!binding.IsThisInitialized || binding.ThisValue.IsUndefined || binding.ThisValue.IsUninitialized)
         {
@@ -5468,7 +6089,159 @@ internal static class UnifiedBytecodeVirtualMachine
             return null;
         }
 
+        if (binding.Prototype is null)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot read properties of null (reading from super)",
+                context,
+                context.RealmState));
+            return null;
+        }
+
         return binding;
+    }
+
+    private static JsValue GetNamedSuperPropertyValue(
+        string propertyName,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return binding.TryGetProperty(propertyName, out var value)
+            ? value
+            : JsValue.Undefined;
+    }
+
+    private static JsValue GetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return GetNamedSuperPropertyValue(propertyName, environment, context);
+    }
+
+    private static JsValue SetNamedSuperPropertyValue(
+        string propertyName,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        if (allowNameInference &&
+            value is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+        {
+            nameTarget.EnsureHasName(propertyName);
+        }
+
+        return AssignToSuperBinding(environment, context, propertyName, value, isStrict);
+    }
+
+    private static JsValue SetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return SetNamedSuperPropertyValue(
+            propertyName,
+            allowNameInference,
+            value,
+            environment,
+            context,
+            isStrict);
+    }
+
+    private static JsValue UpdateNamedSuperPropertyValue(
+        string propertyName,
+        bool isIncrement,
+        bool isPrefix,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var currentValue = GetNamedSuperPropertyValue(propertyName, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        GetUpdatedNumericValue(currentValue, isIncrement, context, out var oldNumericValue, out var newValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        AssignToSuperBinding(environment, context, propertyName, newValue, isStrict);
+        return isPrefix ? newValue : oldNumericValue;
+    }
+
+    private static JsValue UpdateComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool isIncrement,
+        bool isPrefix,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return UpdateNamedSuperPropertyValue(
+            propertyName,
+            isIncrement,
+            isPrefix,
+            environment,
+            context,
+            isStrict);
+    }
+
+    private static JsValue AssignToSuperBinding(
+        JsEnvironment environment,
+        EvaluationContext context,
+        string propertyName,
+        JsValue value,
+        bool isStrict)
+    {
+        var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!binding.TrySetProperty(propertyName, value, out _) &&
+            (environment.IsStrict || isStrict))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                $"Cannot assign to read only property '{propertyName}' of object",
+                context,
+                context.RealmState));
+            return JsValue.Undefined;
+        }
+
+        return value;
     }
 
     private static JsValue GetComputedCallTargetValue(
@@ -5554,6 +6327,96 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
+    }
+
+    private static void DefineObjectLiteralMethod(
+        JsObject targetObject,
+        string propertyName,
+        JsValue methodValue)
+    {
+        ConfigureObjectLiteralCallable(targetObject, propertyName, methodValue, accessorKind: null);
+        targetObject.DefineProperty(propertyName,
+            new PropertyDescriptor
+            {
+                JsValue = methodValue,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
+    }
+
+    private static void DefineObjectLiteralAccessor(
+        JsObject targetObject,
+        string propertyName,
+        ObjectAccessorKind accessorKind,
+        JsValue accessorValue)
+    {
+        var callable = ConfigureObjectLiteralCallable(
+            targetObject,
+            propertyName,
+            accessorValue,
+            accessorKind);
+
+        DefineAccessorProperty(
+            targetObject,
+            propertyName,
+            accessorKind == ObjectAccessorKind.Getter ? callable : null,
+            accessorKind == ObjectAccessorKind.Setter ? callable : null);
+    }
+
+    private static void DefineAccessorProperty(
+        JsObject targetObject,
+        string propertyName,
+        IJsCallable? getter,
+        IJsCallable? setter)
+    {
+        var descriptor = targetObject.GetOwnPropertyDescriptor(propertyName) ??
+                         new PropertyDescriptor { Enumerable = true, Configurable = true };
+
+        descriptor.Get = getter ?? descriptor.Get;
+        descriptor.Set = setter ?? descriptor.Set;
+        targetObject.DefineProperty(propertyName, descriptor);
+    }
+
+    private static IJsCallable ConfigureObjectLiteralCallable(
+        JsObject targetObject,
+        string propertyName,
+        JsValue callableValue,
+        ObjectAccessorKind? accessorKind)
+    {
+        if (!callableValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw new InvalidOperationException("Object literal function members require a callable value.");
+        }
+
+        if (callable is IHomeObjectConfigurableCallable homeObjectConfigurable)
+        {
+            homeObjectConfigurable.SetHomeObject(targetObject);
+            homeObjectConfigurable.DisableConstruction();
+        }
+
+        if (callable is TypedAstEvaluator.IFunctionNameTarget nameTarget)
+        {
+            var displayName = accessorKind switch
+            {
+                ObjectAccessorKind.Getter => $"get {BuildFunctionNameDisplay(propertyName)}",
+                ObjectAccessorKind.Setter => $"set {BuildFunctionNameDisplay(propertyName)}",
+                _ => BuildFunctionNameDisplay(propertyName)
+            };
+            nameTarget.EnsureHasName(displayName);
+        }
+
+        return callable;
+    }
+
+    private static string BuildFunctionNameDisplay(string propertyName)
+    {
+        if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
+        {
+            return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
+        }
+
+        return propertyName;
     }
 
     private static void ApplyObjectLiteralSpread(
@@ -5722,10 +6585,31 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static int DecodeStringOperand(int operand) => operand >> 2;
 
+    private static int DecodeUpdateIndex(int operand) => operand >> 2;
+
+    private static int DecodeRegexLiteralPatternOperand(int operand) => operand >> 8;
+
+    private static byte DecodeRegexLiteralFlagsOperand(int operand) => (byte)(operand & 0xFF);
+
     private static int DecodeDynamicStoreNameOperand(int operand) => operand >> 1;
 
     private static bool DecodeDynamicStoreAllowsNameInference(int operand) =>
         (operand & 1) != 0;
+
+    private static int DecodeFunctionDeclarationIndex(int operand) =>
+        operand & FunctionDeclarationIndexMask;
+
+    private static int DecodeFunctionDeclarationNameIndex(int operand) =>
+        operand >> FunctionDeclarationNameIndexShift;
+
+    private static int DecodeDeclarationBindingTargetIndex(int operand) =>
+        operand >> DeclarationBindingTargetShift;
+
+    private static bool DecodeDeclarationBindingTargetHasInitializer(int operand) =>
+        (operand & DeclarationBindingTargetHasInitializerFlag) != 0;
+
+    private static VariableKind DecodeDeclarationBindingTargetVariableKind(int operand) =>
+        (VariableKind)(operand & 0x7);
 
     private static int DecodeDefineObjectPropertyNameOperand(int operand) => operand >> 3;
 
@@ -5737,6 +6621,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool DecodeDefineObjectPropertyIsKnownNewProperty(int operand) =>
         (operand & DefineObjectPropertyKnownNewPropertyFlag) != 0;
+
+    private static int DecodeObjectAccessorNameOperand(int operand) => operand >> 1;
+
+    private static ObjectAccessorKind DecodeObjectAccessorKind(int operand) =>
+        (operand & 1) == 0 ? ObjectAccessorKind.Getter : ObjectAccessorKind.Setter;
 
     private static bool DecodeIsIncrement(int operand) => (operand & 1) != 0;
 

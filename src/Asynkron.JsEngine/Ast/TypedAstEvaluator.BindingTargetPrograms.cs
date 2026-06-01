@@ -65,6 +65,35 @@ public static partial class TypedAstEvaluator
             skipBlockedBindingLookup);
     }
 
+    internal static void ApplyLoweredDeclarationBindingTargetProgram(
+        BindingTargetProgram target,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        VariableKind varKind,
+        bool hasInitializer = true,
+        bool allowNameInference = true,
+        bool skipBlockedBindingLookup = false)
+    {
+        var mode = varKind switch
+        {
+            VariableKind.Var => BindingMode.DefineVar,
+            VariableKind.Let => BindingMode.DefineLet,
+            VariableKind.Const => BindingMode.DefineConst,
+            _ => throw new ArgumentOutOfRangeException(nameof(varKind), varKind, null)
+        };
+
+        ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(
+            target,
+            value,
+            environment,
+            context,
+            mode,
+            hasInitializer,
+            allowNameInference,
+            skipBlockedBindingLookup);
+    }
+
     private sealed class BindingTargetProgramCache
     {
         private BindingTargetProgramCache(

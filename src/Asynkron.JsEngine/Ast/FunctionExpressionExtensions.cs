@@ -560,4 +560,14 @@ public static partial class TypedAstEvaluator
         bool isConstructorFunction,
         FunctionExecutionPlanSeed planSeed) =>
         functionExpression.CreateFunctionValue(environment, context, isConstructorFunction, planSeed: planSeed);
+
+    internal static IJsCallable CreateFunctionValueFromDeclaration(
+        FunctionLiteralDescriptor descriptor,
+        JsEnvironment environment,
+        EvaluationContext context) =>
+        descriptor.Function.CreateFunctionValue(
+            environment,
+            context,
+            skipInternalNameBinding: true,
+            planSeed: descriptor.PlanSeed);
 }

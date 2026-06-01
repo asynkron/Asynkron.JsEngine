@@ -4,6 +4,10 @@
 
 Accepted
 
+Superseded note: the future-only `HasThisDependency` placeholder described
+below was removed after no current production route set it. The ordinary sync
+`this` admission decision still stands.
+
 ## Context
 
 Faktorial issue #2633 widened unified bytecode production eligibility to accept
@@ -41,8 +45,8 @@ Additionally:
 
 The `HasThisDependency` flag in `UnifiedBytecodeProductionActivationDescriptor`
 is never set for the ordinary sync path (it defaults to `false`). It is
-intentionally kept as an explicit gate for future shapes where `this` must
-still be declined.
+kept at this ADR point as an explicit gate for future shapes where `this` must
+still be declined; that placeholder was removed in a later decline cleanup.
 
 ## Decision
 
@@ -57,9 +61,9 @@ Remove the blanket `_homeObject is not null` pre-gate from
   safety net for class methods that use `super`.
 - `_lexicalThisEnvironment is not null`, `_superConstructor is not null`, and
   `_superPrototype is not null` pre-gates remain unchanged.
-- `HasThisDependency` is left in `UnifiedBytecodeProductionActivationDescriptor`
-  as an explicit future gate; it is currently `false` for all ordinary sync
-  descriptors.
+- `HasThisDependency` was left in `UnifiedBytecodeProductionActivationDescriptor`
+  at this ADR point as an explicit future gate; it was currently `false` for
+  all ordinary sync descriptors and was removed in a later decline cleanup.
 
 ## Consequences
 

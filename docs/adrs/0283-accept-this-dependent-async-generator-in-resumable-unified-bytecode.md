@@ -4,6 +4,10 @@
 
 Accepted
 
+Superseded note: the future-only `HasThisDependency` placeholder described
+below was removed after no current production route set it. The resumable
+`this` admission decision still stands.
+
 ## Context
 
 Faktorial issue #2675 widened the **resumable** unified bytecode production
@@ -55,8 +59,9 @@ resume state.
   `UnifiedBytecodeResumeState`. `CoerceThisValueForNonStrict` is promoted to a
   shared static helper so the coercion is byte-for-byte identical to the sync
   production route.
-- `HasThisDependency` is left in `UnifiedBytecodeProductionActivationDescriptor`
-  as an explicit future gate; it is no longer set by any resumable invoker.
+- `HasThisDependency` was left in `UnifiedBytecodeProductionActivationDescriptor`
+  at this ADR point as an explicit future gate; it was no longer set by any
+  resumable invoker and was removed in a later decline cleanup.
 
 This intentionally narrows ADR 0277, which previously listed `this` among the
 resumable pre-VM declines. ADR 0277's bounded-state and `yield*`-decline

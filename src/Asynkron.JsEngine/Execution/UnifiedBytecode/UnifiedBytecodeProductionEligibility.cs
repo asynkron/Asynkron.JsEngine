@@ -11,15 +11,8 @@ internal enum UnifiedBytecodeProductionDeclineCode
     GeneratorFunction,
     CapturedOrDynamicActivation,
     ArgumentsObjectDependency,
-    ThisDependency,
-    NewTargetDependency,
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
-    FunctionNameParameterCollision,
-    FunctionDeclarationDependency,
-    ClassDeclarationDependency,
-    ParameterVarDeclarationDependency,
-    MaterializedActivationDependency,
     CallDependency,
     DynamicLookupDependency,
     PropertyReadBoundaryOutOfScope,
@@ -42,14 +35,8 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool IsGenerator = false,
     bool HasCapturedOrDynamicActivation = false,
     bool HasArgumentsObjectDependency = false,
-    bool HasThisDependency = false,
-    bool HasNewTargetDependency = false,
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
-    bool HasFunctionNameParameterCollision = false,
-    bool HasFunctionDeclarationDependency = false,
-    bool HasParameterVarDeclarationDependency = false,
-    bool HasMaterializedActivationDependency = false,
     bool HasCallDependency = false,
     bool HasDynamicLookupDependency = false,
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false);
@@ -179,13 +166,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (activation.HasThisDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.ThisDependency;
-            declineReason = "'this' dependency is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
         return TryFindOrdinarySyncOnlyActivationDecline(activation, out declineCode, out declineReason);
     }
 
@@ -295,15 +275,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (activation.HasNewTargetDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.NewTargetDependency;
-            declineReason = isResumable
-                ? "new.target dependency is not eligible for resumable unified bytecode routing."
-                : "new.target dependency is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
         if (activation.HasCallDependency)
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
@@ -343,34 +314,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation;
             declineReason = "Class constructor activation is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasFunctionNameParameterCollision)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision;
-            declineReason = "Function name and parameter name collision is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasFunctionDeclarationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
-            declineReason = "Function declaration hoisting is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasParameterVarDeclarationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency;
-            declineReason = "Parameter var declaration activation is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasMaterializedActivationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency;
-            declineReason = "Materialized activation binding requirements are not eligible for production unified bytecode routing.";
             return true;
         }
 
@@ -454,26 +397,38 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is BindingVariableDeclarationInstruction)
+            if (instruction is BindingVariableDeclarationInstruction { AwaitedProgram: not null })
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
+                declineReason =
+                    "Awaited binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is BindingVariableDeclarationInstruction
+                {
+                    VarKind: VariableKind.Using or VariableKind.AwaitUsing
+                })
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "using declarations require scope-exit disposal and are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is BindingVariableDeclarationInstruction bindingDeclaration &&
+                !IsSupportedDeclarationBindingTarget(bindingDeclaration.TargetProgram))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
-                declineReason = "Binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                declineReason =
+                    "Binding/destructuring declarations with defaults, computed names, or assignment targets are not eligible for production unified bytecode routing.";
                 return true;
             }
 
-            if (instruction is FunctionDeclarationInstruction)
+            if (instruction is FunctionDeclarationInstruction { Descriptor: not null })
             {
-                declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "Function declaration instructions require hoist/runtime declaration semantics and are not eligible for production unified bytecode routing.";
-                return true;
-            }
-
-            if (instruction is ClassDeclarationInstruction)
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.ClassDeclarationDependency;
-                declineReason =
-                    "Class declaration instructions require runtime lexical binding semantics and are not eligible for production unified bytecode routing.";
+                    "Descriptor-backed block-scoped function declarations require an admitted lexical environment shape before production unified bytecode routing.";
                 return true;
             }
 
@@ -1259,14 +1214,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Computed property reads are outside the first production property-read boundary unless they use RequireObjectCoercible(Depth: 1) then ResolvePropertyKey immediately before GetComputedProperty.";
                     return true;
 
-                case ExpressionOpKind.SetNamedSuperProperty:
-                case ExpressionOpKind.SetComputedSuperProperty:
-                case ExpressionOpKind.UpdateNamedSuperProperty:
-                case ExpressionOpKind.UpdateComputedSuperProperty:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property writes/updates are not eligible for production unified bytecode routing.";
-                    return true;
-
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
@@ -1290,10 +1237,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         var updateIdentifier = operation.GetIdentifier(identifierConstants);
                         if (TryResolveActivationSlot(updateIdentifier, activationSlots))
                         {
-                            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                            declineReason =
-                                $"Update target '{updateIdentifier.Name.Name}' resolves to an activation slot and is outside the ordinary dynamic-name production slice.";
-                            return true;
+                            break;
                         }
 
                         if (allowsDynamicIdentifiers)
@@ -1374,20 +1318,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.EnsureSuperReference:
-                    if (isCallTargetPreparationCandidate)
-                    {
-                        break;
-                    }
-
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property access is not eligible for production unified bytecode routing.";
-                    return true;
-
                 case ExpressionOpKind.GetNamedSuperProperty:
                 case ExpressionOpKind.GetComputedSuperProperty:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property access is not eligible for production unified bytecode routing.";
-                    return true;
+                case ExpressionOpKind.SetNamedSuperProperty:
+                case ExpressionOpKind.SetComputedSuperProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    break;
 
                 case ExpressionOpKind.JumpIfFalse:
                 case ExpressionOpKind.JumpIfConditionalFalse:
@@ -1469,10 +1406,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
                 case ExpressionOpKind.DefineComputedObjectAccessor:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                    declineReason =
-                        "Object methods and object accessors are not eligible for production unified bytecode routing.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.ObjectSpread:
                     if (operationIndex > 0 &&
@@ -1503,9 +1437,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.PrivateFieldIn:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
-                    declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.ApplyBindingTarget:
                     break;
@@ -4079,6 +4011,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = initializerProgram;
                 return true;
 
+            case BindingVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } initializerProgram }:
+                program = initializerProgram;
+                return true;
+
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } valueProgram }:
                 program = valueProgram;
                 return true;
@@ -4129,6 +4065,46 @@ internal static class UnifiedBytecodeProductionEligibility
 
             default:
                 program = default;
+            return false;
+        }
+    }
+
+    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram:
+                return true;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultProgram is not null ||
+                        element.Target is { } elementTarget &&
+                        !IsSupportedDeclarationBindingTarget(elementTarget))
+                    {
+                        return false;
+                    }
+                }
+
+                return arrayBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.DefaultProgram is not null ||
+                        property.NameProgram is not null ||
+                        !IsSupportedDeclarationBindingTarget(property.Target))
+                    {
+                        return false;
+                    }
+                }
+
+                return objectBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
+
+            default:
                 return false;
         }
     }
@@ -4230,7 +4206,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 case UnifiedBytecodeOpCode.LoadThis:
                 case UnifiedBytecodeOpCode.LoadNewTarget:
+                case UnifiedBytecodeOpCode.LoadImportMeta:
+                case UnifiedBytecodeOpCode.LoadTemplateObject:
                 case UnifiedBytecodeOpCode.LoadLiteral:
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
@@ -4240,6 +4219,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.UpdateSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
@@ -4257,6 +4237,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
                 case UnifiedBytecodeOpCode.SetNamedProperty:
                 case UnifiedBytecodeOpCode.SetComputedProperty:
+                case UnifiedBytecodeOpCode.EnsureSuperReference:
+                case UnifiedBytecodeOpCode.GetNamedSuperProperty:
+                case UnifiedBytecodeOpCode.GetComputedSuperProperty:
+                case UnifiedBytecodeOpCode.SetNamedSuperProperty:
+                case UnifiedBytecodeOpCode.SetComputedSuperProperty:
+                case UnifiedBytecodeOpCode.UpdateNamedSuperProperty:
+                case UnifiedBytecodeOpCode.UpdateComputedSuperProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:
@@ -4271,6 +4258,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UnaryLogicalNot:
                 case UnifiedBytecodeOpCode.UnaryBitwiseNot:
                 case UnifiedBytecodeOpCode.UnaryVoid:
+                case UnifiedBytecodeOpCode.PrivateFieldIn:
                 case UnifiedBytecodeOpCode.ToString:
                 case UnifiedBytecodeOpCode.Pop:
                 case UnifiedBytecodeOpCode.DuplicateTop:
@@ -4282,14 +4270,22 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                case UnifiedBytecodeOpCode.DefineObjectMethod:
+                case UnifiedBytecodeOpCode.DefineComputedObjectMethod:
+                case UnifiedBytecodeOpCode.DefineObjectAccessor:
+                case UnifiedBytecodeOpCode.DefineComputedObjectAccessor:
                 case UnifiedBytecodeOpCode.ObjectSpread:
+                case UnifiedBytecodeOpCode.DeclareClass:
+                case UnifiedBytecodeOpCode.DeclareFunction:
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:
+                case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
                 case UnifiedBytecodeOpCode.EnsureHasName:
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:
+                case UnifiedBytecodeOpCode.ThrowReferenceError:
                 case UnifiedBytecodeOpCode.Break:
                 case UnifiedBytecodeOpCode.Continue:
                 case UnifiedBytecodeOpCode.EnterTry:

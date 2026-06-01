@@ -2462,7 +2462,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readLiteral",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readDynamic(box) {

@@ -7103,6 +7103,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ObjectLiteralSpreadNamedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readLiteral(box) {
+                return { ...box }.value;
+            }
+
+            readLiteral({ value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readLiteral argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ObjectLiteralSpread_PreservesOverwriteOrder_OnFastPath()
     {
         await using var engine = CreateEngine();

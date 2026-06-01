@@ -1053,6 +1053,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryObjectLiteralNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1811,6 +1816,38 @@ internal static class UnifiedBytecodeProductionEligibility
             if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
                 operation.IsOptional ||
                 operation.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryIsFirstBoundaryObjectLiteralNamedPropertyReadCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (!TryMeasureSimpleObjectLiteralSpan(
+                program,
+                startIndex: 0,
+                identifierConstants,
+                activationSlots,
+                out var objectSpanLength) ||
+            objectSpanLength >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        for (var index = objectSpanLength; index < program.OperationCount; index++)
+        {
+            var operation = program.GetOperation(index);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget ||
+                operation.GetString(stringConstants).IsPrivateName())
             {
                 return false;
             }

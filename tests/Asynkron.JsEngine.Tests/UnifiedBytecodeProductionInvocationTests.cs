@@ -402,7 +402,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleGeneratorYieldStar_DeclinesResumableUnifiedBytecodeFastPath()
+    public async Task SimpleGeneratorYieldStar_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -421,14 +421,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.False(steps.Items[1].AsBoolean());
         Assert.Equal(Symbol.Undefined, steps.Items[2]);
         Assert.True(steps.Items[3].AsBoolean());
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-generator-fast-path func=relay",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleGeneratorYieldStar_ReturnDelegatesThroughIrAfterResumableDecline()
+    public async Task SimpleGeneratorYieldStar_ReturnDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -464,14 +464,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal("closed:stop", steps.Items[2].AsString());
         Assert.True(steps.Items[3].AsBoolean());
         Assert.Equal("next,return:stop", steps.Items[4].AsString());
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-generator-fast-path func=outer",
                 StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleGeneratorYieldStar_ThrowDelegatesThroughIrAfterResumableDecline()
+    public async Task SimpleGeneratorYieldStar_ThrowDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -507,7 +507,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal("handled:boom", steps.Items[2].AsString());
         Assert.True(steps.Items[3].AsBoolean());
         Assert.Equal("next,throw:boom", steps.Items[4].AsString());
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-generator-fast-path func=outer",
                 StringComparison.Ordinal));

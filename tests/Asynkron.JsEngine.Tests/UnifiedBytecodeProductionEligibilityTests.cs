@@ -105,7 +105,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_YieldStar_DeclinesUntilDelegatedAbruptResumeIsModeled()
+    public void EvaluateResumable_YieldStar_AcceptsAfterDelegatedAbruptResumeIsModeled()
     {
         var plan = GetFunctionPlan("""
             function* gen(values) {
@@ -118,9 +118,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("YieldStar", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
     }
 
     [Fact]

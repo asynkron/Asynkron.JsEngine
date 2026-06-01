@@ -2732,27 +2732,80 @@ internal static class UnifiedBytecodeVirtualMachine
                     state.ResumePayload = JsValue.Undefined;
                     if (delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Throw)
                     {
-                        state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
-                            UnifiedBytecodeAbruptCompletionKind.Throw,
-                            delegatedResumePayload,
-                            Target: -1,
-                            ResumeTarget: programCounter,
-                            OriginatedInFinally: false);
-                        state.IsCompleted = true;
-                        return UnifiedBytecodeStepResult.Throw(delegatedResumePayload);
+                        if (!TryResumeYieldStarAbrupt(
+                                yieldStarState,
+                                "throw",
+                                delegatedResumePayload,
+                                context,
+                                out var throwResumeValue,
+                                out var throwResumeDone,
+                                out var throwMethodMissing))
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (throwMethodMissing)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                                "The iterator does not provide a 'throw' method.",
+                                context,
+                                context.RealmState));
+                        }
+
+                        if (throwResumeDone)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            if (yieldStarDescriptor.ValueSlot >= 0)
+                            {
+                                slots[yieldStarDescriptor.ValueSlot] = throwResumeValue;
+                            }
+
+                            programCounter++;
+                            break;
+                        }
+
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        return UnifiedBytecodeStepResult.Yield(throwResumeValue);
                     }
 
                     if (delegatedResumeKind == UnifiedBytecodeResumePayloadKind.Return)
                     {
-                        CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
-                        state.PendingAbruptCompletion = new UnifiedBytecodePendingAbruptCompletion(
-                            UnifiedBytecodeAbruptCompletionKind.Return,
-                            delegatedResumePayload,
-                            Target: -1,
-                            ResumeTarget: programCounter,
-                            OriginatedInFinally: false);
-                        state.IsCompleted = true;
-                        return UnifiedBytecodeStepResult.Completed(delegatedResumePayload);
+                        if (!TryResumeYieldStarAbrupt(
+                                yieldStarState,
+                                "return",
+                                delegatedResumePayload,
+                                context,
+                                out var returnResumeValue,
+                                out var returnResumeDone,
+                                out var returnMethodMissing))
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (returnMethodMissing)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Completed(delegatedResumePayload);
+                        }
+
+                        if (returnResumeDone)
+                        {
+                            CompleteIteratorDriverState(yieldStarDescriptor.StateSlot, slots, null, yieldStarState);
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Completed(returnResumeValue);
+                        }
+
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        return UnifiedBytecodeStepResult.Yield(returnResumeValue);
                     }
 
                     if (!TryReadIteratorNextValue(
@@ -3520,6 +3573,125 @@ internal static class UnifiedBytecodeVirtualMachine
         value = JsValue.Undefined;
         done = true;
         return true;
+    }
+
+    private static bool TryResumeYieldStarAbrupt(
+        IteratorDriverState state,
+        string methodName,
+        JsValue argument,
+        EvaluationContext context,
+        out JsValue value,
+        out bool done,
+        out bool methodMissing)
+    {
+        value = JsValue.Undefined;
+        done = true;
+        methodMissing = false;
+
+        if (state.IteratorObject is not { } iterator)
+        {
+            methodMissing = true;
+            return true;
+        }
+
+        if (!TryInvokeIteratorMethod(
+                iterator,
+                methodName,
+                argument,
+                context,
+                out var result,
+                out methodMissing))
+        {
+            return false;
+        }
+
+        if (methodMissing)
+        {
+            if (methodName == "throw")
+            {
+                try
+                {
+                    iterator.IteratorClose(context);
+                }
+                catch (ThrowSignal signal)
+                {
+                    context.SetThrow(signal.ThrownValue);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (!result.TryGetObject<IJsPropertyAccessor>(out var resultObject))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Iterator result is not an object",
+                context,
+                context.RealmState));
+            return false;
+        }
+
+        done = resultObject.TryGetProperty("done", out var doneValue) &&
+               JsOps.ToBoolean(doneValue);
+        value = resultObject.TryGetProperty("value", out var resultValue)
+            ? resultValue
+            : JsValue.Undefined;
+
+        if (resultObject is IteratorResultObject poolableResult)
+        {
+            IteratorResultObjectPool.Return(poolableResult);
+        }
+
+        return true;
+    }
+
+    private static bool TryInvokeIteratorMethod(
+        IJsObjectLike iterator,
+        string methodName,
+        JsValue argument,
+        EvaluationContext context,
+        out JsValue result,
+        out bool methodMissing)
+    {
+        result = JsValue.Undefined;
+        methodMissing = false;
+
+        try
+        {
+            if (!iterator.TryGetProperty(methodName, out var methodValue) ||
+                methodValue.IsNullish)
+            {
+                methodMissing = true;
+                return true;
+            }
+
+            if (!methodValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                context.SetThrow(StandardLibrary.CreateTypeError(
+                    "Iterator method is not callable",
+                    context,
+                    context.RealmState));
+                return false;
+            }
+
+            result = TypedAstEvaluator.InvokeCallableSingleArg(
+                callable,
+                argument,
+                JsValue.FromObjectUnsafe(iterator),
+                context);
+            if (context.IsThrow)
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return false;
+        }
     }
 
     private static int MoveForInNext(

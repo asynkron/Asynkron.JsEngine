@@ -579,15 +579,12 @@ internal static class UnifiedBytecodeProductionEligibility
             case ReturnInstruction { AwaitedProgram: null }:
             case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } }:
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } or null }:
+            case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } }:
             case AwaitAndDiscardInstruction:
             case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
                 declineReason = string.Empty;
                 return true;
-            case YieldStarInstruction:
-                declineReason =
-                    "YieldStar is not eligible for resumable unified bytecode routing until delegated return/throw is modeled.";
-                return false;
             default:
                 declineReason =
                     $"Instruction '{instruction.GetType().Name}' is not eligible for resumable unified bytecode routing.";

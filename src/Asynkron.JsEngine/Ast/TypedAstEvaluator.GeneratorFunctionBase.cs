@@ -28,7 +28,7 @@ public static partial class TypedAstEvaluator
         FunctionExecutionPlanSeed planSeed)
         : IJsCallable, IJsObjectLike, IPropertyDefinitionHost,
             IExtensibilityControl,
-            IFunctionNameTarget, ICallableMetadata
+            IFunctionNameTarget, ICallableMetadata, IHomeObjectConfigurableCallable
     {
         private protected readonly JsEnvironment _closure = closure;
         private protected readonly FunctionExpression _function = function;

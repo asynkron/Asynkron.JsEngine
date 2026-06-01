@@ -58,10 +58,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeExpressionOpCompilerGapNames =
     [
-        "DefineComputedObjectAccessor",
-        "DefineComputedObjectMethod",
-        "DefineObjectAccessor",
-        "DefineObjectMethod",
         "GetComputedSuperProperty",
         "GetNamedSuperProperty",
         "SetComputedSuperProperty",

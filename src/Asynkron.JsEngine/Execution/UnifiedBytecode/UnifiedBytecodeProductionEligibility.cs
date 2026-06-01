@@ -1466,10 +1466,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.DefineComputedObjectMethod:
                 case ExpressionOpKind.DefineObjectAccessor:
                 case ExpressionOpKind.DefineComputedObjectAccessor:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                    declineReason =
-                        "Object methods and object accessors are not eligible for production unified bytecode routing.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.ObjectSpread:
                     if (operationIndex > 0 &&
@@ -4282,6 +4279,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.CreateObject:
                 case UnifiedBytecodeOpCode.DefineObjectProperty:
                 case UnifiedBytecodeOpCode.DefineComputedObjectProperty:
+                case UnifiedBytecodeOpCode.DefineObjectMethod:
+                case UnifiedBytecodeOpCode.DefineComputedObjectMethod:
+                case UnifiedBytecodeOpCode.DefineObjectAccessor:
+                case UnifiedBytecodeOpCode.DefineComputedObjectAccessor:
                 case UnifiedBytecodeOpCode.ObjectSpread:
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:

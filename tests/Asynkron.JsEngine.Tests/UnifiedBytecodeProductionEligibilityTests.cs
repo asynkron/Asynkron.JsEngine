@@ -1941,31 +1941,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             return { value() { return 1; } };
         }
         """,
-        "methodObject")]
+        "methodObject",
+        (int)UnifiedBytecodeOpCode.DefineObjectMethod,
+        false)]
     [InlineData(
         """
         function accessorObject() {
             return { get value() { return 1; } };
         }
         """,
-        "accessorObject")]
+        "accessorObject",
+        (int)UnifiedBytecodeOpCode.DefineObjectAccessor,
+        true)]
     [InlineData(
         """
         function computedMethodObject(key) {
             return { [key]() { return 1; } };
         }
         """,
-        "computedMethodObject")]
+        "computedMethodObject",
+        (int)UnifiedBytecodeOpCode.DefineComputedObjectMethod,
+        false)]
     [InlineData(
         """
         function computedAccessorObject(key) {
             return { get [key]() { return 1; } };
         }
         """,
-        "computedAccessorObject")]
-    public void Evaluate_ExcludedLiteralConstructionShapes_DeclineWithExplicitCode(
+        "computedAccessorObject",
+        (int)UnifiedBytecodeOpCode.DefineComputedObjectAccessor,
+        true)]
+    public void Evaluate_ObjectMethodAndAccessorLiteralShapes_AcceptAndVmDefinesProperty(
         string source,
-        string functionName)
+        string functionName,
+        int expectedOpcode,
+        bool isAccessor)
     {
         var plan = GetFunctionPlan(source, functionName);
 
@@ -1973,9 +1983,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
-        Assert.NotEmpty(result.Reason);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => (int)instruction.OpCode == expectedOpcode);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        if (result.Program.SlotNames.IndexOf("key") >= 0)
+        {
+            SetSlot(result.Program, slots, "key", JsValue.FromString("value"));
+        }
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        var obj = Assert.IsType<JsObject>(vmResult.ObjectValue);
+        var descriptor = obj.GetOwnPropertyDescriptor("value");
+        Assert.NotNull(descriptor);
+        if (isAccessor)
+        {
+            Assert.True(descriptor!.IsAccessorDescriptor);
+            Assert.NotNull(descriptor.Get);
+        }
+        else
+        {
+            Assert.True(descriptor!.JsValue.TryGetObject<IJsCallable>(out _));
+            Assert.True(descriptor.Writable);
+        }
     }
 
     [Theory]

@@ -1357,6 +1357,89 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DefineObjectMethod:
+                    var methodValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var methodObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object method unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralMethod(
+                        methodObjectLiteralTarget,
+                        program.StringConstants[instruction.Operand],
+                        methodValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectMethod:
+                    var computedMethodValue = stack[--stackPointer];
+                    var computedMethodKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedMethodObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object method unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedMethodName = JsOps.GetRequiredPropertyName(computedMethodKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    DefineObjectLiteralMethod(computedMethodObjectLiteralTarget, computedMethodName, computedMethodValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineObjectAccessor:
+                    var accessorValue = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var accessorObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Object accessor unified bytecode op requires an object receiver.");
+                    }
+
+                    DefineObjectLiteralAccessor(
+                        accessorObjectLiteralTarget,
+                        program.StringConstants[DecodeObjectAccessorNameOperand(instruction.Operand)],
+                        DecodeObjectAccessorKind(instruction.Operand),
+                        accessorValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DefineComputedObjectAccessor:
+                    var computedAccessorValue = stack[--stackPointer];
+                    var computedAccessorKey = stack[--stackPointer];
+                    if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var computedAccessorObjectLiteralTarget))
+                    {
+                        throw new InvalidOperationException(
+                            "Computed object accessor unified bytecode op requires an object receiver.");
+                    }
+
+                    var computedAccessorName = JsOps.GetRequiredPropertyName(computedAccessorKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    DefineObjectLiteralAccessor(
+                        computedAccessorObjectLiteralTarget,
+                        computedAccessorName,
+                        DecodeObjectAccessorKind(instruction.Operand),
+                        computedAccessorValue);
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.ObjectSpread:
                     var objectSpreadValue = stack[--stackPointer];
                     if (!stack[stackPointer - 1].TryGetObject<JsObject>(out var objectSpreadTarget))
@@ -5704,6 +5787,96 @@ internal static class UnifiedBytecodeVirtualMachine
         targetObject.DefineDefaultDataProperty(propertyName, propertyValue);
     }
 
+    private static void DefineObjectLiteralMethod(
+        JsObject targetObject,
+        string propertyName,
+        JsValue methodValue)
+    {
+        ConfigureObjectLiteralCallable(targetObject, propertyName, methodValue, accessorKind: null);
+        targetObject.DefineProperty(propertyName,
+            new PropertyDescriptor
+            {
+                JsValue = methodValue,
+                Writable = true,
+                Enumerable = true,
+                Configurable = true
+            });
+    }
+
+    private static void DefineObjectLiteralAccessor(
+        JsObject targetObject,
+        string propertyName,
+        ObjectAccessorKind accessorKind,
+        JsValue accessorValue)
+    {
+        var callable = ConfigureObjectLiteralCallable(
+            targetObject,
+            propertyName,
+            accessorValue,
+            accessorKind);
+
+        DefineAccessorProperty(
+            targetObject,
+            propertyName,
+            accessorKind == ObjectAccessorKind.Getter ? callable : null,
+            accessorKind == ObjectAccessorKind.Setter ? callable : null);
+    }
+
+    private static void DefineAccessorProperty(
+        JsObject targetObject,
+        string propertyName,
+        IJsCallable? getter,
+        IJsCallable? setter)
+    {
+        var descriptor = targetObject.GetOwnPropertyDescriptor(propertyName) ??
+                         new PropertyDescriptor { Enumerable = true, Configurable = true };
+
+        descriptor.Get = getter ?? descriptor.Get;
+        descriptor.Set = setter ?? descriptor.Set;
+        targetObject.DefineProperty(propertyName, descriptor);
+    }
+
+    private static IJsCallable ConfigureObjectLiteralCallable(
+        JsObject targetObject,
+        string propertyName,
+        JsValue callableValue,
+        ObjectAccessorKind? accessorKind)
+    {
+        if (!callableValue.TryGetObject<IJsCallable>(out var callable))
+        {
+            throw new InvalidOperationException("Object literal function members require a callable value.");
+        }
+
+        if (callable is IHomeObjectConfigurableCallable homeObjectConfigurable)
+        {
+            homeObjectConfigurable.SetHomeObject(targetObject);
+            homeObjectConfigurable.DisableConstruction();
+        }
+
+        if (callable is TypedAstEvaluator.IFunctionNameTarget nameTarget)
+        {
+            var displayName = accessorKind switch
+            {
+                ObjectAccessorKind.Getter => $"get {BuildFunctionNameDisplay(propertyName)}",
+                ObjectAccessorKind.Setter => $"set {BuildFunctionNameDisplay(propertyName)}",
+                _ => BuildFunctionNameDisplay(propertyName)
+            };
+            nameTarget.EnsureHasName(displayName);
+        }
+
+        return callable;
+    }
+
+    private static string BuildFunctionNameDisplay(string propertyName)
+    {
+        if (JsSymbol.TryGetByInternalKey(propertyName, out var symbol))
+        {
+            return symbol!.Description is null ? string.Empty : $"[{symbol.Description}]";
+        }
+
+        return propertyName;
+    }
+
     private static void ApplyObjectLiteralSpread(
         JsObject targetObject,
         JsValue spreadValue,
@@ -5891,6 +6064,11 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool DecodeDefineObjectPropertyIsKnownNewProperty(int operand) =>
         (operand & DefineObjectPropertyKnownNewPropertyFlag) != 0;
+
+    private static int DecodeObjectAccessorNameOperand(int operand) => operand >> 1;
+
+    private static ObjectAccessorKind DecodeObjectAccessorKind(int operand) =>
+        (operand & 1) == 0 ? ObjectAccessorKind.Getter : ObjectAccessorKind.Setter;
 
     private static bool DecodeIsIncrement(int operand) => (operand & 1) != 0;
 

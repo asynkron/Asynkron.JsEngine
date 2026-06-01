@@ -18,7 +18,7 @@ public static partial class TypedAstEvaluator
 {
     public sealed partial class SyncFunctionInvoker : IJsEnvironmentAwareCallable, IJsObjectLike,
         ICallableMetadata, IFunctionNameTarget, IPrivateBrandHolder, IPropertyDefinitionHost,
-        IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue
+        IExtensibilityControl, IPrototypeAccessorProvider, IAsJsValue, IHomeObjectConfigurableCallable
     {
         private static readonly ObjectPool<HashSet<Symbol>> SymbolSetPool = new(32,
             static () => new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance));

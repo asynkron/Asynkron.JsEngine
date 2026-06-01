@@ -3993,6 +3993,32 @@ internal static class UnifiedBytecodeCompiler
                         operation.AllowNameInference ? DefineObjectPropertyAllowNameInferenceFlag : 0));
                     break;
 
+                case ExpressionOpKind.DefineObjectMethod:
+                    var methodNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectMethod,
+                        methodNameIndex));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectMethod:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectMethod));
+                    break;
+
+                case ExpressionOpKind.DefineObjectAccessor:
+                    var accessorNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineObjectAccessor,
+                        EncodeObjectAccessorOperand(accessorNameIndex, operation.AccessorKind)));
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectAccessor:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.DefineComputedObjectAccessor,
+                        EncodeObjectAccessorOperand(0, operation.AccessorKind)));
+                    break;
+
                 case ExpressionOpKind.ObjectSpread:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ObjectSpread));
                     break;
@@ -7717,6 +7743,9 @@ internal static class UnifiedBytecodeCompiler
 
         return (stringConstantIndex << 3) | flags;
     }
+
+    private static int EncodeObjectAccessorOperand(int stringConstantIndex, ObjectAccessorKind accessorKind) =>
+        (stringConstantIndex << 1) | (accessorKind == ObjectAccessorKind.Setter ? 1 : 0);
 
     private static int EncodeUpdateFlags(PackedExpressionOp update)
     {

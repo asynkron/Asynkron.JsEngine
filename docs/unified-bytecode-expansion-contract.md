@@ -72,15 +72,13 @@ statement interpretation.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
-  reads/writes/updates, object methods/accessors,
-  super property reads/writes/updates, generic call-target stack shuffles, and
+  reads/writes/updates, super property reads/writes/updates,
+  generic call-target stack shuffles, and
   some call/reference helpers remain outside general unified bytecode lowering.
 - The current `ExpressionOpKind` names with no unified compiler reference are
-  `DefineComputedObjectAccessor`, `DefineComputedObjectMethod`,
-  `DefineObjectAccessor`, `DefineObjectMethod`, `GetComputedSuperProperty`,
-  `GetNamedSuperProperty`, `SetComputedSuperProperty`,
-  `SetNamedSuperProperty`, `UpdateComputedSuperProperty`, and
-  `UpdateNamedSuperProperty`.
+  `GetComputedSuperProperty`, `GetNamedSuperProperty`,
+  `SetComputedSuperProperty`, `SetNamedSuperProperty`,
+  `UpdateComputedSuperProperty`, and `UpdateNamedSuperProperty`.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
   shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
@@ -155,6 +153,10 @@ statement interpretation.
 - `CreateObject`
 - `DefineObjectProperty`
 - `DefineComputedObjectProperty`
+- `DefineObjectMethod`
+- `DefineComputedObjectMethod`
+- `DefineObjectAccessor`
+- `DefineComputedObjectAccessor`
 - `ObjectSpread`
 - `Jump`
 - `JumpWithDriverCleanup`

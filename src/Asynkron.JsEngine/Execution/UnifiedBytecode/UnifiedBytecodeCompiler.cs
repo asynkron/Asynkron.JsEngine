@@ -3794,32 +3794,32 @@ internal static class UnifiedBytecodeCompiler
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadIdentifier:
+                    var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
+                    {
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
+                        break;
+                    }
+
                     if (operation.IsArguments)
                     {
                         reason = "arguments is not supported.";
                         return false;
                     }
 
-                    var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (!TryResolveActivationSlot(identifier, slotLayout, out var slotIndex))
+                    if (!allowsDynamicIdentifiers &&
+                        !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
                     {
-                        if (!allowsDynamicIdentifiers &&
-                            !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
-                        {
-                            reason =
-                                $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
-                            return false;
-                        }
-
-                        var identifierNameIndex = stringConstants.Count;
-                        stringConstants.Add(identifier.Name.Name ?? string.Empty);
-                        unified.Add(new UnifiedBytecodeInstruction(
-                            UnifiedBytecodeOpCode.LoadDynamicIdentifier,
-                            identifierNameIndex));
-                        break;
+                        reason =
+                            $"Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                        return false;
                     }
 
-                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
+                    var identifierNameIndex = stringConstants.Count;
+                    stringConstants.Add(identifier.Name.Name ?? string.Empty);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                        identifierNameIndex));
                     break;
 
                 case ExpressionOpKind.ResolveIdentifierReference:

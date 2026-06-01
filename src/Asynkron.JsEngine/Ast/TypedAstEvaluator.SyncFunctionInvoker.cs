@@ -3325,6 +3325,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     hasUnprovenDynamicActivation,
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
+                    _argumentsObjectNeeded &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,

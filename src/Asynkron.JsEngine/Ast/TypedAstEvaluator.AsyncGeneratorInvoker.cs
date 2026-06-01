@@ -16,9 +16,16 @@ public static partial class TypedAstEvaluator
         [NotNullWhen(true)] out IJsCallable? resolve,
         [NotNullWhen(true)] out IJsCallable? reject)
     {
-        resolve = execArgs.GetOrDefault<IJsCallable>(0);
-        reject = execArgs.GetOrDefault<IJsCallable>(1);
-        return resolve is not null && reject is not null;
+        if (execArgs.Count < 2 ||
+            !execArgs[0].TryUnwrap(out resolve) ||
+            !execArgs[1].TryUnwrap(out reject))
+        {
+            resolve = null;
+            reject = null;
+            return false;
+        }
+
+        return true;
     }
 
     private sealed class AsyncGeneratorInvoker(

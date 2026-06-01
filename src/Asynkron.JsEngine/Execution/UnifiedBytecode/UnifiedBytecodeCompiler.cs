@@ -112,6 +112,7 @@ internal static class UnifiedBytecodeCompiler
         var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
         var catchDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeCatchDescriptor>();
         var driverDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeDriverDescriptor>();
+        var bindingTargetConstants = ImmutableArray.CreateBuilder<BindingTargetProgram>();
         var instructionPcMap = new Dictionary<int, int>();
         var activeInstructions = new HashSet<int>();
         var activeScopes = new Stack<UnifiedBytecodeScopeFrame>();
@@ -139,6 +140,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -168,7 +170,10 @@ internal static class UnifiedBytecodeCompiler
                 : functionLiteralConstants.ToImmutable(),
             classLiteralConstants.Count == 0
                 ? ImmutableArray<ClassExpression>.Empty
-                : classLiteralConstants.ToImmutable());
+                : classLiteralConstants.ToImmutable(),
+            bindingTargetConstants.Count == 0
+                ? ImmutableArray<BindingTargetProgram>.Empty
+                : bindingTargetConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -519,6 +524,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ImmutableArray<BindingTargetProgram>.Builder bindingTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -615,7 +621,8 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
-                                    out reason))
+                                    out reason,
+                                    bindingTargetConstants))
                             {
                                 return false;
                             }
@@ -647,7 +654,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -700,7 +708,8 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
-                                    out reason))
+                                    out reason,
+                                    bindingTargetConstants))
                             {
                                 return false;
                             }
@@ -738,7 +747,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -797,7 +807,8 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
-                                    out reason))
+                                    out reason,
+                                    bindingTargetConstants))
                             {
                                 return false;
                             }
@@ -839,7 +850,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -896,7 +908,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1037,7 +1050,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1119,7 +1133,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1173,6 +1188,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             ref maxStackDepth,
                             out reason);
 
@@ -1245,7 +1261,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1297,6 +1314,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             ref maxStackDepth,
                             out reason);
 
@@ -1322,7 +1340,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1494,7 +1513,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1668,6 +1688,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             UnifiedBytecodeOpCode.Jump,
                             ref maxStackDepth,
                             out reason);
@@ -1692,6 +1713,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             UnifiedBytecodeOpCode.Break,
                             ref maxStackDepth,
                             out reason);
@@ -1716,6 +1738,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             UnifiedBytecodeOpCode.Continue,
                             ref maxStackDepth,
                             out reason);
@@ -1755,6 +1778,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             ref maxStackDepth,
                             out reason);
 
@@ -1802,6 +1826,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             UnifiedBytecodeOpCode.LeaveTry,
                             ref maxStackDepth,
                             out reason);
@@ -1826,6 +1851,7 @@ internal static class UnifiedBytecodeCompiler
                             tryDescriptors,
                             catchDescriptors,
                             driverDescriptors,
+                            bindingTargetConstants,
                             UnifiedBytecodeOpCode.EndFinally,
                             ref maxStackDepth,
                             out reason);
@@ -1878,7 +1904,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1921,6 +1948,7 @@ internal static class UnifiedBytecodeCompiler
                                      tryDescriptors,
                                      catchDescriptors,
                                      driverDescriptors,
+                                     bindingTargetConstants,
                                      ref maxStackDepth,
                                      out reason))
                         {
@@ -1945,6 +1973,7 @@ internal static class UnifiedBytecodeCompiler
                                 tryDescriptors,
                                 catchDescriptors,
                                 driverDescriptors,
+                                bindingTargetConstants,
                                 ref maxStackDepth,
                                 out reason))
                         {
@@ -1965,7 +1994,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -1991,7 +2021,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2012,7 +2043,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2045,7 +2077,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2125,7 +2158,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2189,7 +2223,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2210,7 +2245,8 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
-                                out reason))
+                                out reason,
+                                bindingTargetConstants))
                         {
                             return false;
                         }
@@ -2271,6 +2307,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ImmutableArray<BindingTargetProgram>.Builder bindingTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -2310,6 +2347,7 @@ internal static class UnifiedBytecodeCompiler
             tryDescriptors,
             catchDescriptors,
             driverDescriptors,
+            bindingTargetConstants,
             ref maxStackDepth,
             out reason);
     }
@@ -2332,6 +2370,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ImmutableArray<BindingTargetProgram>.Builder bindingTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -2357,6 +2396,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2382,6 +2422,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2407,6 +2448,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2511,6 +2553,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ImmutableArray<BindingTargetProgram>.Builder bindingTargetConstants,
         ref int maxStackDepth,
         out string reason)
     {
@@ -2554,6 +2597,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2578,6 +2622,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -2608,6 +2653,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
         ImmutableArray<UnifiedBytecodeDriverDescriptor>.Builder driverDescriptors,
+        ImmutableArray<BindingTargetProgram>.Builder bindingTargetConstants,
         UnifiedBytecodeOpCode jumpOpCode,
         ref int maxStackDepth,
         out string reason)
@@ -2669,6 +2715,7 @@ internal static class UnifiedBytecodeCompiler
                 tryDescriptors,
                 catchDescriptors,
                 driverDescriptors,
+                bindingTargetConstants,
                 ref maxStackDepth,
                 out reason))
         {
@@ -3179,7 +3226,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
-        out string reason)
+        out string reason,
+        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
         var activationSlots = slotLayout.ActivationSlots;
         if (TryAppendFirstBoundaryCallTargetPreparation(
@@ -3750,6 +3798,25 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.Pop:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+                    break;
+
+                case ExpressionOpKind.DuplicateTop:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                    break;
+
+                case ExpressionOpKind.ApplyBindingTarget:
+                    if (bindingTargetConstants is null)
+                    {
+                        reason = "Binding-target expressions are not available in this unified bytecode compilation context.";
+                        return false;
+                    }
+
+                    var bindingTargetIndex = bindingTargetConstants.Count;
+                    bindingTargetConstants.Add(operation.GetObject<BindingTargetProgram>(
+                        expressionProgram.ObjectConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ApplyBindingTarget,
+                        bindingTargetIndex));
                     break;
 
                 case ExpressionOpKind.Binary when IsSupportedBinaryOperator(operation.Operator):
@@ -7480,7 +7547,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
-        out string reason)
+        out string reason,
+        ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
         if (declaration.VarKind != VariableKind.Var ||
             declaration.TargetSymbol is not { } targetSymbol ||
@@ -7504,7 +7572,8 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
-                out reason))
+                out reason,
+                bindingTargetConstants))
         {
             return false;
         }

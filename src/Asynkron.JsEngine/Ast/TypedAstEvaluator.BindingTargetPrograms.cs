@@ -45,6 +45,26 @@ public static partial class TypedAstEvaluator
             skipBlockedBindingLookup);
     }
 
+    internal static void ApplyLoweredAssignmentBindingTargetProgram(
+        BindingTargetProgram target,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool hasInitializer = true,
+        bool allowNameInference = true,
+        bool skipBlockedBindingLookup = false)
+    {
+        ExecutionPlanRunner.ApplyStandaloneBindingTargetProgram(
+            target,
+            value,
+            environment,
+            context,
+            BindingMode.Assign,
+            hasInitializer,
+            allowNameInference,
+            skipBlockedBindingLookup);
+    }
+
     private sealed class BindingTargetProgramCache
     {
         private BindingTargetProgramCache(

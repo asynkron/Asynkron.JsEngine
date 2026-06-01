@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-05-31
+Date: 2026-06-01
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -17,6 +17,10 @@ Scope: Shared contract for parallel unified-bytecode lane work.
 Production-eligible unified programs are all-or-nothing VM execution. Accepted
 programs must execute fully in `UnifiedBytecodeVirtualMachine` and must not
 fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
+The bounded `ApplyBindingTarget` bridge is the current exception: the VM owns
+dispatch and operand state, then applies an already-lowered `BindingTargetProgram`
+for assignment destructuring parity instead of falling back to expression or
+statement interpretation.
 
 ## Ordinary Sync Routing Boundary
 - Ordinary sync invocation keeps the dedicated simple-return binary and
@@ -75,6 +79,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `UnaryBitwiseNot`
 - `UnaryVoid`
 - `ToString`
+- `DuplicateTop`
 - `SwapTopTwo`
 - `Pop`
 - `CreateArray`
@@ -138,6 +143,7 @@ fallback into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluators.
 - `AwaitedReturn`
 - `YieldStar`
 - `LoadClassLiteral`
+- `ApplyBindingTarget`
 - `EnsureHasName`
 
 ### Production Decline Families (current)
@@ -209,7 +215,7 @@ must still obey the no-mixed-execution rule.
 | `ObjectLiteralOrSpreadDependency` | Object methods/accessors, non-simple object spread sources, unsupported array spread, and spread construct arguments | Existing sync IR literal/spread route | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and `#name in obj` represented as named-property or private-field ops | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
-| `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, expression-level `ApplyBindingTarget`, computed/default/nested destructuring | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
+| `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, computed/default/nested declaration destructuring, and destructuring targets outside the admitted driver or descriptor-backed assignment lanes | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
 | `BreakOrContinueControlFlow` | Historical taxonomy member for the pre-ADR 0253 blanket break/continue decline; currently no ordinary sync site should produce it | Existing IR loop-control route if reintroduced | Loop-control guard lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_YieldStar_DeclinesUntilDelegatedAbruptResumeIsModeled"` |
@@ -514,9 +520,16 @@ the final post-compile production subset check before VM entry.
   effects preserved), and a trailing rest target collects the remaining own
   enumerable keys minus the consumed ones. Abrupt completion (a non-coercible
   source or a throwing getter) closes the VM-owned driver state.
+- Accepted expression-level assignment destructuring shapes that lower through
+  `ApplyBindingTarget` are admitted through a descriptor-backed
+  `BindingTargetProgram` constant. The production VM duplicates the assignment
+  RHS per expression bytecode stack semantics, applies the binding target in
+  `BindingMode.Assign`, and syncs unified slots with the activation environment
+  before and after the bridge so existing computed-key, default, rest, nested,
+  TDZ, and iterator-closing semantics stay centralized.
 - Object destructuring with computed/dynamic keys, defaults, nested patterns,
-  or rest targets that cannot resolve to unified slots, expression-level
-  `ApplyBindingTarget` destructuring, async iterator drivers, awaited driver
+  or rest targets that cannot resolve to unified slots outside the
+  descriptor-backed assignment lane, async iterator drivers, awaited driver
   sources, dynamic-name shapes, and targets that cannot resolve to unified
   slots still decline before VM execution. Sync-driver TDZ head environments
   are now admitted (Slice A, #2678); async-kind and awaited-source TDZ heads
@@ -583,6 +596,12 @@ support today.
   still decline with `DestructuringDependency`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.
+- `ExpressionOpKind.ApplyBindingTarget` is eligible for ordinary sync
+  production assignment destructuring when the expression compiler can lift the
+  lowered `BindingTargetProgram` into the unified program descriptor table.
+  This lane preserves existing binding-target semantics as a bridge; it does
+  not make generic binding declarations or unsupported destructuring driver
+  shapes production-eligible.
 - Decision for this lane: model-first. Any future widening must preserve
   explicit driver-state descriptors and pre-VM declines for shapes that would
   require mixed IR/AST execution.
@@ -616,10 +635,11 @@ support today.
    boundary and must decline before VM execution.
 3. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
-   no defaults/nested patterns, optional identifier rest). Object destructuring
-   with computed/dynamic-name keys, defaults, or nested patterns,
-   expression-level `ApplyBindingTarget` destructuring, and targets that cannot
-   resolve to unified slots remain outside the admitted boundary
+   no defaults/nested patterns, optional identifier rest), and expression-level
+   assignment destructuring that lowers through `ApplyBindingTarget` is admitted
+   through the descriptor-backed binding-target bridge. Generic binding
+   declarations, unsupported driver shapes, and targets outside the direct-slot
+   or descriptor-backed assignment lanes remain outside the admitted boundary
    (`DestructuringDependency`).
 4. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name

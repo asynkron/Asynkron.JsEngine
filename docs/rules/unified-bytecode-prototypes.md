@@ -1560,7 +1560,11 @@ exposed delegated abrupt resume as a separate protocol boundary from simple
 `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-dc74ab36e4`
 / PR #2948 then reopened only the sync-generator lane after the VM delegated
 abrupt resume through the underlying iterator and proved `.return()`/`.throw()`
-on the resumable fast path.
+on the resumable fast path. Issue #2955 kept the async-generator lane declined
+with explicit tests for delegated `.return(value)` and `.throw(value)` staying
+on the IR async-generator path and producing no resumable unified-bytecode
+route log; future widening needs an async-generator VM bridge that owns promise
+queueing, async-iterator settlement, and delegated abrupt resume together.
 
 Faktorial issue
 `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`

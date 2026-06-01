@@ -81,6 +81,11 @@ Keep production resumable unified bytecode as a separate decline-first route.
   `ExecuteResumable` delegated `.return(value)` and `.throw(value)` through the
   underlying iterator, while keeping async-generator `yield*` and awaited
   delegated sources declined in the expansion contract.
+- Issue #2955 added focused async-generator `yield*` decline proof: delegated
+  async-generator `.return(value)` and `.throw(value)` stay correct through the
+  existing IR async-generator path and do not log a resumable unified-bytecode
+  fast path until an async-generator VM bridge owns promise queueing and
+  async-iterator settlement.
 - Focused sync-generator widening proof passed:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_YieldStar"`
   with 1 test passing, and

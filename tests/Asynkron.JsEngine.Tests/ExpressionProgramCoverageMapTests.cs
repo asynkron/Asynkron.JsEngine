@@ -49,6 +49,13 @@ public sealed class ExpressionProgramCoverageMapTests
         "prototype-guard:DefaultUnsupportedOpcode"
     ];
 
+    private static readonly string[] UnifiedBytecodeCompilerDeclinedInstructionNames =
+    [
+        "BindingVariableDeclarationInstruction",
+        "ClassDeclarationInstruction",
+        "FunctionDeclarationInstruction"
+    ];
+
     private sealed record ProductionUnifiedBytecodeProofPackShape(
         string Key,
         string ContractEvidenceText,
@@ -173,6 +180,49 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeCompiler_HandlesEveryDeclaredInstructionExceptDocumentedDeclines()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var instructionsPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "Instructions",
+            "Instructions.cs");
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(instructionsPath), $"Expected instruction source at '{instructionsPath}'.");
+        Assert.True(File.Exists(compilerPath), $"Expected compiler source at '{compilerPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var instructionsText = File.ReadAllText(instructionsPath);
+        var compilerText = File.ReadAllText(compilerPath);
+        var contractText = File.ReadAllText(contractPath);
+        var declaredInstructions = ExtractExecutionInstructionRecordNames(instructionsText);
+        var tryCompileBlockText = ExtractSourceSection(
+            compilerText,
+            "private static bool TryCompileBlock(",
+            "private static bool TryCompileTarget(");
+        var compiledInstructionCases = ExtractExecutionInstructionCases(tryCompileBlockText);
+        var expectedCompilerCases = declaredInstructions.Except(
+            UnifiedBytecodeCompilerDeclinedInstructionNames,
+            StringComparer.Ordinal);
+
+        AssertSameSet(expectedCompilerCases, compiledInstructionCases, "Unified bytecode compiler instruction cases");
+        foreach (var declinedInstructionName in UnifiedBytecodeCompilerDeclinedInstructionNames)
+        {
+            Assert.Contains($"`{declinedInstructionName}`", contractText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void UnifiedBytecodeProductionProofPack_CoversAdmittedOrdinarySyncBaseline()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -233,6 +283,35 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.True(
             pattern.IsMatch(sourceText),
             $"Production unified-bytecode proof pack shape '{shapeKey}' is missing proof method '{methodName}'.");
+    }
+
+    private static string[] ExtractExecutionInstructionRecordNames(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\binternal\s+sealed\s+record\s+(?<name>[A-Za-z0-9_]+Instruction)\b[\s\S]*?:\s*ExecutionInstruction\b",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+    }
+
+    private static string ExtractSourceSection(string sourceText, string startMarker, string endMarker)
+    {
+        var startIndex = sourceText.IndexOf(startMarker, StringComparison.Ordinal);
+        Assert.True(startIndex >= 0, $"Source text is missing start marker '{startMarker}'.");
+        var endIndex = sourceText.IndexOf(endMarker, startIndex + startMarker.Length, StringComparison.Ordinal);
+        Assert.True(endIndex >= 0, $"Source text is missing end marker '{endMarker}'.");
+        return sourceText.Substring(startIndex, endIndex - startIndex);
+    }
+
+    private static string[] ExtractExecutionInstructionCases(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bcase\s+(?<name>[A-Za-z0-9_]+Instruction)\b",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
     }
 
     private static string[] ExtractUnifiedBytecodeOpcodeCases(string sourceText)

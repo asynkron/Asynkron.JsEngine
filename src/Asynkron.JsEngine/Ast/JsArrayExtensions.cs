@@ -4,7 +4,7 @@ namespace Asynkron.JsEngine.Ast;
 
 public static partial class TypedAstEvaluator
 {
-    private static object CreateTemplateObject(this JsArray stringsArray, JsArray rawStringsArray)
+    internal static JsArray CreateTemplateObject(this JsArray stringsArray, JsArray rawStringsArray)
     {
         // Create template array object - it needs to be a JsArray for Array.isArray to work
         // Pass the RealmState to ensure the array has Array.prototype as its prototype

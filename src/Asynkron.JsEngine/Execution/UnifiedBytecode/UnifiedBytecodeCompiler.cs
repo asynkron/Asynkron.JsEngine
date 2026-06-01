@@ -108,6 +108,7 @@ internal static class UnifiedBytecodeCompiler
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
         var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
         var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
         var catchDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeCatchDescriptor>();
@@ -136,6 +137,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -173,7 +175,10 @@ internal static class UnifiedBytecodeCompiler
                 : classLiteralConstants.ToImmutable(),
             bindingTargetConstants.Count == 0
                 ? ImmutableArray<BindingTargetProgram>.Empty
-                : bindingTargetConstants.ToImmutable());
+                : bindingTargetConstants.ToImmutable(),
+            templateObjectConstants.Count == 0
+                ? ImmutableArray<TaggedTemplateDescriptor>.Empty
+                : templateObjectConstants.ToImmutable());
         reason = string.Empty;
         return true;
     }
@@ -520,6 +525,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -621,6 +627,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -654,6 +661,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -708,6 +716,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -747,6 +756,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -807,6 +817,7 @@ internal static class UnifiedBytecodeCompiler
                                     callTargetConstants,
                                     functionLiteralConstants,
                                     classLiteralConstants,
+                                    templateObjectConstants,
                                     out reason,
                                     bindingTargetConstants))
                             {
@@ -850,6 +861,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -908,6 +920,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1060,6 +1073,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1143,6 +1157,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1194,6 +1209,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1271,6 +1287,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1320,6 +1337,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1350,6 +1368,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1523,6 +1542,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1694,6 +1714,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1719,6 +1740,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1744,6 +1766,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1784,6 +1807,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1832,6 +1856,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1857,6 +1882,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
                             catchDescriptors,
@@ -1914,6 +1940,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -1954,6 +1981,7 @@ internal static class UnifiedBytecodeCompiler
                                      callTargetConstants,
                                      functionLiteralConstants,
                                      classLiteralConstants,
+                                     templateObjectConstants,
                                      scopeDescriptors,
                                      tryDescriptors,
                                      catchDescriptors,
@@ -1979,6 +2007,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 scopeDescriptors,
                                 tryDescriptors,
                                 catchDescriptors,
@@ -2004,6 +2033,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2031,6 +2061,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2053,6 +2084,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2087,6 +2119,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2168,6 +2201,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2233,6 +2267,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2255,6 +2290,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                templateObjectConstants,
                                 out reason,
                                 bindingTargetConstants))
                         {
@@ -2313,6 +2349,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2353,6 +2390,7 @@ internal static class UnifiedBytecodeCompiler
             callTargetConstants,
             functionLiteralConstants,
             classLiteralConstants,
+            templateObjectConstants,
             scopeDescriptors,
             tryDescriptors,
             catchDescriptors,
@@ -2376,6 +2414,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2402,6 +2441,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2428,6 +2468,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2454,6 +2495,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2559,6 +2601,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2603,6 +2646,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2628,6 +2672,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -2659,6 +2704,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
         ImmutableArray<UnifiedBytecodeCatchDescriptor>.Builder catchDescriptors,
@@ -2721,6 +2767,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
                 catchDescriptors,
@@ -3236,6 +3283,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
         ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
@@ -3250,6 +3298,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 out reason))
         {
             return true;
@@ -3708,6 +3757,15 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadImportMeta));
                     break;
 
+                case ExpressionOpKind.LoadTemplateObject:
+                    var templateObjectIndex = templateObjectConstants.Count;
+                    templateObjectConstants.Add(operation.GetObject<TaggedTemplateDescriptor>(
+                        expressionProgram.ObjectConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadTemplateObject,
+                        templateObjectIndex));
+                    break;
+
                 case ExpressionOpKind.LoadLiteral:
                     var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
                     var literalIndex = literalConstants.Count;
@@ -4052,6 +4110,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason)
     {
         reason = string.Empty;
@@ -7589,6 +7648,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         out string reason,
         ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
@@ -7614,6 +7674,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                templateObjectConstants,
                 out reason,
                 bindingTargetConstants))
         {

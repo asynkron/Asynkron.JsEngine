@@ -12,6 +12,7 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadThis,
     LoadNewTarget,
     LoadImportMeta,
+    LoadTemplateObject,
     LoadLiteral,
     LoadRegexLiteral,
     StoreSlot,
@@ -283,4 +284,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
     ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default,
     ImmutableArray<ClassExpression> ClassLiteralConstants = default,
-    ImmutableArray<BindingTargetProgram> BindingTargetConstants = default);
+    ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
+    ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default);

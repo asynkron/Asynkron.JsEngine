@@ -64,7 +64,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "DefineObjectMethod",
         "GetComputedSuperProperty",
         "GetNamedSuperProperty",
-        "LoadTemplateObject",
         "SetComputedSuperProperty",
         "SetNamedSuperProperty",
         "UpdateComputedSuperProperty",

@@ -2774,6 +2774,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LoadTemplateObjectExpression_AcceptsAndVmCachesTemplateObject()
+    {
+        var descriptor = new TaggedTemplateDescriptor(
+            ImmutableArray.Create(JsValue.FromString("x")),
+            ImmutableArray.Create(JsValue.FromString("x")));
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadTemplateObject(0)),
+            objectConstants: ImmutableArray.Create<object>(descriptor));
+        var seedPlan = GetFunctionPlan("function template() { return 0; }", "template");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadTemplateObject);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var firstResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+        var secondResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        var templateObject = Assert.IsType<JsArray>(firstResult.ObjectValue);
+        Assert.Same(templateObject, secondResult.ObjectValue);
+        Assert.Equal("x", templateObject.Items[0].AsString());
+        Assert.True(templateObject.TryGetProperty("raw", out var rawValue));
+        var rawArray = Assert.IsType<JsArray>(rawValue.ObjectValue);
+        Assert.Equal("x", rawArray.Items[0].AsString());
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

@@ -71,14 +71,14 @@ statement interpretation.
   and generic binding declaration semantics are VM-owned.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
-  are admitted only through narrow shape helpers, while template objects,
-  private property reads/writes/updates, object methods/accessors,
+  are admitted only through narrow shape helpers, while private property
+  reads/writes/updates, object methods/accessors,
   super property reads/writes/updates, generic call-target stack shuffles, and
   some call/reference helpers remain outside general unified bytecode lowering.
 - The current `ExpressionOpKind` names with no unified compiler reference are
   `DefineComputedObjectAccessor`, `DefineComputedObjectMethod`,
   `DefineObjectAccessor`, `DefineObjectMethod`, `GetComputedSuperProperty`,
-  `GetNamedSuperProperty`, `LoadTemplateObject`, `SetComputedSuperProperty`,
+  `GetNamedSuperProperty`, `SetComputedSuperProperty`,
   `SetNamedSuperProperty`, `UpdateComputedSuperProperty`, and
   `UpdateNamedSuperProperty`.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
@@ -107,6 +107,7 @@ statement interpretation.
 - `LoadThis`
 - `LoadNewTarget`
 - `LoadImportMeta`
+- `LoadTemplateObject`
 - `LoadLiteral`
 - `LoadRegexLiteral`
 - `StoreSlot`

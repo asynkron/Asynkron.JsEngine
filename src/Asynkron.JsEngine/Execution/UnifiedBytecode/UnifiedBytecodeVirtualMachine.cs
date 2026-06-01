@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
@@ -184,6 +185,13 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadImportMeta:
                     stack[stackPointer++] = GetImportMeta(currentCallingEnvironment, context);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LoadTemplateObject:
+                    stack[stackPointer++] = JsValue.FromJsArray(GetOrCreateTemplateObject(
+                        program.TemplateObjectConstants[instruction.Operand],
+                        context));
                     programCounter++;
                     break;
 
@@ -3361,6 +3369,22 @@ internal static class UnifiedBytecodeVirtualMachine
         return PrivateNameScope.TryResolveScope(context.RealmState, resolvedKey, out var scope) &&
                scope is not null &&
                target.HasPrivateBrand(scope.BrandToken);
+    }
+
+    private static JsArray GetOrCreateTemplateObject(
+        TaggedTemplateDescriptor descriptor,
+        EvaluationContext context)
+    {
+        if (context.RealmState.TemplateObjectCache.TryGetValue(descriptor, out var cachedTemplate))
+        {
+            return (JsArray)cachedTemplate;
+        }
+
+        var stringsArray = new JsArray(descriptor.CookedStrings, context.RealmState);
+        var rawStringsArray = new JsArray(descriptor.RawStrings, context.RealmState);
+        var templateObject = stringsArray.CreateTemplateObject(rawStringsArray);
+        context.RealmState.TemplateObjectCache[descriptor] = templateObject;
+        return templateObject;
     }
 
     private static JsEnvironment?[] InitializeSlotEnvironments(

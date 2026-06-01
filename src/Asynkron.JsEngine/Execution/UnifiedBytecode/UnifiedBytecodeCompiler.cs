@@ -8621,6 +8621,8 @@ internal static class UnifiedBytecodeCompiler
             {
                 case ExpressionOpKind.LoadIdentifier:
                 case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
                     if (!TryAppendComputedPropertyKeyLoad(
                             operation,
                             expressionProgram,
@@ -8702,6 +8704,8 @@ internal static class UnifiedBytecodeCompiler
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
                     stackDepth++;
                     break;
 
@@ -9150,6 +9154,16 @@ internal static class UnifiedBytecodeCompiler
                 var literalIndex = literalConstants.Count;
                 literalConstants.Add(literal);
                 unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadThis:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
+                reason = string.Empty;
+                return true;
+
+            case ExpressionOpKind.LoadNewTarget:
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
                 reason = string.Empty;
                 return true;
 

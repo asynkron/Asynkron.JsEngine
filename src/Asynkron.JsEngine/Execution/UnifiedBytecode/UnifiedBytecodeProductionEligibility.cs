@@ -3473,7 +3473,8 @@ internal static class UnifiedBytecodeProductionEligibility
     // Measures the op span for a simple object literal starting at startIndex.
     // Admitted shapes (CreateObject followed by N >= 0 property triples/spreads):
     //   Static:   [simple-value-operand, DefineObjectProperty(non-private, no name inference)]
-    //   Computed: [simple-key-operand, ResolvePropertyKey, simple-value-operand, DefineComputedObjectProperty(no name inference)]
+    //   Computed: [simple-key-operand or simple-binary-key-expression, ResolvePropertyKey,
+    //              simple-value-operand, DefineComputedObjectProperty(no name inference)]
     //   Spread:   [simple-spread-source-operand, ObjectSpread]
     // DefineObjectMethod, accessors, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
@@ -3493,6 +3494,48 @@ internal static class UnifiedBytecodeProductionEligibility
         var i = startIndex + 1;
         while (i < program.OperationCount)
         {
+            if (TryMeasureSimpleBinaryOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var keySpanLength) &&
+                i + keySpanLength < program.OperationCount &&
+                program.GetOperation(i + keySpanLength).Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                i += keySpanLength + 1;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var valueOp = program.GetOperation(i);
+                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var computedDefineOp = program.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                continue;
+            }
+
             var firstOp = program.GetOperation(i);
             if (!IsSimpleOperand(firstOp, identifierConstants, activationSlots))
             {
@@ -3573,6 +3616,35 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = i - startIndex;
         return true;
+    }
+
+    private static bool TryMeasureSimpleBinaryOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (startIndex + 2 >= program.OperationCount)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var left = program.GetOperation(startIndex);
+        var right = program.GetOperation(startIndex + 1);
+        var binary = program.GetOperation(startIndex + 2);
+        if (IsSimpleOperand(left, identifierConstants, activationSlots) &&
+            IsSimpleOperand(right, identifierConstants, activationSlots) &&
+            binary.Kind == ExpressionOpKind.Binary &&
+            IsProductionBinaryOperator(binary.Operator))
+        {
+            spanLength = 3;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
     }
 
     private static bool IsOperationInSimpleObjectLiteralSpan(

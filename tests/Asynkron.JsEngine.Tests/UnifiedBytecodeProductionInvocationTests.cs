@@ -7094,6 +7094,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithBinaryComputedKeyObjectArg_UsesUnifiedBytecodeProductionFastPathAndStoresValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendBinaryExprKey(receiver, a, b, v) {
+                return receiver({ [a + b]: v });
+            }
+
+            sendBinaryExprKey(function(obj) { return obj.answer; }, "ans", "wer", 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendBinaryExprKey argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LogicalAnd_ShortCircuitsOnFalsyLeft_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();

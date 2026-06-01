@@ -6167,7 +6167,8 @@ internal static class UnifiedBytecodeCompiler
     // Compiles a simple object literal span starting at startIndex in the expression program.
     // Emits: CreateObject, then N property triples/spreads:
     //   Static:   [simple-value-load, DefineObjectProperty(non-private, no name inference)]
-    //   Computed: [simple-key-load, ResolvePropertyKey, simple-value-load, DefineComputedObjectProperty(no name inference)]
+    //   Computed: [simple-key-load or simple-binary-key-expression, ResolvePropertyKey,
+    //              simple-value-load, DefineComputedObjectProperty(no name inference)]
     //   Spread:   [simple-spread-source-load, ObjectSpread]
     private static bool TryAppendSimpleObjectLiteralSpan(
         ExpressionProgram expressionProgram,
@@ -6192,6 +6193,70 @@ internal static class UnifiedBytecodeCompiler
         var i = startIndex + 1;
         while (i < expressionProgram.OperationCount)
         {
+            if (TryMeasureSimpleBinaryOperandSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    out var keySpanLength,
+                    out var keyOperator) &&
+                i + keySpanLength < expressionProgram.OperationCount &&
+                expressionProgram.GetOperation(i + keySpanLength).Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(i),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out _);
+                TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(i + 1),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out _);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)keyOperator));
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+                i += keySpanLength + 1;
+
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected value operand after ResolvePropertyKey.";
+                    return false;
+                }
+
+                var valueOp = expressionProgram.GetOperation(i);
+                if (!TryAppendSimpleOperandLoad(valueOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+                {
+                    spanLength = 0;
+                    reason = "Complex value expressions are not admitted in simple computed object properties.";
+                    return false;
+                }
+
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected DefineComputedObjectProperty after key, ResolvePropertyKey, and value.";
+                    return false;
+                }
+
+                var computedDefineOp = expressionProgram.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    reason = "Complex computed keys and name-inferred computed properties are not admitted in simple object literals.";
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectProperty, 0));
+                i++;
+                continue;
+            }
+
             var firstOp = expressionProgram.GetOperation(i);
             if (!TryAppendSimpleOperandLoad(firstOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
             {
@@ -6281,6 +6346,38 @@ internal static class UnifiedBytecodeCompiler
         spanLength = i - startIndex;
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryMeasureSimpleBinaryOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        out BinaryOperator binaryOperator)
+    {
+        if (startIndex + 2 >= expressionProgram.OperationCount)
+        {
+            spanLength = 0;
+            binaryOperator = default;
+            return false;
+        }
+
+        var left = expressionProgram.GetOperation(startIndex);
+        var right = expressionProgram.GetOperation(startIndex + 1);
+        var binary = expressionProgram.GetOperation(startIndex + 2);
+        if (CanAppendSimpleOperandLoad(left, expressionProgram, activationSlots) &&
+            CanAppendSimpleOperandLoad(right, expressionProgram, activationSlots) &&
+            binary.Kind == ExpressionOpKind.Binary &&
+            IsSupportedBinaryOperator(binary.Operator))
+        {
+            spanLength = 3;
+            binaryOperator = binary.Operator;
+            return true;
+        }
+
+        spanLength = 0;
+        binaryOperator = default;
+        return false;
     }
 
     private static int FindFirstOperation(ExpressionProgram expressionProgram, ExpressionOpKind kind)

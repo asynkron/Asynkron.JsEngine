@@ -2611,12 +2611,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        // Optional-call shapes (box?.read(), box.read?.(), box[key]?.()) carry a
+        // Optional-call shapes (fn?.(), box?.read(), box.read?.(), box[key]?.()) carry a
         // JumpIfNullish short-circuit and, for callee-optional cases, a trailing
         // Jump/SwapTopTwo/Pop structure that the non-optional branches below would
         // reject (or never reach, because they end in Pop rather than Call). Detect
         // them first so the dedicated optional candidates own these shapes.
-        if (TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
+        if (TryIsFirstBoundaryCalleeOptionalIdentifierCallCandidate(program, identifierConstants, activationSlots) ||
+            TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots) ||
             TryIsFirstBoundaryOptionalChainPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
@@ -2762,6 +2763,52 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsDirectEvalSingleArgumentCandidate(PackedExpressionOp operation) =>
         operation.Kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadLiteral;
+
+    // Case 0: fn?.(args) — callee-optional identifier call
+    // Expression program: [LoadIdentifierCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
+    private static bool TryIsFirstBoundaryCalleeOptionalIdentifierCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 6)
+        {
+            return false;
+        }
+
+        if (!IsCalleeOptionalTrailingStructure(program, out var callIndex))
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(callIndex);
+        if (!call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(0);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget || callTarget.IsArguments)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(identifierConstants);
+        return TryResolveActivationSlot(identifier, activationSlots) &&
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   argsStartIndex: 2,
+                   call,
+                   callIndex);
+    }
 
     // Case 1: box?.read(args) — receiver-optional named call
     // Expression program: [Receiver..., JumpIfNullish, LoadNamedCallTarget, args..., Call]
@@ -4469,6 +4516,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LoadLiteral:
                 case UnifiedBytecodeOpCode.LoadRegexLiteral:
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                case UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget:
                 case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:

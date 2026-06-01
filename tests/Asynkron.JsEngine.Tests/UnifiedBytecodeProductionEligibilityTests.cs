@@ -1053,9 +1053,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency()
+    public void Evaluate_OptionalIdentifierSpreadCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
-        // gh2676 keeps optional spread calls declined.
+        // Activation-slot optional identifier spread calls skip argument lowering when nullish.
         var plan = GetFunctionPlan("""
             function invoke(fn, args) {
                 return fn?.(...args);
@@ -1067,7 +1067,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
     }
 
     [Fact]

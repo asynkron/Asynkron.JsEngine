@@ -261,6 +261,7 @@ statement interpretation.
 - `ObjectDestructuringRest`
 - `ObjectDestructuringClose`
 - `PrepareIdentifierCallTarget`
+- `PrepareIdentifierOptionalCallTarget`
 - `PrepareDynamicIdentifierCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
@@ -334,7 +335,7 @@ must still obey the no-mixed-execution rule.
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update, computed expression-key update, and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
-| `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
+| `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalChainNonActivationBaseCallExpressionPlan_Declines"` |
 | `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
@@ -559,11 +560,13 @@ the final post-compile production subset check before VM entry.
   VM flattens spread iterables left-to-right at the boundary via the shared
   `TypedAstEvaluator.EnumerateSpread` helper, preserving iteration order and
   side-effects, then invokes through the existing callable helpers with
-  receiver-as-`this`. Optional-start computed member spread calls such as
+  receiver-as-`this`. Optional identifier spread calls such as `fn?.(...args)`
+  skip argument lowering when `fn` is nullish and otherwise use the same
+  spread-mask boundary. Optional-start computed member spread calls such as
   `a?.box[key](...args)` use the same spread-mask boundary after the optional
   receiver has been resolved. Direct eval is admitted only for the one-argument
-  non-spread eval-identifier shape; multi-argument/spread direct eval, super
-  spread, and callee-optional spread calls stay declined.
+  non-spread eval-identifier shape; multi-argument/spread direct eval and super
+  spread stay declined.
 - Synchronous construct calls are admitted (gh2690 plus the construct-boundary
   widening): `new F(...)`, `new F(...args)`, `new box.Ctor(...)`, and
   `new box[key](...)` when the constructor/key/argument subexpressions are
@@ -582,11 +585,14 @@ the final post-compile production subset check before VM entry.
   caller's `new.target`, initializes `this`, and preserves the existing
   double-super-call `ReferenceError`. Spread super constructs
   (`super(...args)`) stay declined as spread construct arguments.
-- Accepted identifier-call programs use `PrepareIdentifierCallTarget` followed
-  by `CallInvocationBoundary`; the VM resolves the callable from unified
-  bytecode-owned slot state and invokes it through existing callable invocation
-  helpers with the active `EvaluationContext` and caller `JsEnvironment` when
-  the callee needs environment-aware or debug-aware invocation state.
+- Accepted identifier-call programs use `PrepareIdentifierCallTarget` or
+  `PrepareIdentifierOptionalCallTarget` followed by `CallInvocationBoundary`;
+  the VM resolves the callable from unified bytecode-owned slot state and
+  invokes it through existing callable invocation helpers with the active
+  `EvaluationContext` and caller `JsEnvironment` when the callee needs
+  environment-aware or debug-aware invocation state. The optional variant packs
+  a nullish short-circuit jump target and jumps past argument lowering and the
+  call boundary when the callee slot is nullish.
 - Accepted named member-call programs use `PrepareNamedCallTarget` followed by
   `CallInvocationBoundary`; the VM keeps the final receiver on the stack, loads
   the named callee from that receiver, and invokes through the existing
@@ -609,17 +615,19 @@ the final post-compile production subset check before VM entry.
   still use the first-boundary call-target helper because they carry
   boundary-local directness metadata or packed nullish short-circuit jump
   targets.
-- Accepted optional member-call programs use `PrepareNamedOptionalCallTarget`
-  or `PrepareComputedOptionalCallTarget` followed by `CallInvocationBoundary`.
-  Both opcodes pack a call-target constant index (low 16 bits) and a nullish
-  short-circuit jump target (high 16 bits) into a single operand. The VM checks
-  the receiver or callee for nullish before evaluation proceeds; if nullish the
-  stack top is replaced with `Undefined` and execution jumps past the call
-  boundary. Three patterns are admitted: receiver-optional named calls
-  (`box?.read(args)`), callee-optional named calls (`box.read?.(args)`), and
-  callee-optional computed calls (`box[key]?.(args)`). The `IsOptionalReceiverCheck`
-  flag in `UnifiedBytecodeCallTarget` distinguishes the two named variants.
-  (Optional calls admitted as of gh2689; ADR 0289.)
+- Accepted optional call programs use `PrepareIdentifierOptionalCallTarget`,
+  `PrepareNamedOptionalCallTarget`, or `PrepareComputedOptionalCallTarget`
+  followed by `CallInvocationBoundary`. These opcodes pack a call-target
+  constant index (low 16 bits) and a nullish short-circuit jump target (high 16
+  bits) into a single operand. The VM checks the receiver or callee for nullish
+  before argument evaluation proceeds; if nullish, the stack top becomes
+  `Undefined` and execution jumps past the call boundary. Four patterns are
+  admitted: callee-optional identifier calls (`fn?.(args)`), receiver-optional
+  named calls (`box?.read(args)`), callee-optional named calls
+  (`box.read?.(args)`), and callee-optional computed calls (`box[key]?.(args)`).
+  The `IsOptionalReceiverCheck` flag in `UnifiedBytecodeCallTarget`
+  distinguishes the two named variants. (Optional member calls admitted as of
+  gh2689; ADR 0289.)
 - Direct eval programs use `PrepareIdentifierCallTarget` followed by
   `CallInvocationBoundary` with the direct-eval operand flag. The admitted shape
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host

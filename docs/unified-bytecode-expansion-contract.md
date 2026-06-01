@@ -278,7 +278,7 @@ must still obey the no-mixed-execution rule.
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
-| `ObjectLiteralOrSpreadDependency` | Object methods/accessors, non-simple object spread sources, unsupported array spread, and spread construct arguments | Existing sync IR literal/spread route | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
+| `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and `#name in obj` represented as named-property or private-field ops | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, computed/default/nested declaration destructuring, and destructuring targets outside the admitted driver or descriptor-backed assignment lanes | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
@@ -471,9 +471,10 @@ the final post-compile production subset check before VM entry.
   boundary. Arguments may be simple literal or slot operands, or simple
   array/object literal spans (`[a, b]`, `{x: a, y: b}`), including object
   literal spread entries whose spread source is a simple operand
-  (`{...source}`), with no computed keys, no methods, no accessors, and no name
-  inference (gh2705, ADR 0290). Computed member keys must also be simple
-  literal or slot operands. For accepted member receiver chains, the call
+  (`{...source}`), with no computed keys or name inference in that restricted
+  simple-span form (gh2705, ADR 0290). General object method/accessor literal
+  construction is VM-owned outside that restricted span. Computed member keys
+  must also be simple literal or slot operands. For accepted member receiver chains, the call
   receiver is the final resolved receiver object, not the root object.
 - Synchronous spread calls are admitted (gh2676): `f(...args)`, `f(...a, ...b)`,
   `obj.method(...args)`, and mixed `f(a, ...b, c)`. Each argument (positional or
@@ -692,11 +693,11 @@ support today.
    object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
    (gh2705, ADR 0290). Simple object literal spread entries are now admitted
    through the `ObjectSpread` opcode when their spread source is a simple
-   operand; non-simple spread sources, computed keys, methods, accessors, name
-   inference, and private names continue to decline.
+   operand; non-simple spread sources, computed keys, name inference, private
+   names, and methods/accessors inside the restricted simple-span form continue
+   to decline.
    Direct eval outside the one-argument non-spread eval-identifier boundary,
-   super-property reads/writes/updates, spread super constructs,
-   spread-onto-optional,
+   spread super constructs, spread-onto-optional,
    arguments-object dependencies, unsupported non-with dynamic lookup,
    private member targets, complex receiver/key shapes, and
    receiver-binding-sensitive adjacent families beyond the direct

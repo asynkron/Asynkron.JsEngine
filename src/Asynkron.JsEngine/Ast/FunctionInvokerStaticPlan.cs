@@ -11,14 +11,12 @@ namespace Asynkron.JsEngine.Ast;
 internal sealed class FunctionInvokerStaticPlan
 {
     private FunctionInvokerStaticPlan(
-        bool hasParameterVarDeclarationWithoutInitializer,
         bool hasFunctionDeclarationParameterConflict,
         bool hasNonParameterCalleeCall,
         bool hasInnerFunctionExpression,
         bool usesArguments,
         bool needsArgumentsBinding)
     {
-        HasParameterVarDeclarationWithoutInitializer = hasParameterVarDeclarationWithoutInitializer;
         HasFunctionDeclarationParameterConflict = hasFunctionDeclarationParameterConflict;
         HasNonParameterCalleeCall = hasNonParameterCalleeCall;
         HasInnerFunctionExpression = hasInnerFunctionExpression;
@@ -26,7 +24,6 @@ internal sealed class FunctionInvokerStaticPlan
         NeedsArgumentsBinding = needsArgumentsBinding;
     }
 
-    internal bool HasParameterVarDeclarationWithoutInitializer { get; }
     internal bool HasFunctionDeclarationParameterConflict { get; }
     internal bool HasNonParameterCalleeCall { get; }
     internal bool HasInnerFunctionExpression { get; }
@@ -41,7 +38,6 @@ internal sealed class FunctionInvokerStaticPlan
 
         var parameterNameSet = BuildParameterNameSet(parameterNames);
 
-        var hasParamVarDecl = TypedAstEvaluator.ContainsParameterVarDeclarationWithoutInitializer(function, parameterNames);
         var hasFuncDeclConflict = TypedAstEvaluator.ContainsFunctionDeclarationParameterConflict(function, parameterNameSet);
         var hasNonParamCallee = TypedAstEvaluator.ContainsNonParameterCalleeIdentifier(function, parameterNameSet);
         var hasInnerFunc = TypedAstEvaluator.ContainsInnerFunctionExpression(function);
@@ -49,7 +45,6 @@ internal sealed class FunctionInvokerStaticPlan
         var needsArgumentsBinding = TypedAstEvaluator.NeedsArgumentsBinding(function);
 
         return new FunctionInvokerStaticPlan(
-            hasParamVarDecl,
             hasFuncDeclConflict,
             hasNonParamCallee,
             hasInnerFunc,

@@ -29,7 +29,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:hasOnlySimpleIdentifierParameters",
         "pre-gate:usesArguments",
         "pre-gate:needsArgumentsBinding",
-        "pre-gate:parameterVarDeclarationWithoutInitializer",
         "pre-gate:allowIdentifierCache",
         "pre-gate:lexicalThisEnvironment",
         "pre-gate:PrivateNameScope",

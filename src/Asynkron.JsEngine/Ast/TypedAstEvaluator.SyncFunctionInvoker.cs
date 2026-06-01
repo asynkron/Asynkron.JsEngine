@@ -100,7 +100,6 @@ public static partial class TypedAstEvaluator
         private readonly bool _hasNonParameterCalleeCall;
         private readonly bool _hasFunctionDeclarationParameterConflict;
         private readonly bool _hasFunctionDeclarations;
-        private readonly bool _hasParameterVarDeclarationWithoutInitializer;
         private readonly bool _hasHoistableDeclarations;
         private readonly bool _hasBodyWithStatement;
         private readonly bool _hasDirectEvalInBodyOrParameters;
@@ -240,7 +239,6 @@ public static partial class TypedAstEvaluator
             _legacyTailRestartResetVarNames = BuildLegacyTailRestartResetVarNames(function.Body, parameterNames);
 
             _hasFunctionDeclarationParameterConflict = invokerStatics.HasFunctionDeclarationParameterConflict;
-            _hasParameterVarDeclarationWithoutInitializer = invokerStatics.HasParameterVarDeclarationWithoutInitializer;
             _hasNonParameterCalleeCall = invokerStatics.HasNonParameterCalleeCall;
 
             // Recursive/self-call-like shapes must get a fresh activation per invocation.
@@ -3272,7 +3270,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
                 UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
                 UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision or
-                UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency or
                 UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
         }
 
@@ -3338,8 +3335,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
                 HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
-                HasParameterVarDeclarationDependency:
-                    _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
                 HasMaterializedActivationDependency: false,
                 HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,

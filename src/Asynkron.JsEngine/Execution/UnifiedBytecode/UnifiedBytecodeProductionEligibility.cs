@@ -16,7 +16,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
     FunctionNameParameterCollision,
-    ParameterVarDeclarationDependency,
     MaterializedActivationDependency,
     CallDependency,
     DynamicLookupDependency,
@@ -45,7 +44,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
     bool HasFunctionNameParameterCollision = false,
-    bool HasParameterVarDeclarationDependency = false,
     bool HasMaterializedActivationDependency = false,
     bool HasCallDependency = false,
     bool HasDynamicLookupDependency = false,
@@ -347,13 +345,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision;
             declineReason = "Function name and parameter name collision is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasParameterVarDeclarationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency;
-            declineReason = "Parameter var declaration activation is not eligible for production unified bytecode routing.";
             return true;
         }
 

@@ -2446,7 +2446,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "invokeComputedExpressionKey",
-        (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function invokeDeepComputedCallee(root, key, value) {

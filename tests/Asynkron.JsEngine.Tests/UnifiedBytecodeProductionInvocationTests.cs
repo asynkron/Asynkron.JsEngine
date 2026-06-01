@@ -5860,6 +5860,39 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleArrowFunction_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var choose = (x) => x < 42 ? 42 : x;
+            choose(1);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_LexicalThis_DeclinesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            this.marker = 42;
+            var readThis = () => this.marker;
+            readThis();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readThis",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

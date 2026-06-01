@@ -3249,9 +3249,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var result = UnifiedBytecodeProductionEligibility.Evaluate(
                 plan,
                 CreateProductionUnifiedBytecodeActivationDescriptor(
-                    newTarget,
                     CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
                     CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan),
+                    CanUseProductionUnifiedBytecodeArrowFunctionActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget)));
 
@@ -3297,14 +3297,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
+            var canUseArrowFunctionPath = CanUseProductionUnifiedBytecodeArrowFunctionActivation(plan, newTarget);
             var canUseDerivedClassConstructorPath =
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
             var canUseBaseClassConstructorPath =
                 CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
-                newTarget,
                 canUseDynamicNamePath,
                 canUseOrdinaryDynamicNamePath,
+                canUseArrowFunctionPath,
                 canUseDerivedClassConstructorPath,
                 canUseBaseClassConstructorPath);
             if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
@@ -3330,15 +3331,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             return CreateProductionUnifiedBytecodeActivationDescriptor(
-                JsValue.Undefined,
                 canUseDynamicNamePath,
-                canUseOrdinaryDynamicNamePath: false);
+                canUseOrdinaryDynamicNamePath: false,
+                canUseArrowFunctionPath: false);
         }
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor(
-            JsValue newTarget,
             bool canUseDynamicNamePath,
             bool canUseOrdinaryDynamicNamePath,
+            bool canUseArrowFunctionPath = false,
             bool canUseDerivedClassConstructorPath = false,
             bool canUseBaseClassConstructorPath = false)
         {
@@ -3350,13 +3351,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 IsAsyncLike: IsAsyncLike,
                 IsGenerator: _function.IsGenerator,
                 HasCapturedOrDynamicActivation:
-                    _hasCapturedActivationInClosure || _hasClosureWithObject && !canUseDynamicNamePath ||
+                    _hasCapturedActivationInClosure && !canUseArrowFunctionPath ||
+                    _hasClosureWithObject && !canUseDynamicNamePath ||
                     hasUnprovenDynamicActivation,
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
                     _argumentsObjectNeeded &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
-                HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
+                HasArrowLexicalThisDependency:
+                    IsArrowFunction && !canUseArrowFunctionPath || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation:
                     IsClassConstructor && !canUseDerivedClassConstructorPath && !canUseBaseClassConstructorPath,
                 HasCallDependency: false,
@@ -3579,6 +3582,97 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _instanceFields.IsDefaultOrEmpty &&
                    (_superConstructor is not null || _superPrototype is not null) &&
                    CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
+        }
+
+        private bool CanUseProductionUnifiedBytecodeArrowFunctionActivation(
+            ExecutionPlan plan,
+            JsValue newTarget)
+        {
+            return IsArrowFunction &&
+                   newTarget.IsUndefined &&
+                   !IsClassConstructor &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   !_hasParameterExpressions &&
+                   _hasOnlySimpleIdentifierParameters &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _allowIdentifierCache &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _superConstructor is null &&
+                   _superPrototype is null &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   CanUseSimpleIrActivationArrowFastPath(plan) &&
+                   CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(plan) &&
+                   CanUseSimpleIrActivationPlanShape(plan);
+        }
+
+        private static bool CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(ExecutionPlan plan)
+        {
+            if (plan.ActivationSlots is not { } activationSlots ||
+                plan.SimpleReturnProgram is not { } returnProgram)
+            {
+                return false;
+            }
+
+            var identifierConstants = returnProgram.IdentifierConstants.AsSpan();
+            for (var i = 0; i < returnProgram.OperationCount; i++)
+            {
+                var operation = returnProgram.GetOperation(i);
+                if (operation.Kind is ExpressionOpKind.LoadFunctionLiteral or ExpressionOpKind.LoadClassLiteral)
+                {
+                    return false;
+                }
+
+                if (TryGetIdentifierDependency(operation, identifierConstants, out var identifier) &&
+                    !ResolvesToOwnActivationSlot(identifier, activationSlots))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryGetIdentifierDependency(
+            PackedExpressionOp operation,
+            ReadOnlySpan<IdentifierOperand> identifierConstants,
+            out IdentifierOperand identifier)
+        {
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                case ExpressionOpKind.ResolveIdentifierReference:
+                case ExpressionOpKind.StoreResolvedIdentifier:
+                case ExpressionOpKind.StoreIdentifier:
+                case ExpressionOpKind.UpdateIdentifier:
+                case ExpressionOpKind.TypeOfIdentifier:
+                case ExpressionOpKind.DeleteIdentifier:
+                    identifier = operation.GetIdentifier(identifierConstants);
+                    return true;
+                default:
+                    identifier = default;
+                    return false;
+            }
+        }
+
+        private static bool ResolvesToOwnActivationSlot(
+            IdentifierOperand identifier,
+            ActivationSlotShape activationSlots)
+        {
+            if (identifier.ScopeId >= 0)
+            {
+                return identifier.ScopeId == activationSlots.ScopeId &&
+                       identifier.SlotIndex >= 0;
+            }
+
+            return identifier.FlatSlotId < 0 &&
+                   activationSlots.SlotMap.ContainsKey(identifier.Name);
         }
 
         private bool CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(

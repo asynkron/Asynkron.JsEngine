@@ -754,12 +754,11 @@ internal static class UnifiedBytecodeProductionEligibility
             if (program.GetOperation(i).Kind == ExpressionOpKind.ObjectSpread &&
                 (i == 0 ||
                  !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots) ||
-                 IsOperationInComputedPropertyKeyPayload(program, i) ||
                  !IsOperationInSimpleObjectLiteralSpan(program, i, identifierConstants, activationSlots)))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
-                    "Object spread with non-simple source, inside a computed property key payload, or outside an admitted object literal span is not eligible for production unified bytecode routing.";
+                    "Object spread with non-simple source or outside an admitted object literal span is not eligible for production unified bytecode routing.";
                 return true;
             }
         }
@@ -1406,7 +1405,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.ObjectSpread:
                     if (operationIndex > 0 &&
                         IsSimpleOperand(program.GetOperation(operationIndex - 1), identifierConstants, activationSlots) &&
-                        !IsOperationInComputedPropertyKeyPayload(program, operationIndex) &&
                         IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
@@ -1414,7 +1412,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                     declineReason =
-                        "Object spread with non-simple source, inside a computed property key payload, or outside an admitted object literal span is not eligible for production unified bytecode routing.";
+                        "Object spread with non-simple source or outside an admitted object literal span is not eligible for production unified bytecode routing.";
                     return true;
 
                 case ExpressionOpKind.DefineObjectProperty:
@@ -3281,6 +3279,21 @@ internal static class UnifiedBytecodeProductionEligibility
                         return false;
                     }
 
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.CreateObject:
+                    if (!TryMeasureSimpleObjectLiteralSpan(
+                            program,
+                            index,
+                            identifierConstants,
+                            activationSlots,
+                            out var objectSpanLength))
+                    {
+                        return false;
+                    }
+
+                    index += objectSpanLength - 1;
                     stackDepth++;
                     break;
 

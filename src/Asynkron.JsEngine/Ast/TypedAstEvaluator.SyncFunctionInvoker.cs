@@ -3064,6 +3064,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
             JsEnvironment? executionEnvironment = null;
+            var hasPendingFieldInitialization = false;
             try
             {
                 var vmThisValue = thisValue;
@@ -3138,6 +3139,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                         : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context);
                 }
 
+                if (IsClassConstructor &&
+                    _isDerivedClassConstructor &&
+                    !_instanceFields.IsDefaultOrEmpty &&
+                    executionEnvironment?.Enclosing is { } functionEnvironment)
+                {
+                    context.PushClassFieldInitializer(
+                        new PendingClassFieldInitialization(this, functionEnvironment));
+                    hasPendingFieldInitialization = true;
+                }
+
                 RealmState.Logger?.LogInformation(
                     "unified-bytecode-production-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
@@ -3166,6 +3177,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
             finally
             {
+                if (hasPendingFieldInitialization)
+                {
+                    context.RemovePendingClassFieldInitializer(this);
+                }
+
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
                 ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
             }
@@ -3358,7 +3374,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
-                !_instanceFields.IsDefaultOrEmpty && !canUseBaseClassConstructorPath)
+                !_instanceFields.IsDefaultOrEmpty &&
+                !canUseDerivedClassConstructorPath &&
+                !canUseBaseClassConstructorPath)
             {
                 return false;
             }
@@ -3620,7 +3638,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _homeObject is null &&
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                   _instanceFields.IsDefaultOrEmpty &&
                    (_superConstructor is not null || _superPrototype is not null) &&
                    CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
         }

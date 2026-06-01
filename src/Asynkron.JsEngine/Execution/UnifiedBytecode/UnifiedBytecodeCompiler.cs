@@ -5410,7 +5410,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 stringConstants,
                 keyStartIndex,
-                allowDeepChain: false,
+                allowDeepChain: true,
                 out reason))
         {
             return false;

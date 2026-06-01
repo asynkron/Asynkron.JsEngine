@@ -74,6 +74,36 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
 
 internal static class UnifiedBytecodeProductionEligibility
 {
+    internal static bool ContainsOnlyTypeOfImplicitArgumentsObjectDependency(ExecutionPlan plan)
+    {
+        var foundTypeOfArguments = false;
+        for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
+        {
+            if (!TryGetExpressionProgram(plan.Instructions[instructionIndex], out var program))
+            {
+                continue;
+            }
+
+            for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+            {
+                var operation = program.GetOperation(operationIndex);
+                if (!operation.IsArguments)
+                {
+                    continue;
+                }
+
+                if (operation.Kind != ExpressionOpKind.TypeOfIdentifier)
+                {
+                    return false;
+                }
+
+                foundTypeOfArguments = true;
+            }
+        }
+
+        return foundTypeOfArguments;
+    }
+
     internal static bool ContainsOrdinaryDynamicIdentifierDependency(ExecutionPlan plan)
     {
         if (plan.ActivationSlots is not { } activationSlots ||
@@ -990,10 +1020,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     var hasTypeOfActivationSlot = TryResolveActivationSlot(typeOfIdentifier, activationSlots);
                     if (operation.IsArguments && !hasTypeOfActivationSlot)
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments object access is not eligible for production unified bytecode routing.";
-                        return true;
+                        break;
                     }
 
                     if (!hasTypeOfActivationSlot)

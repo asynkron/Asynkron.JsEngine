@@ -3057,7 +3057,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_TypeOfImplicitArgumentsObject_DeclinesWithArgumentsDependency()
+    public void Evaluate_TypeOfImplicitArgumentsObject_AcceptsLiteralObjectType()
     {
         var plan = GetFunctionPlan("""
             function readArguments() {
@@ -3070,8 +3070,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.LiteralConstants, value => value.AsString() == "object");
     }
 
     [Fact]

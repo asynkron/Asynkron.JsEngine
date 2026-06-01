@@ -146,6 +146,59 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithInstanceField_UsesProductionFastPathAndInitializesBeforeBody()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = "";
+
+            class Box {
+                value = (log += "field;", 41);
+
+                constructor(delta) {
+                    log += "ctor;";
+                    this.value += delta;
+                }
+            }
+
+            var box = new Box(1);
+            box.value + ":" + log;
+            """);
+
+        Assert.Equal("42:field;ctor;", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithPrivateInstanceField_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Box {
+                #value = 42;
+
+                constructor() {
+                }
+
+                read() {
+                    return this.#value;
+                }
+            }
+
+            new Box().read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Construct_PreservesArgumentEvaluationOrder()
     {
         await using var engine = CreateEngine();

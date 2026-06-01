@@ -121,6 +121,11 @@ statement interpretation.
   values. The production invocation bridge resolves those captured values before
   entering the VM and avoids sloppy-call `this` coercion for arrows. Arrows that
   need a lexical-this environment or super binding still decline.
+- Simple base class constructors with public instance fields can route through
+  production unified bytecode. The production constructor bridge performs the
+  existing pre-body instance field initialization before VM entry. Derived
+  constructor field initialization and private-field brands remain on the class
+  fields lane.
 - Resumable async/generator unified bytecode is narrower than ordinary sync
   production bytecode. The resumable eligibility opcode allow-list is now
   audited against the `ExecuteResumable` switch, so opcodes already implemented
@@ -354,7 +359,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:lexicalThisEnvironment` | Lexical `this` environment captured by arrow / class-derived shapes | Existing lexical-this route | This-binding lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:superConstructor` | Derived-constructor super binding dependency outside the bounded production constructor admission path | Constructor / super route | Super / constructor lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary"` |
 | `pre-gate:superPrototype` | Method home-object super prototype state; admitted for VM-owned super property reads/writes/updates and first-boundary super calls | Existing super route for remaining shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
-| `pre-gate:instanceFields` | Class instance-field initialization state | Constructor / class route | Class fields lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:instanceFields` | Derived constructor field initialization and private-field brand state. Simple base constructors with public instance fields initialize before VM entry and can route. | Constructor / class route for remaining field shapes | Class fields lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests"` |
 | `pre-gate:activationSlotShape` | `CanUseProductionUnifiedBytecodePlanShape` requires activation slots matching root scope, layout, and parameter-slot length unless with-backed dynamic names or environment-backed class declarations own the materialized activation | Existing execution-plan route | Slot-layout lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
 ### Prototype Opcode Guard Rows
@@ -757,9 +762,9 @@ support today.
    real `arguments` object and sloppy mapped-arguments dependencies, non-simple
    parameter lists, default/rest/destructured parameter expressions, broader
    class constructor routes beyond simple base constructors and the bounded
-   explicit derived `super(...)` path, default derived constructors, instance
-   fields, and captured activation outside the explicit with-backed dynamic-name
-   lane. Resumable
+   explicit derived `super(...)` path, default derived constructors, derived or
+   private instance fields, and captured activation outside the explicit
+   with-backed dynamic-name lane. Resumable
    unified bytecode exists, but `EvaluateResumable` admits only a small
    instruction/opcode subset compared with ordinary sync production bytecode.
 2. Wider call invocation remains a high-impact unsupported bucket. Synchronous

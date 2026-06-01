@@ -3098,6 +3098,24 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     context.MarkThisInitialized();
                 }
 
+                if (IsClassConstructor &&
+                    !_isDerivedClassConstructor &&
+                    !_instanceFields.IsDefaultOrEmpty)
+                {
+                    if (!vmThisValue.TryGetObject<IJsObjectLike>(out var constructedInstance))
+                    {
+                        return false;
+                    }
+
+                    var initEnvironment = JsEnvironment.CreateInstance(_closure, isStrict: _isStrict);
+                    InitializeInstance(constructedInstance, initEnvironment, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        result = context.FlowValue;
+                        return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
+                    }
+                }
+
                 var slots = slotStorage.AsSpan(0, program.SlotCount);
                 slots.Fill(JsValue.Undefined);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
@@ -3340,7 +3358,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
-                !_instanceFields.IsDefaultOrEmpty)
+                !_instanceFields.IsDefaultOrEmpty && !canUseBaseClassConstructorPath)
             {
                 return false;
             }
@@ -3724,7 +3742,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _homeObject is null &&
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
-                   _instanceFields.IsDefaultOrEmpty &&
                    _superConstructor is null &&
                    _superPrototype is null &&
                    CanUseSimpleIrActivationPlanShape(plan);

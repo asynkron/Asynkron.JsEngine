@@ -5542,20 +5542,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "arrowLexical",
         42d)]
-    [InlineData(
-        """
-        class Box {
-            extra = 1;
-
-            constructor(value) {
-                this.value = value;
-            }
-        }
-
-        new Box(42).value;
-        """,
-        "Box",
-        42d)]
     public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,

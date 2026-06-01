@@ -202,7 +202,7 @@ public sealed class UnifiedBytecodeProductionSpreadCallTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SpreadConstruct_DeclinesProductionFastPath()
+    public async Task SpreadConstructResultNamedRead_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -219,7 +219,7 @@ public sealed class UnifiedBytecodeProductionSpreadCallTests(ITestOutputHelper o
             """);
 
         Assert.Equal(41d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));

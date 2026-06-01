@@ -1544,14 +1544,19 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount < 2 ||
-            program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.Construct)
+        if (program.OperationCount < 2)
+        {
+            return false;
+        }
+
+        var constructIndex = FindConstructInvocationBoundaryIndex(program);
+        if (constructIndex < 1)
         {
             return false;
         }
 
         var stringConstants = program.StringConstants.AsSpan();
-        for (var operationIndex = 0; operationIndex < program.OperationCount - 1; operationIndex++)
+        for (var operationIndex = 0; operationIndex < constructIndex; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
             if (IsPrivateNamedPropertyOperation(operation, stringConstants))
@@ -1581,6 +1586,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static int FindConstructInvocationBoundaryIndex(ExpressionProgram program)
+    {
+        var constructIndex = program.OperationCount - 1;
+        if (program.GetOperation(constructIndex).Kind == ExpressionOpKind.Construct)
+        {
+            return constructIndex;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        while (constructIndex > 0 &&
+               IsPlainNamedPropertyRead(program.GetOperation(constructIndex), stringConstants))
+        {
+            constructIndex--;
+        }
+
+        return program.GetOperation(constructIndex).Kind == ExpressionOpKind.Construct
+            ? constructIndex
+            : -1;
     }
 
     private static bool TryIsConstructComputedPropertyRead(

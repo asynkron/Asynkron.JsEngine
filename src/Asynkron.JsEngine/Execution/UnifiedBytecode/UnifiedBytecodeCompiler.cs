@@ -3736,6 +3736,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryOptionalComputedPropertyReadChain(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
 
         if (TryAppendFirstBoundaryPropertyReadBinaryExpression(
                 expressionProgram,
@@ -7250,7 +7265,6 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-
         reason = string.Empty;
         return true;
     }
@@ -7386,6 +7400,153 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    // Handles: [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    // JumpIfNullish(ReplaceWithUndefined:true), key..., GetComputedProperty(!SC),
+    // GetNamedProperty(SC:true)*].
+    private static bool TryAppendFirstBoundaryOptionalComputedPropertyReadChain(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var jumpIndex = 1;
+        while (jumpIndex < expressionProgram.OperationCount)
+        {
+            var prefixOp = expressionProgram.GetOperation(jumpIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            if (prefixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            jumpIndex++;
+        }
+
+        if (jumpIndex >= expressionProgram.OperationCount)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var jumpOp = expressionProgram.GetOperation(jumpIndex);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish ||
+            !jumpOp.ReplaceWithUndefined)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var computedSuffixStart = expressionProgram.OperationCount;
+        while (computedSuffixStart > jumpIndex + 2)
+        {
+            var suffixOp = expressionProgram.GetOperation(computedSuffixStart - 1);
+            if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                suffixOp.IsOptional ||
+                !suffixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            if (suffixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            computedSuffixStart--;
+        }
+
+        var computedIndex = computedSuffixStart - 1;
+        if (computedIndex <= jumpIndex + 1 ||
+            jumpOp.Target != computedIndex + 1)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var computedOp = expressionProgram.GetOperation(computedIndex);
+        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+            computedOp.ShortCircuitOnNullishTarget)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: jumpIndex + 1,
+                endExclusive: computedIndex))
+        {
+            reason = "Unsupported computed property key span.";
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < jumpIndex; operationIndex++)
+        {
+            var prefixOp = expressionProgram.GetOperation(operationIndex);
+            var prefixNameIndex = stringConstants.Count;
+            stringConstants.Add(prefixOp.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, prefixNameIndex));
+        }
+
+        var unifiedJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                startInclusive: jumpIndex + 1,
+                endExclusive: computedIndex,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+        for (var operationIndex = computedIndex + 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var suffixOp = expressionProgram.GetOperation(operationIndex);
+            var suffixNameIndex = stringConstants.Count;
+            stringConstants.Add(suffixOp.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, suffixNameIndex));
+        }
+
+        unified[unifiedJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            unified.Count);
+        reason = string.Empty;
+        return true;
+    }
+
     private static bool TryAppendComputedPropertyKeySpan(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -7451,6 +7612,64 @@ internal static class UnifiedBytecodeCompiler
 
         reason = string.Empty;
         return true;
+    }
+
+    private static bool IsSupportedComputedPropertyKeySpan(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        int startInclusive,
+        int endExclusive)
+    {
+        var stackDepth = 0;
+        for (var index = startInclusive; index < endExclusive; index++)
+        {
+            var operation = expressionProgram.GetOperation(index);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.LoadIdentifier:
+                    if (!TryResolveActivationSlot(
+                            operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan()),
+                            activationSlots,
+                            out _))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                case ExpressionOpKind.UnaryMinus:
+                case ExpressionOpKind.UnaryLogicalNot:
+                case ExpressionOpKind.UnaryBitwiseNot:
+                case ExpressionOpKind.UnaryVoid:
+                case ExpressionOpKind.ToString:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsSupportedBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return stackDepth == 1;
     }
 
     private static bool TryAppendFirstBoundaryPropertyReadBinaryExpression(

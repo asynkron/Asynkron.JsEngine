@@ -362,11 +362,12 @@ the final post-compile production subset check before VM entry.
   `TryIsFirstBoundaryNestedNamedPropertyWriteCandidate` and
   `TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate`, which compile the
   receiver chain as owned `GetNamedProperty` opcodes before the final
-  `SetNamedProperty` / `UpdateNamedProperty`. Optional named read chains,
-  including named-then-computed continuations, may also start after a plain
-  named receiver prefix (`box.child?.value`, `box.child?.items[key]`), with the
-  prefix emitted as owned `GetNamedProperty` reads before the optional
-  jump-to-chain-end boundary. Nested named receiver chains ending in a simple
+  `SetNamedProperty` / `UpdateNamedProperty`. Optional named and computed read
+  chains, including named-then-computed continuations, may also start after a
+  plain named receiver prefix (`box.child?.value`, `box.child?.[key]`,
+  `box.child?.items[key]`), with the prefix emitted as owned `GetNamedProperty`
+  reads before the optional jump-to-chain-end boundary. Nested named receiver
+  chains ending in a simple
   computed delete (`delete box.child[key]`) are admitted by
   `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional computed delete
   chains are admitted for `delete box?.[key]`, `delete box?.child[key]`, and

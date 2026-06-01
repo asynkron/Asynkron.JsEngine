@@ -88,9 +88,11 @@ statement interpretation.
   some call/reference helpers remain outside general unified bytecode lowering.
 - The remaining direct general-expression lowering gaps are drift-checked under
   `### General Expression Lowering Gaps (current)`. Property set/update
-  operations and `SwapTopTwo` are no longer helper-only compiler shapes; they
-  lower through the general expression loop, subject to the same private-name and
-  name-inference semantic guards as the owned property-write helpers.
+  operations plus the `SwapTopTwo`, `DuplicateTopTwo`, and
+  `RotateTopThreeRight` stack operations are no longer helper-only compiler
+  shapes; they lower through the general expression loop, subject to the same
+  private-name and name-inference semantic guards as the owned property-write
+  helpers.
 - The current `ExpressionOpKind` names with no unified compiler reference list is
   empty. Computed super-property operations also route their required
   `EnsureSuperReference` op through the general unified expression loop.
@@ -104,6 +106,12 @@ statement interpretation.
   by the resumable VM cannot remain stale declines. Broad async/generator
   control flow, calls, dynamic lookup, arguments, awaited iterator sources, and
   async-generator delegated yield shapes still decline.
+- Generator-lowered synthetic resume and driver targets
+  (`__yield_lower_resume*`, internal `yield*` state slots) are now added to the
+  unified slot layout when the original activation analysis did not include
+  them. Parenthesized `yield (left && right)`, `return yield`, and `yield*`
+  state/result shapes therefore compile and route without borrowing parameter
+  slots.
 - `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
   the VM owns dispatch and stack/slot state, then applies an already-lowered
   `BindingTargetProgram` for assignment destructuring parity. This is not a
@@ -166,9 +174,11 @@ statement interpretation.
 - `UnaryVoid`
 - `PrivateFieldIn`
 - `ToString`
-- `DuplicateTop`
-- `SwapTopTwo`
 - `Pop`
+- `DuplicateTop`
+- `DuplicateTopTwo`
+- `SwapTopTwo`
+- `RotateTopThreeRight`
 - `CreateArray`
 - `ArrayPush`
 - `ArrayPushHole`
@@ -357,14 +367,12 @@ the final post-compile production subset check before VM entry.
 
 ### General Expression Lowering Gaps (current)
 - `Call`
-- `DuplicateTopTwo`
 - `JumpIfShortCircuited`
 - `LoadComputedCallTarget`
 - `LoadComputedSuperCallTarget`
 - `LoadIdentifierCallTarget`
 - `LoadNamedCallTarget`
 - `LoadNamedSuperCallTarget`
-- `RotateTopThreeRight`
 
 ## Production This-Binding Boundary
 - Ordinary sync functions that reference `this` are admitted to the production

@@ -95,6 +95,36 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
     }
 
     [Fact]
+    public void Execute_DuplicateTopTwo_DuplicatesTopPair()
+    {
+        var program = CreateSimpleStackProgram(
+            maxStackDepth: 4,
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 1),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTopTwo),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+        var slots = new[] { JsValue.FromDouble(10), JsValue.FromDouble(20) };
+
+        Assert.Equal(10d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
+    public void Execute_RotateTopThreeRight_RotatesStackTopRight()
+    {
+        var program = CreateSimpleStackProgram(
+            maxStackDepth: 3,
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 0),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 1),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, 2),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RotateTopThreeRight),
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+        var slots = new[] { JsValue.FromDouble(1), JsValue.FromDouble(2), JsValue.FromDouble(3) };
+
+        Assert.Equal(2d, ExecuteProgram(program, slots).AsDouble());
+    }
+
+    [Fact]
     public void Execute_BreakThroughFinally_RunsFinallyBeforeTarget()
     {
         var program = CreateAbruptThroughFinallyProgram(UnifiedBytecodeOpCode.Break);
@@ -1629,6 +1659,26 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
         var context = engine.RealmState.CreateContext();
         var result = UnifiedBytecodeVirtualMachine.Execute(program, slots, context);
         return (result, context);
+    }
+
+    private static UnifiedBytecodeProgram CreateSimpleStackProgram(
+        int maxStackDepth,
+        params UnifiedBytecodeInstruction[] instructions)
+    {
+        return new UnifiedBytecodeProgram(
+            instructions.ToImmutableArray(),
+            maxStackDepth,
+            SlotCount: 3,
+            LiteralConstants: ImmutableArray<JsValue>.Empty,
+            StringConstants: ImmutableArray<string>.Empty,
+            SlotNames: ImmutableArray.Create<string?>("a", "b", "c"),
+            ParameterSlotIndices: ImmutableArray<int>.Empty,
+            LexicalSlotIndices: ImmutableArray<int>.Empty,
+            CallTargetConstants: ImmutableArray<UnifiedBytecodeCallTarget>.Empty,
+            ScopeDescriptors: ImmutableArray<UnifiedBytecodeScopeDescriptor>.Empty,
+            TryDescriptors: ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
+            CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
+            DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
     }
 
     private static UnifiedBytecodeProgram CreateNestedIteratorMoveNextProgram()

@@ -601,7 +601,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.Pop or
                 UnifiedBytecodeOpCode.DuplicateTop or
+                UnifiedBytecodeOpCode.DuplicateTopTwo or
                 UnifiedBytecodeOpCode.SwapTopTwo or
+                UnifiedBytecodeOpCode.RotateTopThreeRight or
                 UnifiedBytecodeOpCode.Jump or
                 UnifiedBytecodeOpCode.JumpIfFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitFalse or
@@ -4420,7 +4422,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ToString:
                 case UnifiedBytecodeOpCode.Pop:
                 case UnifiedBytecodeOpCode.DuplicateTop:
+                case UnifiedBytecodeOpCode.DuplicateTopTwo:
                 case UnifiedBytecodeOpCode.SwapTopTwo:
+                case UnifiedBytecodeOpCode.RotateTopThreeRight:
                 case UnifiedBytecodeOpCode.CreateArray:
                 case UnifiedBytecodeOpCode.ArrayPush:
                 case UnifiedBytecodeOpCode.ArrayPushHole:

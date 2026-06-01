@@ -106,6 +106,16 @@ all-or-nothing until a separate routing issue proves production readiness.
     route logs alone did not guard the whole fallback chain from drifting back
     toward older ADR 0204/0208 wording. If a future slice changes priority
     again, make that explicit and prove the older route remains covered.
+10a. When admitting derived class constructors to production unified bytecode,
+     keep the route body-shaped, not just descriptor-shaped. The first admitted
+     slice is explicit non-spread `super(...)` execution in a derived
+     constructor body that does not read or write `this` afterward; any
+     post-`super()` `this` access, super property access, default derived
+     constructor, instance fields, parameter expressions, or spread `super`
+     arguments must stay on the existing constructor path until the VM owns the
+     initialized-receiver semantics for that shape. Prove both route hits for
+     `super(value)`/`super()` and no-route behavior for the nearby
+     post-`super()` `this` assignment case.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

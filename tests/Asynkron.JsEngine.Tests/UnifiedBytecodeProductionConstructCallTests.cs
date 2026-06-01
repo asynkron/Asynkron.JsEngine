@@ -304,6 +304,10 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -327,6 +331,35 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal("Derived", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SuperConstructThenThisAssignment_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            class Derived extends Base {
+                constructor(value) {
+                    super();
+                    this.value = value;
+                }
+            }
+
+            new Derived(42).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -395,6 +428,30 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
                 constructor() {
                     super();
                 }
+            }
+
+            new Derived().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DefaultDerivedConstructor_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor() {
+                    this.value = 42;
+                }
+            }
+
+            class Derived extends Base {
             }
 
             new Derived().value;

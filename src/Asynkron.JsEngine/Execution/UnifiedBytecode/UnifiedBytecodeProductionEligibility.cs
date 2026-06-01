@@ -3996,7 +3996,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool TryGetExpressionProgram(
+    internal static bool TryGetExpressionProgram(
         ExecutionInstruction instruction,
         out ExpressionProgram program)
     {

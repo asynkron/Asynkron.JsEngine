@@ -4604,6 +4604,49 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWriteWithThisKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {};
+            box[this] = 1;
+
+            function write(box, value) {
+                return box[this] &&= value;
+            }
+
+            String(write(box, 7)) + ":" + box[this];
+            """);
+
+        Assert.Equal("7:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWriteWithNewTargetKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { undefined: 1 };
+
+            function write(box, value) {
+                return box[new.target] &&= value;
+            }
+
+            String(write(box, 7)) + ":" + box.undefined;
+            """);
+
+        Assert.Equal("7:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData("&&=", "1", "0", "7", "7", "0")]
     [InlineData("||=", "0", "5", "7", "7", "5")]

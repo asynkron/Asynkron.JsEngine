@@ -3251,6 +3251,8 @@ internal static class UnifiedBytecodeProductionEligibility
         return operation.Kind switch
         {
             ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadThis => true,
+            ExpressionOpKind.LoadNewTarget => true,
             ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,
@@ -3274,6 +3276,8 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 case ExpressionOpKind.LoadLiteral:
                 case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
                     if (!IsSimpleComputedPropertyKey(operation, identifierConstants, activationSlots))
                     {
                         return false;
@@ -4426,14 +4430,14 @@ internal static class UnifiedBytecodeProductionEligibility
         return operation.Kind switch
         {
             ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadThis => true,
+            ExpressionOpKind.LoadNewTarget => true,
             ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,
                 activationSlots) ||
                 allowsDynamicIdentifiers &&
                 !operation.IsArguments,
-            ExpressionOpKind.LoadThis => true,
-            ExpressionOpKind.LoadNewTarget => true,
             _ => false
         };
     }
@@ -4446,6 +4450,8 @@ internal static class UnifiedBytecodeProductionEligibility
         return operation.Kind switch
         {
             ExpressionOpKind.LoadLiteral => true,
+            ExpressionOpKind.LoadThis => true,
+            ExpressionOpKind.LoadNewTarget => true,
             ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,

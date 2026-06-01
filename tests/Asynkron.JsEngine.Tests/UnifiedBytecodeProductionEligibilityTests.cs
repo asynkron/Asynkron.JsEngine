@@ -6619,8 +6619,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalAndComputedThisKeyWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeOpCode.LoadThis)]
     [InlineData(
         """
         function logicalAndComputedNewTargetKeyWrite(box, value) {
@@ -6628,24 +6627,26 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "logicalAndComputedNewTargetKeyWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    public void Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes(
+        (int)UnifiedBytecodeOpCode.LoadNewTarget)]
+    public void Evaluate_LogicalAndAssignment_ThisAndNewTargetComputedKeys_AcceptWithOwnedOpcodes(
         string source,
-        string functionOrClassName,
-        string? methodName,
-        int expectedCode)
+        string functionName,
+        int expectedKeyLoadOpCode)
     {
-        var plan = methodName is null
-            ? GetFunctionPlan(source, functionOrClassName)
-            : GetClassMethodPlan(source, functionOrClassName, methodName);
+        var plan = GetFunctionPlan(source, functionName);
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedKeyLoadOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

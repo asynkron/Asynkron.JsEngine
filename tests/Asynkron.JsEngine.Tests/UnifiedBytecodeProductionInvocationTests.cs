@@ -5920,13 +5920,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "usesArguments",
         42d)]
-    [InlineData(
-        """
-        var arrowLexical = () => 42;
-        arrowLexical();
-        """,
-        "arrowLexical",
-        42d)]
     public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
@@ -5939,6 +5932,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleZeroArgumentArrowFunction_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var arrowLexical = () => 42;
+            arrowLexical();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
                 StringComparison.Ordinal));
     }
 

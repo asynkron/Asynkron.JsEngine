@@ -4949,6 +4949,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 argsStartIndex: 1,
                 call,
                 out reason);
@@ -4971,6 +4972,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+                callTargetConstants,
             argsStartIndex: 1,
             call,
             out reason);
@@ -5035,6 +5037,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 argsStartIndex: 2,
                 call,
                 callIndex,
@@ -5191,6 +5194,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+                callTargetConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -5254,6 +5258,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
@@ -5321,6 +5326,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 2,
                 call,
                 callIndex,
@@ -5441,6 +5447,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+                callTargetConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -5520,6 +5527,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+                callTargetConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -5587,6 +5595,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+                callTargetConstants,
             callTargetIndexInProgram + 1,
             call,
             callIndex,
@@ -5647,6 +5656,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 2,
                 call,
                 callIndex,
@@ -5728,6 +5738,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
@@ -5814,6 +5825,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
@@ -5894,6 +5906,7 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 literalConstants,
                 stringConstants,
+                callTargetConstants,
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
@@ -5997,6 +6010,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         int argsStartIndex,
         PackedExpressionOp call,
         out string reason)
@@ -6007,6 +6021,7 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
+            callTargetConstants,
             argsStartIndex,
             call,
             expressionProgram.OperationCount - 1,
@@ -6019,6 +6034,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         int argsStartIndex,
         PackedExpressionOp call,
         int callIndex,
@@ -6048,7 +6064,7 @@ internal static class UnifiedBytecodeCompiler
             {
                 if (!TryAppendSimpleObjectLiteralSpan(
                         expressionProgram, operationIndex, activationSlots,
-                        unified, literalConstants, stringConstants, out var objSpanLen, out reason))
+                        unified, literalConstants, stringConstants, callTargetConstants, slotLayout, out var objSpanLen, out reason))
                 {
                     return false;
                 }
@@ -6211,6 +6227,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
         out int spanLength,
         out string reason)
     {
@@ -6227,6 +6245,69 @@ internal static class UnifiedBytecodeCompiler
         var i = startIndex + 1;
         while (i < expressionProgram.OperationCount)
         {
+            if (slotLayout is not null &&
+                callTargetConstants is not null &&
+                TryMeasureSimpleIdentifierCallOperandSpan(
+                    expressionProgram,
+                    i,
+                    slotLayout,
+                    out var callKeySpanLength) &&
+                i + callKeySpanLength < expressionProgram.OperationCount &&
+                expressionProgram.GetOperation(i + callKeySpanLength).Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                if (!TryAppendSimpleIdentifierCallOperandSpan(
+                        expressionProgram,
+                        i,
+                        slotLayout,
+                        unified,
+                        stringConstants,
+                        callTargetConstants,
+                        out reason))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+                i += callKeySpanLength + 1;
+
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected value operand after ResolvePropertyKey.";
+                    return false;
+                }
+
+                var valueOp = expressionProgram.GetOperation(i);
+                if (!TryAppendSimpleOperandLoad(valueOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+                {
+                    spanLength = 0;
+                    reason = "Complex value expressions are not admitted in simple computed object properties.";
+                    return false;
+                }
+
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    reason = "Expected DefineComputedObjectProperty after key, ResolvePropertyKey, and value.";
+                    return false;
+                }
+
+                var computedDefineOp = expressionProgram.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    reason = "Complex computed keys and name-inferred computed properties are not admitted in simple object literals.";
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DefineComputedObjectProperty, 0));
+                i++;
+                continue;
+            }
+
             if (TryMeasureSimpleBinaryOperandSpan(
                     expressionProgram,
                     i,
@@ -6378,6 +6459,87 @@ internal static class UnifiedBytecodeCompiler
         }
 
         spanLength = i - startIndex;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleIdentifierCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        UnifiedBytecodeSlotLayout slotLayout,
+        out int spanLength)
+    {
+        if (startIndex + 1 >= expressionProgram.OperationCount)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex);
+        var call = expressionProgram.GetOperation(startIndex + 1);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments ||
+            call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.ArgumentCount != 0 ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out _))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        spanLength = 2;
+        return true;
+    }
+
+    private static bool TryAppendSimpleIdentifierCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (!TryMeasureSimpleIdentifierCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                slotLayout,
+                out _))
+        {
+            reason = "Computed object keys only admit activation-resolved zero-argument identifier calls.";
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex);
+        var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
+        {
+            reason = "Computed object key call target requires an activation-resolved identifier slot.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(identifier.Name.Name ?? string.Empty);
+        var callTargetIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.Identifier,
+            slotIndex,
+            nameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+            callTargetIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            EncodeCallBoundaryOperand(0, spreadMaskIndex: -1, isDirectEval: false)));
         reason = string.Empty;
         return true;
     }
@@ -8671,6 +8833,8 @@ internal static class UnifiedBytecodeCompiler
                             unified,
                             literalConstants,
                             stringConstants,
+                            callTargetConstants: null,
+                            slotLayout: null,
                             out var objectSpanLength,
                             out reason))
                     {
@@ -8924,6 +9088,7 @@ internal static class UnifiedBytecodeCompiler
             {
                 if (!TryAppendSimpleObjectLiteralSpan(
                         expressionProgram, rhsStart, activationSlots, unified, literalConstants, stringConstants,
+                        callTargetConstants: null, slotLayout: null,
                         out var objSpanLen, out reason) ||
                     rhsStart + objSpanLen - 1 != rhsEnd)
                 {

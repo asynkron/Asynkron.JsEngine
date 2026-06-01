@@ -187,6 +187,133 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringComputedDefault_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignComputedDefault(source, key) {
+                var value = 0;
+                ({ [key]: value = 5 } = source);
+                return value;
+            }
+
+            assignComputedDefault({}, "picked");
+            """);
+
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignComputedDefault argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringValue_DoesNotInferBindingTargetName_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignValueName(source) {
+                var assigned;
+                ({ value: assigned } = source);
+                return assigned.name;
+            }
+
+            var payload = (0, function() {});
+            assignValueName({ value: payload });
+            """);
+
+        Assert.Equal("", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignValueName argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringGetterThrow_PreservesPartialWriteAfterCaughtThrow_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(source) {
+                var a = 0;
+                var b = 0;
+                try {
+                    ({ a, b } = source);
+                } catch {
+                    return a;
+                }
+
+                return -1;
+            }
+
+            probe({
+                a: 1,
+                get b() { throw new RangeError("boom"); }
+            });
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringIteratorValueThrow_ClosesIteratorAndPreservesPartialWrite_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(iterable) {
+                var a = 0;
+                var b = 0;
+                try {
+                    [a, b] = iterable;
+                } catch {
+                    return a;
+                }
+
+                return -1;
+            }
+
+            var closed = false;
+            var iterable = {
+                [Symbol.iterator]: function () {
+                    var step = 0;
+                    return {
+                        next: function () {
+                            step = step + 1;
+                            if (step === 1) {
+                                return { value: 1, done: false };
+                            }
+
+                            return {
+                                get value() { throw new RangeError("boom"); },
+                                done: false
+                            };
+                        },
+                        return: function () {
+                            closed = true;
+                            return {};
+                        }
+                    };
+                }
+            };
+
+            var observed = probe(iterable);
+            [observed, closed];
+            """);
+
+        var observed = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, observed.Items[0].AsDouble());
+        Assert.True(observed.Items[1].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=1",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """
@@ -4539,17 +4666,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "complexCompoundWrite",
         42d)]
-    [InlineData(
-        """
-        function destructureWrite(box, source) {
-            ({ value: box.value } = source);
-            return box.value;
-        }
-
-        destructureWrite({ value: 0 }, { value: 42 });
-        """,
-        "destructureWrite",
-        42d)]
     public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
@@ -4562,6 +4678,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AssignmentDestructuringPropertyTarget_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function destructureWrite(box, source) {
+                ({ value: box.value } = source);
+                return box.value;
+            }
+
+            destructureWrite({ value: 0 }, { value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=destructureWrite argc=2",
                 StringComparison.Ordinal));
     }
 

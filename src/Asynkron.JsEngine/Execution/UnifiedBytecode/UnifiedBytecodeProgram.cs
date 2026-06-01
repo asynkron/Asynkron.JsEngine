@@ -46,6 +46,7 @@ internal enum UnifiedBytecodeOpCode : byte
     UnaryVoid,
     ToString,
     Pop,
+    DuplicateTop,
     SwapTopTwo,
     CreateArray,
     ArrayPush,
@@ -107,6 +108,7 @@ internal enum UnifiedBytecodeOpCode : byte
     AwaitAndDiscard,
     AwaitedReturn,
     YieldStar,
+    ApplyBindingTarget,
     EnsureHasName
 }
 
@@ -275,4 +277,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<UnifiedBytecodeDriverDescriptor> DriverDescriptors,
     ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
     ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default,
-    ImmutableArray<ClassExpression> ClassLiteralConstants = default);
+    ImmutableArray<ClassExpression> ClassLiteralConstants = default,
+    ImmutableArray<BindingTargetProgram> BindingTargetConstants = default);

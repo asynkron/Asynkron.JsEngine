@@ -1398,7 +1398,7 @@ Instrumented SLOs have a committed avg-ms baseline in `tools/perf-slo-baseline.m
 
 | SLO | Target | Measured by | Current status |
 |---|---|---|---|
-| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Prototyped — avg baseline committed (~4.8 ms; see `tools/perf-slo-baseline.md`); p95 target proof still needed |
+| Cold-start latency (realm init + simple script) | < 5 ms p95 on commodity hardware | ProfileRunner `startup` benchmark | Prototyped — avg baseline committed (~4.8 ms; see `tools/perf-slo-baseline.md`) and maintained startup evidence attached (`docs/performance/startup-slo-evidence.md`); current p95 evidence remains over target, so the SLO is still directional |
 | Warm-path throughput (`fibonacci`, `looping`) | ≤ 2× Jint managed bytes per op | `./benchmark.sh --allocations` | Tracked, improving |
 | Allocation per expression eval (hot loop, no object creation) | Zero Gen 1+ promotions | `./benchmark.sh --allocations` | Partially met; args still escape |
 | Microtask drain latency | < 1 ms per 1 000 queued jobs | ProfileRunner `microtask` benchmark | Prototyped — avg baseline committed (~8.0 ms/1 000 jobs; see `tools/perf-slo-baseline.md`); target proof still needed |

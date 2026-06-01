@@ -1142,6 +1142,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         bindingTargetValue,
                         bindingEnvironment,
                         context);
+                    SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -1152,7 +1153,6 @@ internal static class UnifiedBytecodeVirtualMachine
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
-                    SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
                     programCounter++;
                     break;
 

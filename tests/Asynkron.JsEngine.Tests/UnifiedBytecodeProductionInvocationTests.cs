@@ -208,6 +208,90 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringGetterThrow_PreservesPartialWriteAfterCaughtThrow_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(source) {
+                var a = 0;
+                var b = 0;
+                try {
+                    ({ a, b } = source);
+                } catch {
+                    return a;
+                }
+
+                return -1;
+            }
+
+            probe({
+                a: 1,
+                get b() { throw new RangeError("boom"); }
+            });
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringIteratorValueThrow_ClosesIteratorAndPreservesPartialWrite_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function probe(iterable) {
+                var a = 0;
+                var b = 0;
+                try {
+                    [a, b] = iterable;
+                } catch {
+                    return a;
+                }
+
+                return -1;
+            }
+
+            var closed = false;
+            var iterable = {
+                [Symbol.iterator]: function () {
+                    var step = 0;
+                    return {
+                        next: function () {
+                            step = step + 1;
+                            if (step === 1) {
+                                return { value: 1, done: false };
+                            }
+
+                            return {
+                                get value() { throw new RangeError("boom"); },
+                                done: false
+                            };
+                        },
+                        return: function () {
+                            closed = true;
+                            return {};
+                        }
+                    };
+                }
+            };
+
+            var observed = probe(iterable);
+            [observed, closed];
+            """);
+
+        var observed = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(1d, observed.Items[0].AsDouble());
+        Assert.True(observed.Items[1].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=probe argc=1",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """

@@ -795,9 +795,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalChainComputedPlainSpreadCallExpressionPlan_Declines()
+    public void Evaluate_OptionalChainComputedPlainSpreadCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
-        // gh2828 AC-4: keep spread variants out of the optional-start computed plain-call slice.
         var plan = GetFunctionPlan("""
             function invoke(a, key, args) {
                 return a?.box[key](...args);
@@ -809,7 +808,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
     }
 
     [Fact]

@@ -93,7 +93,7 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] Improve Test262 pass rate by triaging real correctness failures (target: <10 true failures — SLO defined in `docs/dreaming.md`).
 - [x] Establish committed ProfileRunner SLO baselines for `startup` and `microtask`, rechecked by `make slo-gate` (`tools/perf-slo-baseline.md`, `tools/check-slo-gate`); directional SLO targets remain separate from the hard baseline guardrail.
 - [x] Add p95 target-status and same-run Node.js comparison output to the SLO gate while keeping that output non-failing evidence (gh2927 / PR #2930).
-- [ ] Prove at least one SLO target with the matching measurement shape beyond baseline protection: p95 evidence for p95 targets or same-run comparison evidence for parity language ([gh2927](https://github.com/asynkron/Asynkron.JsEngine/issues/2927)). Startup has maintained evidence, but the current p95 is still over target (`docs/performance/startup-slo-evidence.md`).
+- [ ] Prove at least one SLO target with the matching measurement shape beyond baseline protection: p95 evidence for p95 targets or same-run comparison evidence for parity language ([gh2935](https://github.com/asynkron/Asynkron.JsEngine/issues/2935)). Startup has maintained evidence, but the current p95 is still over target (`docs/performance/startup-slo-evidence.md`).
 - [ ] Land the typed-AST evaluator migration described in the dreaming docs, gated by allocation budgets (2-stratum target: delete Tier 1 + Tier 2).
 
 ## Long-Term Goals
@@ -139,6 +139,6 @@ Conformance against Test262 is tracked via a custom testrunner with baselines in
 - [ ] (open, [gh2906](https://github.com/asynkron/Asynkron.JsEngine/issues/2906)) Recheck residual `PropertyDescriptor` allocation evidence after the gh2843 / PR #2846 computed symbol assignment fast path, and either close the follow-up as already delivered or scope a distinct remaining owner from `docs/performance/symbol-propertyaccess-owner-evidence.md`.
 - [x] (landed, [gh2927](https://github.com/asynkron/Asynkron.JsEngine/issues/2927)) Added p95 target-status and same-run Node.js comparison output to `tools/check-slo-gate`. Landed in PR #2930; target-status and comparison columns remain non-failing evidence.
 - [ ] (open, [gh2934](https://github.com/asynkron/Asynkron.JsEngine/issues/2934)) Widen unified bytecode for optional computed delete chains with selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof kept together.
-- [ ] (open, [gh2927](https://github.com/asynkron/Asynkron.JsEngine/issues/2927)) Prove SLO target status with p95 evidence for p95 targets and same-run comparison evidence before advancing Node.js-competitive roadmap wording. Startup evidence is maintained in `docs/performance/startup-slo-evidence.md`, but current p95 remains over target.
+- [ ] (open, [gh2935](https://github.com/asynkron/Asynkron.JsEngine/issues/2935)) Prove SLO target status with p95 evidence for p95 targets and same-run comparison evidence before advancing Node.js-competitive roadmap wording. Startup evidence is maintained in `docs/performance/startup-slo-evidence.md`, but current p95 remains over target.
 
 _Generated and maintained by the recurring Roadmapper run._

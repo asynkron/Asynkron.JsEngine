@@ -3931,8 +3931,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(ExecutionPlan plan)
         {
-            return !_hasBodyWithStatement &&
-                   !_hasDirectEvalInBodyOrParameters &&
+            return !_hasDirectEvalInBodyOrParameters &&
                    !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&
                    !_usesArguments &&

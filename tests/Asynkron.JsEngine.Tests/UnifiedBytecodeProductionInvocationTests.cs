@@ -5472,6 +5472,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [InlineData(
         """
         class Box {
+            extra = 1;
+
             constructor(value) {
                 this.value = value;
             }

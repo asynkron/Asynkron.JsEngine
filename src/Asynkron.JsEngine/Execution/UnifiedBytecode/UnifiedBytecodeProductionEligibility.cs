@@ -2018,15 +2018,15 @@ internal static class UnifiedBytecodeProductionEligibility
                    activationSlots);
     }
 
-    // Admits delete a.b?.[k]:
-    // [activation-resolved base, GetNamedProperty(non-optional, non-private)+,
+    // Admits delete a?.[k] and delete a.b?.[k]:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  JumpIfNullish, simple key, DeleteComputedProperty, Jump, Pop, true].
     private static bool TryIsFirstBoundaryOptionalComputedPropertyDeleteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        if (program.OperationCount < 8 ||
+        if (program.OperationCount < 7 ||
             !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
             return false;
@@ -2046,11 +2046,6 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             jumpIndex++;
-        }
-
-        if (jumpIndex < 2)
-        {
-            return false;
         }
 
         var jumpIfNullish = program.GetOperation(jumpIndex);

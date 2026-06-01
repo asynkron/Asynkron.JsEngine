@@ -6924,7 +6924,7 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles delete a.b?.[k], preserving the source program's nullish branch shape.
+    // Handles delete a?.[k] and delete a.b?.[k], preserving the source program's nullish branch shape.
     private static bool TryAppendFirstBoundaryOptionalComputedPropertyDeleteWithJump(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -6933,7 +6933,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount < 8)
+        if (expressionProgram.OperationCount < 7)
         {
             reason = string.Empty;
             return false;
@@ -6959,8 +6959,7 @@ internal static class UnifiedBytecodeCompiler
         var endJumpIndexInProgram = expressionProgram.OperationCount - 3;
         var popIndex = expressionProgram.OperationCount - 2;
         var trueIndex = expressionProgram.OperationCount - 1;
-        if (jumpIndex < 2 ||
-            deleteIndex <= jumpIndex + 1 ||
+        if (deleteIndex <= jumpIndex + 1 ||
             expressionProgram.GetOperation(jumpIndex) is not { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: false } jumpIfNullish ||
             jumpIfNullish.Target != popIndex ||
             expressionProgram.GetOperation(deleteIndex).Kind != ExpressionOpKind.DeleteComputedProperty ||

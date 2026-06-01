@@ -1847,19 +1847,18 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     expression-stack fallback for the receiver chain.
 
     Optional computed delete routing is narrower than optional-chain delete as
-    a family. The admitted shapes are exactly `delete box?.child[key]` and
-    `delete box.child?.[key]`, with activation-resolved receivers,
+    a family. The admitted shapes are exactly `delete box?.[key]`,
+    `delete box?.child[key]`, and `delete box.child?.[key]`, with activation-resolved receivers,
     non-private named receiver hops, supported computed-key spans, and
     compiler-owned nullish short-circuit-to-true lowering. For
     `delete box?.child[key]`, emit the nullish guard before the named hop so
     the computed key is skipped on the short-circuit path. For
-    `delete box.child?.[key]`, recognize the existing
+    `delete box?.[key]` and `delete box.child?.[key]`, recognize the existing
     `JumpIfNullish, key span, DeleteComputedProperty, Jump, Pop, true` tail and
-    re-lower it to the same VM-owned short-circuit block. Keep simple optional
-    computed delete without a named receiver hop (`delete box?.[key]`), chained
-    optional delete neighbors, richer computed-key payloads, dynamic lookup,
-    private names, and `super` as pre-VM declines until a later slice proves
-    those exact semantics.
+    re-lower it to the same VM-owned short-circuit block. Keep chained optional
+    delete neighbors, richer computed-key payloads, dynamic lookup, private
+    names, and `super` as pre-VM declines until a later slice proves those exact
+    semantics.
 
     Pair each positive widening with opcode proof, public fast-path route logs,
     computed-key coercion/order proof for computed deletes, strict/sloppy

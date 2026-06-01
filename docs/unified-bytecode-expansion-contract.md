@@ -229,7 +229,6 @@ statement interpretation.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `NewTargetDependency`
 - `ArrowLexicalThisDependency`
 - `ClassConstructorActivation`
 - `CallDependency`
@@ -265,7 +264,6 @@ must still obey the no-mixed-execution rule.
 | `GeneratorFunction` | `Evaluate` activation gate for ordinary sync production routing | Existing generator IR route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `CapturedOrDynamicActivation` | Activation descriptor `HasCapturedOrDynamicActivation`, including captured function scope or unresolved dynamic activation outside the with-backed lane | Existing sync IR / environment route | Dynamic activation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ActivationDependencies_DeclineBeforeCompile"` |
 | `ArgumentsObjectDependency` | Activation descriptor and expression scan for `arguments` object access or arguments call targets | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency"` |
-| `NewTargetDependency` | Activation descriptor gate for `new.target` dependency | Existing constructor / sync IR route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ActivationDependencies_DeclineBeforeCompile"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation before ordinary sync routing | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
 | `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, complex call arguments, and descriptor-level non-parameter callee calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency"` |

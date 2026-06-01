@@ -3265,7 +3265,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
                 UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation or
                 UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
-                UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
                 UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation);
         }
@@ -3327,7 +3326,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
-                HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
                 HasCallDependency: false,

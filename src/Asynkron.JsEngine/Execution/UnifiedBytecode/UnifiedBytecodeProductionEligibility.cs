@@ -11,7 +11,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     GeneratorFunction,
     CapturedOrDynamicActivation,
     ArgumentsObjectDependency,
-    NewTargetDependency,
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
     CallDependency,
@@ -36,7 +35,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool IsGenerator = false,
     bool HasCapturedOrDynamicActivation = false,
     bool HasArgumentsObjectDependency = false,
-    bool HasNewTargetDependency = false,
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
     bool HasCallDependency = false,
@@ -274,15 +272,6 @@ internal static class UnifiedBytecodeProductionEligibility
             declineReason = isResumable
                 ? "Arguments-object-dependent execution is not eligible for resumable unified bytecode routing."
                 : "Arguments-object-dependent execution is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
-        if (activation.HasNewTargetDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.NewTargetDependency;
-            declineReason = isResumable
-                ? "new.target dependency is not eligible for resumable unified bytecode routing."
-                : "new.target dependency is not eligible for production unified bytecode routing.";
             return true;
         }
 

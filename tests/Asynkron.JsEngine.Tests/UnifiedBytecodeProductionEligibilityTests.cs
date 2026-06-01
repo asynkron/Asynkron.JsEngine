@@ -214,15 +214,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
-    [InlineData(false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
-    [InlineData(false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.NewTargetDependency)]
-    [InlineData(false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
+    [InlineData(false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
+    [InlineData(false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     public void Evaluate_ActivationDependencies_DeclineBeforeCompile(
         bool capturedOrDynamic,
         bool argumentsDependency,
-        bool newTargetDependency,
         bool callDependency,
         bool dynamicLookupDependency,
         int expectedCode)
@@ -239,7 +237,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasCapturedOrDynamicActivation: capturedOrDynamic,
                 HasArgumentsObjectDependency: argumentsDependency,
-                HasNewTargetDependency: newTargetDependency,
                 HasCallDependency: callDependency,
                 HasDynamicLookupDependency: dynamicLookupDependency));
 

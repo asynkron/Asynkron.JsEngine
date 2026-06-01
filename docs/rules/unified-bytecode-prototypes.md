@@ -129,6 +129,14 @@ all-or-nothing until a separate routing issue proves production readiness.
      invocation descriptor, expression selector, and compiler in agreement so a
      name-only `operation.IsArguments` check cannot block shadowed bindings or
      accidentally admit the real arguments object.
+10c. When admitting arrow functions to production unified bytecode, reuse the
+     lowered-plan dependency proof used by simple IR activation. Only arrows
+     whose simple return program contains no lexical `this`, `new.target`, or
+     super operation, no closure-variable or dynamic identifier dependency, and
+     no nested function/class literal may clear the arrow and captured-activation
+     blockers. Dependency-bearing arrows, parameter expressions, non-simple
+     parameters, private scopes, and dynamic lookup stay on existing routes until
+     the VM and invocation bridge own those semantics directly.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

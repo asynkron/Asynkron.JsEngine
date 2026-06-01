@@ -320,7 +320,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `pre-gate:IsClassConstructor` | Class constructor invokers outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route without `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:IsArrowFunction` | Arrow functions, especially lexical `this` / `new.target` shapes | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no lexical `this`, `new.target`, super, closure-variable, or dynamic-identifier dependency | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsDefaultDerivedConstructor` | Default derived class constructor setup | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -426,7 +426,10 @@ the final post-compile production subset check before VM entry.
 - Sloppy-mode `this` coercion is handled before VM entry: `boundThis` is
   computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
   so the VM's `LoadThis` opcode always receives the correctly coerced value.
-- Arrow functions still decline via the `IsArrowFunction` and
+- Simple-return arrow functions whose lowered body has no lexical `this`,
+  `new.target`, super, closure-variable, dynamic-identifier, or nested
+  function/class literal dependency may route. Dependency-bearing arrows still
+  decline via the `IsArrowFunction`, captured-activation, or
   `_lexicalThisEnvironment is not null` pre-gates.
 - There is no retained `this` decline in the production activation descriptor;
   future shapes that cannot thread `this` through the VM should introduce a
@@ -729,8 +732,9 @@ support today.
 ## Ranked Next Unsupported Buckets (current boundary)
 1. Activation model gaps are still larger than any single expression-family
    neighbor. Ordinary sync production routing still pre-gates async-like
-   functions, generators, arrows with lexical `this` / `new.target`, real
-   `arguments` object and sloppy mapped-arguments dependencies, non-simple
+   functions, generators, arrows with lexical `this` / `new.target`, closure or
+   dynamic identifier dependencies, or non-simple bodies, real `arguments`
+   object and sloppy mapped-arguments dependencies, non-simple
    parameter lists, default/rest/destructured parameter expressions, broader
    class constructor routes beyond simple base constructors and the bounded
    explicit derived `super(...)` path, default derived constructors, instance fields,

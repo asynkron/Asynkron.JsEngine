@@ -218,7 +218,7 @@ must still obey the no-mixed-execution rule.
 | `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, computed/default/nested declaration destructuring, and destructuring targets outside the admitted driver or descriptor-backed assignment lanes | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
 | `BreakOrContinueControlFlow` | Historical taxonomy member for the pre-ADR 0253 blanket break/continue decline; currently no ordinary sync site should produce it | Existing IR loop-control route if reintroduced | Loop-control guard lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
-| `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_YieldStar_DeclinesUntilDelegatedAbruptResumeIsModeled"` |
+| `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
 ### Sync Production Pre-Gate Rows
@@ -541,7 +541,9 @@ the final post-compile production subset check before VM entry.
   operand stack, slots, pending await promise, pending resume payload, and
   completion state inside the unified runtime.
 - Accepted resumable generator shapes include simple `yield` / resume-value
-  storage bodies that compile through `Yield` and `StoreResumeValue`.
+  storage bodies that compile through `Yield` and `StoreResumeValue`, plus
+  sync `yield*` bodies whose delegated `.next()`, `.return(value)`, and
+  `.throw(value)` resume behavior is owned by the VM `YieldStar` opcode.
 - Accepted resumable async shapes include simple awaited discard and awaited
   return bodies that compile through `AwaitAndDiscard` and `AwaitedReturn`.
 - `this`-dependent async and generator programs are admitted (resumable-route
@@ -557,10 +559,9 @@ the final post-compile production subset check before VM entry.
   dynamic lookup, labels, iterator/destructuring drivers, unsupported
   expression payloads, and unmodeled statement families still decline before
   VM execution.
-- `YieldStar` remains outside production resumable routing until delegated
-  `.return()` and `.throw()` resume behavior is modeled by the VM. Observable
-  delegated abrupt-resume behavior continues through the existing IR generator
-  path until that widening lands.
+- Async-generator `yield*`, awaited delegated sources, and unsupported
+  delegated expression payloads remain outside production resumable routing
+  until their promise/async-iterator settlement semantics are modeled by the VM.
 
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes

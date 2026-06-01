@@ -2536,7 +2536,8 @@ public sealed class JsAstParser(
 
             if (Match(TokenType.Delete))
             {
-                return new UnaryExpression(CreateSourceReference(Previous()), UnaryOperator.Delete, ParseUnary(), true);
+                var token = Previous();
+                return CreateUnaryExpression(token, UnaryOperator.Delete, ParseUnary());
             }
 
             if (Check(TokenType.Yield))
@@ -2874,7 +2875,7 @@ public sealed class JsAstParser(
                     TokenType.Delete => UnaryOperator.Delete,
                     _ => throw new InvalidOperationException()
                 };
-                var unary = new UnaryExpression(CreateSourceReference(token), op, operand, true);
+                var unary = CreateUnaryExpression(token, op, operand);
                 return ApplyCallSuffix(unary, allowCallSuffix);
             }
 
@@ -3036,6 +3037,34 @@ public sealed class JsAstParser(
         private ExpressionNode ApplyCallSuffix(ExpressionNode expression, bool allowCallSuffix)
         {
             return allowCallSuffix ? ParseCallSuffix(expression) : expression;
+        }
+
+        private UnaryExpression CreateUnaryExpression(Token token, UnaryOperator op, ExpressionNode operand)
+        {
+            if (op == UnaryOperator.Delete && TryGetPrivateMemberName(operand, out var privateName))
+            {
+                throw new ParseException($"Private field '{privateName}' cannot be deleted.", token, source);
+            }
+
+            return new UnaryExpression(CreateSourceReference(token), op, operand, true);
+        }
+
+        private static bool TryGetPrivateMemberName(ExpressionNode expression, out string privateName)
+        {
+            if (expression is MemberExpression
+                {
+                    IsComputed: false,
+                    Property: LiteralExpression { Value.IsString: true } property
+                } &&
+                property.Value.AsString() is { } propertyName &&
+                propertyName.IsPrivateName())
+            {
+                privateName = propertyName;
+                return true;
+            }
+
+            privateName = string.Empty;
+            return false;
         }
 
         private ImmutableArray<CallArgument> ParseArgumentList()

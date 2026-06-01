@@ -4673,6 +4673,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedNamedReceiverComputedPropertyDeleteRichKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, left, right) {
+                return delete box.child[left + right];
+            }
+
+            var child = { value: 42 };
+            var box = { child: child };
+            remove(box, "val", "ue") && !Object.prototype.hasOwnProperty.call(child, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedThenComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndPreservesKeyOrder()
     {
         await using var engine = CreateEngine();

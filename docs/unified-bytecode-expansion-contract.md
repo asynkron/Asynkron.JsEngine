@@ -435,10 +435,10 @@ the final post-compile production subset check before VM entry.
   `box.child?.items[key]`), with the prefix emitted as owned `GetNamedProperty`
   reads before the optional jump-to-chain-end boundary. Nested named receiver
   chains ending in a simple
-  computed delete (`delete box.child[key]`) are admitted by
-  `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional named deletes
-  (`delete box?.value`, `delete box.child?.value`) and optional computed delete
-  chains (`delete box?.[key]`, `delete box?.child[key]`, and
+  computed delete (`delete box.child[key]`, `delete box.child[left + right]`)
+  are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional
+  named deletes (`delete box?.value`, `delete box.child?.value`) and optional
+  computed delete chains (`delete box?.[key]`, `delete box?.child[key]`, and
   `delete box.child?.[key]`) are admitted for activation-resolved receivers,
   supported computed-key spans, and compiler-owned nullish short-circuit-to-true
   lowering (ADR 0317 plus the optional delete follow-ups). The compiler emits
@@ -447,7 +447,7 @@ the final post-compile production subset check before VM entry.
   strict/sloppy results.
   Retained declines include chained optional delete neighbors,
   private receiver-chain/mutation neighbors outside the admitted direct named
-  shape, dynamic lookup, richer unowned computed-key spans, unsupported RHS
+  shape, dynamic lookup, unsupported computed-key spans, unsupported RHS
   spans, and optional/super/private neighbors of computed-key mutation shapes.
   Private member deletes are rejected before this production gate.
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.

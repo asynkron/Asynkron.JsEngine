@@ -1063,6 +1063,15 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsConditionalExpressionActivationResolvedNamedPropertyReadOperand(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1891,6 +1900,53 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static bool TryIsConditionalExpressionActivationResolvedNamedPropertyReadOperand(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (FindFirstOperation(program, ExpressionOpKind.JumpIfConditionalFalse) < 0)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var operation = program.GetOperation(operationIndex);
+        if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+            operation.IsOptional ||
+            operation.ShortCircuitOnNullishTarget ||
+            operation.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var chainStartIndex = operationIndex;
+        while (chainStartIndex > 0)
+        {
+            var previous = program.GetOperation(chainStartIndex - 1);
+            if (previous.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (previous.IsOptional ||
+                previous.ShortCircuitOnNullishTarget ||
+                previous.GetString(stringConstants).IsPrivateName())
+            {
+                return false;
+            }
+
+            chainStartIndex--;
+        }
+
+        return chainStartIndex > 0 &&
+               TryGetActivationResolvedValue(
+                   program.GetOperation(chainStartIndex - 1),
+                   identifierConstants,
+                   activationSlots);
     }
 
     /// <summary>

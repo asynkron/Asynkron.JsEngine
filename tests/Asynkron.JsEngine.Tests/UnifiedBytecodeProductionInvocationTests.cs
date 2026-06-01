@@ -7839,6 +7839,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task Ternary_ThisPropertyConditionAndArm_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Toggle {
+                constructor(flag, value) {
+                    this.flag = flag;
+                    this.value = value;
+                }
+
+                select(other) {
+                    return this.flag ? this.value : other;
+                }
+            }
+
+            [new Toggle(true, 42).select(10), new Toggle(false, 42).select(10)].join(",");
+            """);
+
+        Assert.Equal("42,10", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Ternary_ConditionIsConsumedNotPeeked_BothBranchesCorrect()
     {
         // AC-2: verifies consume semantics — if the condition were left on the stack

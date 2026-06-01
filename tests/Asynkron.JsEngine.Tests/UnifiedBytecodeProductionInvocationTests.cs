@@ -2866,6 +2866,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalChainComputedPlainSpreadCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, key, args) {
+                return a?.box[key](...args);
+            }
+
+            var holder = {
+                box: {
+                    sum(a, b) {
+                        return this === holder.box ? a + b : -1;
+                    }
+                }
+            };
+
+            var present = invoke(holder, "sum", [20, 22]);
+            var missing = invoke(null, "sum", [1, 2]);
+            present + ":" + missing;
+            """);
+
+        Assert.Equal("42:undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

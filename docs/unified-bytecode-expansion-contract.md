@@ -559,9 +559,11 @@ the final post-compile production subset check before VM entry.
   VM flattens spread iterables left-to-right at the boundary via the shared
   `TypedAstEvaluator.EnumerateSpread` helper, preserving iteration order and
   side-effects, then invokes through the existing callable helpers with
-  receiver-as-`this`. Direct eval is admitted only for the one-argument
+  receiver-as-`this`. Optional-start computed member spread calls such as
+  `a?.box[key](...args)` use the same spread-mask boundary after the optional
+  receiver has been resolved. Direct eval is admitted only for the one-argument
   non-spread eval-identifier shape; multi-argument/spread direct eval, super
-  spread, and optional spread calls stay declined.
+  spread, and callee-optional spread calls stay declined.
 - Synchronous construct calls are admitted (gh2690 plus the construct-boundary
   widening): `new F(...)`, `new F(...args)`, `new box.Ctor(...)`, and
   `new box[key](...)` when the constructor/key/argument subexpressions are
@@ -787,10 +789,12 @@ support today.
    invocation shapes are now admitted too (PR #2862, ADR 0307): non-spread
    derived-constructor `super(...)` plus named/computed super-member calls.
    Simple array and object literal arguments (`fn([a, b])`, `fn({x: a})`) are
-   now admitted (gh2705, ADR 0290). Simple object literal spread entries are now
-   admitted through the `ObjectSpread` opcode when their spread source is a
-   simple operand. Direct eval outside the one-argument non-spread
-   eval-identifier boundary, spread super constructs, spread-onto-optional,
+   now admitted (gh2705, ADR 0290). Optional-start computed member spread calls
+   (`a?.box[key](...args)`) are also admitted through the shared spread-mask
+   invocation boundary. Simple object literal spread entries are now admitted
+   through the `ObjectSpread` opcode when their spread source is a simple
+   operand. Direct eval outside the one-argument non-spread
+   eval-identifier boundary, spread super constructs, spread callee-optional calls,
    private-adjacent member targets outside the admitted direct named method-call
    shape, complex receiver/key shapes, non-simple literal argument spans, and receiver-binding-sensitive adjacent families beyond the
    direct activation-resolved and with-backed dynamic-identifier boundaries must

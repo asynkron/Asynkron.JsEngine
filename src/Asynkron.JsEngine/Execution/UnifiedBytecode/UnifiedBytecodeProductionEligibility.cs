@@ -2209,8 +2209,10 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // Admits the a?.b[k] and a?.b[k].c shapes:
-    // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
+    // Admits the a?.b[k], a?.b[k].c, and a.b?.c[k] shapes:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    //  GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true),
+    //  GetNamedProperty(SC:true)*]
     private static bool TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2227,7 +2229,27 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var stringConstants = program.StringConstants.AsSpan();
-        var firstPropOp = program.GetOperation(1);
+        var optionalStartIndex = 1;
+        while (optionalStartIndex < program.OperationCount)
+        {
+            var prefixOp = program.GetOperation(optionalStartIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget ||
+                prefixOp.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            optionalStartIndex++;
+        }
+
+        if (optionalStartIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var firstPropOp = program.GetOperation(optionalStartIndex);
         if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
             !firstPropOp.IsOptional ||
             firstPropOp.ShortCircuitOnNullishTarget ||
@@ -2237,7 +2259,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var computedSuffixStart = program.OperationCount;
-        while (computedSuffixStart > 4)
+        while (computedSuffixStart > optionalStartIndex + 3)
         {
             var suffixOp = program.GetOperation(computedSuffixStart - 1);
             if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
@@ -2255,7 +2277,12 @@ internal static class UnifiedBytecodeProductionEligibility
         var computedOp = program.GetOperation(computedIndex);
         return computedOp.Kind == ExpressionOpKind.GetComputedProperty &&
                computedOp.ShortCircuitOnNullishTarget &&
-               IsSupportedComputedPropertyKeySpan(program, 2, computedIndex, identifierConstants, activationSlots);
+               IsSupportedComputedPropertyKeySpan(
+                   program,
+                   optionalStartIndex + 1,
+                   computedIndex,
+                   identifierConstants,
+                   activationSlots);
     }
 
 

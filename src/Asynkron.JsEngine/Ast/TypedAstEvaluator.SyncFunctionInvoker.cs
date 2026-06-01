@@ -3067,13 +3067,30 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             try
             {
                 var vmThisValue = thisValue;
+                var vmNewTarget = newTarget;
+                if (IsArrowFunction)
+                {
+                    var lexicalThis = _lexicalThis;
+                    if (_lexicalThisEnvironment is not null &&
+                        _lexicalThisEnvironment.TryFindBindingJsValue(Symbol.This, true, out _, out var envThis))
+                    {
+                        lexicalThis = envThis;
+                    }
+
+                    vmThisValue = lexicalThis.IsUninitialized ? JsValue.Undefined : lexicalThis;
+                    if (vmNewTarget.IsUndefined && !_lexicalNewTarget.IsUndefined)
+                    {
+                        vmNewTarget = _lexicalNewTarget;
+                    }
+                }
+
                 if (IsClassConstructor && !_isDerivedClassConstructor)
                 {
-                    if (thisValue.IsUndefined)
+                    if (vmThisValue.IsUndefined)
                     {
-                        vmThisValue = JsValue.FromObjectUnsafe(CreateConstructedThis(newTarget, RealmState));
+                        vmThisValue = JsValue.FromObjectUnsafe(CreateConstructedThis(vmNewTarget, RealmState));
                     }
-                    else if (!thisValue.IsObject)
+                    else if (!vmThisValue.IsObject)
                     {
                         return false;
                     }
@@ -3085,19 +3102,21 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 slots.Fill(JsValue.Undefined);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
-                var boundThis = _isStrict ? vmThisValue : CoerceThisValueForNonStrict(vmThisValue);
+                var boundThis = IsArrowFunction || _isStrict
+                    ? vmThisValue
+                    : CoerceThisValueForNonStrict(vmThisValue);
                 if (IsClassConstructor && !_isDerivedClassConstructor)
                 {
                     executionEnvironment = CreateSimpleBaseClassConstructorEnvironment(
                         arguments,
                         vmThisValue,
-                        newTarget,
+                        vmNewTarget,
                         plan);
                 }
                 else if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
-                        ? CreateSimpleDerivedClassConstructorEnvironment(arguments, newTarget, plan)
+                        ? CreateSimpleDerivedClassConstructorEnvironment(arguments, vmNewTarget, plan)
                         : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context);
                 }
 
@@ -3118,7 +3137,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     context,
                     executionEnvironment,
                     boundThis,
-                    newTarget,
+                    vmNewTarget,
                     _isStrict);
                 CompleteProductionUnifiedBytecodeClassConstructorResult(
                     executionEnvironment,
@@ -3610,9 +3629,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _superConstructor is null &&
                    _superPrototype is null &&
                    _instanceFields.IsDefaultOrEmpty &&
-                   CanUseSimpleIrActivationArrowFastPath(plan) &&
+                   CanUseProductionUnifiedBytecodeArrowProgramShape(plan) &&
                    CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(plan) &&
                    CanUseSimpleIrActivationPlanShape(plan);
+        }
+
+        private static bool CanUseProductionUnifiedBytecodeArrowProgramShape(ExecutionPlan plan)
+        {
+            return plan.SimpleReturnProgram is { } returnProgram &&
+                   !ContainsSuperOperation(returnProgram);
         }
 
         private static bool CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(ExecutionPlan plan)

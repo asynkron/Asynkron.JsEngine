@@ -5902,7 +5902,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                UnifiedBytecodeProductionFastPathLog,
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 
@@ -5949,19 +5949,42 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ArrowFunction_LexicalThis_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task ArrowFunction_LexicalThis_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            this.marker = 42;
-            var readThis = () => this.marker;
-            readThis();
+            function outer() {
+                var readThis = () => this.marker;
+                return readThis.call({ marker: 0 });
+            }
+
+            outer.call({ marker: 42 });
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=readThis",
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_LexicalNewTarget_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+                var readNewTarget = () => typeof new.target;
+                this.kind = readNewTarget();
+            }
+
+            new outer().kind;
+            """);
+
+        Assert.Equal("function", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 

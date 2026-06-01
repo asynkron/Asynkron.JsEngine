@@ -3059,7 +3059,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_TypeOfImplicitArgumentsObject_AcceptsLiteralObjectType()
+    public void Evaluate_TypeOfImplicitArgumentsObject_AcceptsObjectType()
     {
         var plan = GetFunctionPlan("""
             function readArguments() {
@@ -3074,7 +3074,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(result.Program.LiteralConstants, value => value.AsString() == "object");
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode is UnifiedBytecodeOpCode.LoadLiteral or UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
     }
 
     [Fact]
@@ -3096,22 +3098,25 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_UpdateImplicitArgumentsObject_DeclinesWithDynamicLookupDependency()
+    public void Evaluate_UpdateImplicitArgumentsObject_AcceptsDynamicIdentifierUpdate()
     {
         var plan = GetFunctionPlan("""
             function bump() {
                 arguments++;
-                return 1;
+                return arguments;
             }
             """,
             "bump");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
     }
 
     [Fact]

@@ -4201,12 +4201,15 @@ internal static class UnifiedBytecodeCompiler
                     {
                         if (operation.IsArguments)
                         {
-                            var argumentsTypeIndex = literalConstants.Count;
-                            literalConstants.Add(new JsValue("object"));
-                            unified.Add(new UnifiedBytecodeInstruction(
-                                UnifiedBytecodeOpCode.LoadLiteral,
-                                argumentsTypeIndex));
-                            break;
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                var argumentsTypeIndex = literalConstants.Count;
+                                literalConstants.Add(new JsValue("object"));
+                                unified.Add(new UnifiedBytecodeInstruction(
+                                    UnifiedBytecodeOpCode.LoadLiteral,
+                                    argumentsTypeIndex));
+                                break;
+                            }
                         }
 
                         var typeOfIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
@@ -4347,12 +4350,6 @@ internal static class UnifiedBytecodeCompiler
                             UnifiedBytecodeOpCode.UpdateSlot,
                             EncodeUpdateOperand(updateSlot, operation)));
                         break;
-                    }
-
-                    if (operation.IsArguments)
-                    {
-                        reason = "arguments update is not supported.";
-                        return false;
                     }
 
                     if (!allowsDynamicIdentifiers)

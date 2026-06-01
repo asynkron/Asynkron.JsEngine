@@ -5903,22 +5903,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task UpdateImplicitArgumentsObject_DeclinesAndFallsBack()
+    public async Task UpdateImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function bump() {
                 arguments++;
-                return 1;
+                return typeof arguments + ":" + (arguments !== arguments);
             }
 
             bump(41);
             """);
 
-        Assert.Equal(1d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Equal("number:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=bump",
+                "unified-bytecode-production-fast-path func=bump argc=1",
                 StringComparison.Ordinal));
     }
 

@@ -73,7 +73,7 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
 
 internal static class UnifiedBytecodeProductionEligibility
 {
-    internal static bool ContainsOnlyImplicitArgumentsObjectReadDependency(ExecutionPlan plan)
+    internal static bool ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(ExecutionPlan plan)
     {
         var foundArgumentsRead = false;
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
@@ -91,7 +91,10 @@ internal static class UnifiedBytecodeProductionEligibility
                     continue;
                 }
 
-                if (operation.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier))
+                if (operation.Kind is not (
+                    ExpressionOpKind.LoadIdentifier or
+                    ExpressionOpKind.TypeOfIdentifier or
+                    ExpressionOpKind.UpdateIdentifier))
                 {
                     return false;
                 }
@@ -1297,7 +1300,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (!operation.IsArguments && allowsDynamicIdentifiers)
+                    if (allowsDynamicIdentifiers)
                     {
                         break;
                     }

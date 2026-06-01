@@ -2695,6 +2695,43 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_UpdateParameterNamedArguments_AcceptsAsActivationSlot()
+    {
+        var plan = GetFunctionPlan("""
+            function bump(arguments) {
+                arguments++;
+                return arguments;
+            }
+            """,
+            "bump");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible);
+    }
+
+    [Fact]
+    public void Evaluate_UpdateImplicitArgumentsObject_DeclinesWithDynamicLookupDependency()
+    {
+        var plan = GetFunctionPlan("""
+            function bump() {
+                arguments++;
+                return 1;
+            }
+            """,
+            "bump");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency()
     {
         var plan = GetFunctionPlan("""

@@ -1234,18 +1234,15 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.UpdateIdentifier:
-                    if (!operation.IsArguments)
+                    var updateIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (TryResolveActivationSlot(updateIdentifier, activationSlots))
                     {
-                        var updateIdentifier = operation.GetIdentifier(identifierConstants);
-                        if (TryResolveActivationSlot(updateIdentifier, activationSlots))
-                        {
-                            break;
-                        }
+                        break;
+                    }
 
-                        if (allowsDynamicIdentifiers)
-                        {
-                            break;
-                        }
+                    if (!operation.IsArguments && allowsDynamicIdentifiers)
+                    {
+                        break;
                     }
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency;

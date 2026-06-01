@@ -818,9 +818,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_OptionalChainNonActivationBaseCallExpressionPlan_Declines()
+    public void Evaluate_OptionalChainNamedPrefixPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
-        // gh2806 AC-4: a.x?.b.c() must decline — receiver chain not bounded to activation-resolved base.
+        // Named prefixes before the optional hop are already VM-owned receiver-chain reads.
         var plan = GetFunctionPlan("""
             function invoke(a, value) {
                 return a.x?.box.read(value);
@@ -832,7 +832,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]

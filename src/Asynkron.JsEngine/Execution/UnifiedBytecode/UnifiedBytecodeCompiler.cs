@@ -5064,9 +5064,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        // Case 4: optional-chain plain call — a?.b.c(args)
-        // Pattern: [base, GetNamedProperty(opt,b), JumpIfShortCircuited, LoadNamedCallTarget(c), args..., Call]
-        if (callTargetIndexInProgram == 3)
+        // Case 4: optional-chain plain call — a?.b.c(args) / a.x?.b.c(args)
+        // Pattern: [base/prefix..., GetNamedProperty(opt,b), JumpIfShortCircuited, LoadNamedCallTarget(c), args..., Call]
+        if (callTargetIndexInProgram >= 3)
         {
             var maybeShortCircuit = expressionProgram.GetOperation(callTargetIndexInProgram - 1);
             if (maybeShortCircuit.Kind == ExpressionOpKind.JumpIfShortCircuited)
@@ -5705,8 +5705,8 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Case 4: a?.b.c(args) — optional-start chain, plain non-optional call.
-    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // Case 4: a?.b.c(args) / a.x?.b.c(args) — optional-start chain, plain non-optional call.
+    // Lowers to: prefix-load, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
     //            PrepareNamedCallTarget(c), args, (end:)
     private static bool TryAppendOptionalChainPlainCallTarget(
         ExpressionProgram expressionProgram,
@@ -5722,13 +5722,22 @@ internal static class UnifiedBytecodeCompiler
     {
         var activationSlots = slotLayout.ActivationSlots;
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var shortCircuitIndex = callTargetIndexInProgram - 1;
+        var optionalHopIndex = shortCircuitIndex - 1;
 
-        // Emit base load
-        if (!TryAppendActivationValueLoad(
-                expressionProgram.GetOperation(0),
+        if (optionalHopIndex < 1)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendNamedReceiverOperations(
                 expressionProgram,
                 activationSlots,
                 unified,
+                stringConstants,
+                optionalHopIndex,
+                allowDeepChain: true,
                 out reason))
         {
             return false;
@@ -5739,7 +5748,7 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
 
         // Emit GetNamedProperty(b) — receiver for c()
-        var firstHop = expressionProgram.GetOperation(1);
+        var firstHop = expressionProgram.GetOperation(optionalHopIndex);
         var receiverNameIndex = stringConstants.Count;
         stringConstants.Add(firstHop.GetString(expressionStringConstants));
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));

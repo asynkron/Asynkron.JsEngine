@@ -2974,9 +2974,9 @@ internal static class UnifiedBytecodeProductionEligibility
                    callIndex);
     }
 
-    // Case 4: a?.b.c() — optional-start chain, plain non-optional call
-    // Expression program: [base(0), GetNamedProperty(IsOptional:true,b)(1), JumpIfShortCircuited(2),
-    //                       LoadNamedCallTarget(c)(3), args..., Call]
+    // Case 4: a?.b.c() / a.x?.b.c() — optional-start chain, plain non-optional call
+    // Expression program: [base/prefix..., GetNamedProperty(IsOptional:true,b), JumpIfShortCircuited,
+    //                       LoadNamedCallTarget(c), args..., Call]
     private static bool TryIsFirstBoundaryOptionalChainPlainCallCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2997,35 +2997,43 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var namedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadNamedCallTarget);
-        // LoadNamedCallTarget must be at index 3 exactly (base + optional hop + JumpIfShortCircuited).
-        if (namedCallTargetIndex != 3)
+        if (namedCallTargetIndex < 3)
         {
             return false;
         }
 
-        // op[2] = JumpIfShortCircuited
-        if (program.GetOperation(2).Kind != ExpressionOpKind.JumpIfShortCircuited)
+        var shortCircuitIndex = namedCallTargetIndex - 1;
+        if (program.GetOperation(shortCircuitIndex).Kind != ExpressionOpKind.JumpIfShortCircuited)
         {
             return false;
         }
 
-        // op[1] = GetNamedProperty(IsOptional:true, !SC, non-private)
-        var firstHop = program.GetOperation(1);
-        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
-            !firstHop.IsOptional ||
-            firstHop.ShortCircuitOnNullishTarget ||
-            firstHop.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+        var optionalHopIndex = shortCircuitIndex - 1;
+        if (optionalHopIndex < 1)
         {
             return false;
         }
 
-        // op[0] = activation-resolved base
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        var optionalHop = program.GetOperation(optionalHopIndex);
+        if (optionalHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !optionalHop.IsOptional ||
+            optionalHop.ShortCircuitOnNullishTarget ||
+            optionalHop.GetString(program.StringConstants.AsSpan()).IsPrivateName())
         {
             return false;
         }
 
-        // LoadNamedCallTarget must not be private
+        if (!IsSupportedNamedReceiverChain(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                optionalHopIndex,
+                allowDeepChain: true))
+        {
+            return false;
+        }
+
         var namedCallTarget = program.GetOperation(namedCallTargetIndex);
         if (namedCallTarget.GetString(stringConstants).IsPrivateName())
         {

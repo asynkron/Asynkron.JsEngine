@@ -6614,15 +6614,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
-        function logicalAndComputedComplexRhsWrite(box, key, value) {
-            return box[key] &&= (value + 1);
-        }
-        """,
-        "logicalAndComputedComplexRhsWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
         function logicalAndComputedThisKeyWrite(box, value) {
             return box[this] &&= value;
         }
@@ -6655,6 +6646,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedLogicalAssignmentWithBinaryRhs_AcceptsWithOwnedOpcodes()
+    {
+        var plan = GetFunctionPlan(
+            """
+            function logicalAndComputedComplexRhsWrite(box, key, value) {
+                return box[key] &&= (value + 1);
+            }
+            """,
+            "logicalAndComputedComplexRhsWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary &&
+            instruction.Operand == (int)BinaryOperator.Add);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

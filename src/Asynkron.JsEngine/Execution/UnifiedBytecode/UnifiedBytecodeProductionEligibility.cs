@@ -3978,8 +3978,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        // Shape: [base, key, RequireObjectCoercible, ResolvePropertyKey, DuplicateTopTwo, GetComputedProperty,
-        // JumpIf*, Pop, rhs, SetComputedProperty, DuplicateTop, DuplicateTop, RotateTopThreeRight, Pop, Pop]
+        // Shape: [base, key..., RequireObjectCoercible, ResolvePropertyKey, DuplicateTopTwo, GetComputedProperty,
+        // JumpIf*, Pop, rhs..., SetComputedProperty, DuplicateTop, DuplicateTop, RotateTopThreeRight, Pop, Pop]
         if (program.OperationCount < 15)
         {
             return false;
@@ -3990,48 +3990,92 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var suffixStart = program.OperationCount - 13;
-        if (suffixStart <= 1 ||
-            !IsSupportedComputedPropertyKeySpan(
-                program,
-                startInclusive: 1,
-                endExclusive: suffixStart,
-                identifierConstants,
-                activationSlots))
+        var propertyWriteIndex = program.OperationCount - 6;
+        for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
+        {
+            var suffixStart = propertyWriteIndex - 6 - rhsLength;
+            if (suffixStart <= 1 ||
+                !IsSupportedComputedPropertyKeySpan(
+                    program,
+                    startInclusive: 1,
+                    endExclusive: suffixStart,
+                    identifierConstants,
+                    activationSlots))
+            {
+                continue;
+            }
+
+            var requireObjectCoercible = program.GetOperation(suffixStart);
+            var resolvePropertyKey = program.GetOperation(suffixStart + 1);
+            var duplicateTargetAndKey = program.GetOperation(suffixStart + 2);
+            var propertyRead = program.GetOperation(suffixStart + 3);
+            var jump = program.GetOperation(suffixStart + 4);
+            var pop = program.GetOperation(suffixStart + 5);
+            var propertyWrite = program.GetOperation(propertyWriteIndex);
+            var duplicateAssignedValue = program.GetOperation(propertyWriteIndex + 1);
+            var duplicateAssignedValueAgain = program.GetOperation(propertyWriteIndex + 2);
+            var rotateTopThreeRight = program.GetOperation(propertyWriteIndex + 3);
+            var cleanupPop = program.GetOperation(propertyWriteIndex + 4);
+            var cleanupPop2 = program.GetOperation(propertyWriteIndex + 5);
+            if (requireObjectCoercible.Kind == ExpressionOpKind.RequireObjectCoercible &&
+                requireObjectCoercible.Depth == 1 &&
+                resolvePropertyKey.Kind == ExpressionOpKind.ResolvePropertyKey &&
+                duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
+                propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
+                !propertyRead.ShortCircuitOnNullishTarget &&
+                jump.Kind is (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) &&
+                pop.Kind == ExpressionOpKind.Pop &&
+                IsSupportedComputedLogicalAssignmentRhsSpan(
+                    program,
+                    suffixStart + 6,
+                    propertyWriteIndex,
+                    identifierConstants,
+                    activationSlots) &&
+                propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
+                !propertyWrite.AllowNameInference &&
+                duplicateAssignedValue.Kind == ExpressionOpKind.DuplicateTop &&
+                duplicateAssignedValueAgain.Kind == ExpressionOpKind.DuplicateTop &&
+                rotateTopThreeRight.Kind == ExpressionOpKind.RotateTopThreeRight &&
+                cleanupPop.Kind == ExpressionOpKind.Pop &&
+                cleanupPop2.Kind == ExpressionOpKind.Pop &&
+                jump.Target == propertyWriteIndex + 3)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSupportedComputedLogicalAssignmentRhsSpan(
+        ExpressionProgram program,
+        int startInclusive,
+        int endExclusive,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (startInclusive >= endExclusive)
         {
             return false;
         }
 
-        var requireObjectCoercible = program.GetOperation(suffixStart);
-        var resolvePropertyKey = program.GetOperation(suffixStart + 1);
-        var duplicateTargetAndKey = program.GetOperation(suffixStart + 2);
-        var propertyRead = program.GetOperation(suffixStart + 3);
-        var jump = program.GetOperation(suffixStart + 4);
-        var pop = program.GetOperation(suffixStart + 5);
-        var rhs = program.GetOperation(suffixStart + 6);
-        var propertyWrite = program.GetOperation(suffixStart + 7);
-        var duplicateAssignedValue = program.GetOperation(suffixStart + 8);
-        var duplicateAssignedValueAgain = program.GetOperation(suffixStart + 9);
-        var rotateTopThreeRight = program.GetOperation(suffixStart + 10);
-        var cleanupPop = program.GetOperation(suffixStart + 11);
-        var cleanupPop2 = program.GetOperation(suffixStart + 12);
-        return requireObjectCoercible.Kind == ExpressionOpKind.RequireObjectCoercible &&
-               requireObjectCoercible.Depth == 1 &&
-               resolvePropertyKey.Kind == ExpressionOpKind.ResolvePropertyKey &&
-               duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
-               propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
-               !propertyRead.ShortCircuitOnNullishTarget &&
-               jump.Kind is (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) &&
-               pop.Kind == ExpressionOpKind.Pop &&
-               IsSimpleOperand(rhs, identifierConstants, activationSlots) &&
-               propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
-               !propertyWrite.AllowNameInference &&
-               duplicateAssignedValue.Kind == ExpressionOpKind.DuplicateTop &&
-               duplicateAssignedValueAgain.Kind == ExpressionOpKind.DuplicateTop &&
-               rotateTopThreeRight.Kind == ExpressionOpKind.RotateTopThreeRight &&
-               cleanupPop.Kind == ExpressionOpKind.Pop &&
-               cleanupPop2.Kind == ExpressionOpKind.Pop &&
-               jump.Target == suffixStart + 10;
+        if (endExclusive - startInclusive == 1)
+        {
+            return IsSimpleOperand(program.GetOperation(startInclusive), identifierConstants, activationSlots);
+        }
+
+        if (endExclusive - startInclusive != 3)
+        {
+            return false;
+        }
+
+        var left = program.GetOperation(startInclusive);
+        var right = program.GetOperation(startInclusive + 1);
+        var binary = program.GetOperation(startInclusive + 2);
+        return IsSimpleOperand(left, identifierConstants, activationSlots) &&
+               IsSimpleOperand(right, identifierConstants, activationSlots) &&
+               binary.Kind == ExpressionOpKind.Binary &&
+               IsProductionBinaryOperator(binary.Operator);
     }
 
     private static bool TryIsFirstBoundaryPropertyWriteCandidate(

@@ -6851,39 +6851,60 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var suffixStart = expressionProgram.OperationCount - 13;
-        if (suffixStart <= 1)
+        var propertySetIndex = expressionProgram.OperationCount - 6;
+        var suffixStart = -1;
+        var matchedLayout = false;
+        PackedExpressionOp propertyRead = default;
+        PackedExpressionOp jump = default;
+        PackedExpressionOp propertySet = default;
+        for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
         {
-            reason = string.Empty;
-            return false;
+            var candidateSuffixStart = propertySetIndex - 6 - rhsLength;
+            if (candidateSuffixStart <= 1 ||
+                !IsSupportedComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    startInclusive: 1,
+                    endExclusive: candidateSuffixStart))
+            {
+                continue;
+            }
+
+            var requireObjectCoercible = expressionProgram.GetOperation(candidateSuffixStart);
+            var resolvePropertyKey = expressionProgram.GetOperation(candidateSuffixStart + 1);
+            var duplicateTargetAndKey = expressionProgram.GetOperation(candidateSuffixStart + 2);
+            propertyRead = expressionProgram.GetOperation(candidateSuffixStart + 3);
+            jump = expressionProgram.GetOperation(candidateSuffixStart + 4);
+            var pop = expressionProgram.GetOperation(candidateSuffixStart + 5);
+            propertySet = expressionProgram.GetOperation(propertySetIndex);
+            var duplicateAssignedValue = expressionProgram.GetOperation(propertySetIndex + 1);
+            var duplicateAssignedValueAgain = expressionProgram.GetOperation(propertySetIndex + 2);
+            var rotateTopThreeRight = expressionProgram.GetOperation(propertySetIndex + 3);
+            var cleanupPop = expressionProgram.GetOperation(propertySetIndex + 4);
+            var cleanupPop2 = expressionProgram.GetOperation(propertySetIndex + 5);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+                requireObjectCoercible.Depth != 1 ||
+                resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+                duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
+                propertyRead.Kind != ExpressionOpKind.GetComputedProperty ||
+                jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
+                pop.Kind != ExpressionOpKind.Pop ||
+                propertySet.Kind != ExpressionOpKind.SetComputedProperty ||
+                duplicateAssignedValue.Kind != ExpressionOpKind.DuplicateTop ||
+                duplicateAssignedValueAgain.Kind != ExpressionOpKind.DuplicateTop ||
+                rotateTopThreeRight.Kind != ExpressionOpKind.RotateTopThreeRight ||
+                cleanupPop.Kind != ExpressionOpKind.Pop ||
+                cleanupPop2.Kind != ExpressionOpKind.Pop)
+            {
+                continue;
+            }
+
+            suffixStart = candidateSuffixStart;
+            matchedLayout = true;
+            break;
         }
 
-        var requireObjectCoercible = expressionProgram.GetOperation(suffixStart);
-        var resolvePropertyKey = expressionProgram.GetOperation(suffixStart + 1);
-        var duplicateTargetAndKey = expressionProgram.GetOperation(suffixStart + 2);
-        var propertyRead = expressionProgram.GetOperation(suffixStart + 3);
-        var jump = expressionProgram.GetOperation(suffixStart + 4);
-        var pop = expressionProgram.GetOperation(suffixStart + 5);
-        var rhs = expressionProgram.GetOperation(suffixStart + 6);
-        var propertySet = expressionProgram.GetOperation(suffixStart + 7);
-        var duplicateAssignedValue = expressionProgram.GetOperation(suffixStart + 8);
-        var duplicateAssignedValueAgain = expressionProgram.GetOperation(suffixStart + 9);
-        var rotateTopThreeRight = expressionProgram.GetOperation(suffixStart + 10);
-        var cleanupPop = expressionProgram.GetOperation(suffixStart + 11);
-        var cleanupPop2 = expressionProgram.GetOperation(suffixStart + 12);
-        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
-            requireObjectCoercible.Depth != 1 ||
-            resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
-            duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
-            propertyRead.Kind != ExpressionOpKind.GetComputedProperty ||
-            jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
-            pop.Kind != ExpressionOpKind.Pop ||
-            propertySet.Kind != ExpressionOpKind.SetComputedProperty ||
-            duplicateAssignedValue.Kind != ExpressionOpKind.DuplicateTop ||
-            duplicateAssignedValueAgain.Kind != ExpressionOpKind.DuplicateTop ||
-            rotateTopThreeRight.Kind != ExpressionOpKind.RotateTopThreeRight ||
-            cleanupPop.Kind != ExpressionOpKind.Pop ||
-            cleanupPop2.Kind != ExpressionOpKind.Pop)
+        if (!matchedLayout)
         {
             reason = string.Empty;
             return false;
@@ -6901,19 +6922,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (jump.Target != suffixStart + 10)
+        if (jump.Target != propertySetIndex + 3)
         {
             reason = "Logical computed property writes require jump target at cleanup start.";
-            return false;
-        }
-
-        if (!IsSupportedComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                startInclusive: 1,
-                endExclusive: suffixStart))
-        {
-            reason = "Unsupported computed property key span.";
             return false;
         }
 
@@ -6959,12 +6970,13 @@ internal static class UnifiedBytecodeCompiler
         stagedUnified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
-        if (!TryAppendSimpleOperandLoad(
-                rhs,
+        if (!TryAppendComputedLogicalAssignmentRhsSpan(
                 expressionProgram,
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                startInclusive: suffixStart + 6,
+                endExclusive: propertySetIndex,
                 out reason))
         {
             return false;
@@ -6987,6 +6999,59 @@ internal static class UnifiedBytecodeCompiler
         unified.AddRange(stagedUnified);
         literalConstants.Clear();
         literalConstants.AddRange(stagedLiterals);
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendComputedLogicalAssignmentRhsSpan(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        int startInclusive,
+        int endExclusive,
+        out string reason)
+    {
+        if (startInclusive >= endExclusive)
+        {
+            reason = "Computed logical property writes require an RHS expression.";
+            return false;
+        }
+
+        if (endExclusive - startInclusive == 1)
+        {
+            return TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(startInclusive),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason);
+        }
+
+        if (endExclusive - startInclusive != 3)
+        {
+            reason = "Computed logical property writes only admit simple or simple-binary RHS spans.";
+            return false;
+        }
+
+        var left = expressionProgram.GetOperation(startInclusive);
+        var right = expressionProgram.GetOperation(startInclusive + 1);
+        var binary = expressionProgram.GetOperation(startInclusive + 2);
+        if (binary.Kind != ExpressionOpKind.Binary ||
+            !IsSupportedBinaryOperator(binary.Operator))
+        {
+            reason = "Computed logical property binary RHS uses an unsupported operator.";
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(left, expressionProgram, activationSlots, unified, literalConstants, out reason) ||
+            !TryAppendSimpleOperandLoad(right, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
         reason = string.Empty;
         return true;
     }

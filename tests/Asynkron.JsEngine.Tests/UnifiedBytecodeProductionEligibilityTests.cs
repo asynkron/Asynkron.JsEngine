@@ -2279,7 +2279,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode()
+    public void Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Base {
@@ -2289,8 +2289,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             }
 
             class Derived extends Base {
-                read() {
-                    return super.value;
+                read(name) {
+                    return super.value + super[name];
                 }
             }
             """,
@@ -2301,9 +2301,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
-        Assert.Contains("super", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedSuperProperty);
     }
 
     [Fact]
@@ -4233,28 +4236,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ClassMethodWithSuperProperty_DeclinesSuperPropertyDependency()
+    public void Evaluate_ClassMethodWithSuperPropertyWritesAndUpdates_AcceptsOwnedOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Base {
-                get value() { return 1; }
+                get value() { return this._value; }
+                set value(next) { this._value = next; }
             }
 
             class Child extends Base {
-                readSuper() {
+                mutateSuper(name) {
+                    super.value = 1;
+                    super[name] = 2;
+                    super.value++;
+                    ++super[name];
                     return super.value;
                 }
             }
             """,
             "Child",
-            "readSuper");
+            "mutateSuper");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedSuperProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedSuperProperty);
     }
 
     // Array-literal and object-literal operand widening (gh2705)
@@ -5814,17 +5830,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
-    [InlineData(
-        """
-        class Child extends Base {
-            update(key, value) {
-                return super[key] &&= value;
-            }
-        }
-        """,
-        "Child",
-        "update",
-        (int)UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency)]
     [InlineData(
         """
         function logicalAndComputedComplexKeyWrite(box, key, suffix, value) {

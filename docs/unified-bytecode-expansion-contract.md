@@ -72,13 +72,11 @@ statement interpretation.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
-  reads/writes/updates, super property reads/writes/updates,
-  generic call-target stack shuffles, and
+  reads/writes/updates, generic call-target stack shuffles, and
   some call/reference helpers remain outside general unified bytecode lowering.
-- The current `ExpressionOpKind` names with no unified compiler reference are
-  `GetComputedSuperProperty`, `GetNamedSuperProperty`,
-  `SetComputedSuperProperty`, `SetNamedSuperProperty`,
-  `UpdateComputedSuperProperty`, and `UpdateNamedSuperProperty`.
+- The current `ExpressionOpKind` names with no unified compiler reference list is
+  empty. Computed super-property operations also route their required
+  `EnsureSuperReference` op through the general unified expression loop.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
   shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
@@ -278,7 +276,7 @@ must still obey the no-mixed-execution rule.
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes and simple nested named receiver assignment shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
-| `SuperPropertyDependency` | Super property reads/writes/updates and out-of-boundary super call targets | Existing class / constructor route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
+| `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
 | `ObjectLiteralOrSpreadDependency` | Object methods/accessors, non-simple object spread sources, unsupported array spread, and spread construct arguments | Existing sync IR literal/spread route | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and `#name in obj` represented as named-property or private-field ops | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
@@ -313,7 +311,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:PrivateNameScope` | Active private-name scope on the invoker | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
 | `pre-gate:capturedPrivateNameScopes` | Captured private-name scopes from enclosing classes | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:superConstructor` | Derived-constructor super binding dependency outside the bounded production constructor admission path | Constructor / super route | Super / constructor lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary"` |
-| `pre-gate:superPrototype` | `super.prop` dependency on method home object state | Existing super route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
+| `pre-gate:superPrototype` | Method home-object super prototype state; admitted for VM-owned super property reads/writes/updates and first-boundary super calls | Existing super route for remaining shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `pre-gate:instanceFields` | Class instance-field initialization state | Constructor / class route | Class fields lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:functionNameParameterConflict` | Named function expression whose name also appears as a parameter | Existing function-name environment route | Function-name environment lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:activationSlotShape` | `CanUseProductionUnifiedBytecodePlanShape` requires activation slots matching root scope, layout, and parameter-slot length unless with-backed dynamic names own the materialized activation | Existing execution-plan route | Slot-layout lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
@@ -378,20 +376,17 @@ the final post-compile production subset check before VM entry.
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
   Retained declines include simple optional computed deletes without a named
   receiver hop (`delete box?.[key]`), chained optional delete neighbors,
-  private/super property access, dynamic lookup, richer unowned computed keys,
+  private property access, dynamic lookup, richer unowned computed keys,
   deeper compound/logical property chains
   (`box.child.value += …`, `box.child.value &&= …`), and computed-expression
   keys (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
-- The plan-level `SuperPropertyDependency` decline in
-  `UnifiedBytecodeProductionEligibility.TryFindExpressionDecline` is the safety
-  net for class methods that use super-property reads, writes, and updates.
-  Super-member calls are admitted only through the first call boundary with
-  `PrepareNamedSuperCallTarget` / `PrepareComputedSuperCallTarget`.
-  Super-property reads, writes, and updates (`GetNamedSuperProperty`, `GetComputedSuperProperty`,
+- Super-property reads, writes, and updates are now VM-owned through
+  `EnsureSuperReference`, `GetNamedSuperProperty`, `GetComputedSuperProperty`,
   `SetNamedSuperProperty`, `SetComputedSuperProperty`,
-  `UpdateNamedSuperProperty`, `UpdateComputedSuperProperty`,
-  `EnsureSuperReference`) still decline before VM execution.
+  `UpdateNamedSuperProperty`, and `UpdateComputedSuperProperty`.
+  `SuperPropertyDependency` remains only as the safety net for super call-target
+  preparation outside the first production invocation boundary.
 - Sloppy-mode `this` coercion is handled before VM entry: `boundThis` is
   computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
   so the VM's `LoadThis` opcode always receives the correctly coerced value.
@@ -547,8 +542,7 @@ the final post-compile production subset check before VM entry.
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host
   with the caller environment and syncs mutated caller slots back into unified
   bytecode-owned slots before execution continues.
-- Spread super constructs, super property reads/writes/updates, private member
-  targets, arguments-object dependencies, unsupported
+- Spread super constructs, private member targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM

@@ -3169,6 +3169,13 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.SuperConstructInvocationBoundary or
                     UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
                     UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget or
+                    UnifiedBytecodeOpCode.EnsureSuperReference or
+                    UnifiedBytecodeOpCode.GetNamedSuperProperty or
+                    UnifiedBytecodeOpCode.GetComputedSuperProperty or
+                    UnifiedBytecodeOpCode.SetNamedSuperProperty or
+                    UnifiedBytecodeOpCode.SetComputedSuperProperty or
+                    UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
+                    UnifiedBytecodeOpCode.UpdateComputedSuperProperty or
                     UnifiedBytecodeOpCode.DeclareDynamicVar or
                     UnifiedBytecodeOpCode.LoadImportMeta or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or

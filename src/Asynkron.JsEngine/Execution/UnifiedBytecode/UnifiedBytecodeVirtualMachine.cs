@@ -833,6 +833,57 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.EnsureSuperReference:
+                    if (!EnsureSuperReference(RequireDynamicEnvironment(currentCallingEnvironment), context))
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetNamedSuperProperty:
+                    stack[stackPointer++] = GetNamedSuperPropertyValue(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedSuperProperty:
+                    var computedSuperKey = stack[--stackPointer];
+                    stack[stackPointer++] = GetComputedSuperPropertyValue(
+                        computedSuperKey,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
                     var namedCompoundTarget = stack[stackPointer - 1];
                     stack[stackPointer++] = GetNamedPropertyValue(
@@ -925,6 +976,94 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     stack[stackPointer - 1] = computedPropertyValue;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetNamedSuperProperty:
+                    var namedSuperPropertyValue = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = SetNamedSuperPropertyValue(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        namedSuperPropertyValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedSuperProperty:
+                    var computedSuperPropertyValue = stack[--stackPointer];
+                    var computedSuperSetKey = stack[--stackPointer];
+                    stack[stackPointer++] = SetComputedSuperPropertyValue(
+                        computedSuperSetKey,
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        computedSuperPropertyValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateNamedSuperProperty:
+                    stack[stackPointer++] = UpdateNamedSuperPropertyValue(
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedSuperProperty:
+                    var computedSuperUpdateKey = stack[--stackPointer];
+                    stack[stackPointer++] = UpdateComputedSuperPropertyValue(
+                        computedSuperUpdateKey,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context,
+                        isStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
                     programCounter++;
                     break;
 
@@ -5687,8 +5826,27 @@ internal static class UnifiedBytecodeVirtualMachine
                 : JsValue.Undefined;
     }
 
+    private static bool EnsureSuperReference(JsEnvironment environment, EvaluationContext context)
+    {
+        if (environment.IsThisInitializationKnownTrue(context))
+        {
+            return true;
+        }
+
+        context.SetThrow(StandardLibrary.CreateReferenceError(
+            "Super is not available in this context.",
+            context,
+            context.RealmState));
+        return false;
+    }
+
     private static SuperBinding? GetSuperBindingForRead(JsEnvironment environment, EvaluationContext context)
     {
+        if (!EnsureSuperReference(environment, context))
+        {
+            return null;
+        }
+
         var binding = environment.ExpectSuperBinding(context);
         if (!binding.IsThisInitialized || binding.ThisValue.IsUndefined || binding.ThisValue.IsUninitialized)
         {
@@ -5699,7 +5857,159 @@ internal static class UnifiedBytecodeVirtualMachine
             return null;
         }
 
+        if (binding.Prototype is null)
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "Cannot read properties of null (reading from super)",
+                context,
+                context.RealmState));
+            return null;
+        }
+
         return binding;
+    }
+
+    private static JsValue GetNamedSuperPropertyValue(
+        string propertyName,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return binding.TryGetProperty(propertyName, out var value)
+            ? value
+            : JsValue.Undefined;
+    }
+
+    private static JsValue GetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return GetNamedSuperPropertyValue(propertyName, environment, context);
+    }
+
+    private static JsValue SetNamedSuperPropertyValue(
+        string propertyName,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        if (allowNameInference &&
+            value is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+        {
+            nameTarget.EnsureHasName(propertyName);
+        }
+
+        return AssignToSuperBinding(environment, context, propertyName, value, isStrict);
+    }
+
+    private static JsValue SetComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return SetNamedSuperPropertyValue(
+            propertyName,
+            allowNameInference,
+            value,
+            environment,
+            context,
+            isStrict);
+    }
+
+    private static JsValue UpdateNamedSuperPropertyValue(
+        string propertyName,
+        bool isIncrement,
+        bool isPrefix,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var currentValue = GetNamedSuperPropertyValue(propertyName, environment, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        GetUpdatedNumericValue(currentValue, isIncrement, context, out var oldNumericValue, out var newValue);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        AssignToSuperBinding(environment, context, propertyName, newValue, isStrict);
+        return isPrefix ? newValue : oldNumericValue;
+    }
+
+    private static JsValue UpdateComputedSuperPropertyValue(
+        JsValue propertyKey,
+        bool isIncrement,
+        bool isPrefix,
+        JsEnvironment environment,
+        EvaluationContext context,
+        bool isStrict)
+    {
+        var propertyName = JsOps.GetRequiredPropertyName(propertyKey, context);
+        if (context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        return UpdateNamedSuperPropertyValue(
+            propertyName,
+            isIncrement,
+            isPrefix,
+            environment,
+            context,
+            isStrict);
+    }
+
+    private static JsValue AssignToSuperBinding(
+        JsEnvironment environment,
+        EvaluationContext context,
+        string propertyName,
+        JsValue value,
+        bool isStrict)
+    {
+        var binding = GetSuperBindingForRead(environment, context);
+        if (binding is null || context.ShouldStopEvaluation)
+        {
+            return JsValue.Undefined;
+        }
+
+        if (!binding.TrySetProperty(propertyName, value, out _) &&
+            (environment.IsStrict || isStrict))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                $"Cannot assign to read only property '{propertyName}' of object",
+                context,
+                context.RealmState));
+            return JsValue.Undefined;
+        }
+
+        return value;
     }
 
     private static JsValue GetComputedCallTargetValue(

@@ -3727,6 +3727,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadThis));
                     break;
 
+                case ExpressionOpKind.EnsureSuperReference:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureSuperReference));
+                    break;
+
                 case ExpressionOpKind.GetNamedProperty:
                     if (operation.ShortCircuitOnNullishTarget)
                     {
@@ -3747,6 +3751,14 @@ internal static class UnifiedBytecodeCompiler
                             ? UnifiedBytecodeOpCode.GetNamedPropertyOptional
                             : UnifiedBytecodeOpCode.GetNamedProperty,
                         namedPropNameIndex));
+                    break;
+
+                case ExpressionOpKind.GetNamedSuperProperty:
+                    var namedSuperPropNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.GetNamedSuperProperty,
+                        namedSuperPropNameIndex));
                     break;
 
                 case ExpressionOpKind.LoadNewTarget:
@@ -3949,6 +3961,34 @@ internal static class UnifiedBytecodeCompiler
                         EncodeUpdateOperand(updateNameIndex, operation)));
                     break;
 
+                case ExpressionOpKind.SetNamedSuperProperty:
+                    var setNamedSuperPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SetNamedSuperProperty,
+                        EncodeDynamicStoreOperand(setNamedSuperPropertyIndex, operation.AllowNameInference)));
+                    break;
+
+                case ExpressionOpKind.SetComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SetComputedSuperProperty,
+                        operation.AllowNameInference ? DynamicStoreAllowNameInferenceFlag : 0));
+                    break;
+
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                    var updateNamedSuperPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateNamedSuperProperty,
+                        EncodeUpdateOperand(updateNamedSuperPropertyIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateComputedSuperProperty,
+                        EncodeUpdateOperand(0, operation)));
+                    break;
+
                 case ExpressionOpKind.ResolvePropertyKey:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
                     break;
@@ -4102,6 +4142,10 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.GetComputedProperty when !operation.ShortCircuitOnNullishTarget:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+                    break;
+
+                case ExpressionOpKind.GetComputedSuperProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedSuperProperty));
                     break;
 
                 default:

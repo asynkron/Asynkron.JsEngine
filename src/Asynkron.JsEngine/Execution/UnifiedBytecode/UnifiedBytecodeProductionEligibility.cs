@@ -1259,14 +1259,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         "Computed property reads are outside the first production property-read boundary unless they use RequireObjectCoercible(Depth: 1) then ResolvePropertyKey immediately before GetComputedProperty.";
                     return true;
 
-                case ExpressionOpKind.SetNamedSuperProperty:
-                case ExpressionOpKind.SetComputedSuperProperty:
-                case ExpressionOpKind.UpdateNamedSuperProperty:
-                case ExpressionOpKind.UpdateComputedSuperProperty:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property writes/updates are not eligible for production unified bytecode routing.";
-                    return true;
-
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
@@ -1371,20 +1363,13 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.EnsureSuperReference:
-                    if (isCallTargetPreparationCandidate)
-                    {
-                        break;
-                    }
-
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property access is not eligible for production unified bytecode routing.";
-                    return true;
-
                 case ExpressionOpKind.GetNamedSuperProperty:
                 case ExpressionOpKind.GetComputedSuperProperty:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.SuperPropertyDependency;
-                    declineReason = "super property access is not eligible for production unified bytecode routing.";
-                    return true;
+                case ExpressionOpKind.SetNamedSuperProperty:
+                case ExpressionOpKind.SetComputedSuperProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                    break;
 
                 case ExpressionOpKind.JumpIfFalse:
                 case ExpressionOpKind.JumpIfConditionalFalse:
@@ -4253,6 +4238,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
                 case UnifiedBytecodeOpCode.SetNamedProperty:
                 case UnifiedBytecodeOpCode.SetComputedProperty:
+                case UnifiedBytecodeOpCode.EnsureSuperReference:
+                case UnifiedBytecodeOpCode.GetNamedSuperProperty:
+                case UnifiedBytecodeOpCode.GetComputedSuperProperty:
+                case UnifiedBytecodeOpCode.SetNamedSuperProperty:
+                case UnifiedBytecodeOpCode.SetComputedSuperProperty:
+                case UnifiedBytecodeOpCode.UpdateNamedSuperProperty:
+                case UnifiedBytecodeOpCode.UpdateComputedSuperProperty:
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                 case UnifiedBytecodeOpCode.UpdateComputedProperty:
                 case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:

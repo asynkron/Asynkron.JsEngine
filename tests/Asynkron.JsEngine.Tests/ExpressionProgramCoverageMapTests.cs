@@ -58,12 +58,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeExpressionOpCompilerGapNames =
     [
-        "GetComputedSuperProperty",
-        "GetNamedSuperProperty",
-        "SetComputedSuperProperty",
-        "SetNamedSuperProperty",
-        "UpdateComputedSuperProperty",
-        "UpdateNamedSuperProperty"
     ];
 
     private sealed record ProductionUnifiedBytecodeProofPackShape(

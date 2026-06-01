@@ -299,7 +299,8 @@ the final post-compile production subset check before VM entry.
   `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional computed delete
   chains are admitted only for `delete box?.child[key]` and
   `delete box.child?.[key]` shapes with activation-resolved receivers, supported
-  computed-key spans, and compiler-owned nullish short-circuit-to-true lowering.
+  computed-key spans, and compiler-owned nullish short-circuit-to-true lowering
+  (ADR 0317).
   The compiler emits the named receiver reads and final `DeleteComputedProperty`,
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
   Retained declines include simple optional computed deletes without a named

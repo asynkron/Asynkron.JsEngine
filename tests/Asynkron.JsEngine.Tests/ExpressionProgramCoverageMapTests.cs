@@ -56,6 +56,25 @@ public sealed class ExpressionProgramCoverageMapTests
         "FunctionDeclarationInstruction"
     ];
 
+    private static readonly string[] UnifiedBytecodeExpressionOpCompilerGapNames =
+    [
+        "DefineComputedObjectAccessor",
+        "DefineComputedObjectMethod",
+        "DefineObjectAccessor",
+        "DefineObjectMethod",
+        "GetComputedSuperProperty",
+        "GetNamedSuperProperty",
+        "LoadImportMeta",
+        "LoadRegexLiteral",
+        "LoadTemplateObject",
+        "PrivateFieldIn",
+        "SetComputedSuperProperty",
+        "SetNamedSuperProperty",
+        "ThrowReferenceError",
+        "UpdateComputedSuperProperty",
+        "UpdateNamedSuperProperty"
+    ];
+
     private sealed record ProductionUnifiedBytecodeProofPackShape(
         string Key,
         string ContractEvidenceText,
@@ -223,6 +242,46 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeCompiler_AccountsForEveryExpressionOpKind()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var expressionOpPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "Instructions",
+            "ExpressionOp.cs");
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(expressionOpPath), $"Expected expression op source at '{expressionOpPath}'.");
+        Assert.True(File.Exists(compilerPath), $"Expected compiler source at '{compilerPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var expressionOpText = File.ReadAllText(expressionOpPath);
+        var compilerText = File.ReadAllText(compilerPath);
+        var contractText = File.ReadAllText(contractPath);
+        var declaredOpKinds = ExtractEnumMemberNames(expressionOpText, "ExpressionOpKind");
+        var compilerReferencedOpKinds = ExtractExpressionOpKindReferences(compilerText);
+        var unreferencedOpKinds = declaredOpKinds.Except(compilerReferencedOpKinds, StringComparer.Ordinal);
+
+        AssertSameSet(
+            UnifiedBytecodeExpressionOpCompilerGapNames,
+            unreferencedOpKinds,
+            "Expression op kinds without unified compiler references");
+        foreach (var gapName in UnifiedBytecodeExpressionOpCompilerGapNames)
+        {
+            Assert.Contains($"`{gapName}`", contractText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void UnifiedBytecodeProductionProofPack_CoversAdmittedOrdinarySyncBaseline()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -309,6 +368,31 @@ public sealed class ExpressionProgramCoverageMapTests
         return Regex.Matches(
                 sourceText,
                 @"\bcase\s+(?<name>[A-Za-z0-9_]+Instruction)\b",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+    }
+
+    private static string[] ExtractEnumMemberNames(string sourceText, string enumName)
+    {
+        var enumMatch = Regex.Match(
+            sourceText,
+            $@"\benum\s+{Regex.Escape(enumName)}\s*(?::\s*\w+)?\s*\{{(?<body>.*?)^\}}",
+            RegexOptions.Singleline | RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.True(enumMatch.Success, $"Source text is missing enum '{enumName}'.");
+
+        return enumMatch.Groups["body"].Value
+            .Split('\n')
+            .Select(line => line.Split("//", StringSplitOptions.None)[0].Trim().TrimEnd(','))
+            .Where(line => line.Length > 0)
+            .ToArray();
+    }
+
+    private static string[] ExtractExpressionOpKindReferences(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bExpressionOpKind\.(?<name>[A-Za-z0-9_]+)\b",
                 RegexOptions.CultureInvariant)
             .Select(match => match.Groups["name"].Value)
             .ToArray();

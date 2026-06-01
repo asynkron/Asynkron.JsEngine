@@ -75,6 +75,13 @@ statement interpretation.
   objects, `import.meta`, private-field operations, object methods/accessors,
   super property reads/writes/updates, generic call-target stack shuffles, and
   `ThrowReferenceError` remain outside general unified bytecode lowering.
+- The current `ExpressionOpKind` names with no unified compiler reference are
+  `DefineComputedObjectAccessor`, `DefineComputedObjectMethod`,
+  `DefineObjectAccessor`, `DefineObjectMethod`, `GetComputedSuperProperty`,
+  `GetNamedSuperProperty`, `LoadImportMeta`, `LoadRegexLiteral`,
+  `LoadTemplateObject`, `PrivateFieldIn`, `SetComputedSuperProperty`,
+  `SetNamedSuperProperty`, `ThrowReferenceError`,
+  `UpdateComputedSuperProperty`, and `UpdateNamedSuperProperty`.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
   shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates

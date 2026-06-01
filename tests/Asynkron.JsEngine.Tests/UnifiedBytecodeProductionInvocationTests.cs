@@ -6595,6 +6595,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithBinaryTemplateLiteralSubstitution_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function logExpr(receiver, a, b) {
+                return receiver(`result: ${a + b}`);
+            }
+
+            logExpr(function(value) { return value; }, 40, 2);
+            """);
+
+        Assert.Equal("result: 42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=logExpr argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ObjectSpreadGetterThrow_StopsBeforeLaterSpread_OnFastPath()
     {
         await using var engine = CreateEngine();

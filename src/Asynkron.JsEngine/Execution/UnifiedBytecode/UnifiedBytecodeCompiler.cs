@@ -8819,7 +8819,44 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
-            // Substitution part: simple-operand, ToString, Binary(Add)
+            // Substitution part: simple binary expression, ToString, Binary(Add)
+            if (i + 4 < expressionProgram.OperationCount)
+            {
+                var rightOperand = expressionProgram.GetOperation(i + 1);
+                var binary = expressionProgram.GetOperation(i + 2);
+                var toString = expressionProgram.GetOperation(i + 3);
+                var add = expressionProgram.GetOperation(i + 4);
+                if (binary.Kind == ExpressionOpKind.Binary &&
+                    IsSupportedBinaryOperator(binary.Operator) &&
+                    toString.Kind == ExpressionOpKind.ToString &&
+                    add.Kind == ExpressionOpKind.Binary &&
+                    add.Operator == BinaryOperator.Add &&
+                    CanAppendSimpleOperandLoad(op, expressionProgram, activationSlots) &&
+                    CanAppendSimpleOperandLoad(rightOperand, expressionProgram, activationSlots))
+                {
+                    TryAppendSimpleOperandLoad(
+                        op,
+                        expressionProgram,
+                        activationSlots,
+                        unified,
+                        literalConstants,
+                        out _);
+                    TryAppendSimpleOperandLoad(
+                        rightOperand,
+                        expressionProgram,
+                        activationSlots,
+                        unified,
+                        literalConstants,
+                        out _);
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)BinaryOperator.Add));
+                    i += 5;
+                    continue;
+                }
+            }
+
+            // Substitution part: simple operand, ToString, Binary(Add)
             if (i + 2 < expressionProgram.OperationCount)
             {
                 var toString = expressionProgram.GetOperation(i + 1);
@@ -8843,6 +8880,23 @@ internal static class UnifiedBytecodeCompiler
         spanLength = i - startIndex;
         reason = string.Empty;
         return true;
+    }
+
+    private static bool CanAppendSimpleOperandLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots)
+    {
+        return operation.Kind switch
+        {
+            ExpressionOpKind.LoadIdentifier => !operation.IsArguments &&
+                TryResolveActivationSlot(
+                    operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan()),
+                    activationSlots,
+                    out _),
+            ExpressionOpKind.LoadLiteral or ExpressionOpKind.LoadThis or ExpressionOpKind.LoadNewTarget => true,
+            _ => false
+        };
     }
 
     private static bool TryAppendSimpleOperandLoad(

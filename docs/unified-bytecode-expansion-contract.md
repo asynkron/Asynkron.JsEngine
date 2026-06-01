@@ -75,12 +75,10 @@ statement interpretation.
   objects, `import.meta`, private-field operations, object methods/accessors,
   super property reads/writes/updates, generic call-target stack shuffles, and
   `ThrowReferenceError` remain outside general unified bytecode lowering.
-- The most suspicious remaining ordinary-sync rejection is slot update lowering.
-  `IncrementSlotInstruction` and activation-resolved `UpdateIdentifier` still
-  decline even though ordinary slot load/store and compound assignment lowering
-  already exist. The next update-expression slice should either add a dedicated
-  `UpdateSlot` opcode or lower prefix/postfix slot update into existing slot
-  bytecode while preserving old-value/new-value result semantics exactly.
+- Slot update lowering is now VM-owned for activation-resolved ordinary-sync
+  shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
+  and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
+  continue to use `UpdateDynamicIdentifier`.
 - Resumable async/generator unified bytecode is narrower than ordinary sync
   production bytecode. `EvaluateResumable` currently admits only a small
   instruction and opcode subset; broad async/generator control flow, calls,
@@ -104,6 +102,7 @@ statement interpretation.
 - `LoadNewTarget`
 - `LoadLiteral`
 - `StoreSlot`
+- `UpdateSlot`
 - `InitializeSlot`
 - `DeclareDynamicVar`
 - `StoreDynamicIdentifier`

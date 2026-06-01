@@ -13,6 +13,7 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadNewTarget,
     LoadLiteral,
     StoreSlot,
+    UpdateSlot,
     InitializeSlot,
     DeclareDynamicVar,
     StoreDynamicIdentifier,

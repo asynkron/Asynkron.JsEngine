@@ -2585,6 +2585,69 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ActivationSlotIncrementInstruction_AcceptsUpdateSlotOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function bump(x) {
+                x++;
+                return x;
+            }
+            """,
+            "bump");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "x", JsValue.FromDouble(41));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.Equal(42d, vmResult.AsDouble());
+    }
+
+    [Theory]
+    [InlineData("function post(x) { return x++; }", "post", 4d)]
+    [InlineData("function pre(x) { return ++x; }", "pre", 5d)]
+    public void Evaluate_ActivationSlotUpdateExpression_AcceptsUpdateSlotOpcode(
+        string source,
+        string functionName,
+        double expectedResult)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateSlot);
+        Assert.DoesNotContain(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "x", JsValue.FromDouble(4));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.Equal(expectedResult, vmResult.AsDouble());
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

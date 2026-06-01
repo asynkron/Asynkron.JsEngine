@@ -515,6 +515,54 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateSlot:
+                    var updateSlotIndex = DecodeUpdateIndex(instruction.Operand);
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, updateSlotIndex))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, updateSlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    var updateSlotValue = slots[updateSlotIndex];
+                    if (updateSlotValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, updateSlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    GetUpdatedNumericValue(
+                        updateSlotValue,
+                        DecodeIsIncrement(instruction.Operand),
+                        context,
+                        out var oldSlotNumericValue,
+                        out var newSlotValue);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    slots[updateSlotIndex] = newSlotValue;
+                    SyncSlotEnvironment(slotEnvironments, updateSlotIndex, newSlotValue);
+                    stack[stackPointer++] = DecodeIsPrefix(instruction.Operand) ? newSlotValue : oldSlotNumericValue;
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.InitializeSlot:
                     var initializedValue = stack[--stackPointer];
                     slots[instruction.Operand] = initializedValue;
@@ -5721,6 +5769,8 @@ internal static class UnifiedBytecodeVirtualMachine
     }
 
     private static int DecodeStringOperand(int operand) => operand >> 2;
+
+    private static int DecodeUpdateIndex(int operand) => operand >> 2;
 
     private static int DecodeDynamicStoreNameOperand(int operand) => operand >> 1;
 

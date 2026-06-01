@@ -1290,10 +1290,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         var updateIdentifier = operation.GetIdentifier(identifierConstants);
                         if (TryResolveActivationSlot(updateIdentifier, activationSlots))
                         {
-                            declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                            declineReason =
-                                $"Update target '{updateIdentifier.Name.Name}' resolves to an activation slot and is outside the ordinary dynamic-name production slice.";
-                            return true;
+                            break;
                         }
 
                         if (allowsDynamicIdentifiers)
@@ -4240,6 +4237,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget:
                 case UnifiedBytecodeOpCode.StoreSlot:
+                case UnifiedBytecodeOpCode.UpdateSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:

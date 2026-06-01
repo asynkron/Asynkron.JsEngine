@@ -940,28 +940,38 @@ internal static class UnifiedBytecodeCompiler
                         {
                             TargetSymbol: { } incrementTargetSymbol
                         } increment:
-                        if (TryResolveInstructionSlot(incrementTargetSymbol, increment.FlatSlotId, slotLayout, out _))
+                        if (TryResolveInstructionSlot(
+                                incrementTargetSymbol,
+                                increment.FlatSlotId,
+                                slotLayout,
+                                out var incrementSlot))
                         {
-                            reason =
-                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
-                            return false;
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.UpdateSlot,
+                                EncodeUpdateOperand(
+                                    incrementSlot,
+                                    increment.IsIncrement,
+                                    increment.IsPrefix)));
+                        }
+                        else
+                        {
+                            if (!allowsDynamicIdentifiers)
+                            {
+                                reason =
+                                    $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
+                                return false;
+                            }
+
+                            var dynamicUpdateNameIndex = stringConstants.Count;
+                            stringConstants.Add(incrementTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
+                                EncodeUpdateOperand(
+                                    dynamicUpdateNameIndex,
+                                    increment.IsIncrement,
+                                    increment.IsPrefix)));
                         }
 
-                        if (!allowsDynamicIdentifiers)
-                        {
-                            reason =
-                                $"Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.";
-                            return false;
-                        }
-
-                        var dynamicUpdateNameIndex = stringConstants.Count;
-                        stringConstants.Add(incrementTargetSymbol.Name);
-                        unified.Add(new UnifiedBytecodeInstruction(
-                            UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
-                            EncodeUpdateOperand(
-                                dynamicUpdateNameIndex,
-                                increment.IsIncrement,
-                                increment.IsPrefix)));
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
                         maxStackDepth = Math.Max(maxStackDepth, 1);
                         if (TryAppendJumpToCompiledTarget(
@@ -3831,11 +3841,12 @@ internal static class UnifiedBytecodeCompiler
                     }
 
                     var updateIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (TryResolveActivationSlot(updateIdentifier, slotLayout, out _))
+                    if (TryResolveActivationSlot(updateIdentifier, slotLayout, out var updateSlot))
                     {
-                        reason =
-                            $"Update target '{updateIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode updates.";
-                        return false;
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.UpdateSlot,
+                            EncodeUpdateOperand(updateSlot, operation)));
+                        break;
                     }
 
                     if (!allowsDynamicIdentifiers)

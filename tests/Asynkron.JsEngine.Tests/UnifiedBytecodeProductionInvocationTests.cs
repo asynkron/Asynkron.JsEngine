@@ -5578,6 +5578,71 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateNamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 1;
+
+                add(receiver, value) {
+                    return receiver.#value += value;
+                }
+
+                read(receiver) {
+                    return receiver.#value;
+                }
+            }
+
+            var holder = new Holder();
+            holder.add(holder, 41) + ":" + holder.read(holder);
+            """);
+
+        Assert.Equal("42:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Theory(Timeout = 5000)]
+    [InlineData("&&=", "1", "42:42")]
+    [InlineData("&&=", "0", "0:0")]
+    [InlineData("||=", "0", "42:42")]
+    [InlineData("||=", "7", "7:7")]
+    [InlineData("??=", "null", "42:42")]
+    [InlineData("??=", "7", "7:7")]
+    public async Task PrivateNamedLogicalPropertyWrite_UsesUnifiedBytecodeProductionFastPath(
+        string logicalOperator,
+        string initialValue,
+        string expectedResult)
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate($$"""
+            class Holder {
+                #value = {{initialValue}};
+
+                assign(receiver, value) {
+                    return receiver.#value {{logicalOperator}} value;
+                }
+
+                read(receiver) {
+                    return receiver.#value;
+                }
+            }
+
+            var holder = new Holder();
+            holder.assign(holder, 42) + ":" + holder.read(holder);
+            """);
+
+        Assert.Equal(expectedResult, result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedMethodCall_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -6185,6 +6185,7 @@ internal static class UnifiedBytecodeCompiler
         out string reason)
     {
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // The final target may be private; receiver-chain hops stay ordinary only.
         // Minimum: 6 ops (rhs is a single simple operand).
         if (expressionProgram.OperationCount < 6)
         {
@@ -6233,12 +6234,6 @@ internal static class UnifiedBytecodeCompiler
             propertySet.Kind != ExpressionOpKind.SetNamedProperty)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        if (propertyRead.GetString(stringTable).IsPrivateName())
-        {
-            reason = "Private named compound property writes are not supported.";
             return false;
         }
 
@@ -6469,6 +6464,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // The final target may be private; receiver-chain hops stay ordinary only.
         var stringTable = expressionProgram.StringConstants.AsSpan();
         var duplicateIndex = 1;
         while (duplicateIndex < expressionProgram.OperationCount)
@@ -6541,12 +6537,6 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var propertyName = propertyRead.GetString(stringTable);
-        if (propertyName.IsPrivateName())
-        {
-            reason = "Private named logical property writes are not supported.";
-            return false;
-        }
-
         if (propertyName != propertySet.GetString(stringTable))
         {
             reason = "Mismatched named logical property read/write operands are not supported.";

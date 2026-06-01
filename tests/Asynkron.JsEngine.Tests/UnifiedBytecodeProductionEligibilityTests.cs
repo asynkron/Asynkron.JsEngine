@@ -2698,6 +2698,72 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_PrivateNamedCompoundPropertyWrite_AcceptsNamedPropertyOpcodes()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                add(receiver, value) {
+                    return receiver.#field += value;
+                }
+            }
+            """,
+            "Holder",
+            "add");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal("#field", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Theory]
+    [InlineData("&&=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData("||=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData("??=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void Evaluate_PrivateNamedLogicalPropertyWrite_AcceptsNamedPropertyOpcodes(
+        string logicalOperator,
+        int expectedJumpOpCode)
+    {
+        var plan = GetClassMethodPlan($$"""
+            class Holder {
+                #field = 1;
+                assign(receiver, value) {
+                    return receiver.#field {{logicalOperator}} value;
+                }
+            }
+            """,
+            "Holder",
+            "assign");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == (UnifiedBytecodeOpCode)expectedJumpOpCode);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal("#field", Assert.Single(result.Program.StringConstants));
+    }
+
+    [Fact]
     public void Evaluate_PrivateNamedMethodCall_AcceptsCallTargetPreparation()
     {
         var plan = GetClassMethodPlan("""
@@ -6449,17 +6515,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(
-        """
-        class Counter {
-            update(value) {
-                return this.#p &&= value;
-            }
-        }
-        """,
-        "Counter",
-        "update",
-        (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
     [InlineData(
         """
         function logicalAndComputedComplexRhsWrite(box, key, value) {

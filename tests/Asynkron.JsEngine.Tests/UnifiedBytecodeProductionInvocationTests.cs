@@ -3145,6 +3145,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TypeOfUnresolvedIdentifier_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function kind() {
+                return typeof missing;
+            }
+
+            kind();
+            """);
+
+        Assert.Equal("undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=kind argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TypeOfIdentifierForLexicalTdz_PropagatesReferenceErrorThroughUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

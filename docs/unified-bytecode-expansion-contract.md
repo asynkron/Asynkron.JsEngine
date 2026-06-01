@@ -563,6 +563,9 @@ the final post-compile production subset check before VM entry.
 - Async-generator `yield*`, awaited delegated sources, and unsupported
   delegated expression payloads remain outside production resumable routing
   until their promise/async-iterator settlement semantics are modeled by the VM.
+  Focused issue #2955 coverage pins delegated async-generator `.return(value)`
+  and `.throw(value)` on the existing IR async-generator path with no
+  `unified-bytecode-resumable-*` route log.
 
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes

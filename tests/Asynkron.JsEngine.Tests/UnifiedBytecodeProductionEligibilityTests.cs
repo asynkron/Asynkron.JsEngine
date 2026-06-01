@@ -144,6 +144,48 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains("Async-like", result.Reason, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void EvaluateResumable_AsyncGeneratorYieldStar_DeclinesBeforeVmExecution()
+    {
+        var plan = GetFunctionPlan("""
+            async function* gen(values) {
+                yield* values;
+            }
+            """,
+            "gen");
+        Assert.Contains(plan.Instructions, static instruction => instruction is YieldStarInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
+        Assert.Contains("Async-like generator", result.Reason, StringComparison.Ordinal);
+        Assert.Empty(result.Program.Instructions);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AsyncGeneratorAwaitedYieldStar_DeclinesBeforeVmExecution()
+    {
+        var plan = GetFunctionPlan("""
+            async function* gen(values) {
+                yield* await values;
+            }
+            """,
+            "gen");
+        Assert.Contains(plan.Instructions, static instruction => instruction is YieldStarInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
+        Assert.Contains("Async-like generator", result.Reason, StringComparison.Ordinal);
+        Assert.Empty(result.Program.Instructions);
+    }
+
     [Theory]
     [InlineData(true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
     [InlineData(false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]

@@ -111,6 +111,12 @@ statement interpretation.
   shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
   continue to use `UpdateDynamicIdentifier`.
+- Public class methods with active or captured private-name scopes are no longer
+  blanket pre-gated when their body otherwise satisfies production
+  unified-bytecode routing. The invocation bridge threads those private-name
+  scopes into the VM, so `#name in receiver` can execute through
+  `PrivateFieldIn`. Private member reads/writes/updates and private
+  named-property operations still decline as `PrivateFieldDependency`.
 - Resumable async/generator unified bytecode is narrower than ordinary sync
   production bytecode. The resumable eligibility opcode allow-list is now
   audited against the `ExecuteResumable` switch, so opcodes already implemented
@@ -315,7 +321,7 @@ must still obey the no-mixed-execution rule.
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
 | `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
-| `PrivateFieldDependency` | Private member reads/writes/updates and private named-property operations; `#name in obj` has a VM opcode but public class/private-name routes still pre-gate | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
+| `PrivateFieldDependency` | Private member reads/writes/updates and private named-property operations; `#name in obj` is VM-owned and can route when the surrounding class method is otherwise production-eligible | Existing private-name route for private member access; production unified-bytecode VM for admitted `#name in obj` | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Binding declarations with defaults, computed binding names, assignment targets, awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
@@ -342,8 +348,6 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:needsArgumentsBinding` | Sloppy mapped arguments binding when an implicit arguments object is needed and not admitted by with-backed dynamic-name routing | Existing arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:allowIdentifierCache` | Identifier cache disabled outside the with-backed dynamic-name lane | Existing environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency"` |
 | `pre-gate:lexicalThisEnvironment` | Lexical `this` environment captured by arrow / class-derived shapes | Existing lexical-this route | This-binding lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:PrivateNameScope` | Active private-name scope on the invoker; keeps public class-private member execution off the production route even though `PrivateFieldIn` is VM-owned | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
-| `pre-gate:capturedPrivateNameScopes` | Captured private-name scopes from enclosing classes | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:superConstructor` | Derived-constructor super binding dependency outside the bounded production constructor admission path | Constructor / super route | Super / constructor lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperCall_AcceptsSuperConstructInvocationBoundary"` |
 | `pre-gate:superPrototype` | Method home-object super prototype state; admitted for VM-owned super property reads/writes/updates and first-boundary super calls | Existing super route for remaining shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `pre-gate:instanceFields` | Class instance-field initialization state | Constructor / class route | Class fields lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -749,9 +753,9 @@ support today.
    object and sloppy mapped-arguments dependencies, non-simple
    parameter lists, default/rest/destructured parameter expressions, broader
    class constructor routes beyond simple base constructors and the bounded
-   explicit derived `super(...)` path, default derived constructors, instance fields,
-   active private-name scopes, captured private-name scopes, and captured
-   activation outside the explicit with-backed dynamic-name lane. Resumable
+   explicit derived `super(...)` path, default derived constructors, instance
+   fields, and captured activation outside the explicit with-backed dynamic-name
+   lane. Resumable
    unified bytecode exists, but `EvaluateResumable` admits only a small
    instruction/opcode subset compared with ordinary sync production bytecode.
 2. Wider call invocation remains a high-impact unsupported bucket. Synchronous

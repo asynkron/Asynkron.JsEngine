@@ -7323,6 +7323,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithCallExpressionComputedKeyObjectArg_UsesUnifiedBytecodeProductionFastPathAndStoresValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+
+            function sendCallExprKey(receiver, fn, v) {
+                return receiver({ [fn()]: v });
+            }
+
+            sendCallExprKey(
+                function(obj) { return obj.answer + ":" + hits; },
+                function() { hits++; return "answer"; },
+                42);
+            """);
+
+        Assert.Equal("42:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendCallExprKey argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LogicalAnd_ShortCircuitsOnFalsyLeft_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();

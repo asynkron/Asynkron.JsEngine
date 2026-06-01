@@ -5111,7 +5111,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_CallWithCallExpressionComputedKeyObjectArg_DeclinesCallDependency()
+    public void Evaluate_CallWithCallExpressionComputedKeyObjectArg_Accepts()
     {
         var plan = GetFunctionPlan("""
         function sendCallExprKey(receiver, fn, v) {
@@ -5123,8 +5123,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
     }
 
     [Fact]

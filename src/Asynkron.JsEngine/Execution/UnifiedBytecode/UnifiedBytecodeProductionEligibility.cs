@@ -3658,6 +3658,48 @@ internal static class UnifiedBytecodeProductionEligibility
         var i = startIndex + 1;
         while (i < program.OperationCount)
         {
+            if (TryMeasureSimpleIdentifierCallOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var callKeySpanLength) &&
+                i + callKeySpanLength < program.OperationCount &&
+                program.GetOperation(i + callKeySpanLength).Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                i += callKeySpanLength + 1;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var valueOp = program.GetOperation(i);
+                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                if (i >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var computedDefineOp = program.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                continue;
+            }
+
             if (TryMeasureSimpleBinaryOperandSpan(
                     program,
                     i,
@@ -3809,6 +3851,44 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = 0;
         return false;
+    }
+
+    private static bool TryMeasureSimpleIdentifierCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (startIndex + 1 >= program.OperationCount)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var callTarget = program.GetOperation(startIndex);
+        var call = program.GetOperation(startIndex + 1);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments ||
+            call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.ArgumentCount != 0 ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(identifierConstants);
+        if (!TryResolveActivationSlot(identifier, activationSlots))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        spanLength = 2;
+        return true;
     }
 
     private static bool IsOperationInSimpleObjectLiteralSpan(

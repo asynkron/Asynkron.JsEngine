@@ -2918,7 +2918,9 @@ public static partial class TypedAstEvaluator
                     switch (call.ArgumentCount)
                     {
                         case 0:
-                            result = InvokeCallableNoArgs(callable, thisValue, context, environment);
+                            result = TryInvokePlainMapSetFast(callable, thisValue, default, default, 0, out var zeroArgResult)
+                                ? zeroArgResult
+                                : InvokeCallableNoArgs(callable, thisValue, context, environment);
                             break;
 
                         case 1:
@@ -2938,7 +2940,14 @@ public static partial class TypedAstEvaluator
                                     thisValue,
                                     context);
                             }
-                            else if (!TryInvokeArrayPushSingleFast(callable, thisValue, singleArgument, out result))
+                            else if (!TryInvokePlainMapSetFast(
+                                         callable,
+                                         thisValue,
+                                         singleArgument,
+                                         default,
+                                         1,
+                                         out result) &&
+                                     !TryInvokeArrayPushSingleFast(callable, thisValue, singleArgument, out result))
                             {
                                 result = InvokeCallableSingleArg(
                                     callable,
@@ -2951,27 +2960,60 @@ public static partial class TypedAstEvaluator
                             break;
 
                         case 2:
-                            result = InvokeCallableTwoArgs(
+                            var firstArgument = stack[calleeIndex + 1];
+                            var secondArgument = stack[calleeIndex + 2];
+                            result = TryInvokePlainMapSetFast(
                                 callable,
-                                stack[calleeIndex + 1],
-                                stack[calleeIndex + 2],
                                 thisValue,
-                                context,
-                                environment);
+                                firstArgument,
+                                secondArgument,
+                                2,
+                                out var twoArgResult)
+                                    ? twoArgResult
+                                    : InvokeCallableTwoArgs(
+                                        callable,
+                                        firstArgument,
+                                        secondArgument,
+                                        thisValue,
+                                        context,
+                                        environment);
                             break;
 
                         case 3:
-                            result = InvokeCallableThreeArgs(
+                            firstArgument = stack[calleeIndex + 1];
+                            secondArgument = stack[calleeIndex + 2];
+                            result = TryInvokePlainMapSetFast(
                                 callable,
-                                stack[calleeIndex + 1],
-                                stack[calleeIndex + 2],
-                                stack[calleeIndex + 3],
                                 thisValue,
-                                context,
-                                environment);
+                                firstArgument,
+                                secondArgument,
+                                3,
+                                out var threeArgResult)
+                                    ? threeArgResult
+                                    : InvokeCallableThreeArgs(
+                                        callable,
+                                        firstArgument,
+                                        secondArgument,
+                                        stack[calleeIndex + 3],
+                                        thisValue,
+                                        context,
+                                        environment);
                             break;
 
                         default:
+                            firstArgument = stack[calleeIndex + 1];
+                            secondArgument = call.ArgumentCount > 1 ? stack[calleeIndex + 2] : default;
+                            if (TryInvokePlainMapSetFast(
+                                    callable,
+                                    thisValue,
+                                    firstArgument,
+                                    secondArgument,
+                                    call.ArgumentCount,
+                                    out result))
+                            {
+                                break;
+                            }
+
                             var arguments = MaterializeProgramArguments(
                                 call.ArgumentCount,
                                 default,
@@ -3948,6 +3990,90 @@ public static partial class TypedAstEvaluator
             }
 
             return array.TryPushSingleFast(argument, out result);
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private static bool TryInvokePlainMapSetFast(
+            IJsCallable callable,
+            JsValue thisValue,
+            JsValue firstArgument,
+            JsValue secondArgument,
+            int argumentCount,
+            out JsValue result)
+        {
+            result = JsValue.Undefined;
+            if (callable is not HostFunction hostFunction)
+            {
+                return false;
+            }
+
+            if (thisValue.TryGetObject<JsMap>(out var map) && map.IsPlain)
+            {
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapSet && argumentCount >= 2)
+                {
+                    map.Set(firstArgument, secondArgument);
+                    result = map.AsJsValue;
+                    return true;
+                }
+
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapGet && argumentCount >= 1)
+                {
+                    result = map.Get(firstArgument);
+                    return true;
+                }
+
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapHas && argumentCount >= 1)
+                {
+                    result = map.Has(firstArgument) ? JsValue.True : JsValue.False;
+                    return true;
+                }
+
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapDelete && argumentCount >= 1)
+                {
+                    result = map.Delete(firstArgument) ? JsValue.True : JsValue.False;
+                    return true;
+                }
+
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapClear)
+                {
+                    map.Clear();
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (!thisValue.TryGetObject<JsSet>(out var set) || !set.IsPlain)
+            {
+                return false;
+            }
+
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetAdd && argumentCount >= 1)
+            {
+                set.Add(firstArgument);
+                result = set.AsJsValue;
+                return true;
+            }
+
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetHas && argumentCount >= 1)
+            {
+                result = set.Has(firstArgument) ? JsValue.True : JsValue.False;
+                return true;
+            }
+
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetDelete && argumentCount >= 1)
+            {
+                result = set.Delete(firstArgument) ? JsValue.True : JsValue.False;
+                return true;
+            }
+
+            if (hostFunction.MapSetFastMethodKind != MapSetFastMethodKind.SetClear)
+            {
+                return false;
+            }
+
+            set.Clear();
+            return true;
         }
 
         private IReadOnlyList<JsValue> MaterializeProgramArguments(

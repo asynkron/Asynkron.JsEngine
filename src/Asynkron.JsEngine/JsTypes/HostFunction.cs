@@ -5,6 +5,20 @@ using static Asynkron.JsEngine.StdLib.ReflectHelper;
 
 namespace Asynkron.JsEngine.JsTypes;
 
+internal enum MapSetFastMethodKind
+{
+    None,
+    MapSet,
+    MapGet,
+    MapHas,
+    MapDelete,
+    MapClear,
+    SetAdd,
+    SetHas,
+    SetDelete,
+    SetClear
+}
+
 /// <summary>
 ///     Represents a host function that can be called from JavaScript.
 /// </summary>
@@ -133,6 +147,8 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     public string? ConstructErrorMessage { get; set; }
 
     public bool HandlesConstructInternally { get; set; }
+
+    internal MapSetFastMethodKind MapSetFastMethodKind { get; private set; }
 
     internal JsObject Properties { get; }
 
@@ -423,6 +439,11 @@ public sealed class HostFunction : IJsObjectLike, IPropertyDefinitionHost, IExte
     internal void SetFastTwoArgumentHandler(Func<JsValue, JsValue, JsValue> handler)
     {
         _fastTwoArgumentHandler = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    internal void SetMapSetFastMethodKind(MapSetFastMethodKind kind)
+    {
+        MapSetFastMethodKind = kind;
     }
 
     public void SetInvokeWithContext(

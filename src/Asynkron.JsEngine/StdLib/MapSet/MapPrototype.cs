@@ -146,8 +146,22 @@ public sealed partial class MapPrototype
         }
 
         Realm.MapPrototype ??= Prototype as JsObject;
+        ConfigureMapSetFastMethod("set", MapSetFastMethodKind.MapSet);
+        ConfigureMapSetFastMethod("get", MapSetFastMethodKind.MapGet);
+        ConfigureMapSetFastMethod("has", MapSetFastMethodKind.MapHas);
+        ConfigureMapSetFastMethod("delete", MapSetFastMethodKind.MapDelete);
+        ConfigureMapSetFastMethod("clear", MapSetFastMethodKind.MapClear);
 
         // [Symbol.iterator] is registered via code generation from [JsSymbolAlias] attribute
+    }
+
+    private void ConfigureMapSetFastMethod(string name, MapSetFastMethodKind kind)
+    {
+        if (Prototype.TryGetProperty(name, out var method) &&
+            method.TryGetObject<HostFunction>(out var hostFunction))
+        {
+            hostFunction.SetMapSetFastMethodKind(kind);
+        }
     }
 
     private JsValue CreateMapIterator(JsMap map, MapIterationKind kind)

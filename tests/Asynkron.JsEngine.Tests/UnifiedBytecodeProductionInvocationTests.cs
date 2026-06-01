@@ -5007,16 +5007,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         42d)]
     [InlineData(
         """
-        function computedExpressionWrite(box, key, suffix, value) {
-            return box[key + suffix] = value;
-        }
-
-        computedExpressionWrite({}, "val", "ue", 42);
-        """,
-        "computedExpressionWrite",
-        42d)]
-    [InlineData(
-        """
         function readComputedSpreadKey(box, source) {
             return box[{ ...source }];
         }
@@ -5037,6 +5027,40 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyWriteWithExpressionKey_UsesUnifiedBytecodeProductionFastPathAndKeySemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = new Proxy({}, {
+                set(target, key, value, receiver) {
+                    events.push("set:" + String(key) + ":" + value);
+                    target[key] = value;
+                    return true;
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "val";
+                }
+            };
+
+            function write(box, key, suffix, value) {
+                return box[key + suffix] = value;
+            }
+
+            String(write(box, key, "ue", 42)) + ":" + box.value + ":" + events.join(",");
+            """);
+
+        Assert.Equal("42:42:key,set:value:42", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=4",
                 StringComparison.Ordinal));
     }
 

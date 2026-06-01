@@ -6558,13 +6558,13 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<JsValue>.Builder literalConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 4)
+        if (expressionProgram.OperationCount < 4)
         {
             reason = string.Empty;
             return false;
         }
 
-        var propertySet = expressionProgram.GetOperation(3);
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
         if (propertySet.Kind != ExpressionOpKind.SetComputedProperty)
         {
             reason = string.Empty;
@@ -6577,39 +6577,61 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var valueIndex = expressionProgram.OperationCount - 2;
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: 1,
+                endExclusive: valueIndex))
+        {
+            reason = "Unsupported computed property key span.";
+            return false;
+        }
+
+        var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        stagedUnified.AddRange(unified);
+
+        var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        stagedLiterals.AddRange(literalConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
-                unified,
+                stagedUnified,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                stagedLiterals,
+                startInclusive: 1,
+                endExclusive: valueIndex,
                 out reason))
         {
             return false;
         }
 
         if (!TryAppendSimpleOperandLoad(
-                expressionProgram.GetOperation(1),
+                expressionProgram.GetOperation(valueIndex),
                 expressionProgram,
                 activationSlots,
-                unified,
-                literalConstants,
+                stagedUnified,
+                stagedLiterals,
                 out reason))
         {
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoad(
-                expressionProgram.GetOperation(2),
-                expressionProgram,
-                activationSlots,
-                unified,
-                literalConstants,
-                out reason))
-        {
-            return false;
-        }
-
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+        unified.Clear();
+        unified.AddRange(stagedUnified);
+        literalConstants.Clear();
+        literalConstants.AddRange(stagedLiterals);
         reason = string.Empty;
         return true;
     }

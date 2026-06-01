@@ -4054,6 +4054,98 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadImportMeta));
                     break;
 
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                    var identifierCallTarget = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (!TryResolveActivationCallTargetSlot(identifierCallTarget, slotLayout, out var identifierCallTargetSlot))
+                    {
+                        if (operation.IsArguments)
+                        {
+                            reason = "arguments call targets are outside the general expression loop boundary.";
+                            return false;
+                        }
+
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(identifierCallTarget, activationSlots))
+                        {
+                            reason =
+                                $"Identifier call target '{identifierCallTarget.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+                            return false;
+                        }
+
+                        var dynamicCallTargetNameIndex = stringConstants.Count;
+                        stringConstants.Add(identifierCallTarget.Name.Name ?? string.Empty);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget,
+                            dynamicCallTargetNameIndex));
+                        break;
+                    }
+
+                    var identifierCallTargetNameIndex = stringConstants.Count;
+                    stringConstants.Add(identifierCallTarget.Name.Name ?? string.Empty);
+                    var identifierCallTargetIndex = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.Identifier,
+                        identifierCallTargetSlot,
+                        identifierCallTargetNameIndex));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+                        identifierCallTargetIndex));
+                    break;
+
+                case ExpressionOpKind.LoadNamedCallTarget:
+                    var namedCallTargetName = operation.GetString(expressionProgram.StringConstants.AsSpan());
+                    if (namedCallTargetName.IsPrivateName())
+                    {
+                        reason = "Private named member call targets are outside the general expression loop boundary.";
+                        return false;
+                    }
+
+                    var namedCallTargetNameIndex = stringConstants.Count;
+                    stringConstants.Add(namedCallTargetName);
+                    var namedCallTargetIndex = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.NamedMember,
+                        NameConstantIndex: namedCallTargetNameIndex));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+                        namedCallTargetIndex));
+                    break;
+
+                case ExpressionOpKind.LoadComputedCallTarget:
+                    var computedCallTargetIndex = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+                        computedCallTargetIndex));
+                    break;
+
+                case ExpressionOpKind.LoadNamedSuperCallTarget:
+                    var namedSuperCallTargetName = operation.GetString(expressionProgram.StringConstants.AsSpan());
+                    if (namedSuperCallTargetName.IsPrivateName())
+                    {
+                        reason = "Private named super call targets are outside the general expression loop boundary.";
+                        return false;
+                    }
+
+                    var namedSuperCallTargetNameIndex = stringConstants.Count;
+                    stringConstants.Add(namedSuperCallTargetName);
+                    var namedSuperCallTargetIndex = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.NamedSuperMember,
+                        NameConstantIndex: namedSuperCallTargetNameIndex));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget,
+                        namedSuperCallTargetIndex));
+                    break;
+
+                case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    var computedSuperCallTargetIndex = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedSuperMember));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget,
+                        computedSuperCallTargetIndex));
+                    break;
+
                 case ExpressionOpKind.LoadTemplateObject:
                     var templateObjectIndex = templateObjectConstants.Count;
                     templateObjectConstants.Add(operation.GetObject<TaggedTemplateDescriptor>(
@@ -4426,6 +4518,22 @@ internal static class UnifiedBytecodeCompiler
                         EncodeCallBoundaryOperand(operation.ArgumentCount, constructSpreadMaskIndex, isDirectEval: false)));
                     break;
 
+                case ExpressionOpKind.Call:
+                    if (!operation.HasExplicitThis || operation.IsDirectEval)
+                    {
+                        reason = "Only ordinary explicit-this calls are supported in the general expression loop.";
+                        return false;
+                    }
+
+                    var callSpreadIndices = operation.GetSpreadIndices(expressionProgram.SpreadMaskConstants.AsSpan());
+                    var callSpreadMaskIndex = callSpreadIndices.IsDefaultOrEmpty
+                        ? -1
+                        : slotLayout.RegisterSpreadMask(callSpreadIndices);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.CallInvocationBoundary,
+                        EncodeCallBoundaryOperand(operation.ArgumentCount, callSpreadMaskIndex, isDirectEval: false)));
+                    break;
+
                 case ExpressionOpKind.SuperConstruct:
                     if (operation.SpreadMaskConstantIndex >= 0)
                     {
@@ -4544,6 +4652,11 @@ internal static class UnifiedBytecodeCompiler
         if (lastOp.Kind == ExpressionOpKind.Call)
         {
             var call = lastOp;
+            if (!RequiresFirstBoundaryCallTargetPreparation(expressionProgram, call))
+            {
+                return false;
+            }
+
             if (!call.HasExplicitThis && !call.IsDirectEval)
             {
                 reason = "Only direct identifier and member calls with explicit receiver records are supported.";
@@ -4707,6 +4820,30 @@ internal static class UnifiedBytecodeCompiler
         if (string.IsNullOrEmpty(reason))
         {
             reason = "Call target preparation is only supported for activation-resolved identifier and direct member calls.";
+        }
+
+        return false;
+    }
+
+    private static bool RequiresFirstBoundaryCallTargetPreparation(
+        ExpressionProgram expressionProgram,
+        PackedExpressionOp call)
+    {
+        if (call.IsDirectEval)
+        {
+            return true;
+        }
+
+        for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var operation = expressionProgram.GetOperation(operationIndex);
+            if (operation.Kind == ExpressionOpKind.JumpIfShortCircuited ||
+                operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget)
+            {
+                return true;
+            }
         }
 
         return false;

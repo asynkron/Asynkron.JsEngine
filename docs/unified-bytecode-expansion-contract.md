@@ -84,7 +84,7 @@ statement interpretation.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
-  reads/writes/updates, generic call-target stack shuffles, and
+  reads/writes/updates, optional-chain short-circuit flag handling, and
   some call/reference helpers remain outside general unified bytecode lowering.
 - The remaining direct general-expression lowering gaps are drift-checked under
   `### General Expression Lowering Gaps (current)`. Property set/update
@@ -366,13 +366,7 @@ the final post-compile production subset check before VM entry.
 - Stateful iterator, for-in, and array destructuring driver operations
 
 ### General Expression Lowering Gaps (current)
-- `Call`
 - `JumpIfShortCircuited`
-- `LoadComputedCallTarget`
-- `LoadComputedSuperCallTarget`
-- `LoadIdentifierCallTarget`
-- `LoadNamedCallTarget`
-- `LoadNamedSuperCallTarget`
 
 ## Production This-Binding Boundary
 - Ordinary sync functions that reference `this` are admitted to the production
@@ -570,6 +564,11 @@ the final post-compile production subset check before VM entry.
   `PrepareComputedSuperCallTarget` followed by `CallInvocationBoundary`; the VM
   evaluates the key before resolving the super-member callee and invokes with
   the derived receiver as `this`.
+- Ordinary non-optional identifier/member/super call-target opcodes now lower
+  through the general expression loop. Direct eval and optional-call shapes
+  still use the first-boundary call-target helper because they carry
+  boundary-local directness metadata or packed nullish short-circuit jump
+  targets.
 - Accepted optional member-call programs use `PrepareNamedOptionalCallTarget`
   or `PrepareComputedOptionalCallTarget` followed by `CallInvocationBoundary`.
   Both opcodes pack a call-target constant index (low 16 bits) and a nullish

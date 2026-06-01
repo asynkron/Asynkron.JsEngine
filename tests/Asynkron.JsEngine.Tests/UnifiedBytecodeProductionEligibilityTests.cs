@@ -1401,6 +1401,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
+    [Fact]
+    public void Evaluate_ComputedCompoundPropertyWriteWithExpressionKey_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, key, suffix, value) {
+                return box[key + suffix] += value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
     [Theory]
     [MemberData(nameof(CompoundNamedPropertyWriteOperators))]
     public void Evaluate_NamedCompoundPropertyWrite_AcceptsForEachProductionOperator(
@@ -1488,6 +1512,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyUpdateWithExpressionKey_AcceptsOwnedPropertyOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function update(box, key, suffix) {
+                return box[key + suffix]++;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
     }
@@ -6086,6 +6132,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [InlineData("&&=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
     [InlineData("||=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
     [InlineData("??=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void Evaluate_ComputedLogicalAssignmentWithExpressionKey_AcceptsWithOwnedOpcodes(
+        string logicalOperator,
+        int expectedJumpOpCode)
+    {
+        var plan = GetFunctionPlan($$"""
+            function logicalComputedWrite(box, key, suffix, value) {
+                return box[key + suffix] {{logicalOperator}} value;
+            }
+            """,
+            "logicalComputedWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedJumpOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("&&=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData("||=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData("??=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
     public void Evaluate_NestedNamedLogicalAssignment_AcceptsWithOwnedOpcodes(
         string logicalOperator,
         int expectedJumpOpCode)
@@ -6126,15 +6203,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         "Counter",
         "update",
         (int)UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency)]
-    [InlineData(
-        """
-        function logicalAndComputedComplexKeyWrite(box, key, suffix, value) {
-            return box[key + suffix] &&= value;
-        }
-        """,
-        "logicalAndComputedComplexKeyWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
     [InlineData(
         """
         function logicalAndComputedComplexRhsWrite(box, key, value) {

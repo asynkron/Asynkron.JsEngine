@@ -4237,6 +4237,82 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedCompoundPropertyWriteWithExpressionKey_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return 4;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "val";
+                }
+            };
+
+            function write(box, key, suffix, value) {
+                return box[key + suffix] += value;
+            }
+
+            String(write(box, key, "ue", 5)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("9:key,get,set:9", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyUpdateWithExpressionKey_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var store = 4;
+            var box = {};
+            Object.defineProperty(box, "value", {
+                get() {
+                    events.push("get");
+                    return store;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                    store = value;
+                }
+            });
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "val";
+                }
+            };
+
+            function update(box, key, suffix) {
+                return box[key + suffix]++;
+            }
+
+            String(update(box, key, "ue")) + ":" + store + ":" + events.join(",");
+            """);
+
+        Assert.Equal("4:5:key,get,set:5", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedLogicalPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndPreservesShortCircuitSemantics()
     {
         await using var engine = CreateEngine();
@@ -4270,6 +4346,48 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedLogicalPropertyWriteWithExpressionKey_UsesUnifiedBytecodeProductionFastPathAndPreservesShortCircuitSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            function makeBox(initialValue) {
+                var store = initialValue;
+                var box = {};
+                Object.defineProperty(box, "value", {
+                    get() {
+                        events.push("get");
+                        return store;
+                    },
+                    set(value) {
+                        events.push("set:" + value);
+                        store = value;
+                    }
+                });
+                return box;
+            }
+            var key = {
+                toString() {
+                    events.push("key");
+                    return "val";
+                }
+            };
+            function write(box, key, suffix, value) {
+                return box[key + suffix] &&= value;
+            }
+
+            String(write(makeBox(0), key, "ue", 7)) + ":" +
+                String(write(makeBox(1), key, "ue", 7)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("0:7:key,get,key,get,set:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=4",
                 StringComparison.Ordinal));
     }
 

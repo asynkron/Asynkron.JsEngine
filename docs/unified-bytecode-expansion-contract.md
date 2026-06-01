@@ -273,8 +273,8 @@ must still obey the no-mixed-execution rule.
 | `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, complex call arguments, and descriptor-level non-parameter callee calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/typeof/update outside the with-backed dynamic-name path | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved boundaries | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
-| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, computed expression-key assignment shape, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
-| `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
+| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
+| `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update, computed expression-key update, and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
@@ -356,11 +356,15 @@ the final post-compile production subset check before VM entry.
   `TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate`. Direct computed logical
   writes (`box[key] &&= y`, `box[key] ||= y`, `box[key] ??= y`) are also admitted
   when they match `TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate`
-  (activation-resolved base, simple key, simple RHS, non-optional/non-private
-  target). Direct computed assignments may use the same supported computed-key
-  expression span as optional computed reads (`box[key + suffix] = y`) when the
-  RHS is a simple operand. Simple nested named receiver assignments, compound
-  writes, logical writes, and updates (`box.child.value = y`,
+  (activation-resolved base, supported computed-key span, simple RHS,
+  non-optional/non-private target). Direct computed assignments, compound
+  writes, logical writes, and
+  updates may use the same supported computed-key expression span as optional
+  computed reads (`box[key + suffix] = y`, `box[key + suffix] += y`,
+  `box[key + suffix] &&= y`, `box[key + suffix]++`) when the RHS is a simple
+  operand and the operator-specific shape is already admitted. Simple nested
+  named receiver assignments, compound writes, logical writes, and updates
+  (`box.child.value = y`,
   `box.child.value += y`,
   `box.child.value &&= y`, `box.child.value++`) are admitted through
   `TryIsFirstBoundaryNestedNamedPropertyWriteCandidate` and
@@ -383,10 +387,8 @@ the final post-compile production subset check before VM entry.
   The compiler emits the named receiver reads and final `DeleteComputedProperty`,
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
   Retained declines include chained optional delete neighbors, private property
-  access, dynamic lookup, richer unowned computed-key spans, and
-  computed-expression-key compound/logical/update neighbors such as
-  `box[key + suffix] += y`, `box[key + suffix] &&= y`, and
-  `box[key + suffix]++`.
+  access, dynamic lookup, richer unowned computed-key spans, unsupported RHS
+  spans, and optional/super/private neighbors of computed-key mutation shapes.
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - Super-property reads, writes, and updates are now VM-owned through
   `EnsureSuperReference`, `GetNamedSuperProperty`, `GetComputedSuperProperty`,
@@ -723,10 +725,9 @@ support today.
 3. Property and assignment widening is no longer a blanket property-read/write
    gap, but several member-expression neighbors remain outside production:
    private member reads/writes/updates, optional-chain neighbors outside the
-   admitted read/call/delete shapes, richer computed-key spans, computed
-   expression-key compound/logical/update forms such as
-   `box[key + suffix] += y`, and dynamic lookup outside the explicit
-   with-backed lane.
+   admitted read/call/delete shapes, richer computed-key spans, unsupported RHS
+   spans, optional/super/private mutation neighbors, and dynamic lookup outside
+   the explicit with-backed lane.
 4. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator

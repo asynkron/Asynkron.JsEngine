@@ -58,6 +58,10 @@ statement interpretation.
   ledger. Any shape that misses the sync pre-gates, production eligibility, or
   compiler lowering still falls back to the existing IR/expression-bytecode
   execution paths.
+- Non-undefined `new.target` is no longer a standalone ordinary-sync production
+  pre-gate. Constructor route eligibility is now owned by the constructor/class
+  activation rows and by concrete opcode/compiler support such as `LoadNewTarget`
+  and `ConstructInvocationBoundary`.
 - The current gap is not missing VM switch coverage. The `UnifiedBytecodeOpCode`
   inventory and `UnifiedBytecodeVirtualMachine` switch are expected to stay in
   lockstep; the current opcode surface has VM handling for every listed opcode.
@@ -291,7 +295,6 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
-| `pre-gate:newTarget` | `!newTarget.IsUndefined` for constructor-style invocation | Constructor / sync IR route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsClassConstructor` | Class constructor invokers, including base constructors | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsArrowFunction` | Arrow functions, especially lexical `this` / `new.target` shapes | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |

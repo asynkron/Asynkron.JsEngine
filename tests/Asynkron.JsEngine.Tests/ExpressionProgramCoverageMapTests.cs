@@ -19,7 +19,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] ProductionPreGateLedgerKeys =
     [
-        "pre-gate:newTarget",
         "pre-gate:IsClassConstructor",
         "pre-gate:IsArrowFunction",
         "pre-gate:IsAsyncLike",

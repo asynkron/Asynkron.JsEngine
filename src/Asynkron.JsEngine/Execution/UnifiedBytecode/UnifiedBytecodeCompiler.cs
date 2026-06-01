@@ -5917,7 +5917,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        // Shape: [base, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
         // Minimum: 6 ops (rhs is a single simple operand).
         if (expressionProgram.OperationCount < 6)
         {
@@ -5925,8 +5925,39 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var duplicateTarget = expressionProgram.GetOperation(1);
-        var propertyRead = expressionProgram.GetOperation(2);
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        var duplicateIndex = 1;
+        while (duplicateIndex < expressionProgram.OperationCount)
+        {
+            var receiverRead = expressionProgram.GetOperation(duplicateIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private named compound property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            duplicateIndex++;
+        }
+
+        if (duplicateIndex + 4 >= expressionProgram.OperationCount)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var duplicateTarget = expressionProgram.GetOperation(duplicateIndex);
+        var propertyRead = expressionProgram.GetOperation(duplicateIndex + 1);
         var binary = expressionProgram.GetOperation(expressionProgram.OperationCount - 2);
         var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
@@ -5938,7 +5969,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        if (propertyRead.GetString(stringTable).IsPrivateName())
         {
             reason = "Private named compound property writes are not supported.";
             return false;
@@ -5956,8 +5987,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()) !=
-            propertySet.GetString(expressionProgram.StringConstants.AsSpan()))
+        if (propertyRead.GetString(stringTable) != propertySet.GetString(stringTable))
         {
             reason = "Mismatched named compound property read/write operands are not supported.";
             return false;
@@ -5979,13 +6009,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        for (var operationIndex = 1; operationIndex < duplicateIndex; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stringConstants.Count;
+            stringConstants.Add(receiverRead.GetString(stringTable));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
         var propertyNameIndex = stringConstants.Count;
-        stringConstants.Add(propertyRead.GetString(expressionProgram.StringConstants.AsSpan()));
+        stringConstants.Add(propertyRead.GetString(stringTable));
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet,
             propertyNameIndex));
 
-        var rhsStart = 3;
+        var rhsStart = duplicateIndex + 2;
         var rhsEnd = expressionProgram.OperationCount - 3;
 
         if (rhsStart == rhsEnd)

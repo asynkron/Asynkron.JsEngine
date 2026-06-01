@@ -3520,7 +3520,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        // Shape: [base, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
         // Minimum: 6 ops (rhs is a single simple operand).
         if (program.OperationCount < 6)
         {
@@ -3532,8 +3532,33 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var duplicateTarget = program.GetOperation(1);
-        var propertyRead = program.GetOperation(2);
+        var stringConstants = program.StringConstants.AsSpan();
+        var duplicateIndex = 1;
+        while (duplicateIndex < program.OperationCount)
+        {
+            var receiverRead = program.GetOperation(duplicateIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            duplicateIndex++;
+        }
+
+        if (duplicateIndex + 4 >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var duplicateTarget = program.GetOperation(duplicateIndex);
+        var propertyRead = program.GetOperation(duplicateIndex + 1);
         var binary = program.GetOperation(program.OperationCount - 2);
         var propertyWrite = program.GetOperation(program.OperationCount - 1);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
@@ -3548,14 +3573,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var propertyName = propertyRead.GetString(stringConstants);
         if (propertyName.IsPrivateName() || propertyName != propertyWrite.GetString(stringConstants))
         {
             return false;
         }
 
-        var rhsStart = 3;
+        var rhsStart = duplicateIndex + 2;
         var rhsEnd = program.OperationCount - 3;
 
         if (rhsStart == rhsEnd)

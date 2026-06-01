@@ -2268,7 +2268,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "complexCompoundWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
         string source,
         string functionName,
@@ -5032,7 +5032,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode()
+    public void Evaluate_NestedNamedCompoundPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetClassMethodPlan("""
             class Counter {
@@ -5048,8 +5048,15 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "child", "count" }, result.Program.StringConstants);
     }
 
     [Fact]

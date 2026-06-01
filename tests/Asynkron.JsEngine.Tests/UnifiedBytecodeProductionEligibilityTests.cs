@@ -6061,15 +6061,38 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(
-        """
-        function logicalAndNestedWrite(box, value) {
-            return box.child.value &&= value;
-        }
-        """,
-        "logicalAndNestedWrite",
-        null,
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+    [InlineData("&&=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData("||=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData("??=", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void Evaluate_NestedNamedLogicalAssignment_AcceptsWithOwnedOpcodes(
+        string logicalOperator,
+        int expectedJumpOpCode)
+    {
+        var plan = GetFunctionPlan($$"""
+            function logicalNestedWrite(box, value) {
+                return box.child.value {{logicalOperator}} value;
+            }
+            """,
+            "logicalNestedWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedJumpOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
+    }
+
+    [Theory]
     [InlineData(
         """
         class Counter {

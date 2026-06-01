@@ -6162,21 +6162,52 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
-        if (expressionProgram.OperationCount != 10)
+        if (expressionProgram.OperationCount < 10)
         {
             reason = string.Empty;
             return false;
         }
 
-        var duplicateTarget = expressionProgram.GetOperation(1);
-        var propertyRead = expressionProgram.GetOperation(2);
-        var jump = expressionProgram.GetOperation(3);
-        var pop = expressionProgram.GetOperation(4);
-        var rhs = expressionProgram.GetOperation(5);
-        var propertySet = expressionProgram.GetOperation(6);
-        var duplicateAssignedValue = expressionProgram.GetOperation(7);
-        var swap = expressionProgram.GetOperation(8);
-        var cleanupPop = expressionProgram.GetOperation(9);
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        var duplicateIndex = 1;
+        while (duplicateIndex < expressionProgram.OperationCount)
+        {
+            var receiverRead = expressionProgram.GetOperation(duplicateIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private named logical property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            duplicateIndex++;
+        }
+
+        if (expressionProgram.OperationCount != duplicateIndex + 9)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var duplicateTarget = expressionProgram.GetOperation(duplicateIndex);
+        var propertyRead = expressionProgram.GetOperation(duplicateIndex + 1);
+        var jump = expressionProgram.GetOperation(duplicateIndex + 2);
+        var pop = expressionProgram.GetOperation(duplicateIndex + 3);
+        var rhs = expressionProgram.GetOperation(duplicateIndex + 4);
+        var propertySet = expressionProgram.GetOperation(duplicateIndex + 5);
+        var duplicateAssignedValue = expressionProgram.GetOperation(duplicateIndex + 6);
+        var swap = expressionProgram.GetOperation(duplicateIndex + 7);
+        var cleanupPop = expressionProgram.GetOperation(duplicateIndex + 8);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
             propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
             jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
@@ -6202,13 +6233,12 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (jump.Target != 8)
+        if (jump.Target != duplicateIndex + 7)
         {
             reason = "Logical named property writes require jump target at cleanup start.";
             return false;
         }
 
-        var stringTable = expressionProgram.StringConstants.AsSpan();
         var propertyName = propertyRead.GetString(stringTable);
         if (propertyName.IsPrivateName())
         {
@@ -6239,6 +6269,14 @@ internal static class UnifiedBytecodeCompiler
                 out reason))
         {
             return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < duplicateIndex; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stagedStrings.Count;
+            stagedStrings.Add(receiverRead.GetString(stringTable));
+            stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
         }
 
         var propertyNameIndex = stagedStrings.Count;

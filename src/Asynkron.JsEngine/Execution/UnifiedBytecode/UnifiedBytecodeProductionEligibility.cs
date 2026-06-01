@@ -3635,8 +3635,9 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots)
     {
-        // Shape: [base, DuplicateTop, GetNamedProperty, JumpIf*, Pop, rhs, SetNamedProperty, DuplicateTop, SwapTopTwo, Pop]
-        if (program.OperationCount != 10)
+        // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty,
+        // JumpIf*, Pop, rhs, SetNamedProperty, DuplicateTop, SwapTopTwo, Pop]
+        if (program.OperationCount < 10)
         {
             return false;
         }
@@ -3646,15 +3647,40 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var duplicateTarget = program.GetOperation(1);
-        var propertyRead = program.GetOperation(2);
-        var jump = program.GetOperation(3);
-        var pop = program.GetOperation(4);
-        var rhs = program.GetOperation(5);
-        var propertyWrite = program.GetOperation(6);
-        var duplicateAssignedValue = program.GetOperation(7);
-        var swap = program.GetOperation(8);
-        var cleanupPop = program.GetOperation(9);
+        var stringConstants = program.StringConstants.AsSpan();
+        var duplicateIndex = 1;
+        while (duplicateIndex < program.OperationCount)
+        {
+            var receiverRead = program.GetOperation(duplicateIndex);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            duplicateIndex++;
+        }
+
+        if (program.OperationCount != duplicateIndex + 9)
+        {
+            return false;
+        }
+
+        var duplicateTarget = program.GetOperation(duplicateIndex);
+        var propertyRead = program.GetOperation(duplicateIndex + 1);
+        var jump = program.GetOperation(duplicateIndex + 2);
+        var pop = program.GetOperation(duplicateIndex + 3);
+        var rhs = program.GetOperation(duplicateIndex + 4);
+        var propertyWrite = program.GetOperation(duplicateIndex + 5);
+        var duplicateAssignedValue = program.GetOperation(duplicateIndex + 6);
+        var swap = program.GetOperation(duplicateIndex + 7);
+        var cleanupPop = program.GetOperation(duplicateIndex + 8);
         if (duplicateTarget.Kind != ExpressionOpKind.DuplicateTop ||
             propertyRead.Kind != ExpressionOpKind.GetNamedProperty ||
             jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
@@ -3666,13 +3692,12 @@ internal static class UnifiedBytecodeProductionEligibility
             propertyWrite.AllowNameInference ||
             propertyRead.IsOptional ||
             propertyRead.ShortCircuitOnNullishTarget ||
-            jump.Target != 8 ||
+            jump.Target != duplicateIndex + 7 ||
             !IsSimpleOperand(rhs, identifierConstants, activationSlots))
         {
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var propertyName = propertyRead.GetString(stringConstants);
         return !propertyName.IsPrivateName() && propertyName == propertyWrite.GetString(stringConstants);
     }

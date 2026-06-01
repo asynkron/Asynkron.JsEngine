@@ -716,12 +716,15 @@ internal static class UnifiedBytecodeProductionEligibility
         var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
+        var isFirstBoundaryPropertyWriteCandidate =
+            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots);
 
         // Pre-scan spread source operands before the main loop processes the source ops, which may
         // otherwise trigger a less-specific decline code such as CallDependency.
         for (var i = 0; i < operationCount; i++)
         {
-            if (IsPrivateNamedPropertyMutationOperation(program.GetOperation(i), stringConstants))
+            if (IsPrivateNamedPropertyMutationOperation(program.GetOperation(i), stringConstants) &&
+                !isFirstBoundaryPropertyWriteCandidate)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
                 declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
@@ -761,7 +764,8 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
-            if (IsPrivateNamedPropertyMutationOperation(operation, stringConstants))
+            if (IsPrivateNamedPropertyMutationOperation(operation, stringConstants) &&
+                !isFirstBoundaryPropertyWriteCandidate)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
                 declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
@@ -3756,7 +3760,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
         // Named property write: [base, rhs..., SetNamedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetNamedProperty &&
-            !lastOp.GetString(stringConstants).IsPrivateName() &&
             !lastOp.AllowNameInference &&
             TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {

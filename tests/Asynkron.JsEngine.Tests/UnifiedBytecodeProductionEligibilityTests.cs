@@ -2639,10 +2639,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
     }
 
-    [Theory]
-    [InlineData("write")]
-    [InlineData("update")]
-    public void Evaluate_PrivateNamedPropertyMutation_DeclinesWithExplicitCode(string methodName)
+    [Fact]
+    public void Evaluate_PrivateNamedPropertyWrite_AcceptsNamedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                write(receiver, value) {
+                    return receiver.#field = value;
+                }
+            }
+            """,
+            "Holder",
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_PrivateNamedPropertyUpdate_DeclinesWithExplicitCode()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -2661,7 +2684,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             }
             """,
             "Holder",
-            methodName);
+            "update");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,

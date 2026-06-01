@@ -4362,12 +4362,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.SetNamedProperty:
                     var setNamedPropertyName = operation.GetString(expressionProgram.StringConstants.AsSpan());
-                    if (setNamedPropertyName.IsPrivateName())
-                    {
-                        reason = "Private named property writes are not supported in the general expression loop.";
-                        return false;
-                    }
-
                     if (operation.AllowNameInference)
                     {
                         reason = "Property writes with name inference are not supported in the general expression loop.";
@@ -6823,12 +6817,6 @@ internal static class UnifiedBytecodeCompiler
         if (propertySet.Kind != ExpressionOpKind.SetNamedProperty)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        if (propertySet.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
-        {
-            reason = "Private named property writes are not supported.";
             return false;
         }
 

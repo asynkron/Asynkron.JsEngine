@@ -2260,7 +2260,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "computedExpressionWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function complexCompoundWrite(box, value) {
@@ -5006,6 +5006,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
         Assert.Equal(new[] { "child", "value" }, result.Program.StringConstants);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyWriteWithExpressionKey_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeComputed(box, key, suffix, value) {
+                return box[key + suffix] = value;
+            }
+            """,
+            "writeComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

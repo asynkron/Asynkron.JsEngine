@@ -3786,15 +3786,19 @@ internal static class UnifiedBytecodeProductionEligibility
                    rhsStart + spanLen - 1 == rhsEnd;
         }
 
-        // Computed property write: [base, key, value, SetComputedProperty]
-        if (program.OperationCount == 4)
+        // Computed property write: [base, key..., value, SetComputedProperty]
+        if (lastOp.Kind == ExpressionOpKind.SetComputedProperty &&
+            !lastOp.AllowNameInference &&
+            TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
         {
-            var computedWrite = program.GetOperation(3);
-            return computedWrite.Kind == ExpressionOpKind.SetComputedProperty &&
-                   !computedWrite.AllowNameInference &&
-                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
-                   IsSimpleOperand(program.GetOperation(1), identifierConstants, activationSlots) &&
-                   IsSimpleOperand(program.GetOperation(2), identifierConstants, activationSlots);
+            var valueIndex = program.OperationCount - 2;
+            return IsSupportedComputedPropertyKeySpan(
+                       program,
+                       startInclusive: 1,
+                       endExclusive: valueIndex,
+                       identifierConstants,
+                       activationSlots) &&
+                   IsSimpleOperand(program.GetOperation(valueIndex), identifierConstants, activationSlots);
         }
 
         return false;

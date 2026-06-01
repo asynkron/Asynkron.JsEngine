@@ -314,7 +314,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ClassDeclarationInstruction_DeclinesBeforeCompile()
+    public void Evaluate_ClassDeclarationInstruction_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""
             function outer() {
@@ -331,9 +331,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ClassDeclarationDependency, result.Code);
-        Assert.Contains("Class declaration instructions", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.DeclareClass);
+    }
+
+    [Fact]
+    public void Execute_ClassDeclarationInstruction_RunsClassDefinitionSideEffectsInProductionVm()
+    {
+        var plan = GetFunctionPlan("""
+            function outer(seed) {
+                class Local {
+                    static {
+                        seed = seed + 1;
+                    }
+                }
+
+                return seed;
+            }
+            """,
+            "outer");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+        Assert.True(result.IsEligible, result.Reason);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        slots.AsSpan(0, result.Program.SlotCount).Fill(JsValue.Undefined);
+        SetSlot(result.Program, slots, "seed", JsValue.FromDouble(41));
+        engine.GlobalEnvironment.DefineJsValue(Symbol.Intern("seed"), JsValue.FromDouble(41));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        Assert.Equal(42d, vmResult.AsDouble());
     }
 
     [Fact]

@@ -2283,6 +2283,39 @@ internal static class UnifiedBytecodeVirtualMachine
                         context,
                         context.RealmState);
 
+                case UnifiedBytecodeOpCode.DeclareClass:
+                    {
+                        var classDeclarationEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, classDeclarationEnvironment);
+                        var classDeclaration = program.ClassDeclarationConstants[instruction.Operand];
+                        var classValue = TypedAstEvaluator.CreateClassValueFromDeclaration(
+                            classDeclaration,
+                            classDeclarationEnvironment,
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+
+                        classDeclarationEnvironment.DefineJsValue(
+                            classDeclaration.Name,
+                            classValue,
+                            isLexicalBinding: true,
+                            blocksFunctionScopeOverride: true);
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            classDeclarationEnvironment);
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                     {
                         var flDescriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];

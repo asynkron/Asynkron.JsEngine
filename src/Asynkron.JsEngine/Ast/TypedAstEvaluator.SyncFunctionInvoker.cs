@@ -3190,6 +3190,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
                     UnifiedBytecodeOpCode.ApplyBindingTarget or
                     UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget or
+                    UnifiedBytecodeOpCode.DeclareClass or
                     UnifiedBytecodeOpCode.LoadFunctionLiteral or
                     UnifiedBytecodeOpCode.EnterWith or
                     UnifiedBytecodeOpCode.LeaveWith or
@@ -3707,7 +3708,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.ScopeId != plan.RootScopeId ||
                 activationSlots.LayoutId != plan.LayoutId)
             {
-                return _hasDirectEvalInBodyOrParameters && plan.ActivationSlots is not null;
+                return plan.ActivationSlots is not null &&
+                       (_hasDirectEvalInBodyOrParameters || HasClassDeclarationInstruction(plan));
             }
 
             if (!activationSlots.ParameterSlotIndices.IsDefault)
@@ -3716,6 +3718,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return canUseDynamicNamePath || _hasDirectEvalInBodyOrParameters;
+        }
+
+        private static bool HasClassDeclarationInstruction(ExecutionPlan plan)
+        {
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (instructions[i] is ClassDeclarationInstruction)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasCapturedActivationInClosure(JsEnvironment closure)

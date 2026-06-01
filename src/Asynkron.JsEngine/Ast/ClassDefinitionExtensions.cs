@@ -482,6 +482,12 @@ public static partial class TypedAstEvaluator
             context,
             classExpression.Name ?? context.CurrentFunctionNameHint);
 
+    internal static JsValue CreateClassValueFromDeclaration(
+        ClassDeclarationDescriptor descriptor,
+        JsEnvironment environment,
+        EvaluationContext context) =>
+        descriptor.ProgramCache.CreateClassValue(environment, context, descriptor.Name);
+
     [UsedImplicitly]
     public static bool IsImplicitDefaultDerivedConstructor(this FunctionExpression constructor)
     {

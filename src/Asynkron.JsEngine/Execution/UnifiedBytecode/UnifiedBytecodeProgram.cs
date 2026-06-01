@@ -118,6 +118,7 @@ internal enum UnifiedBytecodeOpCode : byte
     CallInvocationBoundary,
     ConstructInvocationBoundary,
     SuperConstructInvocationBoundary,
+    DeclareClass,
     LoadClassLiteral,
     LoadFunctionLiteral,
     Yield,
@@ -296,5 +297,6 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<ImmutableArray<int>> CallSpreadMasks = default,
     ImmutableArray<FunctionLiteralDescriptor> FunctionLiteralConstants = default,
     ImmutableArray<ClassExpression> ClassLiteralConstants = default,
+    ImmutableArray<ClassDeclarationDescriptor> ClassDeclarationConstants = default,
     ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
     ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default);

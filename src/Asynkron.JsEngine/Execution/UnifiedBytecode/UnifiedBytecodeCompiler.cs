@@ -110,6 +110,7 @@ internal static class UnifiedBytecodeCompiler
         var callTargetConstants = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
         var functionLiteralConstants = ImmutableArray.CreateBuilder<FunctionLiteralDescriptor>();
         var classLiteralConstants = ImmutableArray.CreateBuilder<ClassExpression>();
+        var classDeclarationConstants = ImmutableArray.CreateBuilder<ClassDeclarationDescriptor>();
         var templateObjectConstants = ImmutableArray.CreateBuilder<TaggedTemplateDescriptor>();
         var scopeDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeScopeDescriptor>();
         var tryDescriptors = ImmutableArray.CreateBuilder<UnifiedBytecodeTryDescriptor>();
@@ -139,6 +140,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -175,6 +177,9 @@ internal static class UnifiedBytecodeCompiler
             classLiteralConstants.Count == 0
                 ? ImmutableArray<ClassExpression>.Empty
                 : classLiteralConstants.ToImmutable(),
+            classDeclarationConstants.Count == 0
+                ? ImmutableArray<ClassDeclarationDescriptor>.Empty
+                : classDeclarationConstants.ToImmutable(),
             bindingTargetConstants.Count == 0
                 ? ImmutableArray<BindingTargetProgram>.Empty
                 : bindingTargetConstants.ToImmutable(),
@@ -527,6 +532,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
@@ -570,6 +576,27 @@ internal static class UnifiedBytecodeCompiler
 
                 switch (instructions[instructionIndex])
                 {
+                    case ClassDeclarationInstruction classDeclaration:
+                        var classDeclarationIndex = classDeclarationConstants.Count;
+                        classDeclarationConstants.Add(classDeclaration.Descriptor);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.DeclareClass,
+                            classDeclarationIndex));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                classDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = classDeclaration.Next;
+                        continue;
+
                     case SimpleVariableDeclarationInstruction
                         {
                             InitializerProgram: null,
@@ -1280,6 +1307,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1408,6 +1436,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1785,6 +1814,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1811,6 +1841,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1837,6 +1868,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1878,6 +1910,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1927,6 +1960,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -1953,6 +1987,7 @@ internal static class UnifiedBytecodeCompiler
                             callTargetConstants,
                             functionLiteralConstants,
                             classLiteralConstants,
+                            classDeclarationConstants,
                             templateObjectConstants,
                             scopeDescriptors,
                             tryDescriptors,
@@ -2052,6 +2087,7 @@ internal static class UnifiedBytecodeCompiler
                                      callTargetConstants,
                                      functionLiteralConstants,
                                      classLiteralConstants,
+                                     classDeclarationConstants,
                                      templateObjectConstants,
                                      scopeDescriptors,
                                      tryDescriptors,
@@ -2078,6 +2114,7 @@ internal static class UnifiedBytecodeCompiler
                                 callTargetConstants,
                                 functionLiteralConstants,
                                 classLiteralConstants,
+                                classDeclarationConstants,
                                 templateObjectConstants,
                                 scopeDescriptors,
                                 tryDescriptors,
@@ -2420,6 +2457,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
@@ -2461,6 +2499,7 @@ internal static class UnifiedBytecodeCompiler
             callTargetConstants,
             functionLiteralConstants,
             classLiteralConstants,
+            classDeclarationConstants,
             templateObjectConstants,
             scopeDescriptors,
             tryDescriptors,
@@ -2485,6 +2524,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
@@ -2512,6 +2552,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -2539,6 +2580,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -2566,6 +2608,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -2672,6 +2715,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
@@ -2717,6 +2761,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -2743,6 +2788,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,
@@ -2775,6 +2821,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         ImmutableArray<FunctionLiteralDescriptor>.Builder functionLiteralConstants,
         ImmutableArray<ClassExpression>.Builder classLiteralConstants,
+        ImmutableArray<ClassDeclarationDescriptor>.Builder classDeclarationConstants,
         ImmutableArray<TaggedTemplateDescriptor>.Builder templateObjectConstants,
         ImmutableArray<UnifiedBytecodeScopeDescriptor>.Builder scopeDescriptors,
         ImmutableArray<UnifiedBytecodeTryDescriptor>.Builder tryDescriptors,
@@ -2838,6 +2885,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 functionLiteralConstants,
                 classLiteralConstants,
+                classDeclarationConstants,
                 templateObjectConstants,
                 scopeDescriptors,
                 tryDescriptors,

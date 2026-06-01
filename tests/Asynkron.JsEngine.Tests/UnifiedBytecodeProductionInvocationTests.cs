@@ -78,27 +78,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedClassDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task NestedClassDeclaration_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
-            function create() {
+            function create(seed) {
                 class Local {
-                    value() {
-                        return 42;
+                    static {
+                        seed = seed + 1;
                     }
                 }
 
-                return new Local().value();
+                return seed;
             }
 
-            create();
+            create(41);
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=create",
+                "unified-bytecode-production-fast-path func=create argc=1",
                 StringComparison.Ordinal));
     }
 

@@ -128,6 +128,15 @@ boundary-explicit.
     baseline separately from any directional follow-on. Do not demote an
     already-proven or ADR-owned capability to untracked just because the
     current slice is adding a new future variant.
+19. When a roadmap or dreaming edit adds an evidence packet that does not meet
+    the target, keep three references distinct: the landed tooling or baseline
+    issue, the current evidence-packet issue, and any still-open proof
+    follow-up. Do not retarget remaining open proof work to an already-landed
+    gate/tooling issue just because that issue produced adjacent evidence
+    columns. If the evidence packet proves "not yet met", link the maintained
+    evidence artifact and keep the open follow-up owned by the issue that
+    created that artifact, or by a newly scoped follow-up if future work is
+    broader.
 
 ## Why
 
@@ -256,6 +265,16 @@ refreshes often add future-looking sections, and a future section can
 accidentally erase existing capability status unless agents verify the
 capability's durable evidence before using `None`, `Untracked`, or
 `requires ADR` language.
+
+Issue #2935 / PR #2937 added the startup SLO evidence packet, but the first
+review pass caught a roadmap contradiction: the still-open SLO proof follow-up
+was retargeted to gh2927 even though the same roadmap already recorded gh2927
+as landed in PR #2930 for non-failing p95 and Node comparison output. The fix
+kept gh2927 as the landed gate-output issue and made gh2935 own the maintained
+startup evidence packet and remaining proof boundary. WHY: performance evidence
+work often lands in adjacent tooling and evidence packets; collapsing those
+issue references makes roadmap state look simultaneously done and open, and can
+promote a non-met SLO by provenance confusion rather than measurement proof.
 
 Related ADRs:
 - `docs/adrs/0226-keep-node-competitor-roadmap-milestones-evidence-gated.md`

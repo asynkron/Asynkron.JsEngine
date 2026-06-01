@@ -2895,6 +2895,69 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalChainNamedPrefixPlainCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, value) {
+                return a.x?.box.read(value);
+            }
+
+            var holder = {
+                x: {
+                    box: {
+                        read(value) {
+                            return this === holder.x.box ? value + 1 : -1;
+                        }
+                    }
+                }
+            };
+
+            var present = invoke(holder, 41);
+            var missing = invoke({ x: null }, 1);
+            present + ":" + missing;
+            """);
+
+        Assert.Equal("42:undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalChainNamedPrefixPlainCall_ShortCircuitsBeforePostOptionalRead()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var reads = 0;
+            function invoke(a) {
+                return a.x?.box.read();
+            }
+
+            var holder = {
+                x: {
+                    get box() {
+                        reads++;
+                        return { read() { return 7; } };
+                    }
+                }
+            };
+
+            var missing = invoke({ x: null });
+            var afterMissing = reads;
+            var present = invoke(holder);
+            "" + missing + ":" + afterMissing + ":" + present + ":" + reads;
+            """);
+
+        Assert.Equal("undefined:0:7:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LooseEqualityBranchFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

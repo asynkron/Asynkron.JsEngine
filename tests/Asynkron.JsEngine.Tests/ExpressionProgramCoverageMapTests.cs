@@ -54,6 +54,19 @@ public sealed class ExpressionProgramCoverageMapTests
     [
     ];
 
+    private static readonly string[] UnifiedBytecodeExpressionOpGeneralLoopGapNames =
+    [
+        "Call",
+        "DuplicateTopTwo",
+        "JumpIfShortCircuited",
+        "LoadComputedCallTarget",
+        "LoadComputedSuperCallTarget",
+        "LoadIdentifierCallTarget",
+        "LoadNamedCallTarget",
+        "LoadNamedSuperCallTarget",
+        "RotateTopThreeRight"
+    ];
+
     private sealed record ProductionUnifiedBytecodeProofPackShape(
         string Key,
         string ContractEvidenceText,
@@ -269,6 +282,90 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeCompiler_GeneralExpressionLoopDeclinesOnlyDocumentedGaps()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var expressionOpPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "Instructions",
+            "ExpressionOp.cs");
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(expressionOpPath), $"Expected expression op source at '{expressionOpPath}'.");
+        Assert.True(File.Exists(compilerPath), $"Expected compiler source at '{compilerPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var expressionOpText = File.ReadAllText(expressionOpPath);
+        var compilerText = File.ReadAllText(compilerPath);
+        var contractText = File.ReadAllText(contractPath);
+        var declaredOpKinds = ExtractEnumMemberNames(expressionOpText, "ExpressionOpKind");
+        var generalLoopText = ExtractSourceSection(
+            compilerText,
+            "private static bool TryAppendExpressionProgramOps(",
+            "private static bool TryAppendFirstBoundaryCallTargetPreparation(");
+        var generalLoopCases = ExtractExpressionOpKindCases(generalLoopText);
+        var generalLoopGaps = declaredOpKinds.Except(generalLoopCases, StringComparer.Ordinal);
+        var documentedGeneralLoopGaps = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### General Expression Lowering Gaps (current)");
+
+        AssertSameSet(
+            UnifiedBytecodeExpressionOpGeneralLoopGapNames,
+            generalLoopGaps,
+            "Expression op kinds without direct general unified expression-loop cases");
+        AssertSameSet(
+            UnifiedBytecodeExpressionOpGeneralLoopGapNames,
+            documentedGeneralLoopGaps,
+            "Documented general expression lowering gaps");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeResumableEligibility_AllowsEveryResumableVmOpcode()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var eligibilityPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeProductionEligibility.cs");
+        var virtualMachinePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeVirtualMachine.cs");
+        Assert.True(File.Exists(eligibilityPath), $"Expected eligibility source at '{eligibilityPath}'.");
+        Assert.True(File.Exists(virtualMachinePath), $"Expected VM source at '{virtualMachinePath}'.");
+
+        var eligibilityText = File.ReadAllText(eligibilityPath);
+        var virtualMachineText = File.ReadAllText(virtualMachinePath);
+        var resumableAllowListText = ExtractSourceSection(
+            eligibilityText,
+            "private static bool TryFindUnsupportedResumableOpcode(",
+            "private static bool TryFindInstructionDynamicIdentifierDecline(");
+        var executeResumableText = ExtractSourceSection(
+            virtualMachineText,
+            "public static UnifiedBytecodeStepResult ExecuteResumable(",
+            "private static bool TryConsumePendingAwaitResume(");
+        var allowListOpcodes = ExtractUnifiedBytecodeOpcodeReferences(resumableAllowListText);
+        var resumableVmOpcodes = ExtractUnifiedBytecodeOpcodeCases(executeResumableText);
+
+        AssertSameSet(resumableVmOpcodes, allowListOpcodes, "Resumable unified bytecode opcode allow-list");
+    }
+
+    [Fact]
     public void UnifiedBytecodeProductionProofPack_CoversAdmittedOrdinarySyncBaseline()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -385,6 +482,26 @@ public sealed class ExpressionProgramCoverageMapTests
             .ToArray();
     }
 
+    private static string[] ExtractExpressionOpKindCases(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bcase\s+ExpressionOpKind\.(?<name>[A-Za-z0-9_]+)\b",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+    }
+
+    private static string[] ExtractUnifiedBytecodeOpcodeReferences(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bUnifiedBytecodeOpCode\.(?<name>[A-Za-z0-9_]+)\b",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+    }
+
     private static string[] ExtractUnifiedBytecodeOpcodeCases(string sourceText)
     {
         return Regex.Matches(
@@ -397,10 +514,13 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static string[] ExtractBacktickedBulletItemsUnderHeading(string documentText, string heading)
     {
-        var headingIndex = documentText.IndexOf(heading, StringComparison.Ordinal);
-        Assert.True(headingIndex >= 0, $"Contract document is missing heading '{heading}'.");
+        var headingMatch = Regex.Match(
+            documentText,
+            $"^{Regex.Escape(heading)}\\s*$",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        Assert.True(headingMatch.Success, $"Contract document is missing heading '{heading}'.");
 
-        var sectionStart = documentText.IndexOf('\n', headingIndex);
+        var sectionStart = documentText.IndexOf('\n', headingMatch.Index + headingMatch.Length);
         Assert.True(sectionStart >= 0, $"Contract document heading '{heading}' has no content.");
         sectionStart++;
 

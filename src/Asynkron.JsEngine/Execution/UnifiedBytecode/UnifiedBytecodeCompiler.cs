@@ -4123,6 +4123,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
                     break;
 
+                case ExpressionOpKind.SwapTopTwo:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SwapTopTwo));
+                    break;
+
                 case ExpressionOpKind.ApplyBindingTarget:
                     if (bindingTargetConstants is null)
                     {
@@ -4170,6 +4174,58 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.UpdateDynamicIdentifier,
                         EncodeUpdateOperand(updateNameIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.SetNamedProperty:
+                    var setNamedPropertyName = operation.GetString(expressionProgram.StringConstants.AsSpan());
+                    if (setNamedPropertyName.IsPrivateName())
+                    {
+                        reason = "Private named property writes are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Property writes with name inference are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    var setNamedPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(setNamedPropertyName);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.SetNamedProperty,
+                        setNamedPropertyIndex));
+                    break;
+
+                case ExpressionOpKind.SetComputedProperty:
+                    if (operation.AllowNameInference)
+                    {
+                        reason = "Computed property writes with name inference are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+                    break;
+
+                case ExpressionOpKind.UpdateNamedProperty:
+                    var updateNamedPropertyName = operation.GetString(expressionProgram.StringConstants.AsSpan());
+                    if (updateNamedPropertyName.IsPrivateName())
+                    {
+                        reason = "Private named property updates are not supported in the general expression loop.";
+                        return false;
+                    }
+
+                    var updateNamedPropertyIndex = stringConstants.Count;
+                    stringConstants.Add(updateNamedPropertyName);
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateNamedProperty,
+                        EncodeUpdateOperand(updateNamedPropertyIndex, operation)));
+                    break;
+
+                case ExpressionOpKind.UpdateComputedProperty:
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.UpdateComputedProperty,
+                        EncodeUpdateFlags(operation)));
                     break;
 
                 case ExpressionOpKind.SetNamedSuperProperty:

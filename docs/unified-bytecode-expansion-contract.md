@@ -137,6 +137,13 @@ statement interpretation.
 - `GetComputedPropertyForCompoundSet`
 - `SetNamedProperty`
 - `SetComputedProperty`
+- `EnsureSuperReference`
+- `GetNamedSuperProperty`
+- `GetComputedSuperProperty`
+- `SetNamedSuperProperty`
+- `SetComputedSuperProperty`
+- `UpdateNamedSuperProperty`
+- `UpdateComputedSuperProperty`
 - `UpdateNamedProperty`
 - `UpdateComputedProperty`
 - `UpdateDynamicIdentifier`
@@ -225,6 +232,7 @@ statement interpretation.
 - `YieldStar`
 - `LoadClassLiteral`
 - `ApplyBindingTarget`
+- `ApplyDeclarationBindingTarget`
 - `EnsureHasName`
 
 ### Production Decline Families (current)

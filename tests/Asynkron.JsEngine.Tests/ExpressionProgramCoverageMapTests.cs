@@ -133,6 +133,14 @@ public sealed class ExpressionProgramCoverageMapTests
             Assert.Contains($"`{opcodeName}`", contractText, StringComparison.Ordinal);
         }
 
+        var documentedOpcodeNames = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Unified Opcode Inventory (current)");
+        AssertSameSet(
+            Enum.GetNames<UnifiedBytecodeOpCode>(),
+            documentedOpcodeNames,
+            "Unified opcode inventory");
+
         var declineCodeNames = Enum.GetNames<UnifiedBytecodeProductionDeclineCode>();
         foreach (var declineCodeName in declineCodeNames)
         {

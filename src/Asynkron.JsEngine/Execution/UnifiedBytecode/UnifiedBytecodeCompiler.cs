@@ -246,7 +246,7 @@ internal static class UnifiedBytecodeCompiler
         ExecutionPlan plan,
         bool allowsOrdinaryDynamicIdentifiers)
     {
-        var activationSlots = plan.ActivationSlots!;
+        var activationSlots = AddSyntheticResumeSlots(plan.ActivationSlots!, plan.Instructions);
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
         flatSlotMappings = EnsureActivationSlotMappings(activationSlots, flatSlotMappings);
@@ -270,6 +270,80 @@ internal static class UnifiedBytecodeCompiler
             names,
             allowsOrdinaryDynamicIdentifiers);
     }
+
+    private static ActivationSlotShape AddSyntheticResumeSlots(
+        ActivationSlotShape activationSlots,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        ImmutableArray<Symbol>.Builder? missingSymbols = null;
+        HashSet<Symbol>? seenSymbols = null;
+        foreach (var instruction in instructions)
+        {
+            switch (instruction)
+            {
+                case StoreResumeValueInstruction { TargetSymbol: { } targetSymbol }:
+                    AddIfMissing(targetSymbol);
+                    break;
+
+                case YieldStarInstruction { StateSlotSymbol: { } stateSymbol, ResultSlotSymbol: { } resultSymbol }:
+                    AddIfMissing(stateSymbol);
+                    AddIfMissing(resultSymbol);
+                    break;
+
+                case YieldStarInstruction { StateSlotSymbol: { } stateSymbol }:
+                    AddIfMissing(stateSymbol);
+                    break;
+
+                case YieldStarInstruction { ResultSlotSymbol: { } resultSymbol }:
+                    AddIfMissing(resultSymbol);
+                    break;
+            }
+        }
+
+        void AddIfMissing(Symbol symbol)
+        {
+            if (!IsCompilerSyntheticResumableSlot(symbol) ||
+                activationSlots.SlotMap.ContainsKey(symbol))
+            {
+                return;
+            }
+
+            seenSymbols ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            if (!seenSymbols.Add(symbol))
+            {
+                return;
+            }
+
+            missingSymbols ??= ImmutableArray.CreateBuilder<Symbol>();
+            missingSymbols.Add(symbol);
+        }
+
+        if (missingSymbols is null || missingSymbols.Count == 0)
+        {
+            return activationSlots;
+        }
+
+        var slotMap = activationSlots.SlotMap.ToBuilder();
+        var slotNames = activationSlots.SlotNames.ToBuilder();
+        var nextSlotIndex = activationSlots.SlotCount;
+        foreach (var symbol in missingSymbols)
+        {
+            slotMap[symbol] = nextSlotIndex;
+            slotNames.Add((symbol, nextSlotIndex));
+            nextSlotIndex++;
+        }
+
+        return activationSlots with
+        {
+            SlotCount = nextSlotIndex,
+            SlotMap = slotMap.ToImmutable(),
+            SlotNames = slotNames.ToImmutable()
+        };
+    }
+
+    private static bool IsCompilerSyntheticResumableSlot(Symbol symbol) =>
+        IsYieldStarSyntheticResult(symbol) ||
+        symbol.Name.StartsWith("\u0001_yieldstar", StringComparison.Ordinal);
 
     private static ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> EnsureActivationSlotMappings(
         ActivationSlotShape activationSlots,
@@ -4123,8 +4197,16 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
                     break;
 
+                case ExpressionOpKind.DuplicateTopTwo:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTopTwo));
+                    break;
+
                 case ExpressionOpKind.SwapTopTwo:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SwapTopTwo));
+                    break;
+
+                case ExpressionOpKind.RotateTopThreeRight:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RotateTopThreeRight));
                     break;
 
                 case ExpressionOpKind.ApplyBindingTarget:

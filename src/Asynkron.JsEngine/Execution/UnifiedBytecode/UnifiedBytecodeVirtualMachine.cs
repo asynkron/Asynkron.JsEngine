@@ -1375,6 +1375,13 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DuplicateTopTwo:
+                    stack[stackPointer] = stack[stackPointer - 2];
+                    stack[stackPointer + 1] = stack[stackPointer - 1];
+                    stackPointer += 2;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:
                     var bindingTargetValue = stack[--stackPointer];
                     var bindingEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
@@ -1433,6 +1440,14 @@ internal static class UnifiedBytecodeVirtualMachine
                     var top = stack[stackPointer - 1];
                     stack[stackPointer - 1] = stack[stackPointer - 2];
                     stack[stackPointer - 2] = top;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.RotateTopThreeRight:
+                    var rotateTop = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = stack[stackPointer - 2];
+                    stack[stackPointer - 2] = stack[stackPointer - 3];
+                    stack[stackPointer - 3] = rotateTop;
                     programCounter++;
                     break;
 
@@ -2983,10 +2998,25 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DuplicateTopTwo:
+                    stack[stackPointer] = stack[stackPointer - 2];
+                    stack[stackPointer + 1] = stack[stackPointer - 1];
+                    stackPointer += 2;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.SwapTopTwo:
                     var resumableTop = stack[stackPointer - 1];
                     stack[stackPointer - 1] = stack[stackPointer - 2];
                     stack[stackPointer - 2] = resumableTop;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.RotateTopThreeRight:
+                    var resumableRotateTop = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = stack[stackPointer - 2];
+                    stack[stackPointer - 2] = stack[stackPointer - 3];
+                    stack[stackPointer - 3] = resumableRotateTop;
                     programCounter++;
                     break;
 

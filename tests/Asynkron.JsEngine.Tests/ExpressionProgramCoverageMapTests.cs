@@ -57,14 +57,12 @@ public sealed class ExpressionProgramCoverageMapTests
     private static readonly string[] UnifiedBytecodeExpressionOpGeneralLoopGapNames =
     [
         "Call",
-        "DuplicateTopTwo",
         "JumpIfShortCircuited",
         "LoadComputedCallTarget",
         "LoadComputedSuperCallTarget",
         "LoadIdentifierCallTarget",
         "LoadNamedCallTarget",
-        "LoadNamedSuperCallTarget",
-        "RotateTopThreeRight"
+        "LoadNamedSuperCallTarget"
     ];
 
     private sealed record ProductionUnifiedBytecodeProofPackShape(

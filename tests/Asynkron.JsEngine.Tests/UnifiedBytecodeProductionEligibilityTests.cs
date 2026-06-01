@@ -178,6 +178,53 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction => instruction.OpCode == (UnifiedBytecodeOpCode)expectedOpcode);
     }
 
+    [Theory]
+    [InlineData("&&", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
+    [InlineData("||", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]
+    [InlineData("??", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish)]
+    public void EvaluateResumable_ParenthesizedShortCircuitYieldExpression_AcceptsImplementedVmOpcodes(
+        string operatorText,
+        int expectedOpcode)
+    {
+        var plan = GetFunctionPlan($$"""
+            function* gen(left, right) {
+                yield (left {{operatorText}} right);
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == (UnifiedBytecodeOpCode)expectedOpcode);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ReturnYield_AcceptsSyntheticResumeSlot()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen(value) {
+                return yield value;
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreResumeValue);
+    }
+
     [Fact]
     public void EvaluateResumable_AsyncLikeGeneratorActivation_DeclinesBeforeExecution()
     {

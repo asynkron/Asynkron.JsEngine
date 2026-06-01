@@ -489,6 +489,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ParenthesizedShortCircuitYield_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* gen() {
+                return yield ("left" && "right");
+            }
+
+            var iterator = gen();
+            var first = iterator.next();
+            var second = iterator.next("resume");
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("right", steps.Items[0].AsString());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal("resume", steps.Items[2].AsString());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=gen argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleAsyncAwaitReturn_UsesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
@@ -529,6 +555,34 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(3d, steps.Items[0].AsDouble());
         Assert.False(steps.Items[1].AsBoolean());
         Assert.Equal(Symbol.Undefined, steps.Items[2]);
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=relay",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorYieldStar_PreservesIterableSlotAfterDelegation()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* relay(values) {
+                yield* values;
+                return values;
+            }
+
+            var array = [3];
+            var iterator = relay(array);
+            var first = iterator.next();
+            var second = iterator.next();
+            [first.value, first.done, second.value === array, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(3d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.True(steps.Items[2].AsBoolean());
         Assert.True(steps.Items[3].AsBoolean());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(

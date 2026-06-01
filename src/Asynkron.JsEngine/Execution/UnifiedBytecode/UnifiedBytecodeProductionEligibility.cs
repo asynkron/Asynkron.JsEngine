@@ -3654,7 +3654,27 @@ internal static class UnifiedBytecodeProductionEligibility
                 break;
             }
 
-            // Substitution part: simple-operand, ToString, Binary(Add)
+            // Substitution part: simple binary expression, ToString, Binary(Add)
+            if (i + 4 < program.OperationCount &&
+                IsSimpleOperand(op, identifierConstants, activationSlots))
+            {
+                var rightOperand = program.GetOperation(i + 1);
+                var binary = program.GetOperation(i + 2);
+                var toString = program.GetOperation(i + 3);
+                var add = program.GetOperation(i + 4);
+                if (IsSimpleOperand(rightOperand, identifierConstants, activationSlots) &&
+                    binary.Kind == ExpressionOpKind.Binary &&
+                    IsProductionBinaryOperator(binary.Operator) &&
+                    toString.Kind == ExpressionOpKind.ToString &&
+                    add.Kind == ExpressionOpKind.Binary &&
+                    add.Operator == BinaryOperator.Add)
+                {
+                    i += 5;
+                    continue;
+                }
+            }
+
+            // Substitution part: simple operand, ToString, Binary(Add)
             if (IsSimpleOperand(op, identifierConstants, activationSlots))
             {
                 if (i + 2 < program.OperationCount)

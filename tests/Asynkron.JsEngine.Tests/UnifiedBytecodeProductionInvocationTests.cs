@@ -55,6 +55,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedFunctionDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function outer() {
+                function inner() {
+                    return 40;
+                }
+
+                return inner() + 2;
+            }
+
+            outer();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=outer",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedClassDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function create() {
+                class Local {
+                    value() {
+                        return 42;
+                    }
+                }
+
+                return new Local().value();
+            }
+
+            create();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=create",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleObjectDestructuring_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

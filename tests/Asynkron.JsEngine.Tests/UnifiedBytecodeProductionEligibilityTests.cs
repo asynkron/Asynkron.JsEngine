@@ -221,6 +221,53 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_FunctionDeclarationInstruction_DeclinesBeforeCompile()
+    {
+        var plan = GetFunctionPlan("""
+            function outer() {
+                function inner() {
+                    return 1;
+                }
+
+                return 2;
+            }
+            """,
+            "outer");
+        Assert.Contains(plan.Instructions, static instruction => instruction is FunctionDeclarationInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency, result.Code);
+        Assert.Contains("Function declaration instructions", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_ClassDeclarationInstruction_DeclinesBeforeCompile()
+    {
+        var plan = GetFunctionPlan("""
+            function outer() {
+                class Local {
+                }
+
+                return 1;
+            }
+            """,
+            "outer");
+        Assert.Contains(plan.Instructions, static instruction => instruction is ClassDeclarationInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ClassDeclarationDependency, result.Code);
+        Assert.Contains("Class declaration instructions", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_TryCatchPlan_AcceptsOwnedExceptionRegionOpcodes()
     {
         var plan = GetFunctionPlan("""

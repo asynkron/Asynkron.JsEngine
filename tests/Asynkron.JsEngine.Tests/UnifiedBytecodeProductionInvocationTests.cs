@@ -5476,6 +5476,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task PrivateFieldIn_UsesUnifiedBytecodeProductionFastPathAndChecksBrand()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 1;
+
+                has(receiver) {
+                    return #value in receiver;
+                }
+            }
+
+            var holder = new Holder();
+            holder.has(holder) + ":" + holder.has({});
+            """);
+
+        Assert.Equal("true:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateNamedPropertyRead_StillDeclinesProductionUnifiedBytecode()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 42;
+
+                read(receiver) {
+                    return receiver.#value;
+                }
+            }
+
+            var holder = new Holder();
+            holder.read(holder);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """

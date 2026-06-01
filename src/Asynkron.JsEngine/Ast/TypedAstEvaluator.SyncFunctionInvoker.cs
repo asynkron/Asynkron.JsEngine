@@ -3106,6 +3106,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _function.Name?.Name ?? "<anonymous>",
                     arguments.Count);
 
+                using var capturedPrivateScopes = !_capturedPrivateNameScopes.IsDefaultOrEmpty
+                    ? context.EnterPrivateNameScopes(_capturedPrivateNameScopes)
+                    : null;
+                using var privateScope = PrivateNameScope is not null
+                    ? context.EnterPrivateNameScope(PrivateNameScope)
+                    : null;
                 result = UnifiedBytecodeVirtualMachine.Execute(
                     program,
                     slots,
@@ -3315,8 +3321,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
                 !_hasOnlySimpleIdentifierParameters ||
-                PrivateNameScope is not null ||
-                !_capturedPrivateNameScopes.IsDefaultOrEmpty ||
                 !_instanceFields.IsDefaultOrEmpty)
             {
                 return false;

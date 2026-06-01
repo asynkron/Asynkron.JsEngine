@@ -30,8 +30,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:needsArgumentsBinding",
         "pre-gate:allowIdentifierCache",
         "pre-gate:lexicalThisEnvironment",
-        "pre-gate:PrivateNameScope",
-        "pre-gate:capturedPrivateNameScopes",
         "pre-gate:superConstructor",
         "pre-gate:superPrototype",
         "pre-gate:instanceFields",

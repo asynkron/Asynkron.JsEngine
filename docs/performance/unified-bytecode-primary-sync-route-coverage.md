@@ -1,7 +1,10 @@
 # Unified Bytecode Primary Sync Route Coverage
 
 Date: 2026-05-29
-Issues: #2634 (primary route boundary recording)
+Updated: 2026-06-01
+Issues: #2634 (primary route boundary recording),
+`planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-3df21bc582`
+(break/continue decline taxonomy cleanup)
 Based on: ADR 0278 (Keep unified-bytecode ordinary sync primary route source-gated)
 
 ## Coverage Summary
@@ -73,6 +76,10 @@ Evidence: See `docs/performance/unified-bytecode-branch-production-routing.md`.
 This document records route coverage for the accepted production boundary only.
 Coverage is 100% for expressions that pass production-eligibility gates.
 Unsupported expressions decline before VM execution and are not included in hit-rate calculation.
+Break/continue-specific loop control is no longer an active decline bucket; admitted
+unlabeled and resolved labeled control flow routes through the compiler-owned jump
+target model, while unsupported driver-crossing labeled control flow remains covered
+by `LabelControlFlow`.
 
 ## Proof Commands
 

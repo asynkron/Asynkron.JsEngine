@@ -33,7 +33,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     ForInDriverStateDependency,
     DestructuringDependency,
     LabelControlFlow,
-    BreakOrContinueControlFlow,
     UnsupportedPlanShape,
     CallInvocationBoundary
 }

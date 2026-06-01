@@ -693,34 +693,46 @@ support today.
   require mixed IR/AST execution.
 
 ## Ranked Next Unsupported Buckets (current boundary)
-1. Wider call invocation remains the highest-impact unsupported bucket.
-   Synchronous spread calls are now admitted (gh2676). Optional calls are
-   now admitted (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`,
-   and `box[key]?.(args)`. Synchronous construct calls
-   (`new F(...)`, spread arguments, and member/computed constructor targets)
-   are now admitted (gh2690, ADR 0286 plus construct-boundary widening). The
-   first bounded super invocation shapes are now admitted too (PR #2862, ADR
-   0307): non-spread derived-constructor `super(...)` plus named/computed
-   super-member calls. Simple array and
-   object literal arguments (`fn([a, b])`, `fn({x: a})`) are now admitted
-   (gh2705, ADR 0290). Simple object literal spread entries are now admitted
-   through the `ObjectSpread` opcode when their spread source is a simple
-   operand; non-simple spread sources, computed keys, name inference, private
-   names, and methods/accessors inside the restricted simple-span form continue
-   to decline.
-   Direct eval outside the one-argument non-spread eval-identifier boundary,
-   spread super constructs, spread-onto-optional,
-   arguments-object dependencies, unsupported non-with dynamic lookup,
-   private member targets, complex receiver/key shapes, and
-   receiver-binding-sensitive adjacent families beyond the direct
-   activation-resolved and with-backed
-   dynamic-identifier boundaries must still decline before VM execution.
-2. Driver-state widening is next. Sync-driver TDZ head environments
+1. Activation model gaps are still larger than any single expression-family
+   neighbor. Ordinary sync production routing still pre-gates async-like
+   functions, generators, arrows with lexical `this` / `new.target`, real
+   `arguments` object and sloppy mapped-arguments dependencies, non-simple
+   parameter lists, default/rest/destructured parameter expressions, broader
+   class constructor routes, default derived constructors, instance fields,
+   active private-name scopes, captured private-name scopes, and captured
+   activation outside the explicit with-backed dynamic-name lane. Resumable
+   unified bytecode exists, but `EvaluateResumable` admits only a small
+   instruction/opcode subset compared with ordinary sync production bytecode.
+2. Wider call invocation remains a high-impact unsupported bucket. Synchronous
+   spread calls are now admitted (gh2676). Optional calls are now admitted
+   (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`, and
+   `box[key]?.(args)`. Synchronous construct calls (`new F(...)`, spread
+   arguments, and member/computed constructor targets) are now admitted (gh2690,
+   ADR 0286 plus construct-boundary widening). The first bounded super
+   invocation shapes are now admitted too (PR #2862, ADR 0307): non-spread
+   derived-constructor `super(...)` plus named/computed super-member calls.
+   Simple array and object literal arguments (`fn([a, b])`, `fn({x: a})`) are
+   now admitted (gh2705, ADR 0290). Simple object literal spread entries are now
+   admitted through the `ObjectSpread` opcode when their spread source is a
+   simple operand. Direct eval outside the one-argument non-spread
+   eval-identifier boundary, spread super constructs, spread-onto-optional,
+   private member targets, complex receiver/key shapes, non-simple literal
+   argument spans, and receiver-binding-sensitive adjacent families beyond the
+   direct activation-resolved and with-backed dynamic-identifier boundaries must
+   still decline before VM execution.
+3. Property and assignment widening is no longer a blanket property-read/write
+   gap, but several member-expression neighbors remain outside production:
+   private member reads/writes/updates, optional-chain neighbors outside the
+   admitted read/call/delete shapes, richer computed-key spans, computed
+   expression-key compound/logical/update forms such as
+   `box[key + suffix] += y`, and dynamic lookup outside the explicit
+   with-backed lane.
+4. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator
    drivers and awaited iterator/for-in sources remain outside the admitted
    boundary and must decline before VM execution.
-3. Destructuring widening is still model-first. Simple array and object
+5. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
    no defaults/nested patterns, optional identifier rest), and expression-level
    assignment destructuring that lowers through `ApplyBindingTarget` is admitted
@@ -728,12 +740,12 @@ support today.
    declarations, unsupported driver shapes, and targets outside the direct-slot
    or descriptor-backed assignment lanes remain outside the admitted boundary
    (`DestructuringDependency`).
-4. Dynamic lookup families remain outside the admitted boundary
+6. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
    slice above. Direct eval outside the admitted one-argument non-spread
    eval-identifier boundary, unresolved non-with lookup shapes, and captured
    dynamic activation still decline before VM execution.
-5. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
+7. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
    labeled loops, labeled block `break`, and labeled `break`/`continue` route
    through the compiler-owned resolved-target path. The remaining
    `LabelControlFlow` decline is narrow — a labeled `break`/`continue` that

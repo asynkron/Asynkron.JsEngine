@@ -1467,6 +1467,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "remove")]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box?.child?.[key];
+        }
+        """,
+        "remove")]
     public void Evaluate_OptionalComputedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcodes(
         string source,
         string functionName)
@@ -2869,29 +2876,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 "remove"));
 
         Assert.Contains("Private field '#field' cannot be deleted", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(
-        """
-        function remove(box, key) {
-            return delete box?.child?.[key];
-        }
-        """,
-        "remove")]
-    public void Evaluate_UnsupportedOptionalComputedPropertyDeleteNeighbor_DeclinesWithExplicitCode(
-        string source,
-        string functionName)
-    {
-        var plan = GetFunctionPlan(source, functionName);
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
-        Assert.Contains("Optional-chain", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

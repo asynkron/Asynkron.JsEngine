@@ -4728,6 +4728,41 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenOptionalComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndSkipsNullishKey()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var key = {
+                toString() {
+                    hits = hits + 1;
+                    return "value";
+                }
+            };
+
+            function remove(box, key) {
+                return delete box?.child?.[key];
+            }
+
+            var child = { value: 42 };
+            var removed = remove({ child: child }, key);
+            var skippedBase = remove(null, key);
+            var skippedChild = remove({ child: null }, key);
+            removed + "|" +
+                skippedBase + "|" +
+                skippedChild + "|" +
+                hits + "|" +
+                Object.prototype.hasOwnProperty.call(child, "value");
+            """);
+
+        Assert.Equal("true|true|true|1|false", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndSkipsNullishKey()
     {
         await using var engine = CreateEngine();

@@ -438,14 +438,15 @@ the final post-compile production subset check before VM entry.
   computed delete (`delete box.child[key]`, `delete box.child[left + right]`)
   are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional
   named deletes (`delete box?.value`, `delete box.child?.value`) and optional
-  computed delete chains (`delete box?.[key]`, `delete box?.child[key]`, and
-  `delete box.child?.[key]`) are admitted for activation-resolved receivers,
-  supported computed-key spans, and compiler-owned nullish short-circuit-to-true
-  lowering (ADR 0317 plus the optional delete follow-ups). The compiler emits
-  the named receiver reads and final `DeleteNamedProperty` /
+  computed delete chains (`delete box?.[key]`, `delete box?.child[key]`,
+  `delete box.child?.[key]`, and `delete box?.child?.[key]`) are admitted for
+  activation-resolved receivers, supported computed-key spans, and
+  compiler-owned nullish short-circuit-to-true lowering (ADR 0317 plus the
+  optional delete follow-ups). The compiler emits the named receiver reads and
+  final `DeleteNamedProperty` /
   `DeleteComputedProperty`, while the VM's descriptor-aware delete helper owns
   strict/sloppy results.
-  Retained declines include chained optional delete neighbors,
+  Retained declines include unsupported chained optional delete neighbors,
   private receiver-chain/mutation neighbors outside the admitted direct named
   shape, dynamic lookup, unsupported computed-key spans, unsupported RHS
   spans, and optional/super/private neighbors of computed-key mutation shapes.

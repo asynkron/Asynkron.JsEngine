@@ -7385,6 +7385,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryOptionalNamedThenOptionalComputedPropertyDelete(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         return TryAppendFirstBoundaryOptionalComputedPropertyDeleteWithJump(
             expressionProgram,
             activationSlots,
@@ -7445,6 +7461,96 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 startInclusive: 2,
                 endExclusive: expressionProgram.OperationCount - 1,
+                out reason))
+        {
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeleteComputedProperty));
+        var endJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, 0));
+
+        var shortCircuitIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
+        AddTrueLiteral(unified, literalConstants);
+
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            shortCircuitIndex);
+        unified[endJumpIndex] = new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Jump, unified.Count);
+
+        reason = string.Empty;
+        return true;
+    }
+
+    // Handles delete a?.b?.[k], preserving the source program's nullish branch shape.
+    private static bool TryAppendFirstBoundaryOptionalNamedThenOptionalComputedPropertyDelete(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 7)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var firstHop = expressionProgram.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(expressionStringConstants).IsPrivateName())
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var jumpIndex = 2;
+        var deleteIndex = expressionProgram.OperationCount - 4;
+        var endJumpIndexInProgram = expressionProgram.OperationCount - 3;
+        var popIndex = expressionProgram.OperationCount - 2;
+        var trueIndex = expressionProgram.OperationCount - 1;
+        if (deleteIndex <= jumpIndex + 1 ||
+            expressionProgram.GetOperation(jumpIndex) is not { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: false } jumpIfNullish ||
+            jumpIfNullish.Target != popIndex ||
+            expressionProgram.GetOperation(deleteIndex).Kind != ExpressionOpKind.DeleteComputedProperty ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Kind != ExpressionOpKind.Jump ||
+            expressionProgram.GetOperation(endJumpIndexInProgram).Target != expressionProgram.OperationCount ||
+            expressionProgram.GetOperation(popIndex).Kind != ExpressionOpKind.Pop ||
+            !IsTrueLiteral(expressionProgram, trueIndex))
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(firstHop.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedPropertyOptional, propertyNameIndex));
+
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                startInclusive: jumpIndex + 1,
+                endExclusive: deleteIndex,
                 out reason))
         {
             return false;

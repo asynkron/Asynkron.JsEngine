@@ -6625,7 +6625,7 @@ internal static class UnifiedBytecodeVirtualMachine
             propertyName,
             context,
             context.CurrentScope.IsStrict || isStrict,
-            allowPrivate: false);
+            allowPrivate: true);
         handle.SetValue(propertyValue);
     }
 

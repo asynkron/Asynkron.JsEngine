@@ -2614,11 +2614,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.True(vmResult.AsBoolean());
     }
 
+    [Fact]
+    public void Evaluate_PrivateNamedPropertyRead_AcceptsNamedPropertyOpcode()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #field = 1;
+                read(receiver) {
+                    return receiver.#field;
+                }
+            }
+            """,
+            "Holder",
+            "read");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
     [Theory]
-    [InlineData("read")]
     [InlineData("write")]
     [InlineData("update")]
-    public void Evaluate_PrivateNamedPropertyAccess_DeclinesWithExplicitCode(string methodName)
+    public void Evaluate_PrivateNamedPropertyMutation_DeclinesWithExplicitCode(string methodName)
     {
         var plan = GetClassMethodPlan("""
             class Holder {

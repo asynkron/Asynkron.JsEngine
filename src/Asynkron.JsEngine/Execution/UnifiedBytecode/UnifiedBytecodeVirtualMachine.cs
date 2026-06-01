@@ -6314,6 +6314,17 @@ internal static class UnifiedBytecodeVirtualMachine
             return JsValue.Undefined;
         }
 
+        if (propertyName.IsPrivateName())
+        {
+            var handle = PropertyHandle.Resolve(
+                target,
+                propertyName,
+                context,
+                context.CurrentScope.IsStrict,
+                allowPrivate: true);
+            return handle.GetJsValue();
+        }
+
         return JsOps.TryGetPropertyValue(target, propertyName, out var directValue, context)
             ? directValue
             : JsValue.Undefined;

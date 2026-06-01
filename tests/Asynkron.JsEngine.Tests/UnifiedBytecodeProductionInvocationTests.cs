@@ -5501,7 +5501,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task PrivateNamedPropertyRead_StillDeclinesProductionUnifiedBytecode()
+    public async Task PrivateNamedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -5518,9 +5518,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=read",
+                "unified-bytecode-production-fast-path func=<anonymous> argc=1",
                 StringComparison.Ordinal));
     }
 

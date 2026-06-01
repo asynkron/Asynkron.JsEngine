@@ -721,6 +721,13 @@ internal static class UnifiedBytecodeProductionEligibility
         // otherwise trigger a less-specific decline code such as CallDependency.
         for (var i = 0; i < operationCount; i++)
         {
+            if (IsPrivateNamedPropertyMutationOperation(program.GetOperation(i), stringConstants))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
+                declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
             if (program.GetOperation(i).Kind == ExpressionOpKind.ArraySpread &&
                 (i == 0 || !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots)))
             {
@@ -754,7 +761,7 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
-            if (IsPrivateNamedPropertyOperation(operation, stringConstants))
+            if (IsPrivateNamedPropertyMutationOperation(operation, stringConstants))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
                 declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
@@ -1756,7 +1763,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var operation = program.GetOperation(index);
             if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
-                operation.GetString(program.StringConstants.AsSpan()).IsPrivateName() ||
                 operation.IsOptional ||
                 operation.ShortCircuitOnNullishTarget)
             {
@@ -4090,6 +4096,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots),
             _ => false
         };
+    }
+
+    private static bool IsPrivateNamedPropertyMutationOperation(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants)
+    {
+        return (operation.Kind is ExpressionOpKind.SetNamedProperty
+                               or ExpressionOpKind.UpdateNamedProperty
+                               or ExpressionOpKind.DeleteNamedProperty) &&
+               operation.GetString(stringConstants).IsPrivateName();
     }
 
     private static bool IsPrivateNamedPropertyOperation(

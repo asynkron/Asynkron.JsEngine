@@ -365,16 +365,15 @@ the final post-compile production subset check before VM entry.
   `SetNamedProperty` / `UpdateNamedProperty`. Nested named receiver chains
   ending in a simple computed delete (`delete box.child[key]`) are admitted by
   `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional computed delete
-  chains are admitted only for `delete box?.child[key]` and
+  chains are admitted for `delete box?.[key]`, `delete box?.child[key]`, and
   `delete box.child?.[key]` shapes with activation-resolved receivers, supported
   computed-key spans, and compiler-owned nullish short-circuit-to-true lowering
-  (ADR 0317).
+  (ADR 0317 plus the simple optional-computed follow-up).
   The compiler emits the named receiver reads and final `DeleteComputedProperty`,
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
-  Retained declines include simple optional computed deletes without a named
-  receiver hop (`delete box?.[key]`), chained optional delete neighbors,
-  private property access, dynamic lookup, richer unowned computed keys,
-  deeper compound/logical property chains
+  Retained declines include chained optional delete neighbors, private property
+  access, dynamic lookup, richer unowned computed keys, deeper compound/logical
+  property chains
   (`box.child.value += …`, `box.child.value &&= …`), and computed-expression
   keys (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.

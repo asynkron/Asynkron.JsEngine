@@ -1320,6 +1320,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [InlineData(
         """
         function remove(box, key) {
+            return delete box?.[key];
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box, key) {
             return delete box?.child[key];
         }
         """,
@@ -2525,13 +2532,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """
         function remove(box) {
             return delete box?.value;
-        }
-        """,
-        "remove")]
-    [InlineData(
-        """
-        function remove(box, key) {
-            return delete box?.[key];
         }
         """,
         "remove")]

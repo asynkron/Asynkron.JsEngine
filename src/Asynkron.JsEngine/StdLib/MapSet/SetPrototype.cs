@@ -82,6 +82,19 @@ public sealed partial class SetPrototype
         }
 
         Realm.SetPrototype ??= Prototype as JsObject;
+        ConfigureMapSetFastMethod("add", MapSetFastMethodKind.SetAdd);
+        ConfigureMapSetFastMethod("has", MapSetFastMethodKind.SetHas);
+        ConfigureMapSetFastMethod("delete", MapSetFastMethodKind.SetDelete);
+        ConfigureMapSetFastMethod("clear", MapSetFastMethodKind.SetClear);
+    }
+
+    private void ConfigureMapSetFastMethod(string name, MapSetFastMethodKind kind)
+    {
+        if (Prototype.TryGetProperty(name, out var method) &&
+            method.TryGetObject<HostFunction>(out var hostFunction))
+        {
+            hostFunction.SetMapSetFastMethodKind(kind);
+        }
     }
 
     private JsValue CreateSetIterator(JsSet set, SetIterationKind kind)

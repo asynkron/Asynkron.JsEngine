@@ -4009,32 +4009,32 @@ public static partial class TypedAstEvaluator
 
             if (thisValue.TryGetObject<JsMap>(out var map) && map.IsPlain)
             {
-                if (hostFunction.HasNativeSourceDisplayName("set") && argumentCount >= 2)
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapSet && argumentCount >= 2)
                 {
                     map.Set(firstArgument, secondArgument);
                     result = map.AsJsValue;
                     return true;
                 }
 
-                if (hostFunction.HasNativeSourceDisplayName("get") && argumentCount >= 1)
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapGet && argumentCount >= 1)
                 {
                     result = map.Get(firstArgument);
                     return true;
                 }
 
-                if (hostFunction.HasNativeSourceDisplayName("has") && argumentCount >= 1)
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapHas && argumentCount >= 1)
                 {
                     result = map.Has(firstArgument) ? JsValue.True : JsValue.False;
                     return true;
                 }
 
-                if (hostFunction.HasNativeSourceDisplayName("delete") && argumentCount >= 1)
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapDelete && argumentCount >= 1)
                 {
                     result = map.Delete(firstArgument) ? JsValue.True : JsValue.False;
                     return true;
                 }
 
-                if (hostFunction.HasNativeSourceDisplayName("clear"))
+                if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.MapClear)
                 {
                     map.Clear();
                     return true;
@@ -4048,26 +4048,26 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (hostFunction.HasNativeSourceDisplayName("add") && argumentCount >= 1)
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetAdd && argumentCount >= 1)
             {
                 set.Add(firstArgument);
                 result = set.AsJsValue;
                 return true;
             }
 
-            if (hostFunction.HasNativeSourceDisplayName("has") && argumentCount >= 1)
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetHas && argumentCount >= 1)
             {
                 result = set.Has(firstArgument) ? JsValue.True : JsValue.False;
                 return true;
             }
 
-            if (hostFunction.HasNativeSourceDisplayName("delete") && argumentCount >= 1)
+            if (hostFunction.MapSetFastMethodKind == MapSetFastMethodKind.SetDelete && argumentCount >= 1)
             {
                 result = set.Delete(firstArgument) ? JsValue.True : JsValue.False;
                 return true;
             }
 
-            if (!hostFunction.HasNativeSourceDisplayName("clear"))
+            if (hostFunction.MapSetFastMethodKind != MapSetFastMethodKind.SetClear)
             {
                 return false;
             }

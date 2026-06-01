@@ -414,4 +414,71 @@ public sealed class MapTests(ITestOutputHelper output) : InternalTestBase(output
                                        """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Map_Plain_Method_Fast_Path_Rejects_Assigned_Set_And_WeakSet_Methods()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const map = new Map([["key", "value"]]);
+                                               const set = new Set(["key"]);
+                                               const weakSet = new WeakSet();
+                                               const objectKey = {};
+                                               weakSet.add(objectKey);
+
+                                               const originalHas = Map.prototype.has;
+                                               const originalDelete = Map.prototype.delete;
+                                               const originalClear = Map.prototype.clear;
+
+                                               let setHasRejected = false;
+                                               let weakSetHasRejected = false;
+                                               let setDeleteRejected = false;
+                                               let setClearRejected = false;
+
+                                               try {
+                                                   Map.prototype.has = Set.prototype.has;
+                                                   map.has("key");
+                                               } catch (error) {
+                                                   setHasRejected = error instanceof TypeError;
+                                               }
+
+                                               try {
+                                                   Map.prototype.has = WeakSet.prototype.has;
+                                                   map.has(objectKey);
+                                               } catch (error) {
+                                                   weakSetHasRejected = error instanceof TypeError;
+                                               }
+
+                                               try {
+                                                   Map.prototype.delete = Set.prototype.delete;
+                                                   map.delete("key");
+                                               } catch (error) {
+                                                   setDeleteRejected = error instanceof TypeError;
+                                               }
+
+                                               try {
+                                                   Map.prototype.clear = Set.prototype.clear;
+                                                   map.clear();
+                                               } catch (error) {
+                                                   setClearRejected = error instanceof TypeError;
+                                               }
+
+                                               Map.prototype.has = originalHas;
+                                               Map.prototype.delete = originalDelete;
+                                               Map.prototype.clear = originalClear;
+
+                                               return setHasRejected
+                                                   && weakSetHasRejected
+                                                   && setDeleteRejected
+                                                   && setClearRejected
+                                                   && map.has("key")
+                                                   && set.has("key")
+                                                   && weakSet.has(objectKey);
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
 }

@@ -111,6 +111,60 @@ public sealed class SetTests(ITestOutputHelper output) : InternalTestBase(output
     }
 
     [Fact(Timeout = 2000)]
+    public async Task Set_Plain_Method_Fast_Path_Rejects_Assigned_Map_Methods()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const set = new Set(["key"]);
+                                               const map = new Map([["key", "value"]]);
+
+                                               const originalHas = Set.prototype.has;
+                                               const originalDelete = Set.prototype.delete;
+                                               const originalClear = Set.prototype.clear;
+
+                                               let mapHasRejected = false;
+                                               let mapDeleteRejected = false;
+                                               let mapClearRejected = false;
+
+                                               try {
+                                                   Set.prototype.has = Map.prototype.has;
+                                                   set.has("key");
+                                               } catch (error) {
+                                                   mapHasRejected = error instanceof TypeError;
+                                               }
+
+                                               try {
+                                                   Set.prototype.delete = Map.prototype.delete;
+                                                   set.delete("key");
+                                               } catch (error) {
+                                                   mapDeleteRejected = error instanceof TypeError;
+                                               }
+
+                                               try {
+                                                   Set.prototype.clear = Map.prototype.clear;
+                                                   set.clear();
+                                               } catch (error) {
+                                                   mapClearRejected = error instanceof TypeError;
+                                               }
+
+                                               Set.prototype.has = originalHas;
+                                               Set.prototype.delete = originalDelete;
+                                               Set.prototype.clear = originalClear;
+
+                                               return mapHasRejected
+                                                   && mapDeleteRejected
+                                                   && mapClearRejected
+                                                   && set.has("key")
+                                                   && map.has("key");
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Set_Size_Tracks_Value_Count()
     {
         await using var engine = CreateEngine();

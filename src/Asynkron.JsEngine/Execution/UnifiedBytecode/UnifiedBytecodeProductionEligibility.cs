@@ -720,8 +720,15 @@ internal static class UnifiedBytecodeProductionEligibility
             TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots);
         var isFirstBoundaryPropertyUpdateCandidate =
             TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots);
+        var isFirstBoundaryNamedCompoundPropertyWriteCandidate =
+            TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots);
+        var isFirstBoundaryNamedLogicalPropertyWriteCandidate =
+            TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots);
         var isPrivateNamedMutationCandidate =
-            isFirstBoundaryPropertyWriteCandidate || isFirstBoundaryPropertyUpdateCandidate;
+            isFirstBoundaryPropertyWriteCandidate ||
+            isFirstBoundaryPropertyUpdateCandidate ||
+            isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
+            isFirstBoundaryNamedLogicalPropertyWriteCandidate;
 
         // Pre-scan spread source operands before the main loop processes the source ops, which may
         // otherwise trigger a less-specific decline code such as CallDependency.
@@ -1072,11 +1079,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    if (isFirstBoundaryNamedCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
-                    if (TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    if (isFirstBoundaryNamedLogicalPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -1216,8 +1223,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
+                        isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
                         TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
                     {
@@ -3495,6 +3502,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots)
     {
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
+        // The final target may be private; receiver-chain hops stay ordinary only.
         // Minimum: 6 ops (rhs is a single simple operand).
         if (program.OperationCount < 6)
         {
@@ -3548,7 +3556,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var propertyName = propertyRead.GetString(stringConstants);
-        if (propertyName.IsPrivateName() || propertyName != propertyWrite.GetString(stringConstants))
+        if (propertyName != propertyWrite.GetString(stringConstants))
         {
             return false;
         }
@@ -3622,6 +3630,7 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty,
         // JumpIf*, Pop, rhs, SetNamedProperty, DuplicateTop, SwapTopTwo, Pop]
+        // The final target may be private; receiver-chain hops stay ordinary only.
         if (program.OperationCount < 10)
         {
             return false;
@@ -3684,7 +3693,7 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var propertyName = propertyRead.GetString(stringConstants);
-        return !propertyName.IsPrivateName() && propertyName == propertyWrite.GetString(stringConstants);
+        return propertyName == propertyWrite.GetString(stringConstants);
     }
 
     private static bool TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(

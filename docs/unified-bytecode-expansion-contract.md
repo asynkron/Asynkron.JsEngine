@@ -83,8 +83,8 @@ statement interpretation.
   still decline before VM execution.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
-  are admitted only through narrow shape helpers, while private property
-  reads/writes/updates, remaining optional-call chain shapes, and some
+  are admitted only through narrow shape helpers, while private deletes,
+  remaining optional-call chain shapes, and some
   call/reference helpers remain outside general unified bytecode lowering.
 - The remaining direct general-expression lowering gaps are drift-checked under
   `### General Expression Lowering Gaps (current)`. Property set/update
@@ -101,8 +101,8 @@ statement interpretation.
   compiles the supported expression program first and appends `Pop`, so
   discarded statements route when their underlying operation family is already
   selector/compiler/VM-owned. Remaining discarded-expression declines are
-  declines of the underlying family, such as dynamic lookup, private names,
-  unsupported optional-chain neighbors, or other semantic lanes not yet
+  declines of the underlying family, such as dynamic lookup, private deletes or
+  unsupported private neighbors, optional-chain neighbors, or other semantic lanes not yet
   admitted.
 - The current `ExpressionOpKind` names with no unified compiler reference list is
   empty. Computed super-property operations also route their required
@@ -117,6 +117,9 @@ statement interpretation.
   scopes into the VM, so `#name in receiver` can execute through
   `PrivateFieldIn` and direct private named reads/writes/updates can execute
   through `GetNamedProperty` / `SetNamedProperty` / `UpdateNamedProperty`.
+  Direct private named compound and logical writes execute through
+  `GetNamedPropertyForCompoundSet` plus `SetNamedProperty` when the receiver
+  chain is otherwise the admitted activation-resolved named-write shape.
   Direct private named method calls can execute through `PrepareNamedCallTarget`.
   Private member deletes still decline as `PrivateFieldDependency`.
 - Simple-return arrows can route with captured lexical `this` / `new.target`
@@ -332,7 +335,7 @@ must still obey the no-mixed-execution rule.
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
 | `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
-| `PrivateFieldDependency` | Private member deletes; `#name in obj`, direct private named reads/writes/updates, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
+| `PrivateFieldDependency` | Private member deletes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Binding declarations with defaults, computed binding names, assignment targets, awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
@@ -410,7 +413,7 @@ the final post-compile production subset check before VM entry.
   writes (`box[key] &&= y`, `box[key] ||= y`, `box[key] ??= y`) are also admitted
   when they match `TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate`
   (activation-resolved base, supported computed-key span, simple RHS,
-  non-optional/non-private target). Direct computed assignments, compound
+  non-optional target). Direct computed assignments, compound
   writes, logical writes, and
   updates may use the same supported computed-key expression span as optional
   computed reads (`box[key + suffix] = y`, `box[key + suffix] += y`,
@@ -439,8 +442,9 @@ the final post-compile production subset check before VM entry.
   (ADR 0317 plus the simple optional-computed follow-up).
   The compiler emits the named receiver reads and final `DeleteComputedProperty`,
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
-  Retained declines include chained optional delete neighbors, private property
-  access, dynamic lookup, richer unowned computed-key spans, unsupported RHS
+  Retained declines include chained optional delete neighbors, private deletes,
+  private receiver-chain/mutation neighbors outside the admitted direct named
+  shape, dynamic lookup, richer unowned computed-key spans, unsupported RHS
   spans, and optional/super/private neighbors of computed-key mutation shapes.
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - Super-property reads, writes, and updates are now VM-owned through
@@ -614,7 +618,8 @@ the final post-compile production subset check before VM entry.
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host
   with the caller environment and syncs mutated caller slots back into unified
   bytecode-owned slots before execution continues.
-- Spread super constructs, private member targets, arguments-object dependencies, unsupported
+- Spread super constructs, private-adjacent member targets outside the admitted
+  direct named method-call shape, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM
@@ -781,16 +786,17 @@ support today.
    admitted through the `ObjectSpread` opcode when their spread source is a
    simple operand. Direct eval outside the one-argument non-spread
    eval-identifier boundary, spread super constructs, spread-onto-optional,
-   private member targets, complex receiver/key shapes, non-simple literal
-   argument spans, and receiver-binding-sensitive adjacent families beyond the
+   private-adjacent member targets outside the admitted direct named method-call
+   shape, complex receiver/key shapes, non-simple literal argument spans, and receiver-binding-sensitive adjacent families beyond the
    direct activation-resolved and with-backed dynamic-identifier boundaries must
    still decline before VM execution.
 3. Property and assignment widening is no longer a blanket property-read/write
    gap, but several member-expression neighbors remain outside production:
-   private member reads/writes/updates, optional-chain neighbors outside the
-   admitted read/call/delete shapes, richer computed-key spans, unsupported RHS
-   spans, optional/super/private mutation neighbors, and dynamic lookup outside
-   the explicit with-backed lane.
+   private member deletes, private receiver-chain/mutation neighbors outside the
+   admitted direct named shapes, optional-chain neighbors outside the admitted
+   read/call/delete shapes, richer computed-key spans, unsupported RHS spans,
+   optional/super/private mutation neighbors, and dynamic lookup outside the
+   explicit with-backed lane.
 4. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator

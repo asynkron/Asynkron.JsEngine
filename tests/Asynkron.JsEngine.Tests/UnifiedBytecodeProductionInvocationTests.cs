@@ -55,25 +55,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task NestedFunctionDeclaration_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task NestedFunctionDeclaration_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function outer() {
                 function inner() {
-                    return 40;
+                    return 42;
                 }
 
-                return inner() + 2;
+                return inner();
             }
 
             outer();
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=outer",
+                "unified-bytecode-production-fast-path func=outer argc=0",
                 StringComparison.Ordinal));
     }
 
@@ -4918,20 +4918,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         result;
         """,
         "same",
-        42d)]
-    [InlineData(
-        """
-        function outer() {
-            function inner() {
-                return 42;
-            }
-
-            return inner();
-        }
-
-        outer();
-        """,
-        "outer",
         42d)]
     [InlineData(
         """

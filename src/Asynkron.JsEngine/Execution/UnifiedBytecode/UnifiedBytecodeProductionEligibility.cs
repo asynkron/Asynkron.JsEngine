@@ -16,7 +16,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
     FunctionNameParameterCollision,
-    FunctionDeclarationDependency,
     ParameterVarDeclarationDependency,
     MaterializedActivationDependency,
     CallDependency,
@@ -46,7 +45,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
     bool HasFunctionNameParameterCollision = false,
-    bool HasFunctionDeclarationDependency = false,
     bool HasParameterVarDeclarationDependency = false,
     bool HasMaterializedActivationDependency = false,
     bool HasCallDependency = false,
@@ -352,13 +350,6 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        if (activation.HasFunctionDeclarationDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
-            declineReason = "Function declaration hoisting is not eligible for production unified bytecode routing.";
-            return true;
-        }
-
         if (activation.HasParameterVarDeclarationDependency)
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency;
@@ -480,11 +471,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is FunctionDeclarationInstruction)
+            if (instruction is FunctionDeclarationInstruction { Descriptor: not null })
             {
-                declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "Function declaration instructions require hoist/runtime declaration semantics and are not eligible for production unified bytecode routing.";
+                    "Descriptor-backed block-scoped function declarations require an admitted lexical environment shape before production unified bytecode routing.";
                 return true;
             }
 
@@ -4332,6 +4323,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.DefineComputedObjectAccessor:
                 case UnifiedBytecodeOpCode.ObjectSpread:
                 case UnifiedBytecodeOpCode.DeclareClass:
+                case UnifiedBytecodeOpCode.DeclareFunction:
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:

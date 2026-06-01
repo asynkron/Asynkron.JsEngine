@@ -2802,7 +2802,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 context.MarkThisInitialized();
 
-                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                executionEnvironment = CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
                 RealmState.Logger?.LogInformation(
                     "simple-ir-activation-fast-path func={Function} argc={ArgumentCount}",
                     _function.Name?.Name ?? "<anonymous>",
@@ -3073,11 +3073,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
                 var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
-                if (RequiresProductionUnifiedBytecodeCallEnvironment(program))
+                if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
                         ? CreateSimpleDerivedClassConstructorEnvironment(arguments, newTarget, plan)
-                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan);
+                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
                 }
 
                 RealmState.Logger?.LogInformation(
@@ -3191,6 +3191,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.ApplyBindingTarget or
                     UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget or
                     UnifiedBytecodeOpCode.DeclareClass or
+                    UnifiedBytecodeOpCode.DeclareFunction or
                     UnifiedBytecodeOpCode.LoadFunctionLiteral or
                     UnifiedBytecodeOpCode.EnterWith or
                     UnifiedBytecodeOpCode.LeaveWith or
@@ -3271,7 +3272,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
                 UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
                 UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision or
-                UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency or
                 UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency or
                 UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency);
         }
@@ -3338,7 +3338,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
                 HasFunctionNameParameterCollision: _function.Name is { } functionName && HasParameterNamed(functionName),
-                HasFunctionDeclarationDependency: _hasFunctionDeclarations && !canUseDynamicNamePath,
                 HasParameterVarDeclarationDependency:
                     _hasParameterVarDeclarationWithoutInitializer && !canUseDynamicNamePath,
                 HasMaterializedActivationDependency: false,
@@ -3754,7 +3753,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private JsEnvironment CreateSimpleIrActivationEnvironment<TArgs>(
             TArgs arguments,
             JsValue thisValue,
-            ExecutionPlan plan)
+            ExecutionPlan plan,
+            EvaluationContext context)
             where TArgs : IReadOnlyList<JsValue>
         {
             var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
@@ -3822,6 +3822,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            HoistFunctionDeclarationsForFastActivation(executionEnvironment, context);
             if (_argumentsObjectNeeded)
             {
                 var argumentsObject = _function.CreateArgumentsObject(arguments, executionEnvironment,
@@ -3957,6 +3958,38 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 !executionEnvironment.HasBinding(hoistedName))
             {
                 executionEnvironment.DefineFunctionScoped(hoistedName, JsValue.Undefined, false);
+            }
+        }
+
+        private void HoistFunctionDeclarationsForFastActivation(
+            JsEnvironment executionEnvironment,
+            EvaluationContext context)
+        {
+            if (!_hasFunctionDeclarations)
+            {
+                return;
+            }
+
+            var lexicalNames = RentSymbolSet(_lexicalTemplate);
+            var simpleCatchParameterNames = RentSymbolSet(_simpleCatchParameterTemplate);
+            var catchParameterNames = RentSymbolSet();
+            try
+            {
+                simpleCatchParameterNames.Clear();
+                var functionMode = _isStrict ? ScopeMode.Strict : ScopeMode.Sloppy;
+                using var functionScopeFrame = context.PushScope(ScopeKind.Function, functionMode);
+                _function.Body.HoistVarDeclarations(
+                    executionEnvironment,
+                    context,
+                    lexicalNames: lexicalNames,
+                    catchParameterNames: catchParameterNames,
+                    simpleCatchParameterNames: simpleCatchParameterNames);
+            }
+            finally
+            {
+                ReturnSymbolSet(catchParameterNames);
+                ReturnSymbolSet(simpleCatchParameterNames);
+                ReturnSymbolSet(lexicalNames);
             }
         }
 

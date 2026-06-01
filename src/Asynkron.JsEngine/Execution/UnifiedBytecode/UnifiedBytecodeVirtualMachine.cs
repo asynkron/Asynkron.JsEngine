@@ -17,6 +17,8 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
     private const int DeclarationBindingTargetHasInitializerFlag = 8;
     private const int DeclarationBindingTargetShift = 4;
+    private const int FunctionDeclarationIndexMask = 0xFFFF;
+    private const int FunctionDeclarationNameIndexShift = 16;
 
     private readonly record struct EnvironmentScopeFrame(
         JsEnvironment Environment,
@@ -91,6 +93,11 @@ internal static class UnifiedBytecodeVirtualMachine
         var slotEnvironments = callingEnvironment is null
             ? null
             : InitializeSlotEnvironments(program, callingEnvironment);
+        if (callingEnvironment is not null)
+        {
+            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, callingEnvironment);
+        }
+
         EnvironmentScopeFrame[]? environmentStack = null;
         var environmentStackCount = 0;
         AssignmentReference[]? dynamicIdentifierReferences = null;
@@ -2316,6 +2323,34 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.DeclareFunction:
+                    {
+                        var functionDeclarationEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, functionDeclarationEnvironment);
+                        DeclareFunction(
+                            program,
+                            instruction.Operand,
+                            functionDeclarationEnvironment,
+                            context);
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments,
+                            functionDeclarationEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                     {
                         var flDescriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];
@@ -3432,6 +3467,138 @@ internal static class UnifiedBytecodeVirtualMachine
     {
         environment.DefineFunctionScoped(Symbol.Intern(name), JsValue.Undefined, hasInitializer: false,
             context: context);
+    }
+
+    private static void DeclareFunction(
+        UnifiedBytecodeProgram program,
+        int operand,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        var descriptor = program.FunctionLiteralConstants[DecodeFunctionDeclarationIndex(operand)];
+        var name = Symbol.Intern(program.StringConstants[DecodeFunctionDeclarationNameIndex(operand)]);
+        var functionValue = TypedAstEvaluator.CreateFunctionValueFromDeclaration(
+            descriptor,
+            environment,
+            context);
+        var functionJsValue = JsValue.FromObjectUnsafe(functionValue);
+        var varEnvironment = environment.GetVarEnvironment();
+        var isAtVarEnvironment = ReferenceEquals(varEnvironment, environment) ||
+                                 environment.IsEvalDeclarationEnvironment;
+        var suppressAnnexBVarUpdate = (descriptor.Function.IsAsync ||
+                                       descriptor.Function.WasAsync ||
+                                       descriptor.Function.IsGenerator) &&
+                                      context.ExecutionKind != ExecutionKind.Eval;
+
+        var isHoistedUndefinedBinding = false;
+        if (!suppressAnnexBVarUpdate &&
+            isAtVarEnvironment &&
+            !context.CurrentScope.IsStrict &&
+            varEnvironment.HasFunctionScopedBinding(name))
+        {
+            var existingValue = varEnvironment.GetBindingValueDirect(name);
+            if (existingValue.IsUndefined)
+            {
+                isHoistedUndefinedBinding = true;
+            }
+        }
+
+        if (isAtVarEnvironment)
+        {
+            if (isHoistedUndefinedBinding && !environment.IsAnnexBBlocked(name))
+            {
+                varEnvironment.AssignJsValue(name, functionJsValue);
+
+                if (varEnvironment.IsGlobalFunctionScope)
+                {
+                    varEnvironment.GetRootGlobalObject()?.SetProperty(name.Name, functionJsValue);
+                }
+            }
+
+            return;
+        }
+
+        var isBlocked = !varEnvironment.IsStrict &&
+                        (environment.IsAnnexBBlocked(name) ||
+                         HasEnclosingLexicalBinding(environment.Enclosing, name));
+        if (!isBlocked || !environment.IsBodyEnvironment)
+        {
+            environment.DefineJsValue(
+                name,
+                functionJsValue,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+
+        if (suppressAnnexBVarUpdate || varEnvironment.IsStrict || isBlocked)
+        {
+            return;
+        }
+
+        if (varEnvironment.HasFunctionScopedBinding(name))
+        {
+            varEnvironment.AssignJsValue(name, functionJsValue);
+        }
+        else
+        {
+            varEnvironment.DefineFunctionScoped(
+                name,
+                functionJsValue,
+                hasInitializer: true,
+                isFunctionDeclaration: true,
+                context: context);
+        }
+
+        UpdateIntermediateVarBindings(environment.Enclosing, varEnvironment, name, functionJsValue);
+    }
+
+    private static bool HasEnclosingLexicalBinding(JsEnvironment? start, Symbol name)
+    {
+        var current = start;
+        while (current is not null)
+        {
+            if (current.IsFunctionScope)
+            {
+                break;
+            }
+
+            if (current.IsBodyEnvironment || current.IsSimpleCatchParameter(name))
+            {
+                current = current.Enclosing;
+                continue;
+            }
+
+            if (current.TryGetSlotIndex(name, out var slotIndex))
+            {
+                ref var slot = ref current.GetSlotByIndex(slotIndex);
+                if (slot.IsLexical && slot.BlocksFunctionScopeOverride)
+                {
+                    return true;
+                }
+            }
+
+            current = current.Enclosing;
+        }
+
+        return false;
+    }
+
+    private static void UpdateIntermediateVarBindings(
+        JsEnvironment? start,
+        JsEnvironment stop,
+        Symbol name,
+        JsValue value)
+    {
+        var current = start;
+        while (current is not null && !ReferenceEquals(current, stop))
+        {
+            if (current.TryGetSlotIndex(name, out var slotIndex))
+            {
+                current.SetSlotDirect(slotIndex, value);
+            }
+
+            current = current.Enclosing;
+        }
     }
 
     private static JsValue UpdateDynamicIdentifierValue(
@@ -6428,6 +6595,12 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool DecodeDynamicStoreAllowsNameInference(int operand) =>
         (operand & 1) != 0;
+
+    private static int DecodeFunctionDeclarationIndex(int operand) =>
+        operand & FunctionDeclarationIndexMask;
+
+    private static int DecodeFunctionDeclarationNameIndex(int operand) =>
+        operand >> FunctionDeclarationNameIndexShift;
 
     private static int DecodeDeclarationBindingTargetIndex(int operand) =>
         operand >> DeclarationBindingTargetShift;

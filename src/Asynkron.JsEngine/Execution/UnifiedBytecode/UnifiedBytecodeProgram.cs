@@ -119,6 +119,7 @@ internal enum UnifiedBytecodeOpCode : byte
     ConstructInvocationBoundary,
     SuperConstructInvocationBoundary,
     DeclareClass,
+    DeclareFunction,
     LoadClassLiteral,
     LoadFunctionLiteral,
     Yield,

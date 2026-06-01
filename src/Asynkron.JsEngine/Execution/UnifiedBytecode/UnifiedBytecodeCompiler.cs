@@ -51,6 +51,8 @@ internal static class UnifiedBytecodeCompiler
     private const int CallBoundarySpreadShift = 16;
     private const int CallBoundarySpreadMask = 0x3FFF;
     private const int CallBoundaryDirectEvalFlag = 1 << 30;
+    private const int FunctionDeclarationIndexMask = 0xFFFF;
+    private const int FunctionDeclarationNameIndexShift = 16;
 
     private static int EncodeCallBoundaryOperand(int argumentValueCount, int spreadMaskIndex, bool isDirectEval)
     {
@@ -67,6 +69,17 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return isDirectEval ? operand | CallBoundaryDirectEvalFlag : operand;
+    }
+
+    private static int EncodeFunctionDeclarationOperand(int functionConstantIndex, int nameConstantIndex)
+    {
+        if ((functionConstantIndex & ~FunctionDeclarationIndexMask) != 0 ||
+            (nameConstantIndex & ~FunctionDeclarationIndexMask) != 0)
+        {
+            throw new InvalidOperationException("Function declaration constant index exceeds operand capacity.");
+        }
+
+        return functionConstantIndex | (nameConstantIndex << FunctionDeclarationNameIndexShift);
     }
 
     public static bool TryCompile(
@@ -576,6 +589,49 @@ internal static class UnifiedBytecodeCompiler
 
                 switch (instructions[instructionIndex])
                 {
+                    case FunctionDeclarationInstruction { Descriptor: null } functionDeclaration:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                functionDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = functionDeclaration.Next;
+                        continue;
+
+                    case FunctionDeclarationInstruction { Descriptor: { } functionDeclarationDescriptor } functionDeclaration:
+                        var functionDeclarationFunctionIndex = functionLiteralConstants.Count;
+                        functionLiteralConstants.Add(new FunctionLiteralDescriptor(
+                            functionDeclarationDescriptor.Function,
+                            functionDeclarationDescriptor.PlanSeed));
+                        var functionDeclarationNameIndex = stringConstants.Count;
+                        stringConstants.Add(functionDeclarationDescriptor.Name.Name);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.DeclareFunction,
+                            EncodeFunctionDeclarationOperand(
+                                functionDeclarationFunctionIndex,
+                                functionDeclarationNameIndex)));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                functionDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = functionDeclaration.Next;
+                        continue;
+
                     case ClassDeclarationInstruction classDeclaration:
                         var classDeclarationIndex = classDeclarationConstants.Count;
                         classDeclarationConstants.Add(classDeclaration.Descriptor);
@@ -595,6 +651,27 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         instructionIndex = classDeclaration.Next;
+                        continue;
+
+                    case SimpleVariableDeclarationInstruction
+                        {
+                            VarKind: VariableKind.Var,
+                            InitializerProgram: null,
+                            AwaitedProgram: null
+                        } varDeclaration:
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                varDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = varDeclaration.Next;
                         continue;
 
                     case SimpleVariableDeclarationInstruction

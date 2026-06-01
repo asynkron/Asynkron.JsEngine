@@ -29,7 +29,7 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:hasOnlySimpleIdentifierParameters",
         "pre-gate:usesArguments",
         "pre-gate:needsArgumentsBinding",
-        "pre-gate:functionDeclarationsOrParameterVar",
+        "pre-gate:parameterVarDeclarationWithoutInitializer",
         "pre-gate:allowIdentifierCache",
         "pre-gate:lexicalThisEnvironment",
         "pre-gate:PrivateNameScope",
@@ -51,7 +51,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeCompilerDeclinedInstructionNames =
     [
-        "FunctionDeclarationInstruction"
     ];
 
     private static readonly string[] UnifiedBytecodeExpressionOpCompilerGapNames =
@@ -75,7 +74,7 @@ public sealed class ExpressionProgramCoverageMapTests
             "Evaluate_LinearSlotLiteralReturnPlan_Accepts",
             "Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm",
             "LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath",
-            "NestedFunctionDeclaration_DeclinesUnifiedBytecodeProductionFastPath",
+            "ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath",
             "SourceGate_ProductionUnifiedBytecodeAcceptedPath_DoesNotDelegateToAstOrExecutionPlanRunner")
     ];
 

@@ -251,18 +251,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData("arrow lexical this", true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
-    [InlineData("class constructor activation", false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
-    [InlineData("function name parameter collision", false, false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision)]
-    [InlineData("function declaration dependency", false, false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency)]
-    [InlineData("parameter var declaration dependency", false, false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency)]
-    [InlineData("materialized activation dependency", false, false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
+    [InlineData("arrow lexical this", true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency)]
+    [InlineData("class constructor activation", false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation)]
+    [InlineData("function name parameter collision", false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.FunctionNameParameterCollision)]
+    [InlineData("parameter var declaration dependency", false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.ParameterVarDeclarationDependency)]
+    [InlineData("materialized activation dependency", false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.MaterializedActivationDependency)]
     public void Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile(
         string blocker,
         bool arrowLexicalThis,
         bool classConstructor,
         bool functionNameParameterCollision,
-        bool functionDeclaration,
         bool parameterVarDeclaration,
         bool materializedActivation,
         int expectedCode)
@@ -280,7 +278,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 HasArrowLexicalThisDependency: arrowLexicalThis,
                 HasClassConstructorActivation: classConstructor,
                 HasFunctionNameParameterCollision: functionNameParameterCollision,
-                HasFunctionDeclarationDependency: functionDeclaration,
                 HasParameterVarDeclarationDependency: parameterVarDeclaration,
                 HasMaterializedActivationDependency: materializedActivation));
 
@@ -290,7 +287,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_FunctionDeclarationInstruction_DeclinesBeforeCompile()
+    public void Evaluate_FunctionDeclarationInstruction_AcceptsHoistedNoOp()
     {
         var plan = GetFunctionPlan("""
             function outer() {
@@ -308,9 +305,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency, result.Code);
-        Assert.Contains("Function declaration instructions", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.DoesNotContain(result.Program.Instructions, static instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeclareFunction);
     }
 
     [Fact]

@@ -63,16 +63,20 @@ statement interpretation.
   lockstep; the current opcode surface has VM handling for every listed opcode.
   Remaining work is primarily semantic admission and lowering, not adding switch
   cases for already-declared opcodes.
-- `UnifiedBytecodeCompiler` has broad but incomplete IR-instruction coverage.
-  The remaining unhandled concrete instruction family is
-  `FunctionDeclarationInstruction`, which stays declined until declaration
-  hoisting semantics are VM-owned. `ClassDeclarationInstruction` is now
-  VM-owned through `DeclareClass`, with environment-backed lexical declaration
-  installation and class-value creation handled inside the unified VM. Static
-  synchronous `BindingVariableDeclarationInstruction` shapes are now VM-owned
-  through `ApplyDeclarationBindingTarget`, while binding defaults, computed
-  binding names, assignment targets, awaited declarations, and `using`
-  declarations still decline before VM execution.
+- `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
+  IR instruction record. Function-scoped `FunctionDeclarationInstruction`
+  entries compile as no-ops after fast activation hoisting installs the callable
+  value, and descriptor-backed runtime declarations lower to `DeclareFunction`.
+  Block-scoped function declarations behind unsupported lexical environment
+  shapes can still decline through the surrounding `PushEnvironment` or call
+  boundary, but they are no longer a stale compiler-decline row.
+  `ClassDeclarationInstruction` is VM-owned through `DeclareClass`, with
+  environment-backed lexical declaration installation and class-value creation
+  handled inside the unified VM. Static synchronous
+  `BindingVariableDeclarationInstruction` shapes are now VM-owned through
+  `ApplyDeclarationBindingTarget`, while binding defaults, computed binding
+  names, assignment targets, awaited declarations, and `using` declarations
+  still decline before VM execution.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
@@ -207,6 +211,8 @@ statement interpretation.
 - `CallInvocationBoundary`
 - `ConstructInvocationBoundary`
 - `SuperConstructInvocationBoundary`
+- `DeclareClass`
+- `DeclareFunction`
 - `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`
@@ -228,7 +234,6 @@ statement interpretation.
 - `ArrowLexicalThisDependency`
 - `ClassConstructorActivation`
 - `FunctionNameParameterCollision`
-- `FunctionDeclarationDependency`
 - `ParameterVarDeclarationDependency`
 - `MaterializedActivationDependency`
 - `CallDependency`
@@ -269,7 +274,6 @@ must still obey the no-mixed-execution rule.
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation before ordinary sync routing | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
 | `FunctionNameParameterCollision` | Activation descriptor gate for named function expressions whose name collides with a parameter | Existing function-name environment route | Function-name environment lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
-| `FunctionDeclarationDependency` | Activation descriptor gate for function declaration hoisting outside the with-backed materialized-activation lane | Existing hoisting route | Hoisting / dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
 | `ParameterVarDeclarationDependency` | Activation descriptor gate for parameter `var` declarations without initializer outside the with-backed materialized-activation lane | Existing hoisting route | Hoisting / dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
 | `MaterializedActivationDependency` | Activation descriptor gate for materialized activation bindings not proven safe by `ActivationSlotShape.MaterializedBindingNames` and the with-backed dynamic-name lane | Existing execution-plan route | Materialized activation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, complex call arguments, and descriptor-level non-parameter callee calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency"` |
@@ -307,7 +311,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:hasOnlySimpleIdentifierParameters` | Non-simple parameter lists | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:usesArguments` | Functions that read `arguments` | Existing arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency"` |
 | `pre-gate:needsArgumentsBinding` | Sloppy mapped arguments binding when not admitted by with-backed dynamic-name routing | Existing arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:functionDeclarationsOrParameterVar` | Hoistable function declarations or parameter `var` declarations without initializer unless with-backed dynamic-name routing owns the materialized activation | Existing hoisting route | Hoisting / dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:parameterVarDeclarationWithoutInitializer` | Parameter `var` declarations without initializer unless with-backed dynamic-name routing owns the materialized activation | Existing hoisting route | Hoisting / dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:allowIdentifierCache` | Identifier cache disabled outside the with-backed dynamic-name lane | Existing environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency"` |
 | `pre-gate:lexicalThisEnvironment` | Lexical `this` environment captured by arrow / class-derived shapes | Existing lexical-this route | This-binding lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:PrivateNameScope` | Active private-name scope on the invoker; keeps public class-private member execution off the production route even though `PrivateFieldIn` is VM-owned | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |

@@ -243,6 +243,20 @@ optimization.
     subtree, but comparable timings regressed or stayed too noisy to retain a
     wall-clock win. Related ADR:
     `docs/adrs/0304-keep-simplearithmetic-return-cleanup-iterator-skip-performance-gated.md`.
+6l. For residual `mapset` work after the retained Map/Set IR plain-method fast
+    path, do not retry a standalone `JsMap.Set` `CollectionsMarshal` storage
+    probe or a `MapSetFastMethodKind`-first dispatch reshuffle without a fresh
+    focused profile and repeated selected-profile A/B rows. The retained fast
+    path already moves plain calls under `TryInvokePlainMapSetFast`; after that,
+    `JsMap.Set` storage, string key construction, and remaining
+    expression-program overhead are separate owners and should be sliced
+    independently. WHY: issue #gh2954 / PR #2959 re-profiled the residual gap
+    after ADR 0319. The fresh baseline was
+    `mapset asynkron_ms=1055 jint_ms=796`, but the `CollectionsMarshal` storage
+    probe regressed to `1378 ms` and then `2442 ms`, and the dispatch-order
+    reshuffle regressed to `1461 ms`; both runtime edits were reverted and only
+    the measured residual evidence was retained in
+    `docs/performance/mapset-ir-plain-method-fast-path.md`.
 7. For expression-bytecode arithmetic optimization, narrow from a broad
    benchmark table to the profile that actually owns the hot path before
    changing the runner. Use `rtk ./tools/profile <profile> --cpu` to confirm

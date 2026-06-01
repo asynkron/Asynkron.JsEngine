@@ -3170,6 +3170,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
                     UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget or
                     UnifiedBytecodeOpCode.DeclareDynamicVar or
+                    UnifiedBytecodeOpCode.LoadImportMeta or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifier or
                     UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference or

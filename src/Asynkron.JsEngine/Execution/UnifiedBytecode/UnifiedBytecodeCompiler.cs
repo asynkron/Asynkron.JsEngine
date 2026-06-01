@@ -3704,6 +3704,10 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadNewTarget));
                     break;
 
+                case ExpressionOpKind.LoadImportMeta:
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadImportMeta));
+                    break;
+
                 case ExpressionOpKind.LoadLiteral:
                     var literal = operation.GetLiteral(expressionProgram.LiteralConstants.AsSpan());
                     var literalIndex = literalConstants.Count;

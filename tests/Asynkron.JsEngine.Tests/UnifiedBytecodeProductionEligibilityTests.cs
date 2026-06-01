@@ -2719,6 +2719,45 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LoadImportMetaExpression_AcceptsAndVmReadsCallingEnvironmentBinding()
+    {
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.LoadImportMeta));
+        var seedPlan = GetFunctionPlan("function meta() { return 0; }", "meta");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadImportMeta);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        var moduleEnvironment = JsEnvironment.CreateInstance(engine.GlobalEnvironment, description: "module");
+        var importMeta = new JsObject { RealmState = engine.RealmState };
+        moduleEnvironment.DefineJsValue(
+            Symbol.ImportMeta,
+            JsValue.FromJsObject(importMeta),
+            isConst: true,
+            isLexicalBinding: true);
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context, moduleEnvironment);
+
+        Assert.False(context.ShouldStopEvaluation);
+        Assert.Same(importMeta, vmResult.ObjectValue);
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

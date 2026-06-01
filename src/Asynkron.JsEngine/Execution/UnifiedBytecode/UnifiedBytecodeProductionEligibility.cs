@@ -4227,6 +4227,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 case UnifiedBytecodeOpCode.LoadThis:
                 case UnifiedBytecodeOpCode.LoadNewTarget:
+                case UnifiedBytecodeOpCode.LoadImportMeta:
                 case UnifiedBytecodeOpCode.LoadLiteral:
                 case UnifiedBytecodeOpCode.LoadRegexLiteral:
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:

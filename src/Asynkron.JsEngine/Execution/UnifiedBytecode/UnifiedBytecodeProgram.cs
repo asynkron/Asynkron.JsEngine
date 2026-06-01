@@ -11,6 +11,7 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadDynamicIdentifier,
     LoadThis,
     LoadNewTarget,
+    LoadImportMeta,
     LoadLiteral,
     LoadRegexLiteral,
     StoreSlot,

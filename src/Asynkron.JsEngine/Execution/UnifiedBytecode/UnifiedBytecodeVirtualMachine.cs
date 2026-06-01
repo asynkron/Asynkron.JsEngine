@@ -182,6 +182,11 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadImportMeta:
+                    stack[stackPointer++] = GetImportMeta(currentCallingEnvironment, context);
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadLiteral:
                     stack[stackPointer++] = program.LiteralConstants[instruction.Operand];
                     programCounter++;
@@ -3300,6 +3305,17 @@ internal static class UnifiedBytecodeVirtualMachine
             context,
             context.RealmState));
         return JsValue.Undefined;
+    }
+
+    private static JsValue GetImportMeta(JsEnvironment? environment, EvaluationContext context)
+    {
+        if (environment is not null &&
+            environment.TryFindBindingJsValue(Symbol.ImportMeta, true, out _, out var importMeta))
+        {
+            return importMeta;
+        }
+
+        throw StandardLibrary.ThrowReferenceError("import.meta is not defined", context, context.RealmState);
     }
 
     private static JsEnvironment?[] InitializeSlotEnvironments(

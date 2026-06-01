@@ -5029,6 +5029,67 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task UpdateParameterNamedArguments_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bump(arguments) {
+                arguments++;
+                return arguments;
+            }
+
+            bump(41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bump argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task UpdateLexicalArgumentsBinding_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bump() {
+                let arguments = 41;
+                ++arguments;
+                return arguments;
+            }
+
+            bump();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bump argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task UpdateImplicitArgumentsObject_DeclinesAndFallsBack()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bump() {
+                arguments++;
+                return 1;
+            }
+
+            bump(41);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bump",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """

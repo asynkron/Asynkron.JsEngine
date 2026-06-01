@@ -4128,12 +4128,6 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.UpdateIdentifier:
-                    if (operation.IsArguments)
-                    {
-                        reason = "arguments update is not supported.";
-                        return false;
-                    }
-
                     var updateIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (TryResolveActivationSlot(updateIdentifier, slotLayout, out var updateSlot))
                     {
@@ -4141,6 +4135,12 @@ internal static class UnifiedBytecodeCompiler
                             UnifiedBytecodeOpCode.UpdateSlot,
                             EncodeUpdateOperand(updateSlot, operation)));
                         break;
+                    }
+
+                    if (operation.IsArguments)
+                    {
+                        reason = "arguments update is not supported.";
+                        return false;
                     }
 
                     if (!allowsDynamicIdentifiers)

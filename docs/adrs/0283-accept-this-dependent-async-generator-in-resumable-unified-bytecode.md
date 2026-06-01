@@ -60,7 +60,9 @@ resume state.
 
 This intentionally narrows ADR 0277, which previously listed `this` among the
 resumable pre-VM declines. ADR 0277's bounded-state and `yield*`-decline
-decisions otherwise stand unchanged.
+decisions otherwise stood unchanged at ADR 0283 time. PR #2948 later narrowed
+the `yield*` decline for sync generators only; async-generator `yield*` and
+awaited delegated sources still remain outside the resumable production route.
 
 ## Consequences
 

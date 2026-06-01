@@ -573,7 +573,7 @@ Async invariants:
 - Resumable state (program counter, operand stack, slots, pending-await, resume-payload, completion) is owned by `UnifiedBytecodeVirtualMachine.ExecuteResumable` (ADR 0277). This is the Tier 0 resumable path.
 - Async generator continuation state is fully owned by the Concurrency Runtime; the Execution Engine does not peek at generator internal state.
 - Host callbacks always enter through the Microtask Queue boundary; they never directly re-enter the Execution Engine.
-- `yield*` remains a pre-VM resumable decline until delegated `.return()` and `.throw()` abrupt-resume is modeled (ADR 0277).
+- Sync-generator `yield*` now has a VM-owned resumable route for delegated `.next()`, `.return()`, and `.throw()`; async-generator `yield*` and awaited delegated sources remain pre-VM declines (ADR 0277 narrowed by PR #2948).
 - The shared `ExecuteAsyncStep` bridge is a structural seam (Milestone C). The target state is a dedicated async-generator IR executor in Tier 0.
 
 ## Module and host platform model
@@ -1418,7 +1418,7 @@ These constraints are binding until new evidence says otherwise.
 
 - **Milestone A (module/runtime boundary):** ESM and async module behavior are proven owner surfaces; no full Node module/CommonJS parity claim.
 - **Milestone B (host interop boundary):** host callable/global integration is explicit; Node-style host behavior remains an integration-layer concern.
-- **Milestone C (async seam closure):** async-generator runtime still depends on the shared `ExecuteAsyncStep` bridge; this is active follow-through work. Resumable Tier 0 (ADR 0277) is proven for generator/async shapes that do not require `yield*` delegated abrupt-resume.
+- **Milestone C (async seam closure):** async-generator runtime still depends on the shared `ExecuteAsyncStep` bridge; this is active follow-through work. Resumable Tier 0 (ADR 0277, narrowed by PR #2948) is proven for sync-generator `yield*` delegated abrupt resume plus async/generator shapes that stay inside the current resumable opcode set.
 - Tier 0 production routing remains bounded by explicit eligibility and opcode/control-flow constraints until `this`-dependent sync function parity + profile evidence is added (#2633, #2634).
 - Dynamic/eval-sensitive paths remain correctness-first; they cannot be erased by architecture preference.
 - Compact statement-bytecode storage is directional; it is not the current universal execution contract.

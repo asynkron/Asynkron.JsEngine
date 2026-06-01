@@ -5,6 +5,7 @@ using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.JsTypes;
+using Asynkron.JsEngine.Parser;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -2798,26 +2799,21 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateNamedPropertyDelete_DeclinesWithExplicitCode()
+    public void Evaluate_PrivateNamedPropertyDelete_IsRejectedBeforeEligibility()
     {
-        var plan = GetClassMethodPlan("""
-            class Holder {
-                #field = 1;
-                remove(receiver) {
-                    return delete receiver.#field;
+        var ex = Assert.Throws<ParseException>(() =>
+            GetClassMethodPlan("""
+                class Holder {
+                    #field = 1;
+                    remove(receiver) {
+                        return delete receiver.#field;
+                    }
                 }
-            }
-            """,
-            "Holder",
-            "remove");
+                """,
+                "Holder",
+                "remove"));
 
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
-        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+        Assert.Contains("Private field '#field' cannot be deleted", ex.Message, StringComparison.Ordinal);
     }
 
     [Theory]

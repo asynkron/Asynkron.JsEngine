@@ -514,15 +514,18 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DerivedConstructorWithInstanceField_DeclinesAndFallsBack()
+    public async Task DerivedConstructorWithInstanceField_UsesProductionFastPathAndInitializesAfterSuper()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             class Base {
+                constructor() {
+                    this.baseValue = 40;
+                }
             }
 
             class Derived extends Base {
-                value = 42;
+                value = this.baseValue + 2;
                 constructor() {
                     super();
                 }
@@ -532,7 +535,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Derived",
                 StringComparison.Ordinal));

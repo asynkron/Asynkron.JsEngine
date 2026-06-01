@@ -6002,6 +6002,21 @@ internal static class UnifiedBytecodeVirtualMachine
             context.MarkThisInitialized();
             targetEnvironment.SetThisInitializationStatus(true);
 
+            if (thisAfterSuper is IJsObjectLike initializedObject &&
+                context.TryPopClassFieldInitializer(out var pendingInitializer) &&
+                pendingInitializer.Constructor is TypedAstEvaluator.SyncFunctionInvoker pendingConstructor)
+            {
+                pendingConstructor.InitializeInstance(
+                    initializedObject,
+                    pendingInitializer.Environment,
+                    context);
+                if (context.ShouldStopEvaluation)
+                {
+                    stack[baseIndex] = context.FlowValue;
+                    return baseIndex + 1;
+                }
+            }
+
             stack[baseIndex] = result;
             return baseIndex + 1;
         }

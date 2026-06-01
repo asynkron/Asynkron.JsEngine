@@ -2476,7 +2476,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readDynamic",
-        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readBinaryTarget(a, b) {
@@ -2533,7 +2533,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "dynamicValueWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function computedExpressionWrite(box, key, suffix, value) {
@@ -2559,7 +2559,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
         var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedCode;
         if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)

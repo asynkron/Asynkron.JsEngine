@@ -2698,6 +2698,40 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_PrivateNamedMethodCall_AcceptsCallTargetPreparation()
+    {
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #read(value) {
+                    return value + 1;
+                }
+
+                call(receiver, value) {
+                    return receiver.#read(value);
+                }
+            }
+            """,
+            "Holder",
+            "call");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        var callTarget = Assert.Single(result.Program.CallTargetConstants);
+        Assert.Equal(UnifiedBytecodeCallTargetKind.NamedMember, callTarget.Kind);
+        Assert.Equal("#read", result.Program.StringConstants[callTarget.NameConstantIndex]);
+    }
+
+    [Fact]
     public void Evaluate_PrivateNamedPropertyDelete_DeclinesWithExplicitCode()
     {
         var plan = GetClassMethodPlan("""

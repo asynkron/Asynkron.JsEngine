@@ -3101,7 +3101,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
                 if (IsClassConstructor &&
                     !_isDerivedClassConstructor &&
-                    !_instanceFields.IsDefaultOrEmpty)
+                    (PrivateNameScope is not null || !_instanceFields.IsDefaultOrEmpty))
                 {
                     if (!vmThisValue.TryGetObject<IJsObjectLike>(out var constructedInstance))
                     {
@@ -3141,7 +3141,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
                 if (IsClassConstructor &&
                     _isDerivedClassConstructor &&
-                    !_instanceFields.IsDefaultOrEmpty &&
+                    (PrivateNameScope is not null || !_instanceFields.IsDefaultOrEmpty) &&
                     executionEnvironment?.Enclosing is { } functionEnvironment)
                 {
                     context.PushClassFieldInitializer(

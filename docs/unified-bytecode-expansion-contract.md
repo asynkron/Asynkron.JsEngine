@@ -38,6 +38,20 @@ statement interpretation.
 
 - Coverage evidence: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 
+## Final Production Decline Status
+- The accepted production scope has no unclassified decline rows: every current
+  `UnifiedBytecodeProductionDeclineCode`, sync pre-gate, and prototype opcode
+  guard is represented in the checked ledger below with an owning fallback route
+  and proof command.
+- Remaining declines are scoped to non-production-only or not-yet-admitted
+  semantic lanes. They must stay as pre-VM declines until a future slice owns
+  selector, compiler, VM/runtime semantics, public route proof, no-route
+  neighbor proof, and no-mixed-execution source gates together.
+- Benchmark and profile rows are routing evidence only when they also report
+  the `unified-bytecode-production-fast-path` route-hit signal. Use
+  `rtk ./tools/profile <profile> --route-hits` for route evidence over manifest
+  workloads without requiring the external profiler.
+
 ## Current Support Matrix
 
 ### Unified Opcode Inventory (current)
@@ -662,5 +676,10 @@ rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~Unifi
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodePrototypeTests"
 rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"
 rtk rg "EvaluateExpression\\(|ProfileEvaluateExpression\\(" src/Asynkron.JsEngine/Ast/TypedAstEvaluator.ExecutionPlanRunner*
+rtk ./tools/profile forloop --route-hits
+rtk ./tools/profile propertyaccess --route-hits
+rtk ./tools/profile functioncalls-lite --route-hits
+rtk ./tools/profile activation-noargs-lite --route-hits
+rtk ./tools/profile forofiteration --route-hits
 rtk ./tools/profile forloop --memory
 ```

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using System.Threading;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.Execution;
@@ -22,6 +23,8 @@ var forceTiming = false;
 var forceFreshEnginePerIteration = false;
 var measureAllocations = false;
 var reportTimingSamples = false;
+var reportProductionRouteHits = false;
+RouteHitCounter? productionRouteHits = null;
 var wrapInFunction = false;
 var positionalArgs = new List<string>();
 
@@ -100,6 +103,12 @@ for (var i = 0; i < args.Length; i++)
         continue;
     }
 
+    if (string.Equals(arg, "--route-hits", StringComparison.OrdinalIgnoreCase))
+    {
+        reportProductionRouteHits = true;
+        continue;
+    }
+
     if (string.Equals(arg, "--fresh-engine-per-iteration", StringComparison.OrdinalIgnoreCase))
     {
         forceFreshEnginePerIteration = true;
@@ -158,6 +167,9 @@ if (forceFreshEnginePerIteration)
 
 var warmup = profile.Warmup > 0 ? profile.Warmup : 1;
 var iterations = profile.Iterations > 0 ? profile.Iterations : 1;
+productionRouteHits = reportProductionRouteHits
+    ? new RouteHitCounter("unified-bytecode-production-fast-path")
+    : null;
 
 if (profile.Test262Cases.Count > 0)
 {
@@ -247,6 +259,7 @@ async Task RunWithSharedEnginesAsync(
         await EvaluateAsync(engine, parsed);
     }
 
+    ResetProductionRouteHits();
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
@@ -267,6 +280,7 @@ async Task RunWithSharedEnginesAsync(
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
     PrintTimingSamples(samples, runsForAverage);
+    PrintProductionRouteHits();
 }
 
 async Task RunWithFreshEnginesAsync(
@@ -298,6 +312,7 @@ async Task RunWithFreshEnginesAsync(
         await EvaluateAsync(warmEngine, parsed);
     }
 
+    ResetProductionRouteHits();
     var allocatedBefore = measureAllocations ? BeginAllocationMeasurement() : 0;
     var samples = CreateTimingSampleBuffer(iterations);
     var sw = profile.ShowTiming ? Stopwatch.StartNew() : null;
@@ -319,6 +334,7 @@ async Task RunWithFreshEnginesAsync(
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
     PrintTimingSamples(samples, runsForAverage);
+    PrintProductionRouteHits();
 }
 
 async Task EvaluateAsync(JsEngine engine, ProgramNode parsed)
@@ -368,6 +384,7 @@ void RunWithSharedJintEngine(
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
     PrintTimingSamples(samples, runsForAverage);
+    PrintProductionRouteHits();
 }
 
 void RunWithFreshJintEngines(
@@ -405,6 +422,7 @@ void RunWithFreshJintEngines(
         : (long?)null;
     PrintCompletion(profile, sw?.ElapsedMilliseconds ?? 0, runsForAverage, allocatedBytes);
     PrintTimingSamples(samples, runsForAverage);
+    PrintProductionRouteHits();
 }
 
 void EvaluateJint(Engine engine, Prepared<Acornima.Ast.Script> script)
@@ -668,6 +686,23 @@ void PrintTimingSamples(double[]? samples, int runsForAverage)
         $"Timing samples: count={samples.Length}, avg_ms={avgMs:F2}, p95_ms={sorted[p95Index]:F2}"));
 }
 
+void ResetProductionRouteHits()
+{
+    productionRouteHits?.Reset();
+}
+
+void PrintProductionRouteHits()
+{
+    if (productionRouteHits is null)
+    {
+        return;
+    }
+
+    Console.WriteLine(string.Create(
+        CultureInfo.InvariantCulture,
+        $"Route hits: {productionRouteHits.Marker}={productionRouteHits.Count}"));
+}
+
 void PrintCompletion(ProfileDefinition profile, long elapsedMs, int runsForAverage, long? allocatedBytes)
 {
     if (!profile.ShowTiming && allocatedBytes is null)
@@ -825,12 +860,12 @@ void PrintTopHistogram<T>(string label, IReadOnlyList<KeyValuePair<T, long>> his
 
 JsEngine CreateEngine(bool traceRealm)
 {
-    if (!traceRealm)
+    if (!traceRealm && productionRouteHits is null)
     {
         return new JsEngine();
     }
 
-    var logger = new ConsoleLogger("ProfileRunner");
+    var logger = new ProfileRunnerLogger("ProfileRunner", productionRouteHits, traceRealm);
     return new JsEngine(new JsEngineOptions { Logger = logger });
 }
 
@@ -1037,7 +1072,29 @@ readonly record struct BytecodeProfileCase(
 
 readonly record struct Test262ProfileCase(string File, bool Strict);
 
-sealed class ConsoleLogger(string name) : ILogger
+sealed class RouteHitCounter(string marker)
+{
+    private long _count;
+
+    public string Marker { get; } = marker;
+
+    public long Count => Interlocked.Read(ref _count);
+
+    public void Record(string message)
+    {
+        if (message.Contains(Marker, StringComparison.Ordinal))
+        {
+            Interlocked.Increment(ref _count);
+        }
+    }
+
+    public void Reset()
+    {
+        Interlocked.Exchange(ref _count, 0);
+    }
+}
+
+sealed class ProfileRunnerLogger(string name, RouteHitCounter? routeHits, bool mirrorToError) : ILogger
 {
     public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
     public bool IsEnabled(LogLevel logLevel) => true;
@@ -1050,7 +1107,11 @@ sealed class ConsoleLogger(string name) : ILogger
         Func<TState, Exception?, string> formatter)
     {
         var message = formatter(state, exception);
-        Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[{name}] {logLevel}: {message}"));
+        routeHits?.Record(message);
+        if (mirrorToError)
+        {
+            Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[{name}] {logLevel}: {message}"));
+        }
     }
 
     private sealed class NullScope : IDisposable

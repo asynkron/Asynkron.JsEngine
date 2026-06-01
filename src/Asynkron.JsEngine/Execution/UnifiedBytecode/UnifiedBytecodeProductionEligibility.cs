@@ -1018,41 +1018,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (operation.IsOptional)
                     {
-                        if (TryIsFirstBoundaryOptionalNamedThenComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
-                        {
-                            break;
-                        }
-
-                        if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
-                        {
-                            break;
-                        }
-
-                        // Simple a?.b form — admitted when the program is exactly [activation-resolved base, GetNamedPropertyOptional].
-                        if (TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
-                        {
-                            break;
-                        }
-
-                        // a?.b.c / a?.b?.c chain, or a?.b[k] shape.
-                        if (TryIsFirstBoundaryOptionalNamedChainCandidate(program, identifierConstants, activationSlots) ||
-                            TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
-                        {
-                            break;
-                        }
-
-                        // a?.b.c() / a?.b?.c() optional call-chain forms (Case 4/5):
-                        // isCallTargetPreparationCandidate is set by TryIsFirstBoundaryCallTargetPreparationCandidate
-                        // which already accepted the program via the optional call-chain candidates.
-                        if (isCallTargetPreparationCandidate)
-                        {
-                            break;
-                        }
-
-                        declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
-                        declineReason =
-                            "Optional-chain property reads are outside the first production property-read boundary.";
-                        return true;
+                        // Named optional reads now lower through the general expression loop.
+                        // The VM owns the short-circuit provenance bit needed by
+                        // JumpIfShortCircuited, while unsupported adjacent optional-chain
+                        // shapes still decline through their own operation checks.
+                        break;
                     }
 
                     if (isCallTargetPreparationCandidate)
@@ -1380,22 +1350,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.JumpIfShortCircuited:
-                    if (isCallTargetPreparationCandidate)
-                    {
-                        break;
-                    }
-
-                    // JumpIfShortCircuited only appears in call-target programs; property-read chains
-                    // use GetNamedProperty(ShortCircuitOnNullishTarget:true) instead.
-                    if (TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
-                    {
-                        break;
-                    }
-
-                    declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
-                    declineReason =
-                        "Optional-chain short-circuiting is outside the first production property-read boundary.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.LoadClassLiteral:
                     break;
@@ -4392,6 +4347,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.GetNamedProperty:
                 case UnifiedBytecodeOpCode.GetNamedPropertyOptional:
                 case UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined:
+                case UnifiedBytecodeOpCode.JumpIfShortCircuited:
                 case UnifiedBytecodeOpCode.GetComputedProperty:
                 case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
                 case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:

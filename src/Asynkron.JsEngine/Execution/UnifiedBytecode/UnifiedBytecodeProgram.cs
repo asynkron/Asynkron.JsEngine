@@ -80,6 +80,7 @@ internal enum UnifiedBytecodeOpCode : byte
     JumpIfShortCircuitFalse,
     JumpIfShortCircuitTrue,
     JumpIfShortCircuitNotNullish,
+    JumpIfShortCircuited,
     JumpIfNullishReplaceUndefined,
     Return,
     ReturnUndefined,
@@ -302,4 +303,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<ClassExpression> ClassLiteralConstants = default,
     ImmutableArray<ClassDeclarationDescriptor> ClassDeclarationConstants = default,
     ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
-    ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default);
+    ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default,
+    bool RequiresShortCircuitStackFlags = false);

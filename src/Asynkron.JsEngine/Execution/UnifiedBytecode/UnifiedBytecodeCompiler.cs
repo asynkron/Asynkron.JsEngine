@@ -167,8 +167,9 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var compiledInstructions = unified.ToImmutable();
         program = new UnifiedBytecodeProgram(
-            unified.ToImmutable(),
+            compiledInstructions,
             maxStackDepth,
             slotLayout.SlotCount,
             literalConstants.ToImmutable(),
@@ -198,9 +199,24 @@ internal static class UnifiedBytecodeCompiler
                 : bindingTargetConstants.ToImmutable(),
             templateObjectConstants.Count == 0
                 ? ImmutableArray<TaggedTemplateDescriptor>.Empty
-                : templateObjectConstants.ToImmutable());
+                : templateObjectConstants.ToImmutable(),
+            RequiresShortCircuitStackFlags(compiledInstructions));
         reason = string.Empty;
         return true;
+    }
+
+    private static bool RequiresShortCircuitStackFlags(
+        ImmutableArray<UnifiedBytecodeInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuited)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static UnifiedBytecodeProgram EmptyProgram() =>
@@ -4583,6 +4599,12 @@ internal static class UnifiedBytecodeCompiler
                     patches ??= [];
                     patches.Add((unified.Count, operation.Target));
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish, 0));
+                    break;
+
+                case ExpressionOpKind.JumpIfShortCircuited:
+                    patches ??= [];
+                    patches.Add((unified.Count, operation.Target));
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfShortCircuited, 0));
                     break;
 
                 case ExpressionOpKind.Jump:

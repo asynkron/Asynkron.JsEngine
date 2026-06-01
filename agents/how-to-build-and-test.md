@@ -68,17 +68,14 @@ maintenance pass, keep the slice repo-local and reviewable:
    In Faktorial runs, use supplied Source Context or the HTTP API before raw
    logs; keep raw-log searches narrow and do not run the host `faktorial`
    daemon binary for issue, log, or state reads.
-4. If the slice adds a new ADR under `docs/adrs/`, reserve the ID with
-   `rtk faktorial-api adr-next` first and use the returned `adr_id`; do not
-   guess ADR IDs from filesystem scans. If the slice does not create an ADR,
-   skip the allocator call. If an ADR is required but the local
-   `faktorial-api` helper is unavailable, record that environment limitation in
-   the issue evidence and follow current Faktorial/runtime allocator guidance
-   instead of widening scope into `gh` auth workarounds or host-daemon reads.
-   If the lesson fits an existing durable document, update that file instead of
-   creating a duplicate-number ADR. After writing or renaming ADRs, run a
-   duplicate-prefix check over `docs/adrs` and record a clean result in the
-   issue update.
+4. If the slice adds a new ADR under `docs/adrs/`, follow the allocator and
+   duplicate-prefix process in `docs/rules/adr-allocation.md` and record the
+   required ADR evidence in the issue update. If the slice does not create an
+   ADR, skip the allocator call. If allocator access is unavailable for a
+   required ADR, record that environment limitation instead of widening scope
+   into `gh` auth workarounds or host-daemon reads. If the lesson fits an
+   existing durable document, update that file instead of creating a duplicate
+   ADR.
 5. Make only the small change required for that slice.
 6. Capture the matching final signal after editing and record both signals in
    the issue update.

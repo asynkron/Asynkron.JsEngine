@@ -1119,6 +1119,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsFirstBoundaryOptionalNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (HasOptionalDeleteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
@@ -1276,6 +1281,11 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.DeleteNamedProperty:
+                    if (TryIsFirstBoundaryOptionalNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (HasOptionalDeleteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
@@ -2002,6 +2012,58 @@ internal static class UnifiedBytecodeProductionEligibility
                    endExclusive: program.OperationCount - 1,
                    identifierConstants,
                    activationSlots);
+    }
+
+    // Admits delete a?.b and delete a.b?.c:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    //  JumpIfNullish, DeleteNamedProperty, Jump, Pop, true].
+    private static bool TryIsFirstBoundaryOptionalNamedPropertyDeleteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 6 ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var jumpIndex = 1;
+        while (jumpIndex < program.OperationCount)
+        {
+            var operation = program.GetOperation(jumpIndex);
+            if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
+                operation.IsOptional ||
+                operation.ShortCircuitOnNullishTarget ||
+                operation.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            jumpIndex++;
+        }
+
+        if (jumpIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var deleteIndex = program.OperationCount - 4;
+        var endJumpIndex = program.OperationCount - 3;
+        var popIndex = program.OperationCount - 2;
+        var trueIndex = program.OperationCount - 1;
+        var deleteProperty = program.GetOperation(deleteIndex);
+
+        return deleteIndex == jumpIndex + 1 &&
+               program.GetOperation(jumpIndex) is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: false } jumpIfNullish &&
+               jumpIfNullish.Target == popIndex &&
+               deleteProperty.Kind == ExpressionOpKind.DeleteNamedProperty &&
+               !deleteProperty.GetString(stringConstants).IsPrivateName() &&
+               program.GetOperation(endJumpIndex).Kind == ExpressionOpKind.Jump &&
+               program.GetOperation(endJumpIndex).Target == program.OperationCount &&
+               program.GetOperation(popIndex).Kind == ExpressionOpKind.Pop &&
+               IsTrueLiteral(program, trueIndex);
     }
 
     // Admits delete a?.[k] and delete a.b?.[k]:

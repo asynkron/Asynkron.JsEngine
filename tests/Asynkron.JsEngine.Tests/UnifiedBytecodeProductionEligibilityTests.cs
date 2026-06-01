@@ -1393,6 +1393,39 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
+        function remove(box) {
+            return delete box?.value;
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box) {
+            return delete box.child?.value;
+        }
+        """,
+        "remove")]
+    public void Evaluate_OptionalNamedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcodes(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
+    }
+
+    [Theory]
+    [InlineData(
+        """
         function remove(box, key) {
             return delete box?.[key];
         }
@@ -2814,29 +2847,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 "remove"));
 
         Assert.Contains("Private field '#field' cannot be deleted", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData(
-        """
-        function remove(box) {
-            return delete box?.value;
-        }
-        """,
-        "remove")]
-    public void Evaluate_OptionalPropertyDelete_DeclinesWithExplicitCode(
-        string source,
-        string functionName)
-    {
-        var plan = GetFunctionPlan(source, functionName);
-
-        var result = UnifiedBytecodeProductionEligibility.Evaluate(
-            plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
-
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
-        Assert.Contains("Optional-chain", result.Reason, StringComparison.Ordinal);
     }
 
     [Theory]

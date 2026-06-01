@@ -84,8 +84,8 @@ statement interpretation.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
-  reads/writes/updates, optional-chain short-circuit flag handling, and
-  some call/reference helpers remain outside general unified bytecode lowering.
+  reads/writes/updates, remaining optional-call chain shapes, and some
+  call/reference helpers remain outside general unified bytecode lowering.
 - The remaining direct general-expression lowering gaps are drift-checked under
   `### General Expression Lowering Gaps (current)`. Property set/update
   operations plus the `SwapTopTwo`, `DuplicateTopTwo`, and
@@ -93,6 +93,10 @@ statement interpretation.
   shapes; they lower through the general expression loop, subject to the same
   private-name and name-inference semantic guards as the owned property-write
   helpers.
+- Optional-chain short-circuit provenance is now VM-owned for the general
+  expression loop. `JumpIfShortCircuited` lowers directly to unified bytecode,
+  and the VM tracks a packed side flag per operand-stack slot so short-circuited
+  `undefined` remains distinct from ordinary `undefined`.
 - The current `ExpressionOpKind` names with no unified compiler reference list is
   empty. Computed super-property operations also route their required
   `EnsureSuperReference` op through the general unified expression loop.
@@ -197,6 +201,7 @@ statement interpretation.
 - `JumpIfShortCircuitFalse`
 - `JumpIfShortCircuitTrue`
 - `JumpIfShortCircuitNotNullish`
+- `JumpIfShortCircuited`
 - `JumpIfNullishReplaceUndefined`
   *(Note: `Jump` was already in the inventory; `ConditionalExpression` (`?:`) is now admitted via ADR 0297 using the existing `Jump`, `JumpIfShortCircuitFalse`, and `Pop` opcodes without new additions.)*
 - `Return`
@@ -366,7 +371,7 @@ the final post-compile production subset check before VM entry.
 - Stateful iterator, for-in, and array destructuring driver operations
 
 ### General Expression Lowering Gaps (current)
-- `JumpIfShortCircuited`
+- None.
 
 ## Production This-Binding Boundary
 - Ordinary sync functions that reference `this` are admitted to the production

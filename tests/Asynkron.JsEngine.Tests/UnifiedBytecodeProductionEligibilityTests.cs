@@ -3067,6 +3067,82 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_JumpIfShortCircuitedExpression_AcceptsAndVmSkipsShortCircuitedBranch()
+    {
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadLiteralConstant(0),
+                PackedExpressionOp.GetNamedProperty(0, IsOptional: true),
+                PackedExpressionOp.JumpIfShortCircuited(4),
+                PackedExpressionOp.ThrowReferenceError(1)),
+            literalConstants: ImmutableArray.Create(JsValue.Null),
+            stringConstants: ImmutableArray.Create("missing", "short-circuit jump was not taken"));
+        var seedPlan = GetFunctionPlan("function optional() { return 0; }", "optional");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuited);
+        Assert.True(result.Program.RequiresShortCircuitStackFlags);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.False(context.ShouldStopEvaluation);
+        Assert.True(vmResult.IsUndefined);
+    }
+
+    [Fact]
+    public void Evaluate_JumpIfShortCircuitedExpression_DoesNotTreatOrdinaryUndefinedAsShortCircuited()
+    {
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadLiteralConstant(0),
+                PackedExpressionOp.JumpIfShortCircuited(3),
+                PackedExpressionOp.LoadLiteralConstant(1)),
+            literalConstants: ImmutableArray.Create(JsValue.Undefined, JsValue.FromDouble(42)));
+        var seedPlan = GetFunctionPlan("function ordinaryUndefined() { return 0; }", "ordinaryUndefined");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuited);
+        Assert.True(result.Program.RequiresShortCircuitStackFlags);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.False(context.ShouldStopEvaluation);
+        Assert.Equal(42d, vmResult.AsDouble());
+    }
+
+    [Fact]
     public void Evaluate_LoadImportMetaExpression_AcceptsAndVmReadsCallingEnvironmentBinding()
     {
         var expressionProgram = new ExpressionProgram(

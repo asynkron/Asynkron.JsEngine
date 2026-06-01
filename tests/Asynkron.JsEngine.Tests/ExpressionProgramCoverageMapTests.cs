@@ -56,7 +56,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeExpressionOpGeneralLoopGapNames =
     [
-        "JumpIfShortCircuited"
     ];
 
     private sealed record ProductionUnifiedBytecodeProofPackShape(

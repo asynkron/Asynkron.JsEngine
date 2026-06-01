@@ -5378,24 +5378,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [Theory(Timeout = 5000)]
     [InlineData(
         """
-        class Base {
-            get value() { return 2; }
-        }
-
-        class Derived extends Base {
-            readViaSuperBoundary() { return super.value; }
-        }
-
-        function readSuper() {
-            return new Derived().readViaSuperBoundary();
-        }
-
-        readSuper();
-        """,
-        "readViaSuperBoundary",
-        2d)]
-    [InlineData(
-        """
         function readComputedSpreadKey(box, source) {
             return box[{ ...source }];
         }
@@ -5416,6 +5398,33 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ClassMethodWithSimpleSuperPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() { return 2; }
+            }
+
+            class Derived extends Base {
+                readViaSuperBoundary() { return super.value; }
+            }
+
+            function readSuper() {
+                return new Derived().readViaSuperBoundary();
+            }
+
+            readSuper();
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=0",
                 StringComparison.Ordinal));
     }
 

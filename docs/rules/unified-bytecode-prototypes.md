@@ -75,6 +75,17 @@ all-or-nothing until a separate routing issue proves production readiness.
    Keeping unsupported binary operators under `UnsupportedPlanShape` avoids
    preserving historical prototype-only names as active production outcomes
    while retaining operator-specific diagnostics.
+   Declaration instructions also need statement-instruction declines, not only
+   activation-descriptor pre-gates. Nested `FunctionDeclarationInstruction` and
+   `ClassDeclarationInstruction` can appear in an otherwise route-shaped plan;
+   production eligibility must reject them before compilation/VM execution,
+   assign stable decline codes, update the checked expansion-contract ledger,
+   and prove both eligibility decline and public invocation no-route behavior.
+   WHY: issue
+   `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-d337053574`
+   / PR #2951 found that declaration instructions needed explicit production
+   declines so runtime hoisting and lexical class declaration semantics stayed
+   on the existing IR routes until the VM owns them.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

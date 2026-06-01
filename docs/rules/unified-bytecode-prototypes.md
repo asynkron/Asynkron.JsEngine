@@ -1534,13 +1534,22 @@ this route separate, decline-first, and VM-state-owned: accepted programs must
 preserve program counter, operand stack, slots, pending await promise, pending
 resume payload, and completion state in `UnifiedBytecodeVirtualMachine`, with
 positive route-log proof and adjacent no-route/fallback proof. Do not treat
-`YieldStar` opcode presence as production support. `yield*` must continue to
-decline before resumable VM execution until delegated `.return()` and
-`.throw()` resume behavior is modeled and proven in the VM; observable
-delegated abrupt-resume behavior stays on the existing IR generator path until
-then. WHY: the build-stage repair for PR #2613 had to decline `yield*` from the
-new resumable fast path after the first slice exposed that delegated abrupt
-resume is a separate protocol boundary from simple `yield` and awaited return.
+`YieldStar` opcode presence alone as production support. Sync-generator
+`yield*` may route only after the VM owns delegated `.next(value)`,
+`.return(value)`, and `.throw(value)` behavior end to end, including missing
+delegate methods, iterator-close/error propagation, iterator-result object
+validation, yielded-vs-completed results, resume-state preservation, positive
+resumable route-log proof, and adjacent async-generator/awaited-delegate
+declines. Async-generator `yield*`, awaited delegated sources, and unsupported
+delegated expression payloads must still decline before VM execution until
+their promise/async-iterator settlement semantics are modeled. WHY: the
+build-stage repair for PR #2613 had to decline `yield*` after the first slice
+exposed delegated abrupt resume as a separate protocol boundary from simple
+`yield` and awaited return. Faktorial issue
+`planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-dc74ab36e4`
+/ PR #2948 then reopened only the sync-generator lane after the VM delegated
+abrupt resume through the underlying iterator and proved `.return()`/`.throw()`
+on the resumable fast path.
 
 Faktorial issue
 `planitem-planmanual1780157100924814000-baseline-batch-2-object-literal-shorthand-ebbe2ff1ae`

@@ -4,6 +4,15 @@
 
 Accepted
 
+Supersession note: Faktorial issue
+`planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-dc74ab36e4`
+and PR #2948 later narrowed this ADR. The bounded resumable-state and
+no-mixed-execution decisions still stand, but the `yield*` decline is no longer
+blanket: sync-generator `yield*` is admitted when the VM owns delegated
+`.next(value)`, `.return(value)`, and `.throw(value)` behavior. Async-generator
+`yield*`, awaited delegated sources, and unsupported delegated expression
+payloads remain outside production resumable routing until separately modeled.
+
 ## Context
 
 Faktorial issue
@@ -41,17 +50,19 @@ Keep production resumable unified bytecode as a separate decline-first route.
   declines.
 - Keep `yield*` as a pre-VM resumable decline until delegated `.return()` and
   `.throw()` resume behavior is VM-owned with positive route proof and adjacent
-  fallback/no-route proof.
-- Until that `yield*` widening lands, observable delegated `.return()` and
+  fallback/no-route proof. PR #2948 is the sync-generator narrowing of this
+  point; the remaining async-generator and awaited-delegate lanes still follow
+  the original decline-first rule.
+- Until a given `yield*` lane is widened, observable delegated `.return()` and
   `.throw()` behavior must continue through the existing IR generator path.
 
 ## Consequences
 
 - The first async/generator bytecode model is a real resumable VM state model,
   not a second interpreter and not a mixed-execution fallback.
-- `YieldStar` may remain in the opcode inventory as a prototype/reserved
-  surface, but production resumable eligibility must reject it before VM
-  execution.
+- `YieldStar` may appear in the opcode inventory before every lane is admitted,
+  but production resumable eligibility must reject any lane whose delegated
+  resume protocol is not VM-owned.
 - Future resumable widening must move selector, compiler, VM state semantics,
   direct VM/prototype tests, public invocation route-log tests, negative
   fallback/no-route tests, expansion-contract text, and AST seam scans in the
@@ -66,6 +77,15 @@ Keep production resumable unified bytecode as a separate decline-first route.
 - PR #2613 merged as commit `834ab500`.
 - Build-stage repair commit `0ab6d9c5` declined production resumable `yield*`
   until delegated abrupt resume is modeled.
+- PR #2948 / commit `9d984e764` admitted sync-generator `yield*` after
+  `ExecuteResumable` delegated `.return(value)` and `.throw(value)` through the
+  underlying iterator, while keeping async-generator `yield*` and awaited
+  delegated sources declined in the expansion contract.
+- Focused sync-generator widening proof passed:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_YieldStar"`
+  with 1 test passing, and
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~SimpleGeneratorYieldStar"`
+  with 3 tests passing.
 - Focused repair proof passed:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.EvaluateResumable_YieldStar_DeclinesUntilDelegatedAbruptResumeIsModeled|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.SimpleGeneratorYieldStar_DeclinesResumableUnifiedBytecodeFastPath|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.SimpleGeneratorYieldStar_ReturnDelegatesThroughIrAfterResumableDecline|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.SimpleGeneratorYieldStar_ThrowDelegatesThroughIrAfterResumableDecline" -- xUnit.MaxParallelThreads=1 -timeout 20000`
   with 4 tests passing.

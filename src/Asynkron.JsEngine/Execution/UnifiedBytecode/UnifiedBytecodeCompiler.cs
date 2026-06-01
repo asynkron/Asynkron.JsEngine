@@ -3822,6 +3822,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryVoid));
                     break;
 
+                case ExpressionOpKind.PrivateFieldIn:
+                    var privateFieldNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrivateFieldIn,
+                        privateFieldNameIndex));
+                    break;
+
                 case ExpressionOpKind.ToString:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ToString));
                     break;

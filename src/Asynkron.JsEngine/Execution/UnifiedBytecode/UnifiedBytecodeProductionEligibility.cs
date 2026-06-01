@@ -1500,9 +1500,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.PrivateFieldIn:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
-                    declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.ApplyBindingTarget:
                     break;
@@ -4271,6 +4269,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UnaryLogicalNot:
                 case UnifiedBytecodeOpCode.UnaryBitwiseNot:
                 case UnifiedBytecodeOpCode.UnaryVoid:
+                case UnifiedBytecodeOpCode.PrivateFieldIn:
                 case UnifiedBytecodeOpCode.ToString:
                 case UnifiedBytecodeOpCode.Pop:
                 case UnifiedBytecodeOpCode.DuplicateTop:

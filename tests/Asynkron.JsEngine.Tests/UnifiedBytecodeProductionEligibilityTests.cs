@@ -2355,7 +2355,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateFieldIn_DeclinesWithExplicitCode()
+    public void Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -2372,9 +2372,25 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
-        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.PrivateFieldIn);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var privateNameScope = new PrivateNameScope(engine.RealmState);
+        _ = privateNameScope.GetKey("#value");
+        using var privateScopeHandle = context.EnterPrivateNameScope(privateNameScope);
+        var receiver = new JsObject { RealmState = engine.RealmState };
+        receiver.AddPrivateBrand(privateNameScope.BrandToken);
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        SetSlot(result.Program, slots, "receiver", JsValue.FromJsObject(receiver));
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.True(vmResult.AsBoolean());
     }
 
     [Theory]

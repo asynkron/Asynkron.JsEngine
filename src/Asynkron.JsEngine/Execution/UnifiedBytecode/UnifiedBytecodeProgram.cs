@@ -47,6 +47,7 @@ internal enum UnifiedBytecodeOpCode : byte
     UnaryLogicalNot,
     UnaryBitwiseNot,
     UnaryVoid,
+    PrivateFieldIn,
     ToString,
     Pop,
     DuplicateTop,

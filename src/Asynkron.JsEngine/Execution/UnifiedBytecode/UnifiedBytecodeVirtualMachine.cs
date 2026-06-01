@@ -1169,6 +1169,30 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrivateFieldIn:
+                    if (stack[stackPointer - 1] is not { Kind: JsValueKind.Object, ObjectValue: JsObject privateFieldTarget })
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot use 'in' operator to search for a private field in a non-object",
+                            context,
+                            context.RealmState));
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    stack[stackPointer - 1] = HasPrivateField(
+                            privateFieldTarget,
+                            program.StringConstants[instruction.Operand],
+                            context)
+                        ? JsValue.True
+                        : JsValue.False;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.ToString:
                     stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
                     if (context.ShouldStopEvaluation)
@@ -3316,6 +3340,27 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         throw StandardLibrary.ThrowReferenceError("import.meta is not defined", context, context.RealmState);
+    }
+
+    private static bool HasPrivateField(
+        JsObject target,
+        string privateName,
+        EvaluationContext context)
+    {
+        var resolvedKey = context.ResolvePrivateNameKey($"#{privateName}");
+        if (resolvedKey is null)
+        {
+            return false;
+        }
+
+        if (target.HasPrivateField(resolvedKey))
+        {
+            return true;
+        }
+
+        return PrivateNameScope.TryResolveScope(context.RealmState, resolvedKey, out var scope) &&
+               scope is not null &&
+               target.HasPrivateBrand(scope.BrandToken);
     }
 
     private static JsEnvironment?[] InitializeSlotEnvironments(

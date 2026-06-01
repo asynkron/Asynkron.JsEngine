@@ -64,10 +64,9 @@ Keep production loop-control support compiler-owned and target-explicit.
 
 - ADR 0210 remains useful history for the first branch/join/canonical-loop
   production boundary, but this ADR owns the current loop-control widening.
-- `BreakOrContinueControlFlow` no longer describes a blanket production
-  pre-scan for every break/continue instruction. Future agents should treat it
-  as taxonomy inventory or use it only for a deliberately reintroduced
-  unsupported neighbor, not as the default control-flow policy.
+- The old break/continue-only decline taxonomy no longer describes a blanket
+  production pre-scan for every break/continue instruction. Future agents should
+  not treat it as the default control-flow policy.
 - Future loop-control widening must be phrased in terms of IR target topology
   and compiler-owned proof, not JavaScript source syntax names.
 - Prototype tests that used to assert decline for old loop-control gaps are

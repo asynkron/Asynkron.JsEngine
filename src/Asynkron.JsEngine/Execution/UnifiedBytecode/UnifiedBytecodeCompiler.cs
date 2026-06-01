@@ -892,13 +892,6 @@ internal static class UnifiedBytecodeCompiler
                         {
                             AwaitedProgram: null
                         } declaration:
-                        if (!IsSupportedDeclarationBindingTarget(declaration.TargetProgram))
-                        {
-                            reason =
-                                "Binding declaration targets with defaults, computed names, or assignment targets are not eligible for unified bytecode storage.";
-                            return false;
-                        }
-
                         var hasBindingInitializer = declaration.InitializerProgram is not null;
                         if (declaration.InitializerProgram is { } bindingInitializerProgram)
                         {

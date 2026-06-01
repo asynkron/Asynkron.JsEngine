@@ -426,6 +426,17 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     [Theory(Timeout = 5000)]
     [InlineData(
         """
+        function readArrayDefault(values) {
+            var [first = 5] = values;
+            return first;
+        }
+
+        readArrayDefault([]);
+        """,
+        "readArrayDefault",
+        5d)]
+    [InlineData(
+        """
         function readObjectDefault(source) {
             var { a = 5 } = source;
             return a;
@@ -446,7 +457,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readObjectComputed",
         7d)]
-    public async Task UnsupportedObjectDestructuringShapes_DeclineUnifiedBytecodeAndFallBack(
+    public async Task DeclarationDestructuringDescriptorShapes_UseUnifiedBytecodeProductionFastPath(
         string source,
         string functionName,
         object expected)
@@ -455,7 +466,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var result = await engine.Evaluate(source);
 
         Assert.Equal(expected, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
                 StringComparison.Ordinal));

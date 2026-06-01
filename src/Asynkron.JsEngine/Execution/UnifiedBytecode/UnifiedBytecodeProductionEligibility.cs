@@ -415,15 +415,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is BindingVariableDeclarationInstruction bindingDeclaration &&
-                !IsSupportedDeclarationBindingTarget(bindingDeclaration.TargetProgram))
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
-                declineReason =
-                    "Binding/destructuring declarations with defaults, computed names, or assignment targets are not eligible for production unified bytecode routing.";
-                return true;
-            }
-
             if (instruction is FunctionDeclarationInstruction { Descriptor: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

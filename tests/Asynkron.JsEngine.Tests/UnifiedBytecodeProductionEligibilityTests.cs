@@ -3917,7 +3917,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readComputed")]
-    public void Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason(
+    public void Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode(
         string source,
         string functionName)
     {
@@ -3927,9 +3927,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
-        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
     }
 
     [Fact]
@@ -4045,7 +4047,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readObjectComputed")]
-    public void Evaluate_UnsupportedObjectDestructuringShapes_DeclineWithExplicitReason(
+    public void Evaluate_ObjectDeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode(
         string source,
         string functionName)
     {
@@ -4055,9 +4057,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DestructuringDependency, result.Code);
-        Assert.Contains("destructuring", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
     }
 
     [Fact]

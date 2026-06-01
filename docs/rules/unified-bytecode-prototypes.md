@@ -322,12 +322,13 @@ all-or-nothing until a separate routing issue proves production readiness.
     every intermediate step is a non-optional non-private `GetNamedProperty`,
     the final operation is an owned property write, update, compound-write, or
     logical-write shape, and the RHS is still a simple production-owned
-    payload. Direct computed assignments may also route with a supported
-    computed-key expression span and simple RHS, for example
-    `box[key + suffix] = y`. Do not infer that computed-expression-key
-    compound/logical/update neighbors, optional chains, `super`, private names,
-    calls, dynamic lookup, or unsupported RHS/key spans are covered by the same
-    widening. If preserving an
+    payload. Direct computed assignments, compound writes, logical writes, and
+    updates may also route with a supported computed-key expression span and
+    simple RHS, for example `box[key + suffix] = y`,
+    `box[key + suffix] += y`, `box[key + suffix] &&= y`, and
+    `box[key + suffix]++`. Do not infer that optional chains, `super`, private
+    names, calls, dynamic lookup, or unsupported RHS/key spans are covered by
+    the same widening. If preserving an
     intermediate receiver means the compiled unified-bytecode program needs a
     deeper stack than `ExpressionProgram.MaxStackDepth` reports, raise the
     compiled stack-depth calculation and add a focused stack-depth proof instead

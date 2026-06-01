@@ -202,6 +202,36 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithPrivateMethod_UsesProductionFastPathAndBrandsInstance()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Box {
+                #read() {
+                    return 42;
+                }
+
+                constructor() {
+                    this.marker = 1;
+                }
+
+                read() {
+                    return this.#read();
+                }
+            }
+
+            var box = new Box();
+            box.marker + ":" + box.read();
+            """);
+
+        Assert.Equal("1:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task Construct_PreservesArgumentEvaluationOrder()
     {
         await using var engine = CreateEngine();
@@ -558,6 +588,38 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
 
                 read() {
                     return this.#value;
+                }
+            }
+
+            new Derived().read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithPrivateMethod_UsesProductionFastPathAndBrandsAfterSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            class Derived extends Base {
+                #read() {
+                    return 42;
+                }
+
+                constructor() {
+                    super();
+                }
+
+                read() {
+                    return this.#read();
                 }
             }
 

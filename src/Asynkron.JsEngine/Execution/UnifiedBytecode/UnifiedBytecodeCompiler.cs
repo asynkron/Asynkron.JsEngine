@@ -4104,12 +4104,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.LoadNamedCallTarget:
                     var namedCallTargetName = operation.GetString(expressionProgram.StringConstants.AsSpan());
-                    if (namedCallTargetName.IsPrivateName())
-                    {
-                        reason = "Private named member call targets are outside the general expression loop boundary.";
-                        return false;
-                    }
-
                     var namedCallTargetNameIndex = stringConstants.Count;
                     stringConstants.Add(namedCallTargetName);
                     var namedCallTargetIndex = callTargetConstants.Count;
@@ -5063,12 +5057,6 @@ internal static class UnifiedBytecodeCompiler
 
         var callTarget = expressionProgram.GetOperation(callTargetIndexInProgram);
         var propertyName = callTarget.GetString(expressionProgram.StringConstants.AsSpan());
-        if (propertyName.IsPrivateName())
-        {
-            reason = "Private named member call targets are outside the call-target preparation boundary.";
-            return false;
-        }
-
         var nameIndex = stringConstants.Count;
         stringConstants.Add(propertyName);
         var callTargetConstantIndex = callTargetConstants.Count;

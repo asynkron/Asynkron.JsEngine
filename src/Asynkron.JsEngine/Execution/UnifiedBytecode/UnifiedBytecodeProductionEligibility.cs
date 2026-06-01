@@ -2568,7 +2568,6 @@ internal static class UnifiedBytecodeProductionEligibility
             var namedCallTarget = program.GetOperation(namedCallTargetIndex);
             return !namedCallTarget.IsOptional &&
                    !namedCallTarget.ShortCircuitOnNullishTarget &&
-                   !namedCallTarget.GetString(stringConstants).IsPrivateName() &&
                    IsSupportedNamedReceiverChain(
                        program,
                        identifierConstants,

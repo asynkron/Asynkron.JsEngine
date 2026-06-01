@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-05-31 (rev 6)
+Date: 2026-06-01 (rev 7)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,19 +11,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 5 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, and clarified capability-lifecycle back edges. This rev 6 addresses the remaining routing gap: the cross-module map names module boundaries, but it does not yet show how a broad roadmap concern decomposes into one-owner implementation packets.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. This rev 7 applies that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening.
 
-1. **Cross-module routing is not yet a delivery decomposition.** The map below correctly routes LC / EE / CR / PL / SL / EV ownership, but future slices still have to infer how to turn a broad concern into one primary owner, one receiving contract, one proof packet, and one evidence gate. That inference is where architecture wording can accidentally become a capability claim.
+1. **Delivery decomposition needs a live packet example.** The map below now explains how to route broad concerns, but maintainers still need one current roadmap packet that demonstrates the shape without implying new runtime behavior. Optional computed delete chains are the right example because the roadmap already isolates them under gh2934.
 
-2. **Packet handoff order is implicit.** A route from Execution to Concurrency or Platform is shown as an arrow, but the required sequence — classify boundary, choose owner, define receiving contract, prove semantics, attach evidence, then update roadmap wording — is not drawn. A reviewer should not need to reconstruct that order from rules files.
+2. **Optional computed delete can be overclaimed easily.** Ordinary named/computed property delete and nested named receiver computed delete are proven, but optional computed delete chains still need selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof together. The document should make that boundary visible before implementation starts.
 
-3. **Broad Node.js-competitive language can bypass the owner map.** Module/runtime, host interop, async seam closure, worker fabric, and artifact-cache language all cross fabrics. Each needs one primary owner before any implementation claim can advance.
+3. **SLO evidence must stay separate from route coverage.** Recent tooling records committed startup and microtask baselines, but p95 and same-run comparison output remain non-failing evidence until a dedicated proof packet advances an SLO. Route widening, including optional computed delete chains, must not move SLO rows to ProvenScoped.
 
-4. **Evidence routing is horizontal but packet-local evidence is not shown.** The Evidence layer governs every fabric, but each packet must still state which focused test pack, canonical quality gate, and profile/benchmark proof apply to that owner boundary.
+4. **Roadmap links should point to owner surfaces, not broad themes.** A packet should name the exact owner module, receiving contract, focused proof pack, and documentation/evidence artifact. "Property-family widening" is not precise enough for review.
 
-5. **The decomposition target needs non-goals.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The document needs a visual reminder that those remain directional until the packet carries the right proof.
+5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The live packet should keep those non-goals attached to the implementation route.
 
-This revision therefore adds a Mermaid-backed delivery decomposition flow under the cross-module routing map. It is a routing aid only; it does not claim new runtime behavior.
+This revision therefore adds a roadmap packet for optional computed delete chains under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -1336,6 +1336,39 @@ Decomposition invariants:
 - Proof stays owner-local first. Widened packs, route-coverage claims, and performance language come after focused semantics are green.
 - Documentation moves a row to **proven now** only after the evidence gate is attached. Otherwise the row stays in **directional next** with explicit non-goals.
 
+### Current roadmap packet: optional computed delete chains
+
+Roadmap item gh2934 is the active property-family packet candidate. It should be treated as a one-owner execution packet, not as a broad optional-chain or property-delete claim.
+
+```mermaid
+flowchart TD
+    ROADMAP["gh2934\noptional computed delete chains"]
+    OWNER["Primary owner\nExecution Engine"]
+    SELECTOR["Compiler selector\nrecognize optional receiver + computed delete"]
+    OPCODE["VM/opcode contract\nshort-circuit before key evaluation\nthen descriptor-aware computed delete"]
+    PROOF["Focused proof pack\npositive route + negative decline cases"]
+    CONTRACT["Expansion contract\nupdate accepted/declined property-family rows"]
+    EVIDENCE["Evidence gate\ncanonical quality\nprofile only if performance language changes"]
+    DOCS["Docs status\nproven-now only after proof lands"]
+
+    ROADMAP --> OWNER --> SELECTOR --> OPCODE --> PROOF --> CONTRACT --> EVIDENCE --> DOCS
+    OPCODE -. preserves .-> PROOF
+    EVIDENCE -. keeps separate .-> DOCS
+
+    style ROADMAP fill:#555,color:#fff
+    style OWNER fill:#336,color:#fff
+    style OPCODE fill:#363,color:#fff
+    style EVIDENCE fill:#653,color:#fff
+    style DOCS fill:#333,color:#fff
+```
+
+Packet boundaries:
+- **Primary owner:** Execution Engine, with compiler selector support. The Standard Library descriptor system is a consumed contract, not the owner of route admission.
+- **Currently proven adjacent surface:** ordinary named/computed property delete and nested named receiver computed delete are VM-owned; optional receiver chains for delete remain outside the proven route.
+- **Directional next:** optional computed delete chains such as `delete box?.items[key]` and `delete box?.items?.[key]`, preserving nullish short-circuit order before computed-key evaluation and strict/sloppy delete semantics after a non-nullish receiver is established.
+- **Required proof:** positive route tests for short-circuit and non-short-circuit paths; negative decline tests for private names, `super`, dynamic lookup, unowned computed-key payloads, and unsupported receiver shapes; expansion-contract update that lists both accepted and declined forms.
+- **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement unless a separate ProfileRunner matrix evidence packet is attached.
+
 ## Proven-now vs directional-next
 
 The rows below are grouped by phase so a maintainer can tell what is foundational now, what still belongs to the migration bridge, and what remains directional next.
@@ -1344,7 +1377,7 @@ The rows below are grouped by phase so a maintainer can tell what is foundationa
 
 | Area | Proven now | Directional next (needs new proof) |
 |---|---|---|
-| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, label-dependent control flow, and resumable state (Yield/Await opcodes) | Remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes) plus profile-verified broader route coverage |
+| Tier 0 (UnifiedBytecodeVM) | Direct named/computed reads/writes/deletes, compound writes, updates, synchronous spread calls, named/computed member calls (including optional member calls), synchronous non-spread construct calls, nested named receiver computed delete, label-dependent control flow, and resumable state (Yield/Await opcodes) | Optional computed delete chains (gh2934), remaining declined call families (direct eval, construct/super, spread-onto-optional calls, and complex receiver/key shapes), and profile-verified broader route coverage |
 | Realm isolation | Cross-realm error creation realm-owned (ADR 0137, 0270); brand validation JsValue-native (ADR 0196) | Broader realm-sensitivity checks in fast paths |
 | Standard Library | JsValue-native hot paths on most Array/String helpers; descriptor semantics proven | Full removal of object-overload compat tripwires |
 | Async scheduling | Microtask queue ownership proven; await/resume contract explicit; resumable Tier 0 state model (ADR 0277) | Dedicated async-generator Tier 0 executor (Milestone C) |

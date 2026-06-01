@@ -5520,7 +5520,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                UnifiedBytecodeProductionFastPathLog,
+                "unified-bytecode-production-fast-path func=read",
                 StringComparison.Ordinal));
     }
 

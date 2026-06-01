@@ -173,7 +173,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseClassConstructorWithPrivateInstanceField_DeclinesAndFallsBack()
+    public async Task BaseClassConstructorWithPrivateInstanceField_UsesProductionFastPathAndBrandsInstance()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -181,6 +181,8 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
                 #value = 42;
 
                 constructor() {
+                    var branded = #value in this;
+                    this.hasBrand = branded;
                 }
 
                 read() {
@@ -188,13 +190,14 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
                 }
             }
 
-            new Box().read();
+            var box = new Box();
+            box.hasBrand + ":" + box.read();
             """);
 
-        Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Equal("true:42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=Box",
+                "unified-bytecode-production-fast-path func=Box argc=0",
                 StringComparison.Ordinal));
     }
 

@@ -6133,29 +6133,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
-    [Theory(Timeout = 5000)]
-    [InlineData(
-        """
-        function usesArguments() {
-            return arguments[0];
-        }
-
-        usesArguments(42);
-        """,
-        "usesArguments",
-        42d)]
-    public async Task OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack(
-        string source,
-        string functionName,
-        object expected)
+    [Fact(Timeout = 5000)]
+    public async Task ImplicitArgumentsObjectRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(source);
+        var result = await engine.Evaluate("""
+            function usesArguments() {
+                return arguments[0];
+            }
 
-        Assert.Equal(expected, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            usesArguments(42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                $"unified-bytecode-production-fast-path func={functionName}",
+                "unified-bytecode-production-fast-path func=usesArguments argc=1",
                 StringComparison.Ordinal));
     }
 

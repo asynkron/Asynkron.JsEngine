@@ -3922,12 +3922,6 @@ internal static class UnifiedBytecodeCompiler
                         break;
                     }
 
-                    if (operation.IsArguments)
-                    {
-                        reason = "arguments is not supported.";
-                        return false;
-                    }
-
                     if (!allowsDynamicIdentifiers &&
                         !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
                     {
@@ -9458,11 +9452,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendActivationOrImplicitArgumentsObjectReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -9965,6 +9961,37 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadSlot, slotIndex));
         reason = string.Empty;
         return true;
+    }
+
+    private static bool TryAppendActivationOrImplicitArgumentsObjectReadValueLoad(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (operation.Kind == ExpressionOpKind.LoadIdentifier &&
+            operation.IsArguments &&
+            allowsDynamicIdentifiers)
+        {
+            var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+            var identifierNameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                identifierNameIndex));
+            reason = string.Empty;
+            return true;
+        }
+
+        return TryAppendActivationValueLoad(
+            operation,
+            expressionProgram,
+            activationSlots,
+            unified,
+            out reason);
     }
 
     private static bool IsSupportedBinaryOperator(BinaryOperator binaryOperator) =>

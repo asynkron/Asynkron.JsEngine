@@ -2985,7 +2985,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency()
+    public void Evaluate_ArgumentsAccess_AcceptsImplicitArgumentsObjectRead()
     {
         var plan = GetFunctionPlan("""
             function readArguments() {
@@ -2996,10 +2996,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
     }
 
     [Fact]

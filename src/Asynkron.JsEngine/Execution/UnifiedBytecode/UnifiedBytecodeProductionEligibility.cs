@@ -873,7 +873,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.LoadIdentifier:
-                    if (operation.IsArguments)
+                    var identifier = operation.GetIdentifier(identifierConstants);
+                    var hasActivationSlot = TryResolveActivationSlot(identifier, activationSlots);
+                    if (operation.IsArguments && !hasActivationSlot)
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
                         declineReason =
@@ -881,8 +883,7 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    var identifier = operation.GetIdentifier(identifierConstants);
-                    if (!TryResolveActivationSlot(identifier, activationSlots))
+                    if (!hasActivationSlot)
                     {
                         if (!allowsDynamicIdentifiers &&
                             !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))

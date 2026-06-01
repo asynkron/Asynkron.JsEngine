@@ -2624,6 +2624,42 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ParameterNamedArguments_AcceptsAsActivationSlot()
+    {
+        var plan = GetFunctionPlan("""
+            function readShadow(arguments) {
+                let value = arguments;
+                return value + 1;
+            }
+            """,
+            "readShadow");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible);
+    }
+
+    [Fact]
+    public void Evaluate_LexicalArgumentsBinding_AcceptsAsActivationSlot()
+    {
+        var plan = GetFunctionPlan("""
+            function readShadow() {
+                let arguments = 41;
+                return arguments + 1;
+            }
+            """,
+            "readShadow");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible);
+    }
+
+    [Fact]
     public void Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency()
     {
         var plan = GetFunctionPlan("""

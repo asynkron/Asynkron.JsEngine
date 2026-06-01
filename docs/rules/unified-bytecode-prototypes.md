@@ -116,6 +116,15 @@ all-or-nothing until a separate routing issue proves production readiness.
      initialized-receiver semantics for that shape. Prove both route hits for
      `super(value)`/`super()` and no-route behavior for the nearby
      post-`super()` `this` assignment case.
+10b. Treat `arguments` as an arguments-object dependency only after binding
+     resolution proves it is not an ordinary activation slot. A parameter named
+     `arguments` or a lexical body binding named `arguments` is regular slot
+     traffic for production unified bytecode reads; the real implicit
+     arguments object, arguments call targets, and writes/updates/deletes of the
+     implicit arguments binding still decline before VM execution. Keep the
+     invocation descriptor, expression selector, and compiler in agreement so a
+     name-only `operation.IsArguments` check cannot block shadowed bindings or
+     accidentally admit the real arguments object.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

@@ -3636,8 +3636,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
-                   PrivateNameScope is null &&
-                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    (_superConstructor is not null || _superPrototype is not null) &&
                    CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
         }

@@ -542,6 +542,36 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithPrivateInstanceField_UsesProductionFastPathAndBrandsAfterSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+            }
+
+            class Derived extends Base {
+                #value = 42;
+
+                constructor() {
+                    super();
+                }
+
+                read() {
+                    return this.#value;
+                }
+            }
+
+            new Derived().read();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DefaultDerivedConstructor_DeclinesAndFallsBack()
     {
         await using var engine = CreateEngine();

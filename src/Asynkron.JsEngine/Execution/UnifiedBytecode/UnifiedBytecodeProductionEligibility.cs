@@ -717,7 +717,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var identifierConstants = program.IdentifierConstants.AsSpan();
         var stringConstants = program.StringConstants.AsSpan();
         var isFirstBoundaryPropertyWriteCandidate =
-            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots);
+            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         var isFirstBoundaryPropertyUpdateCandidate =
             TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots);
         var isFirstBoundaryNamedCompoundPropertyWriteCandidate =
@@ -1223,7 +1223,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
-                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                    if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
@@ -4037,7 +4037,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 3)
         {
@@ -4057,7 +4058,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
             if (rhsStart == rhsEnd)
             {
-                return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+                return IsSimpleOperand(
+                    program.GetOperation(rhsStart),
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers);
             }
 
             // Multi-op RHS — try template literal span.
@@ -4358,7 +4363,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool IsSimpleOperand(
         PackedExpressionOp operation,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         return operation.Kind switch
         {
@@ -4366,7 +4372,9 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,
-                activationSlots),
+                activationSlots) ||
+                allowsDynamicIdentifiers &&
+                !operation.IsArguments,
             ExpressionOpKind.LoadThis => true,
             ExpressionOpKind.LoadNewTarget => true,
             _ => false

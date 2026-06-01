@@ -5354,28 +5354,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         2d)]
     [InlineData(
         """
-        var externalKey = "value";
-        function readDynamic(box) {
-            return box[externalKey];
-        }
-
-        readDynamic({ value: 2 });
-        """,
-        "readDynamic",
-        2d)]
-    [InlineData(
-        """
-        var externalValue = 42;
-        function dynamicValueWrite(box) {
-            return box.value = externalValue;
-        }
-
-        dynamicValueWrite({});
-        """,
-        "dynamicValueWrite",
-        42d)]
-    [InlineData(
-        """
         function readComputedSpreadKey(box, source) {
             return box[{ ...source }];
         }
@@ -5396,6 +5374,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyReadWithOrdinaryDynamicKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalKey = "value";
+            function readDynamic(box) {
+                return box[externalKey];
+            }
+
+            readDynamic({ value: 2 });
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readDynamic argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedPropertyWriteWithOrdinaryDynamicValue_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalValue = 42;
+            function dynamicValueWrite(box) {
+                return box.value = externalValue;
+            }
+
+            dynamicValueWrite({});
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=dynamicValueWrite argc=1",
                 StringComparison.Ordinal));
     }
 

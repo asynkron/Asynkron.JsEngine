@@ -38,6 +38,12 @@ shape corrections separate from ordinary JavaScript property operations.
    infer eligibility from JavaScript-visible `name`, property paths, or generic
    callable identity; user replacements, wrappers, spread calls, and unmarked
    host functions must stay on the ordinary invocation path.
+9. When collection built-ins share method names across receiver families, such
+   as Map, Set, and WeakSet `has` / `delete` / `clear`, match the exact
+   engine-owned method marker as well as the receiver family before taking a
+   storage-level fast path. A native display name or host-function shape is not
+   enough; cross-prototype assignments must fall back to ordinary built-in
+   receiver validation.
 
 ## Prototype Constructor Setup
 
@@ -99,6 +105,13 @@ shortcut from mutable JavaScript-visible metadata such as `name`, from the
 property path used to find the function, or from a broad "is host function"
 check.
 
+For collection prototype methods, shared names are especially hazardous. Map,
+Set, and WeakSet all expose names such as `has`, and Map/Set both expose
+`delete` and `clear`; JavaScript can assign one family's method to another
+family's prototype. A fast path must therefore match the stamped collection
+method kind and the receiver family together before bypassing the native method
+body.
+
 WHY: issue `autrun-diteq2bzwzxc-ba3c5ff36a` / PR #2355 optimized the
 `simplearithmetic` profile after CPU evidence showed `Math.sqrt` and `Math.pow`
 calls paying generic `IReadOnlyList<JsValue>` host dispatch and boxing under
@@ -111,6 +124,18 @@ unchanged.
 
 Related ADR:
 `docs/adrs/0227-keep-math-host-function-fast-dispatch-marked-and-arity-specific.md`.
+
+WHY: issue `autrun-dixf54wjiawg-2f739a705c` / PR #2946 optimized the `mapset`
+profile by adding an IR plain-method fast path for plain `JsMap` and `JsSet`
+receivers. The build-stage repair found that display-name matching accepted
+cross-prototype swaps such as `Map.prototype.has = Set.prototype.has`, causing
+the storage-level fast path to perform the wrong receiver-family operation
+instead of throwing through ordinary built-in receiver validation. Future
+collection fast paths must stamp exact built-in method identity and prove
+cross-family method replacement cases.
+
+Related ADR:
+`docs/adrs/0319-keep-mapset-fast-dispatch-method-identity-marked.md`.
 
 ## Built-In Metadata Helpers
 

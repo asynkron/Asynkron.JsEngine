@@ -738,23 +738,8 @@ internal sealed partial class ExecutionPlanBuilder
             .GetField("_cachedExecutionPlan", BindingFlags.Instance | BindingFlags.NonPublic);
         if (cacheField is not null)
         {
-            // Create a new ExecutionPlanCache with the stamped plan
-            var cacheType = typeof(ExecutionPlanCache);
-            var ctor = cacheType.GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance,
-                null,
-                [typeof(ExecutionPlan), typeof(string)],
-                null);
-            if (ctor is not null)
-            {
-                var newCache = ctor.Invoke([stampedPlan, null]);
-                cacheField.SetValue(funcExpr, newCache);
-                Debug.WriteLine("[UpdateCachedExecutionPlan] Successfully updated cache");
-            }
-            else
-            {
-                Debug.WriteLine("[UpdateCachedExecutionPlan] ERROR: Constructor not found");
-            }
+            cacheField.SetValue(funcExpr, ExecutionPlanCache.FromPlan(stampedPlan));
+            Debug.WriteLine("[UpdateCachedExecutionPlan] Successfully updated cache");
         }
         else
         {

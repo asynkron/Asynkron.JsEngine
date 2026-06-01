@@ -399,17 +399,24 @@ public static partial class TypedAstEvaluator
         JsEnvironment environment,
         FunctionExecutionPlanSeed planSeed)
     {
+        if (!functionExpression.IsAsync && !functionExpression.IsGenerator)
+        {
+            var planCache = ((IAstCacheable<ExecutionPlanCache>)functionExpression).GetOrCreateCache();
+            if (planSeed.Succeeded && !ReferenceEquals(planSeed.Plan, planCache.Plan))
+            {
+                planSeed = FunctionExecutionPlanSeed.FromCache(planCache);
+            }
+            else if (!planSeed.Succeeded && planSeed.Failure is null)
+            {
+                planSeed = FunctionExecutionPlanSeed.FromCache(planCache);
+            }
+        }
+
         if (functionExpression.IsAsync ||
             functionExpression.IsGenerator ||
             !environment.HasWithObjectInChain())
         {
             return planSeed;
-        }
-
-        if (!planSeed.Succeeded && planSeed.Failure is null)
-        {
-            var planCache = ((IAstCacheable<ExecutionPlanCache>)functionExpression).GetOrCreateCache();
-            planSeed = FunctionExecutionPlanSeed.FromCache(planCache);
         }
 
         if (!planSeed.Succeeded)

@@ -4387,12 +4387,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.UpdateNamedProperty:
                     var updateNamedPropertyName = operation.GetString(expressionProgram.StringConstants.AsSpan());
-                    if (updateNamedPropertyName.IsPrivateName())
-                    {
-                        reason = "Private named property updates are not supported in the general expression loop.";
-                        return false;
-                    }
-
                     var updateNamedPropertyIndex = stringConstants.Count;
                     stringConstants.Add(updateNamedPropertyName);
                     unified.Add(new UnifiedBytecodeInstruction(
@@ -7109,12 +7103,6 @@ internal static class UnifiedBytecodeCompiler
         if (propertyUpdate.Kind != ExpressionOpKind.UpdateNamedProperty)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        if (propertyUpdate.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
-        {
-            reason = "Private named property updates are not supported.";
             return false;
         }
 

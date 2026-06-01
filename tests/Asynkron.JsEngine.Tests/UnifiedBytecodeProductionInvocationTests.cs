@@ -5549,6 +5549,34 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task PrivateNamedPropertyUpdate_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 1;
+
+                update(receiver, unused) {
+                    return receiver.#value++;
+                }
+
+                read(receiver) {
+                    return receiver.#value;
+                }
+            }
+
+            var holder = new Holder();
+            holder.update(holder, 0) + ":" + holder.read(holder);
+            """);
+
+        Assert.Equal("1:2", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous> argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """

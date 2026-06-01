@@ -52,6 +52,50 @@ statement interpretation.
   `rtk ./tools/profile <profile> --route-hits` for route evidence over manifest
   workloads without requiring the external profiler.
 
+## Current Completion Audit
+- Completing the decline-burndown plan did not make unified bytecode the only
+  execution model. The result is a wider production route plus a checked decline
+  ledger. Any shape that misses the sync pre-gates, production eligibility, or
+  compiler lowering still falls back to the existing IR/expression-bytecode
+  execution paths.
+- The current gap is not missing VM switch coverage. The `UnifiedBytecodeOpCode`
+  inventory and `UnifiedBytecodeVirtualMachine` switch are expected to stay in
+  lockstep; the current opcode surface has VM handling for every listed opcode.
+  Remaining work is primarily semantic admission and lowering, not adding switch
+  cases for already-declared opcodes.
+- `UnifiedBytecodeCompiler` has broad but incomplete IR-instruction coverage.
+  The remaining unhandled concrete instruction families are
+  `FunctionDeclarationInstruction`, `ClassDeclarationInstruction`, and
+  `BindingVariableDeclarationInstruction`; all three are intentionally kept as
+  pre-VM declines until declaration hoisting, lexical declaration installation,
+  and generic binding declaration semantics are VM-owned.
+- Expression lowering is still the largest surface. `ExpressionOpKind` contains
+  more shapes than the general unified lowering loop accepts. Several operations
+  are admitted only through narrow shape helpers, while regex literals, template
+  objects, `import.meta`, private-field operations, object methods/accessors,
+  super property reads/writes/updates, generic call-target stack shuffles, and
+  `ThrowReferenceError` remain outside general unified bytecode lowering.
+- The most suspicious remaining ordinary-sync rejection is slot update lowering.
+  `IncrementSlotInstruction` and activation-resolved `UpdateIdentifier` still
+  decline even though ordinary slot load/store and compound assignment lowering
+  already exist. The next update-expression slice should either add a dedicated
+  `UpdateSlot` opcode or lower prefix/postfix slot update into existing slot
+  bytecode while preserving old-value/new-value result semantics exactly.
+- Resumable async/generator unified bytecode is narrower than ordinary sync
+  production bytecode. `EvaluateResumable` currently admits only a small
+  instruction and opcode subset; broad async/generator control flow, calls,
+  dynamic lookup, arguments, awaited iterator sources, and async-generator
+  delegated yield shapes still decline.
+- `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
+  the VM owns dispatch and stack/slot state, then applies an already-lowered
+  `BindingTargetProgram` for assignment destructuring parity. This is not a
+  fallback into `ExecutionPlanRunner`, but it is also not fully native unified
+  bytecode.
+- The contract drift test verifies that current enum names are present; it is
+  not an exclusivity check for stale extra rows. A passing contract test should
+  not be read as proof that obsolete decline names or outdated boundary notes
+  have been removed.
+
 ## Current Support Matrix
 
 ### Unified Opcode Inventory (current)
@@ -177,7 +221,6 @@ statement interpretation.
 - `MaterializedActivationDependency`
 - `CallDependency`
 - `DynamicLookupDependency`
-- `PropertyReadCandidateRequiresVmSupport`
 - `PropertyReadBoundaryOutOfScope`
 - `PropertyWriteDependency`
 - `PropertyUpdateDependency`
@@ -218,9 +261,8 @@ must still obey the no-mixed-execution rule.
 | `ClassDeclarationDependency` | Statement-instruction scan for class declaration production before VM execution | Existing class declaration route | Class declaration lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ClassDeclarationInstruction_DeclinesBeforeCompile"` |
 | `ParameterVarDeclarationDependency` | Activation descriptor gate for parameter `var` declarations without initializer outside the with-backed materialized-activation lane | Existing hoisting route | Hoisting / dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
 | `MaterializedActivationDependency` | Activation descriptor gate for materialized activation bindings not proven safe by `ActivationSlotShape.MaterializedBindingNames` and the with-backed dynamic-name lane | Existing execution-plan route | Materialized activation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
-| `CallDependency` | Direct eval, out-of-boundary call-target preparation, complex call arguments, and descriptor-level non-parameter callee calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency"` |
+| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, complex call arguments, and descriptor-level non-parameter callee calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallWithComplexTemplateLiteralSubstitution_DeclinesCallDependency"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/typeof/update outside the with-backed dynamic-name path | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency"` |
-| `PropertyReadCandidateRequiresVmSupport` | Candidate recognition bucket for property-read shapes that should not route until compiler and VM support land in the same slice | Existing sync IR property route | Property read VM-support lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved boundaries | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes and simple nested named receiver assignment shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ThisBaseMultiHopNamedCompoundPropertyWrite_DeclinesWithBoundaryCode"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
@@ -409,10 +451,11 @@ the final post-compile production subset check before VM entry.
 - `PrepareDynamicIdentifierCallTarget` must resolve an active with binding
   regardless of identifier-cache state. When the binding exists, the receiver is
   the with binding object and the callee is read through that captured binding.
-- Dynamic identifier support does not admit direct eval source execution,
-  unresolved non-with dynamic activation, captured dynamic activation,
-  arguments-object dependencies, or async/generator functions. Those shapes
-  still decline before VM execution.
+- Dynamic identifier support does not make dynamic activation globally
+  admissible. Direct eval is admitted only through the one-argument non-spread
+  eval-identifier call boundary; unresolved non-with dynamic activation,
+  captured dynamic activation, arguments-object dependencies, and async/generator
+  functions still decline before VM execution.
 
 ## Production Call Invocation Boundary
 - Current executable call support covers
@@ -434,8 +477,9 @@ the final post-compile production subset check before VM entry.
   VM flattens spread iterables left-to-right at the boundary via the shared
   `TypedAstEvaluator.EnumerateSpread` helper, preserving iteration order and
   side-effects, then invokes through the existing callable helpers with
-  receiver-as-`this`. Direct eval, super spread, and optional spread calls stay
-  declined.
+  receiver-as-`this`. Direct eval is admitted only for the one-argument
+  non-spread eval-identifier shape; multi-argument/spread direct eval, super
+  spread, and optional spread calls stay declined.
 - Synchronous construct calls are admitted (gh2690 plus the construct-boundary
   widening): `new F(...)`, `new F(...args)`, `new box.Ctor(...)`, and
   `new box[key](...)` when the constructor/key/argument subexpressions are
@@ -487,8 +531,13 @@ the final post-compile production subset check before VM entry.
   callee-optional computed calls (`box[key]?.(args)`). The `IsOptionalReceiverCheck`
   flag in `UnifiedBytecodeCallTarget` distinguishes the two named variants.
   (Optional calls admitted as of gh2689; ADR 0289.)
-- Direct eval, spread super constructs, super property reads/writes/updates,
-  private member targets, arguments-object dependencies, unsupported
+- Direct eval programs use `PrepareIdentifierCallTarget` followed by
+  `CallInvocationBoundary` with the direct-eval operand flag. The admitted shape
+  is exactly one non-spread eval-identifier argument; the VM invokes the eval host
+  with the caller environment and syncs mutated caller slots back into unified
+  bytecode-owned slots before execution continues.
+- Spread super constructs, super property reads/writes/updates, private member
+  targets, arguments-object dependencies, unsupported
   non-with dynamic lookup, deeper computed-member call receiver chains,
   complex receiver/key shapes, spread-onto-optional calls, and
   receiver-binding-sensitive adjacent families still decline before VM
@@ -640,7 +689,8 @@ support today.
    through the `ObjectSpread` opcode when their spread source is a simple
    operand; non-simple spread sources, computed keys, methods, accessors, name
    inference, and private names continue to decline.
-   Direct eval, super-property reads/writes/updates, spread super constructs,
+   Direct eval outside the one-argument non-spread eval-identifier boundary,
+   super-property reads/writes/updates, spread super constructs,
    spread-onto-optional,
    arguments-object dependencies, unsupported non-with dynamic lookup,
    private member targets, complex receiver/key shapes, and
@@ -662,8 +712,9 @@ support today.
    (`DestructuringDependency`).
 4. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the explicit with-backed dynamic name
-   slice above. Direct eval source execution, unresolved non-with lookup
-   shapes, and captured dynamic activation still decline before VM execution.
+   slice above. Direct eval outside the admitted one-argument non-spread
+   eval-identifier boundary, unresolved non-with lookup shapes, and captured
+   dynamic activation still decline before VM execution.
 5. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
    labeled loops, labeled block `break`, and labeled `break`/`continue` route
    through the compiler-owned resolved-target path. The remaining

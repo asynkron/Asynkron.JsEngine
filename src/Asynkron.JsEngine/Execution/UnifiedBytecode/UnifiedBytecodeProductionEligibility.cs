@@ -17,6 +17,7 @@ internal enum UnifiedBytecodeProductionDeclineCode
     ClassConstructorActivation,
     FunctionNameParameterCollision,
     FunctionDeclarationDependency,
+    ClassDeclarationDependency,
     ParameterVarDeclarationDependency,
     MaterializedActivationDependency,
     CallDependency,
@@ -458,6 +459,22 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
                 declineReason = "Binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.FunctionDeclarationDependency;
+                declineReason =
+                    "Function declaration instructions require hoist/runtime declaration semantics and are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is ClassDeclarationInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.ClassDeclarationDependency;
+                declineReason =
+                    "Class declaration instructions require runtime lexical binding semantics and are not eligible for production unified bytecode routing.";
                 return true;
             }
 

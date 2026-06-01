@@ -3229,7 +3229,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     newTarget,
                     CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
                     CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan),
-                    CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget)));
+                    CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget)));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
             {
@@ -3274,7 +3274,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
             var canUseDerivedClassConstructorPath =
-                CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(newTarget);
+                CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 newTarget,
                 canUseDynamicNamePath,
@@ -3526,7 +3526,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return CanUseSimpleIrActivationPlanShape(plan);
         }
 
-        private bool CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(JsValue newTarget)
+        private bool CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(
+            ExecutionPlan plan,
+            JsValue newTarget)
         {
             return IsClassConstructor &&
                    _isDerivedClassConstructor &&
@@ -3537,7 +3539,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_function.IsDefaultDerivedConstructor &&
                    !_hasParameterExpressions &&
                    _hasOnlySimpleIdentifierParameters &&
-                   !_argumentsObjectNeeded &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&
@@ -3545,7 +3546,56 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    PrivateNameScope is null &&
                    _capturedPrivateNameScopes.IsDefaultOrEmpty &&
                    _instanceFields.IsDefaultOrEmpty &&
-                   (_superConstructor is not null || _superPrototype is not null);
+                   (_superConstructor is not null || _superPrototype is not null) &&
+                   CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
+        }
+
+        private static bool CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(ExecutionPlan plan)
+        {
+            var hasSuperConstruct = false;
+            var instructions = plan.Instructions;
+            for (var i = 0; i < instructions.Length; i++)
+            {
+                if (!UnifiedBytecodeProductionEligibility.TryGetExpressionProgram(instructions[i], out var program))
+                {
+                    continue;
+                }
+
+                if (!CanUseProductionUnifiedBytecodeDerivedClassConstructorProgram(program, ref hasSuperConstruct))
+                {
+                    return false;
+                }
+            }
+
+            return hasSuperConstruct;
+        }
+
+        private static bool CanUseProductionUnifiedBytecodeDerivedClassConstructorProgram(
+            ExpressionProgram program,
+            ref bool hasSuperConstruct)
+        {
+            foreach (var operation in program.EnumerateOperations())
+            {
+                switch (operation.Kind)
+                {
+                    case ExpressionOpKind.LoadThis:
+                    case ExpressionOpKind.LoadNamedSuperCallTarget:
+                    case ExpressionOpKind.LoadComputedSuperCallTarget:
+                    case ExpressionOpKind.EnsureSuperReference:
+                    case ExpressionOpKind.GetNamedSuperProperty:
+                    case ExpressionOpKind.GetComputedSuperProperty:
+                    case ExpressionOpKind.SetNamedSuperProperty:
+                    case ExpressionOpKind.SetComputedSuperProperty:
+                    case ExpressionOpKind.UpdateNamedSuperProperty:
+                    case ExpressionOpKind.UpdateComputedSuperProperty:
+                        return false;
+                    case ExpressionOpKind.SuperConstruct:
+                        hasSuperConstruct = true;
+                        break;
+                }
+            }
+
+            return true;
         }
 
         private bool CanUseSimpleBaseClassConstructorFastPath(ExecutionPlan plan, JsValue newTarget)

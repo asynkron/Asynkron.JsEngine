@@ -126,6 +126,7 @@ internal enum UnifiedBytecodeOpCode : byte
     AwaitedReturn,
     YieldStar,
     ApplyBindingTarget,
+    ApplyDeclarationBindingTarget,
     EnsureHasName
 }
 

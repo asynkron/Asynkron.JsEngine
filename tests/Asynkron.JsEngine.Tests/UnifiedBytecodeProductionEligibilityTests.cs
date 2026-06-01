@@ -1681,17 +1681,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData(
         """
-        function destructure(source) {
-            {
-                let { value } = source;
-                return value;
-            }
-        }
-        """,
-        "destructure",
-        (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
-    [InlineData(
-        """
         function directEval() {
             eval("var value = 1");
             return value;
@@ -3350,6 +3339,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_BindingVariableDeclaration_StaticPattern_AcceptsDescriptorOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function destructure(source) {
+                {
+                    let { nested: { value } } = source;
+                    return value;
+                }
+            }
+            """,
+            "destructure");
+
+        Assert.Contains(plan.Instructions, static instruction => instruction is BindingVariableDeclarationInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
+    }
+
+    [Fact]
     public void Evaluate_AssignmentDestructuringApplyBindingTarget_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -3389,14 +3404,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readObjectComputed")]
-    [InlineData(
-        """
-        function readObjectNested(source) {
-            var { a: { b } } = source;
-            return b;
-        }
-        """,
-        "readObjectNested")]
     public void Evaluate_UnsupportedObjectDestructuringShapes_DeclineWithExplicitReason(
         string source,
         string functionName)

@@ -123,6 +123,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedStaticBindingDeclaration_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function destructure(source) {
+                {
+                    let { nested: { value } } = source;
+                    return value;
+                }
+            }
+
+            destructure({ nested: { value: 42 } });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=destructure argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ObjectDestructuring_PreservesPropertyReadOrder_OnFastPath()
     {
         await using var engine = CreateEngine();

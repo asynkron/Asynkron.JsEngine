@@ -15,6 +15,8 @@ internal static class UnifiedBytecodeVirtualMachine
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+    private const int DeclarationBindingTargetHasInitializerFlag = 8;
+    private const int DeclarationBindingTargetShift = 4;
 
     private readonly record struct EnvironmentScopeFrame(
         JsEnvironment Environment,
@@ -1377,6 +1379,36 @@ internal static class UnifiedBytecodeVirtualMachine
                         context,
                         allowNameInference: false);
                     SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
+                    var declarationBindingValue = stack[--stackPointer];
+                    var declarationBindingEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, declarationBindingEnvironment);
+                    TypedAstEvaluator.ApplyLoweredDeclarationBindingTargetProgram(
+                        program.BindingTargetConstants[DecodeDeclarationBindingTargetIndex(instruction.Operand)],
+                        declarationBindingValue,
+                        declarationBindingEnvironment,
+                        context,
+                        DecodeDeclarationBindingTargetVariableKind(instruction.Operand),
+                        DecodeDeclarationBindingTargetHasInitializer(instruction.Operand),
+                        allowNameInference: false);
+                    SyncEnvironmentToUnifiedSlots(
+                        program,
+                        slots,
+                        slotEnvironments,
+                        declarationBindingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -6363,6 +6395,15 @@ internal static class UnifiedBytecodeVirtualMachine
 
     private static bool DecodeDynamicStoreAllowsNameInference(int operand) =>
         (operand & 1) != 0;
+
+    private static int DecodeDeclarationBindingTargetIndex(int operand) =>
+        operand >> DeclarationBindingTargetShift;
+
+    private static bool DecodeDeclarationBindingTargetHasInitializer(int operand) =>
+        (operand & DeclarationBindingTargetHasInitializerFlag) != 0;
+
+    private static VariableKind DecodeDeclarationBindingTargetVariableKind(int operand) =>
+        (VariableKind)(operand & 0x7);
 
     private static int DecodeDefineObjectPropertyNameOperand(int operand) => operand >> 3;
 

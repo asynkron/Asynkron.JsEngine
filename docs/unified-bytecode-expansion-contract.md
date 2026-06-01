@@ -65,10 +65,13 @@ statement interpretation.
   cases for already-declared opcodes.
 - `UnifiedBytecodeCompiler` has broad but incomplete IR-instruction coverage.
   The remaining unhandled concrete instruction families are
-  `FunctionDeclarationInstruction`, `ClassDeclarationInstruction`, and
-  `BindingVariableDeclarationInstruction`; all three are intentionally kept as
-  pre-VM declines until declaration hoisting, lexical declaration installation,
-  and generic binding declaration semantics are VM-owned.
+  `FunctionDeclarationInstruction` and `ClassDeclarationInstruction`; both are
+  intentionally kept as pre-VM declines until declaration hoisting and lexical
+  declaration installation semantics are VM-owned. Static synchronous
+  `BindingVariableDeclarationInstruction` shapes are now VM-owned through
+  `ApplyDeclarationBindingTarget`, while binding defaults, computed binding
+  names, assignment targets, awaited declarations, and `using` declarations
+  still decline before VM execution.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while private property
@@ -281,7 +284,7 @@ must still obey the no-mixed-execution rule.
 | `ObjectLiteralOrSpreadDependency` | Non-simple object spread sources, unsupported array spread, spread construct arguments, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and private named-property operations; `#name in obj` has a VM opcode but public class/private-name routes still pre-gate | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
-| `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, computed/default/nested declaration destructuring, and destructuring targets outside the admitted driver or descriptor-backed assignment lanes | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
+| `DestructuringDependency` | Binding declarations with defaults, computed binding names, assignment targets, awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
@@ -436,9 +439,10 @@ the final post-compile production subset check before VM entry.
   the admitted linear shape. Neither opcode creates a `JsEnvironment`, uses
   name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
   or AST evaluation.
-- `BindingVariableDeclaration`, object/array destructuring driver
-  instructions, direct eval / unsupported dynamic lookup, captured activation,
-  per-iteration bindings, and `using` / `await using` remain pre-VM declines.
+- Unsupported binding declaration shapes, unsupported object/array destructuring
+  driver instructions, direct eval / unsupported dynamic lookup, captured
+  activation, per-iteration bindings, and `using` / `await using` remain pre-VM
+  declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.
@@ -665,17 +669,21 @@ support today.
   `ObjectDestructuringCloseInstruction` are eligible only for the lowered
   direct-slot object destructuring model described above (static keys,
   identifier targets, no defaults, no nested patterns, optional identifier
-  rest). Computed/dynamic-name keys, defaults, nested patterns, and non-slot
-  targets keep the generic `BindingVariableDeclarationInstruction` path and
-  still decline with `DestructuringDependency`. ADR
+  rest). Static nested binding declarations with identifier/rest targets are
+  admitted through `ApplyDeclarationBindingTarget`. Computed/dynamic-name keys,
+  defaults, assignment targets, awaited binding values, and `using` declarations
+  still decline with `DestructuringDependency` or `UnsupportedPlanShape`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.
 - `ExpressionOpKind.ApplyBindingTarget` is eligible for ordinary sync
   production assignment destructuring when the expression compiler can lift the
   lowered `BindingTargetProgram` into the unified program descriptor table.
-  This lane preserves existing binding-target semantics as a bridge; it does
-  not make generic binding declarations or unsupported destructuring driver
-  shapes production-eligible.
+- `ApplyDeclarationBindingTarget` is eligible for ordinary sync `var` / `let` /
+  `const` binding declarations whose lowered `BindingTargetProgram` contains
+  only static identifier/array/object/rest targets with no default or computed
+  subprograms. This lane preserves existing binding-target semantics as a
+  bridge; it does not make unsupported destructuring driver shapes
+  production-eligible.
 - Decision for this lane: model-first. Any future widening must preserve
   explicit driver-state descriptors and pre-VM declines for shapes that would
   require mixed IR/AST execution.

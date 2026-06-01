@@ -454,10 +454,30 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is BindingVariableDeclarationInstruction)
+            if (instruction is BindingVariableDeclarationInstruction { AwaitedProgram: not null })
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
+                declineReason =
+                    "Awaited binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is BindingVariableDeclarationInstruction
+                {
+                    VarKind: VariableKind.Using or VariableKind.AwaitUsing
+                })
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason = "using declarations require scope-exit disposal and are not eligible for production unified bytecode routing.";
+                return true;
+            }
+
+            if (instruction is BindingVariableDeclarationInstruction bindingDeclaration &&
+                !IsSupportedDeclarationBindingTarget(bindingDeclaration.TargetProgram))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
-                declineReason = "Binding/destructuring declarations are not eligible for production unified bytecode routing.";
+                declineReason =
+                    "Binding/destructuring declarations with defaults, computed names, or assignment targets are not eligible for production unified bytecode routing.";
                 return true;
             }
 
@@ -4056,6 +4076,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 program = initializerProgram;
                 return true;
 
+            case BindingVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } initializerProgram }:
+                program = initializerProgram;
+                return true;
+
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } valueProgram }:
                 program = valueProgram;
                 return true;
@@ -4106,6 +4130,46 @@ internal static class UnifiedBytecodeProductionEligibility
 
             default:
                 program = default;
+            return false;
+        }
+    }
+
+    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram:
+                return true;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultProgram is not null ||
+                        element.Target is { } elementTarget &&
+                        !IsSupportedDeclarationBindingTarget(elementTarget))
+                    {
+                        return false;
+                    }
+                }
+
+                return arrayBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.DefaultProgram is not null ||
+                        property.NameProgram is not null ||
+                        !IsSupportedDeclarationBindingTarget(property.Target))
+                    {
+                        return false;
+                    }
+                }
+
+                return objectBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
+
+            default:
                 return false;
         }
     }
@@ -4279,6 +4343,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                 case UnifiedBytecodeOpCode.ApplyBindingTarget:
+                case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
                 case UnifiedBytecodeOpCode.EnsureHasName:
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:

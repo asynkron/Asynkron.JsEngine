@@ -14,6 +14,8 @@ internal static class UnifiedBytecodeCompiler
     private const int DefineObjectPropertyPrototypeMutationFlag = 1;
     private const int DefineObjectPropertyAllowNameInferenceFlag = 2;
     private const int DefineObjectPropertyKnownNewPropertyFlag = 4;
+    private const int DeclarationBindingTargetHasInitializerFlag = 8;
+    private const int DeclarationBindingTargetShift = 4;
 
     private readonly record struct UnifiedBytecodeScopeFrame(
         int ScopeId,
@@ -677,6 +679,75 @@ internal static class UnifiedBytecodeCompiler
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(initializerProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                declaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = declaration.Next;
+                        continue;
+
+                    case BindingVariableDeclarationInstruction
+                        {
+                            AwaitedProgram: null
+                        } declaration:
+                        if (!IsSupportedDeclarationBindingTarget(declaration.TargetProgram))
+                        {
+                            reason =
+                                "Binding declaration targets with defaults, computed names, or assignment targets are not eligible for unified bytecode storage.";
+                            return false;
+                        }
+
+                        var hasBindingInitializer = declaration.InitializerProgram is not null;
+                        if (declaration.InitializerProgram is { } bindingInitializerProgram)
+                        {
+                            if (!TryAppendExpressionProgramOps(
+                                    bindingInitializerProgram,
+                                    slotLayout,
+                                    allowsDynamicIdentifiers,
+                                    unified,
+                                    literalConstants,
+                                    stringConstants,
+                                    callTargetConstants,
+                                    functionLiteralConstants,
+                                    classLiteralConstants,
+                                    templateObjectConstants,
+                                    out reason,
+                                    bindingTargetConstants))
+                            {
+                                return false;
+                            }
+
+                            maxStackDepth = Math.Max(
+                                maxStackDepth,
+                                GetCompiledExpressionMaxStackDepth(bindingInitializerProgram));
+                        }
+                        else
+                        {
+                            var bindingUndefinedIndex = literalConstants.Count;
+                            literalConstants.Add(JsValue.Undefined);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadLiteral,
+                                bindingUndefinedIndex));
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+
+                        var declarationBindingTargetIndex = bindingTargetConstants.Count;
+                        bindingTargetConstants.Add(declaration.TargetProgram);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
+                            EncodeDeclarationBindingTargetOperand(
+                                declarationBindingTargetIndex,
+                                declaration.VarKind,
+                                hasBindingInitializer)));
+
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 declaration.Next,
@@ -7707,6 +7778,15 @@ internal static class UnifiedBytecodeCompiler
         return (stringConstantIndex << 1) | flags;
     }
 
+    private static int EncodeDeclarationBindingTargetOperand(
+        int bindingTargetIndex,
+        VariableKind varKind,
+        bool hasInitializer)
+    {
+        var flags = hasInitializer ? DeclarationBindingTargetHasInitializerFlag : 0;
+        return (bindingTargetIndex << DeclarationBindingTargetShift) | (int)varKind | flags;
+    }
+
     private static bool TryAppendDynamicVarDeclaration(
         SimpleVariableDeclarationInstruction declaration,
         ExpressionProgram initializerProgram,
@@ -7757,6 +7837,46 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
         reason = string.Empty;
         return true;
+    }
+
+    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
+    {
+        switch (target)
+        {
+            case IdentifierBindingTargetProgram:
+                return true;
+
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.DefaultProgram is not null ||
+                        element.Target is { } elementTarget &&
+                        !IsSupportedDeclarationBindingTarget(elementTarget))
+                    {
+                        return false;
+                    }
+                }
+
+                return arrayBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (property.DefaultProgram is not null ||
+                        property.NameProgram is not null ||
+                        !IsSupportedDeclarationBindingTarget(property.Target))
+                    {
+                        return false;
+                    }
+                }
+
+                return objectBinding.RestElement is null ||
+                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
+
+            default:
+                return false;
+        }
     }
 
     private static void AppendDynamicStoreInstruction(

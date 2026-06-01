@@ -51,7 +51,6 @@ public sealed class ExpressionProgramCoverageMapTests
 
     private static readonly string[] UnifiedBytecodeCompilerDeclinedInstructionNames =
     [
-        "BindingVariableDeclarationInstruction",
         "ClassDeclarationInstruction",
         "FunctionDeclarationInstruction"
     ];

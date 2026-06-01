@@ -1801,10 +1801,22 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     For nested named receiver computed deletes such as `delete box.child[key]`,
     compose the existing `GetNamedProperty` receiver hops with the existing
     `DeleteComputedProperty` opcode. Do not add a VM callback or generic
-    expression-stack fallback for the receiver chain. Keep optional receiver
-    chains, richer computed-key payloads, dynamic lookup, private names, and
-    `super` as pre-VM declines until a later slice proves those exact
-    semantics.
+    expression-stack fallback for the receiver chain.
+
+    Optional computed delete routing is narrower than optional-chain delete as
+    a family. The admitted shapes are exactly `delete box?.child[key]` and
+    `delete box.child?.[key]`, with activation-resolved receivers,
+    non-private named receiver hops, supported computed-key spans, and
+    compiler-owned nullish short-circuit-to-true lowering. For
+    `delete box?.child[key]`, emit the nullish guard before the named hop so
+    the computed key is skipped on the short-circuit path. For
+    `delete box.child?.[key]`, recognize the existing
+    `JumpIfNullish, key span, DeleteComputedProperty, Jump, Pop, true` tail and
+    re-lower it to the same VM-owned short-circuit block. Keep simple optional
+    computed delete without a named receiver hop (`delete box?.[key]`), chained
+    optional delete neighbors, richer computed-key payloads, dynamic lookup,
+    private names, and `super` as pre-VM declines until a later slice proves
+    those exact semantics.
 
     Pair each positive widening with opcode proof, public fast-path route logs,
     computed-key coercion/order proof for computed deletes, strict/sloppy
@@ -1819,6 +1831,14 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     nested named receiver computed deletes by composing existing
     `GetNamedProperty` and `DeleteComputedProperty` opcodes, while retaining the
     optional receiver, dynamic-key, and richer-key declines (ADR 0316).
+    Issue #gh2934 / PR #2938 then admitted the first optional computed delete
+    shapes by reusing `JumpIfNullishReplaceUndefined`, `Pop`,
+    `LoadLiteral(true)`, named receiver reads, and `DeleteComputedProperty`
+    rather than adding an optional-delete VM callback. The durable lesson is
+    that optional delete is not a broad gate lift: selector and compiler
+    predicates must match the exact short-circuit-to-true expression-program
+    shape, prove the computed key is skipped when the receiver is nullish, and
+    leave adjacent optional delete forms declined (ADR 0317).
 
 53. When admitting labeled `break` or `continue` that crosses nested
     iterator/for-in driver loops to production unified bytecode, make cleanup

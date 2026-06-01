@@ -2282,6 +2282,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
+    [Fact]
+    public void Evaluate_DiscardedIdentifierCallCandidate_AcceptsInvocationBoundaryAndPop()
+    {
+        var plan = GetFunctionPlan("""
+            function invokeDiscarded(callback, value) {
+                callback(value);
+                return value;
+            }
+            """,
+            "invokeDiscarded");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareIdentifierCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Pop);
+    }
+
     [Theory]
     [InlineData(
         """

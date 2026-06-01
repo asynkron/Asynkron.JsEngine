@@ -58,6 +58,12 @@ public sealed class ExpressionProgramCoverageMapTests
     [
     ];
 
+    private static readonly string[] StaleDiscardDeclinePhrases =
+    [
+        "non-directive discarded expressions still decline before VM execution",
+        "Keep every non-directive discarded expression declined before VM execution"
+    ];
+
     private sealed record ProductionUnifiedBytecodeProofPackShape(
         string Key,
         string ContractEvidenceText,
@@ -317,6 +323,28 @@ public sealed class ExpressionProgramCoverageMapTests
             UnifiedBytecodeExpressionOpGeneralLoopGapNames,
             documentedGeneralLoopGaps,
             "Documented general expression lowering gaps");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeDiscardDocumentation_DoesNotPreserveStaleBlanketDeclineRule()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var checkedPaths = new[]
+        {
+            Path.Combine(repositoryRoot.FullName, "docs", "rules", "unified-bytecode-prototypes.md"),
+            Path.Combine(repositoryRoot.FullName, "docs", "adrs", "0234-keep-unified-bytecode-property-writes-strict-and-directive-owned.md"),
+            Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md")
+        };
+
+        foreach (var checkedPath in checkedPaths)
+        {
+            Assert.True(File.Exists(checkedPath), $"Expected discard documentation at '{checkedPath}'.");
+            var text = File.ReadAllText(checkedPath);
+            foreach (var stalePhrase in StaleDiscardDeclinePhrases)
+            {
+                Assert.DoesNotContain(stalePhrase, text, StringComparison.Ordinal);
+            }
+        }
     }
 
     [Fact]

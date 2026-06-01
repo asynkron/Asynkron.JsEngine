@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted; superseded in part by ADR 0252 for non-directive discarded
+expression statements.
 
 ## Context
 
@@ -44,7 +45,10 @@ compiler.
 3. Allow strict directive prologues by treating only string-literal
    `EvaluateAndDiscard` instructions as no-op directive discards in the
    unified compiler.
-4. Keep every non-directive discarded expression declined before VM execution.
+4. Historical boundary, superseded by ADR 0252: do not keep a blanket
+   non-directive discard decline. `EvaluateAndDiscard` may route when the
+   underlying expression operation family is already selector/compiler/VM-owned,
+   and the compiler appends `Pop` after the owned expression program.
 5. Prove strict/sloppy failed writes with public invocation logs for both arms,
    so the strict function's TypeError behavior is known to come from the owned
    unified path.
@@ -57,9 +61,9 @@ compiler.
 - Strict failed writes now throw through owned unified property set/update
   semantics instead of accidentally inheriting sloppy behavior from the current
   outer scope.
-- Directive prologues do not authorize generic expression-discard support.
-  Supporting arbitrary discarded expressions still needs its own selector,
-  compiler, VM, and route-proof slice.
+- Directive prologues do not authorize generic expression-discard support, but
+  ADR 0252 later admitted discarded expression statements whose underlying
+  operation families already have selector, compiler, VM, and route proof.
 - Property-write proof tests must prove both semantics and route selection.
   A passing behavior test is not enough when the accepted function body could
   have declined and executed through an older path.

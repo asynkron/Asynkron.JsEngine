@@ -32,7 +32,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:lexicalThisEnvironment",
         "pre-gate:superConstructor",
         "pre-gate:superPrototype",
-        "pre-gate:instanceFields",
         "pre-gate:activationSlotShape"
     ];
 

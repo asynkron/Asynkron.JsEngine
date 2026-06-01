@@ -81,11 +81,17 @@ Keep production resumable unified bytecode as a separate decline-first route.
   `ExecuteResumable` delegated `.return(value)` and `.throw(value)` through the
   underlying iterator, while keeping async-generator `yield*` and awaited
   delegated sources declined in the expansion contract.
-- Issue #2955 added focused async-generator `yield*` decline proof: delegated
-  async-generator `.return(value)` and `.throw(value)` stay correct through the
-  existing IR async-generator path and do not log a resumable unified-bytecode
-  fast path until an async-generator VM bridge owns promise queueing and
-  async-iterator settlement.
+- Issue #2955 / PR #2958 / commit `aceabddbf` added focused
+  async-generator `yield*` decline proof: delegated async-generator
+  `.return(value)` and `.throw(value)` stay correct through the existing IR
+  async-generator path and do not log a resumable unified-bytecode fast path
+  until an async-generator VM bridge owns promise queueing and async-iterator
+  settlement.
+- Focused async-generator boundary proof passed:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~YieldStar"`
+  with 3 tests passing, and
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~AsyncGeneratorYieldStar" -- xUnit.MaxParallelThreads=1 -timeout 20000`
+  with 2 tests passing.
 - Focused sync-generator widening proof passed:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_YieldStar"`
   with 1 test passing, and
@@ -103,7 +109,7 @@ Keep production resumable unified bytecode as a separate decline-first route.
 ## Related
 
 - `docs/unified-bytecode-expansion-contract.md`
-- `.claude/rules/unified-bytecode-prototypes.md`
+- `docs/rules/unified-bytecode-prototypes.md`
 - ADR 0085: `docs/adrs/0085-keep-yield-star-delegated-return-completion-split.md`
 - ADR 0201: `docs/adrs/0201-keep-unified-bytecode-production-routing-decline-first.md`
 - ADR 0204: `docs/adrs/0204-keep-unified-bytecode-sync-production-routing-slot-bridged.md`

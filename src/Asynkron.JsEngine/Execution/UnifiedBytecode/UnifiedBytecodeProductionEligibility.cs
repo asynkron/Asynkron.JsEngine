@@ -2282,12 +2282,13 @@ internal static class UnifiedBytecodeProductionEligibility
                    optionalStartIndex + 1,
                    computedIndex,
                    identifierConstants,
-                   activationSlots);
+        activationSlots);
     }
 
-
-    // Admits the simple a?.[k] shape:
-    // [activation-resolved base, JumpIfNullish(ReplaceWithUndefined:true), simple key, GetComputedProperty(!ShortCircuitOnNullishTarget)].
+    // Admits a?.[k], a.b?.[k], and optional-computed read continuations:
+    // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    //  JumpIfNullish(ReplaceWithUndefined:true), key..., GetComputedProperty(!ShortCircuitOnNullishTarget),
+    //  GetNamedProperty(ShortCircuitOnNullishTarget:true)*].
     private static bool TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2303,29 +2304,55 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var jumpOp = program.GetOperation(1);
+        var stringConstants = program.StringConstants.AsSpan();
+        var jumpIndex = 1;
+        while (jumpIndex < program.OperationCount)
+        {
+            var prefixOp = program.GetOperation(jumpIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget ||
+                prefixOp.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            jumpIndex++;
+        }
+
+        if (jumpIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(jumpIndex);
         if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish || !jumpOp.ReplaceWithUndefined)
         {
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
         var computedSuffixStart = program.OperationCount;
-        while (computedSuffixStart > 3 &&
+        while (computedSuffixStart > jumpIndex + 2 &&
                IsShortCircuitNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
         {
             computedSuffixStart--;
         }
 
         var computedIndex = computedSuffixStart - 1;
-        if (computedIndex <= 2 || jumpOp.Target != computedIndex + 1)
+        if (computedIndex <= jumpIndex + 1 || jumpOp.Target != computedIndex + 1)
         {
             return false;
         }
 
         var getComputedOp = program.GetOperation(computedIndex);
         return getComputedOp.Kind == ExpressionOpKind.GetComputedProperty &&
-               !getComputedOp.ShortCircuitOnNullishTarget;
+               !getComputedOp.ShortCircuitOnNullishTarget &&
+               IsSupportedComputedPropertyKeySpan(
+                   program,
+                   jumpIndex + 1,
+                   computedIndex,
+                   identifierConstants,
+                   activationSlots);
     }
 
     private static bool TryIsEmbeddedOptionalReadOperandOperation(

@@ -2325,6 +2325,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalComputedPropertyReadAfterNamedPrefix_SkipsKeyOnNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var key = {
+                toString() {
+                    keyHits++;
+                    return "item";
+                }
+            };
+
+            function readOptionalComputed(box, key) {
+                return box.child?.[key];
+            }
+
+            var whenNull = readOptionalComputed({ child: null }, key);
+            var whenPresent = readOptionalComputed({ child: { item: 42 } }, key);
+            "" + whenNull + ":" + whenPresent + ":" + keyHits;
+            """);
+
+        Assert.Equal("undefined:42:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readOptionalComputed",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedPropertyRead_ReturnsUndefinedWhenBaseIsUndefined()
     {
         // gh2771: a?.b short-circuits to undefined when base is undefined (not only null).

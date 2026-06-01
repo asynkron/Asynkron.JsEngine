@@ -5213,6 +5213,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalComputedPropertyReadWithNamedPrefix_AcceptsWithJumpIfNullishReplaceUndefinedOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function optComputedPrefixed(box, key) {
+                return box.child?.[key];
+            }
+            """,
+            "optComputedPrefixed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
     public void Evaluate_OptionalNamedPropertyReadChainExpressionPlan_AcceptsWithJumpIfNullishReplaceUndefined()
     {
         // AC-1: a?.b.c with an activation-resolved base is admitted.

@@ -128,30 +128,29 @@ public sealed class ExpressionProgramCoverageMapTests
             Assert.Contains($"`{opcodeName}`", contractText, StringComparison.Ordinal);
         }
 
-        foreach (var declineCodeName in Enum.GetNames<UnifiedBytecodeProductionDeclineCode>())
+        var declineCodeNames = Enum.GetNames<UnifiedBytecodeProductionDeclineCode>();
+        foreach (var declineCodeName in declineCodeNames)
         {
             Assert.Contains($"`{declineCodeName}`", contractText, StringComparison.Ordinal);
         }
+
+        var documentedDeclineCodeNames = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Production Decline Families (current)");
+        AssertSameSet(
+            declineCodeNames,
+            documentedDeclineCodeNames,
+            "Production decline family inventory");
 
         var ledgerKeys = ContractLedgerRowPattern
             .Matches(contractText)
             .Select(match => match.Groups["key"].Value)
             .ToHashSet(StringComparer.Ordinal);
 
-        foreach (var declineCodeName in Enum.GetNames<UnifiedBytecodeProductionDeclineCode>())
-        {
-            Assert.Contains(declineCodeName, ledgerKeys);
-        }
-
-        foreach (var preGateKey in ProductionPreGateLedgerKeys)
-        {
-            Assert.Contains(preGateKey, ledgerKeys);
-        }
-
-        foreach (var prototypeGuardKey in ProductionPrototypeGuardLedgerKeys)
-        {
-            Assert.Contains(prototypeGuardKey, ledgerKeys);
-        }
+        var expectedLedgerKeys = declineCodeNames
+            .Concat(ProductionPreGateLedgerKeys)
+            .Concat(ProductionPrototypeGuardLedgerKeys);
+        AssertSameSet(expectedLedgerKeys, ledgerKeys, "Production decline ledger keys");
     }
 
     [Fact]
@@ -215,5 +214,52 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.True(
             pattern.IsMatch(sourceText),
             $"Production unified-bytecode proof pack shape '{shapeKey}' is missing proof method '{methodName}'.");
+    }
+
+    private static string[] ExtractBacktickedBulletItemsUnderHeading(string documentText, string heading)
+    {
+        var headingIndex = documentText.IndexOf(heading, StringComparison.Ordinal);
+        Assert.True(headingIndex >= 0, $"Contract document is missing heading '{heading}'.");
+
+        var sectionStart = documentText.IndexOf('\n', headingIndex);
+        Assert.True(sectionStart >= 0, $"Contract document heading '{heading}' has no content.");
+        sectionStart++;
+
+        var nextHeadingMatch = Regex.Match(
+            documentText[sectionStart..],
+            "^#{2,3} ",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant);
+        var sectionLength = nextHeadingMatch.Success ? nextHeadingMatch.Index : documentText.Length - sectionStart;
+        var sectionText = documentText.Substring(sectionStart, sectionLength);
+
+        return Regex.Matches(
+                sectionText,
+                "^- `(?<name>[A-Za-z0-9_:-]+)`",
+                RegexOptions.Multiline | RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
+    }
+
+    private static void AssertSameSet(IEnumerable<string> expected, IEnumerable<string> actual, string subject)
+    {
+        var expectedSet = expected.ToHashSet(StringComparer.Ordinal);
+        var actualSet = actual.ToHashSet(StringComparer.Ordinal);
+        var missing = expectedSet
+            .Except(actualSet, StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+        var unexpected = actualSet
+            .Except(expectedSet, StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0 && unexpected.Length == 0,
+            $"{subject} mismatch. Missing: {FormatList(missing)}. Unexpected: {FormatList(unexpected)}.");
+    }
+
+    private static string FormatList(IReadOnlyCollection<string> items)
+    {
+        return items.Count == 0 ? "<none>" : string.Join(", ", items);
     }
 }

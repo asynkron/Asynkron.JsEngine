@@ -91,10 +91,9 @@ statement interpretation.
   `BindingTargetProgram` for assignment destructuring parity. This is not a
   fallback into `ExecutionPlanRunner`, but it is also not fully native unified
   bytecode.
-- The contract drift test verifies that current enum names are present; it is
-  not an exclusivity check for stale extra rows. A passing contract test should
-  not be read as proof that obsolete decline names or outdated boundary notes
-  have been removed.
+- The contract drift test now verifies exact membership for the current
+  production decline inventory and checked ledger rows. A stale extra decline
+  row should fail before it can mask completed widening work.
 
 ## Current Support Matrix
 

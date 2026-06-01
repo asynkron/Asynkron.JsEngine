@@ -1141,7 +1141,8 @@ internal static class UnifiedBytecodeVirtualMachine
                         program.BindingTargetConstants[instruction.Operand],
                         bindingTargetValue,
                         bindingEnvironment,
-                        context);
+                        context,
+                        allowNameInference: false);
                     SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
                     if (context.ShouldStopEvaluation)
                     {

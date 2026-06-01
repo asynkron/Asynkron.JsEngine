@@ -209,6 +209,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringValue_DoesNotInferBindingTargetName_OnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignValueName(source) {
+                var assigned;
+                ({ value: assigned } = source);
+                return assigned.name;
+            }
+
+            var payload = (0, function() {});
+            assignValueName({ value: payload });
+            """);
+
+        Assert.Equal("", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignValueName argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task AssignmentDestructuringGetterThrow_PreservesPartialWriteAfterCaughtThrow_OnFastPath()
     {
         await using var engine = CreateEngine();

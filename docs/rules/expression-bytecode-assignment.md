@@ -57,10 +57,13 @@ path that can evaluate the assignment.
     production path, simultaneously update the boundary description in
     `docs/unified-bytecode-expansion-contract.md`. Name the newly admitted shape,
     its constraints (activation-resolved base, named key, production binary
-    operator, simple RHS), and the retained declines (logical-assignment operators,
-    deeper chains, computed-expression keys). Do not leave the old blanket
-    "is declined" statement intact — stale decline descriptions mislead agents
-    into thinking a shape is still excluded when it was already admitted.
+    operator, simple RHS), and the retained declines that are still true for
+    the current boundary, such as optional/private/dynamic neighbors, unowned
+    computed-key spans, or unsupported RHS shapes. Do not leave the old blanket
+    "is declined" statement intact, and do not keep historical retained-decline
+    examples after a later slice admits them — stale decline descriptions
+    mislead agents into thinking a shape is still excluded when it was already
+    admitted.
 
 ## Why
 

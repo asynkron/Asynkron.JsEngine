@@ -2021,6 +2021,38 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DeepComputedMemberCall_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var root = {
+                child: {
+                    branch: {
+                        leaf: {
+                            offset: 1,
+                            read(value) {
+                                return this === root.child.branch.leaf ? value + this.offset : -1;
+                            }
+                        }
+                    }
+                }
+            };
+
+            function invoke(root, key, value) {
+                return root.child.branch.leaf[key](value);
+            }
+
+            invoke(root, "read", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedMemberCall_NullishReceiverThrowsBeforeKeyCoercion()
     {
         await using var engine = CreateEngine();

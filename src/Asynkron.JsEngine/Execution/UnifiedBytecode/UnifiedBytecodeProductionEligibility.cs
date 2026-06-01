@@ -2813,7 +2813,7 @@ internal static class UnifiedBytecodeProductionEligibility
                        stringConstants,
                        activationSlots,
                        keyStartIndex,
-                       allowDeepChain: false) &&
+                       allowDeepChain: true) &&
                    IsSupportedComputedPropertyKeySpan(
                        program,
                        startInclusive: keyStartIndex,

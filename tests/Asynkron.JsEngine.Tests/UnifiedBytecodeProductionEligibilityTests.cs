@@ -2665,7 +2665,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_PrivateNamedPropertyUpdate_DeclinesWithExplicitCode()
+    public void Evaluate_PrivateNamedPropertyUpdate_AcceptsNamedPropertyOpcode()
     {
         var plan = GetClassMethodPlan("""
             class Holder {
@@ -2690,9 +2690,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency, result.Code);
-        Assert.Contains("Private-field", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
     }
 
     [Fact]

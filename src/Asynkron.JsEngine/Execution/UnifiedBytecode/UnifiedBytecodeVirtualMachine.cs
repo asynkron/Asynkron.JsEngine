@@ -6848,7 +6848,7 @@ internal static class UnifiedBytecodeVirtualMachine
             propertyName,
             context,
             context.CurrentScope.IsStrict || isStrict,
-            allowPrivate: false);
+            allowPrivate: true);
         var currentValue = handle.GetJsValue();
         if (context.ShouldStopEvaluation)
         {

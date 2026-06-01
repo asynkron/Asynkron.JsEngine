@@ -718,13 +718,17 @@ internal static class UnifiedBytecodeProductionEligibility
         var stringConstants = program.StringConstants.AsSpan();
         var isFirstBoundaryPropertyWriteCandidate =
             TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots);
+        var isFirstBoundaryPropertyUpdateCandidate =
+            TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots);
+        var isPrivateNamedMutationCandidate =
+            isFirstBoundaryPropertyWriteCandidate || isFirstBoundaryPropertyUpdateCandidate;
 
         // Pre-scan spread source operands before the main loop processes the source ops, which may
         // otherwise trigger a less-specific decline code such as CallDependency.
         for (var i = 0; i < operationCount; i++)
         {
             if (IsPrivateNamedPropertyMutationOperation(program.GetOperation(i), stringConstants) &&
-                !isFirstBoundaryPropertyWriteCandidate)
+                !isPrivateNamedMutationCandidate)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
                 declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
@@ -765,7 +769,7 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var operation = program.GetOperation(operationIndex);
             if (IsPrivateNamedPropertyMutationOperation(operation, stringConstants) &&
-                !isFirstBoundaryPropertyWriteCandidate)
+                !isPrivateNamedMutationCandidate)
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency;
                 declineReason = "Private-field expressions are not eligible for production unified bytecode routing.";
@@ -3861,7 +3865,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var propertyUpdate = program.GetOperation(1);
             return propertyUpdate.Kind == ExpressionOpKind.UpdateNamedProperty &&
-                   !propertyUpdate.GetString(program.StringConstants.AsSpan()).IsPrivateName() &&
                    TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots);
         }
 

@@ -250,9 +250,11 @@ all-or-nothing until a separate routing issue proves production readiness.
     create the normal function `JsEnvironment`, so property handle resolution
     must not rely only on `context.CurrentScope.IsStrict`. Directive prologue
     support in the compiler must stay no-op and narrow: only string-literal
-    `EvaluateAndDiscard` instructions may be skipped to reach the owned return
-    payload, while non-directive discarded expressions still decline before VM
-    execution. For computed write proofs, keep the admitted write function
+    `EvaluateAndDiscard` instructions may be skipped as directive prologue
+    no-ops. Non-directive `EvaluateAndDiscard` is now governed by rule 27 /
+    ADR 0252: compile the supported expression program and append `Pop`;
+    decline only when the underlying operation family is not yet
+    selector/compiler/VM-owned. For computed write proofs, keep the admitted write function
     call-free and place unrelated RHS side effects at the call site if needed,
     then assert evaluation order and route logging on the admitted function.
     WHY: issue

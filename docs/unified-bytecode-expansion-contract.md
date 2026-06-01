@@ -97,6 +97,13 @@ statement interpretation.
   expression loop. `JumpIfShortCircuited` lowers directly to unified bytecode,
   and the VM tracks a packed side flag per operand-stack slot so short-circuited
   `undefined` remains distinct from ordinary `undefined`.
+- There is no retained discard-specific production decline. `EvaluateAndDiscard`
+  compiles the supported expression program first and appends `Pop`, so
+  discarded statements route when their underlying operation family is already
+  selector/compiler/VM-owned. Remaining discarded-expression declines are
+  declines of the underlying family, such as dynamic lookup, private names,
+  unsupported optional-chain neighbors, or other semantic lanes not yet
+  admitted.
 - The current `ExpressionOpKind` names with no unified compiler reference list is
   empty. Computed super-property operations also route their required
   `EnsureSuperReference` op through the general unified expression loop.

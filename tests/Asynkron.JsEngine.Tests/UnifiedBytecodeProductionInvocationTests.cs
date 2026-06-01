@@ -1815,6 +1815,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DiscardedIdentifierCall_UsesUnifiedBytecodeProductionFastPathAndKeepsSideEffects()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            function observe(value) {
+                hits = hits + value;
+            }
+
+            function invokeDiscarded(callback, value) {
+                callback(value);
+                return value;
+            }
+
+            invokeDiscarded(observe, 42) + hits;
+            """);
+
+        Assert.Equal(84d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeDiscarded argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalIdentifierCall_UsesOrdinaryCallWhenEvalIsShadowed()
     {
         await using var engine = CreateEngine();

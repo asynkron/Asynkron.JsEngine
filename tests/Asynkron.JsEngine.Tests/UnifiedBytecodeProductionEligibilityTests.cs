@@ -1390,6 +1390,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.LoadSlot));
     }
 
+    [Fact]
+    public void Evaluate_NestedComputedPropertyDeleteRichKeyCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, left, right) {
+                return delete box.child[left + right];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+    }
+
     [Theory]
     [InlineData(
         """
@@ -2881,14 +2903,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "remove",
         (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
-    [InlineData(
-        """
-        function remove(box, left, right) {
-            return delete box.child[left + right];
-        }
-        """,
-        "remove",
-        (int)UnifiedBytecodeProductionDeclineCode.DeleteDependency)]
     public void Evaluate_NestedComputedPropertyDeleteUnsupportedKey_DeclinesBeforeVm(
         string source,
         string functionName,

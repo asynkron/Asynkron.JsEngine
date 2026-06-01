@@ -1965,20 +1965,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var stringConstants = program.StringConstants.AsSpan();
-        var keyIndex = program.OperationCount - 2;
-        for (var index = 1; index < keyIndex; index++)
+        var keyStartIndex = 1;
+        for (; keyStartIndex < program.OperationCount - 1; keyStartIndex++)
         {
-            var operation = program.GetOperation(index);
+            var operation = program.GetOperation(keyStartIndex);
             if (operation.Kind != ExpressionOpKind.GetNamedProperty ||
                 operation.GetString(stringConstants).IsPrivateName() ||
                 operation.IsOptional ||
                 operation.ShortCircuitOnNullishTarget)
             {
-                return false;
+                break;
             }
         }
 
-        return IsSimpleComputedPropertyKeyOperand(program.GetOperation(keyIndex), identifierConstants, activationSlots) &&
+        return keyStartIndex < program.OperationCount - 1 &&
+               IsSupportedComputedPropertyKeySpan(
+                   program,
+                   startInclusive: keyStartIndex,
+                   endExclusive: program.OperationCount - 1,
+                   identifierConstants,
+                   activationSlots) &&
                program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.DeleteComputedProperty;
     }
 

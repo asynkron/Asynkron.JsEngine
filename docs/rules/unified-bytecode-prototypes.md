@@ -317,13 +317,17 @@ all-or-nothing until a separate routing issue proves production readiness.
 21. When admitting nested named receiver writes or updates into production
     unified bytecode, keep the route owned by existing property opcodes and
     prove the extra receiver stack pressure explicitly. Simple chains such as
-    `box.child.value = y` and `++box.child.count` may route when the root is
-    activation-resolved, every intermediate step is a non-optional non-private
-    `GetNamedProperty`, the final operation is `SetNamedProperty` or
-    `UpdateNamedProperty`, and the RHS is still a simple production-owned
-    payload. Do not infer that nested compound/logical assignments,
-    computed-expression keys, optional chains, `super`, private names, calls, or
-    dynamic lookup are covered by the same widening. If preserving an
+    `box.child.value = y`, `++box.child.count`, `box.child.value += y`, and
+    `box.child.value &&= y` may route when the root is activation-resolved,
+    every intermediate step is a non-optional non-private `GetNamedProperty`,
+    the final operation is an owned property write, update, compound-write, or
+    logical-write shape, and the RHS is still a simple production-owned
+    payload. Direct computed assignments may also route with a supported
+    computed-key expression span and simple RHS, for example
+    `box[key + suffix] = y`. Do not infer that computed-expression-key
+    compound/logical/update neighbors, optional chains, `super`, private names,
+    calls, dynamic lookup, or unsupported RHS/key spans are covered by the same
+    widening. If preserving an
     intermediate receiver means the compiled unified-bytecode program needs a
     deeper stack than `ExpressionProgram.MaxStackDepth` reports, raise the
     compiled stack-depth calculation and add a focused stack-depth proof instead

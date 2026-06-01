@@ -359,8 +359,9 @@ the final post-compile production subset check before VM entry.
   (activation-resolved base, simple key, simple RHS, non-optional/non-private
   target). Direct computed assignments may use the same supported computed-key
   expression span as optional computed reads (`box[key + suffix] = y`) when the
-  RHS is a simple operand. Simple nested named receiver assignments, compound writes, logical
-  writes, and updates (`box.child.value = y`, `box.child.value += y`,
+  RHS is a simple operand. Simple nested named receiver assignments, compound
+  writes, logical writes, and updates (`box.child.value = y`,
+  `box.child.value += y`,
   `box.child.value &&= y`, `box.child.value++`) are admitted through
   `TryIsFirstBoundaryNestedNamedPropertyWriteCandidate` and
   prefix-aware `TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate` and
@@ -382,10 +383,10 @@ the final post-compile production subset check before VM entry.
   The compiler emits the named receiver reads and final `DeleteComputedProperty`,
   while the VM's descriptor-aware delete helper owns strict/sloppy results.
   Retained declines include chained optional delete neighbors, private property
-  access, dynamic lookup, richer unowned computed keys, deeper compound/logical
-  property chains
-  (`box.child.value += …`, `box.child.value &&= …`), and computed-expression
-  keys (`box[key+suffix] += …`).
+  access, dynamic lookup, richer unowned computed-key spans, and
+  computed-expression-key compound/logical/update neighbors such as
+  `box[key + suffix] += y`, `box[key + suffix] &&= y`, and
+  `box[key + suffix]++`.
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.
 - Super-property reads, writes, and updates are now VM-owned through
   `EnsureSuperReference`, `GetNamedSuperProperty`, `GetComputedSuperProperty`,

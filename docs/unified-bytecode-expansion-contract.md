@@ -117,6 +117,10 @@ statement interpretation.
   scopes into the VM, so `#name in receiver` can execute through
   `PrivateFieldIn`. Private member reads/writes/updates and private
   named-property operations still decline as `PrivateFieldDependency`.
+- Simple-return arrows can route with captured lexical `this` / `new.target`
+  values. The production invocation bridge resolves those captured values before
+  entering the VM and avoids sloppy-call `this` coercion for arrows. Arrows that
+  need a lexical-this environment or super binding still decline.
 - Resumable async/generator unified bytecode is narrower than ordinary sync
   production bytecode. The resumable eligibility opcode allow-list is now
   audited against the `ExecuteResumable` switch, so opcodes already implemented
@@ -338,7 +342,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `pre-gate:IsClassConstructor` | Class constructor invokers outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route without `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no lexical `this`, `new.target`, super, closure-variable, or dynamic-identifier dependency | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, closure-variable, or dynamic-identifier dependency. Captured lexical `this` / `new.target` values are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsDefaultDerivedConstructor` | Default derived class constructor setup | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -748,9 +752,9 @@ support today.
 ## Ranked Next Unsupported Buckets (current boundary)
 1. Activation model gaps are still larger than any single expression-family
    neighbor. Ordinary sync production routing still pre-gates async-like
-   functions, generators, arrows with lexical `this` / `new.target`, closure or
-   dynamic identifier dependencies, or non-simple bodies, real `arguments`
-   object and sloppy mapped-arguments dependencies, non-simple
+   functions, generators, arrows needing lexical-this environments or super
+   bindings, closure or dynamic identifier dependencies, or non-simple bodies,
+   real `arguments` object and sloppy mapped-arguments dependencies, non-simple
    parameter lists, default/rest/destructured parameter expressions, broader
    class constructor routes beyond simple base constructors and the bounded
    explicit derived `super(...)` path, default derived constructors, instance

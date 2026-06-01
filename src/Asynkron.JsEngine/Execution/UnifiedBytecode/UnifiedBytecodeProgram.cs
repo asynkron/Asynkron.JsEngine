@@ -111,6 +111,7 @@ internal enum UnifiedBytecodeOpCode : byte
     ObjectDestructuringRest,
     ObjectDestructuringClose,
     PrepareIdentifierCallTarget,
+    PrepareIdentifierOptionalCallTarget,
     PrepareDynamicIdentifierCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,

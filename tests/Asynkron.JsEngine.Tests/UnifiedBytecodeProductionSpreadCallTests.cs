@@ -5,7 +5,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 /// Covers admission of synchronous spread calls into the production unified bytecode
 /// pipeline (gh2676): <c>f(...args)</c>, <c>f(...a, ...b)</c>, <c>obj.method(...args)</c>,
-/// and mixed <c>f(a, ...b, c)</c>. Optional/construct/super/direct-eval calls stay declined.
+/// optional identifier spread calls, and mixed <c>f(a, ...b, c)</c>.
+/// Super/direct-eval spread calls stay declined.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeProductionSpreadCallTests(ITestOutputHelper output)
@@ -150,7 +151,7 @@ public sealed class UnifiedBytecodeProductionSpreadCallTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task OptionalSpreadCall_DeclinesProductionFastPath()
+    public async Task OptionalIdentifierSpreadCall_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -166,7 +167,35 @@ public sealed class UnifiedBytecodeProductionSpreadCallTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalIdentifierSpreadCall_SkipsSpreadIterationWhenCalleeNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, args) {
+                return fn?.(...args);
+            }
+
+            var log = [];
+            var source = {
+                [Symbol.iterator]() {
+                    log.push("iterated");
+                    return [][Symbol.iterator]();
+                }
+            };
+
+            var value = invoke(null, source);
+            String(value) + ":" + log.join(",");
+            """);
+
+        Assert.Equal("undefined:", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invoke",
                 StringComparison.Ordinal));

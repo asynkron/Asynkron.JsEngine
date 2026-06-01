@@ -345,6 +345,53 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget:
+                {
+                    var optCallTargetIdx = instruction.Operand & 0xFFFF;
+                    var optJumpTarget = instruction.Operand >> 16;
+                    var optCallTarget = program.CallTargetConstants[optCallTargetIdx];
+                    if (optCallTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Optional identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    if (IsInactiveCatchBindingSlot(inactiveCatchBindingSlots, optCallTarget.SlotIndex))
+                    {
+                        SetInactiveCatchBindingReferenceError(program, optCallTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    var optCallableValue = slots[optCallTarget.SlotIndex];
+                    if (optCallableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, optCallTarget.SlotIndex, context);
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, true);
+                    }
+
+                    if (optCallableValue.IsNullOrUndefined)
+                    {
+                        PushValue(JsValue.Undefined);
+                        programCounter = optJumpTarget;
+                        break;
+                    }
+
+                    PushValue(JsValue.Undefined);
+                    PushValue(optCallableValue);
+                    programCounter++;
+                    break;
+                }
+
                 case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
                     var dynamicCallEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
                     PrepareDynamicIdentifierCallTarget(

@@ -115,6 +115,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     declines, and describe Batch 5 memory/profile evidence as allocation
     stability only unless a separate before/after proof justifies a
     performance-improvement claim.
+11a. When citing benchmark or profile rows as unified-bytecode routing evidence,
+     report the route-hit count from `rtk ./tools/profile <profile> --route-hits`
+     alongside timing or allocation rows. Timing and allocation rows only prove
+     performance or stability for the measured workload; they do not prove that
+     the production unified-bytecode VM was reached. A profile with zero
+     `unified-bytecode-production-fast-path` hits must be treated as fallback
+     evidence, not production unified-bytecode coverage. Keep route-hit-only
+     runs separate from external-profiler CPU/memory runs so observability does
+     not perturb profiler-backed measurements. WHY: issue
+     `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-7b8017c72a`
+     / PR #2962 added `ProfileRunner --route-hits` and direct
+     `tools/profile --route-hits` after the final production-decline proof pass
+     needed to distinguish generic manifest profile rows from actual
+     `unified-bytecode-production-fast-path` execution. Related ADR:
+     `docs/adrs/0320-keep-unified-bytecode-route-hit-evidence-explicit.md`.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

@@ -1839,7 +1839,7 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     plan?.GetHashCode() ?? -1);
                 if (plan is not null)
                 {
-                    if (IsClassConstructor && _isDerivedClassConstructor &&
+                    if (IsClassConstructor &&
                         CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
                         TryInvokeProductionUnifiedBytecode(
                             arguments,
@@ -1848,10 +1848,10 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                             plan,
                             context,
                             callingContext,
-                            out var productionDerivedConstructorResult,
+                            out var productionConstructorResult,
                             constructErrorRealm))
                     {
-                        return productionDerivedConstructorResult;
+                        return productionConstructorResult;
                     }
 
                     if (IsClassConstructor && _isDerivedClassConstructor &&
@@ -3066,16 +3066,39 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             JsEnvironment? executionEnvironment = null;
             try
             {
+                var vmThisValue = thisValue;
+                if (IsClassConstructor && !_isDerivedClassConstructor)
+                {
+                    if (thisValue.IsUndefined)
+                    {
+                        vmThisValue = JsValue.FromObjectUnsafe(CreateConstructedThis(newTarget, RealmState));
+                    }
+                    else if (!thisValue.IsObject)
+                    {
+                        return false;
+                    }
+
+                    context.MarkThisInitialized();
+                }
+
                 var slots = slotStorage.AsSpan(0, program.SlotCount);
                 slots.Fill(JsValue.Undefined);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
                 PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
-                var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
-                if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
+                var boundThis = _isStrict ? vmThisValue : CoerceThisValueForNonStrict(vmThisValue);
+                if (IsClassConstructor && !_isDerivedClassConstructor)
+                {
+                    executionEnvironment = CreateSimpleBaseClassConstructorEnvironment(
+                        arguments,
+                        vmThisValue,
+                        newTarget,
+                        plan);
+                }
+                else if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
                         ? CreateSimpleDerivedClassConstructorEnvironment(arguments, newTarget, plan)
-                        : CreateSimpleIrActivationEnvironment(arguments, thisValue, plan, context);
+                        : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context);
                 }
 
                 RealmState.Logger?.LogInformation(
@@ -3229,7 +3252,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     newTarget,
                     CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
                     CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan),
-                    CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget)));
+                    CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget),
+                    CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget)));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
             {
@@ -3275,11 +3299,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
             var canUseDerivedClassConstructorPath =
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
+            var canUseBaseClassConstructorPath =
+                CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 newTarget,
                 canUseDynamicNamePath,
                 canUseOrdinaryDynamicNamePath,
-                canUseDerivedClassConstructorPath);
+                canUseDerivedClassConstructorPath,
+                canUseBaseClassConstructorPath);
             if (UnifiedBytecodeProductionEligibility.TryFindOrdinarySyncActivationDecline(
                     activation,
                     out _,
@@ -3295,7 +3322,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             return CanUseProductionUnifiedBytecodePlanShape(plan, canUseDynamicNamePath) ||
-                   canUseDerivedClassConstructorPath && plan.ActivationSlots is not null;
+                   (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
+                   plan.ActivationSlots is not null;
         }
 
         private UnifiedBytecodeProductionActivationDescriptor CreateProductionUnifiedBytecodeActivationDescriptor()
@@ -3311,7 +3339,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             JsValue newTarget,
             bool canUseDynamicNamePath,
             bool canUseOrdinaryDynamicNamePath,
-            bool canUseDerivedClassConstructorPath = false)
+            bool canUseDerivedClassConstructorPath = false,
+            bool canUseBaseClassConstructorPath = false)
         {
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
@@ -3328,7 +3357,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     _argumentsObjectNeeded &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
-                HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,
+                HasClassConstructorActivation:
+                    IsClassConstructor && !canUseDerivedClassConstructorPath && !canUseBaseClassConstructorPath,
                 HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);
@@ -3549,6 +3579,32 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _instanceFields.IsDefaultOrEmpty &&
                    (_superConstructor is not null || _superPrototype is not null) &&
                    CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(plan);
+        }
+
+        private bool CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(
+            ExecutionPlan plan,
+            JsValue newTarget)
+        {
+            return IsClassConstructor &&
+                   !_isDerivedClassConstructor &&
+                   !newTarget.IsUndefined &&
+                   !IsArrowFunction &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   !_hasParameterExpressions &&
+                   _hasOnlySimpleIdentifierParameters &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _allowIdentifierCache &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   _superConstructor is null &&
+                   _superPrototype is null &&
+                   CanUseSimpleIrActivationPlanShape(plan);
         }
 
         private static bool CanUseProductionUnifiedBytecodeDerivedClassConstructorPlanShape(ExecutionPlan plan)

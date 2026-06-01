@@ -106,16 +106,20 @@ all-or-nothing until a separate routing issue proves production readiness.
     route logs alone did not guard the whole fallback chain from drifting back
     toward older ADR 0204/0208 wording. If a future slice changes priority
     again, make that explicit and prove the older route remains covered.
-10a. When admitting derived class constructors to production unified bytecode,
-     keep the route body-shaped, not just descriptor-shaped. The first admitted
-     slice is explicit non-spread `super(...)` execution in a derived
-     constructor body that does not read or write `this` afterward; any
-     post-`super()` `this` access, super property access, default derived
-     constructor, instance fields, parameter expressions, or spread `super`
-     arguments must stay on the existing constructor path until the VM owns the
-     initialized-receiver semantics for that shape. Prove both route hits for
-     `super(value)`/`super()` and no-route behavior for the nearby
-     post-`super()` `this` assignment case.
+10a. When admitting class constructors to production unified bytecode, keep the
+     route body-shaped, not just descriptor-shaped. Base constructors may route
+     only when the invocation bridge creates the constructed `this`, supplies the
+     base constructor environment, and the body otherwise satisfies the ordinary
+     production plan shape. The first admitted derived slice is explicit
+     non-spread `super(...)` execution in a derived constructor body that does
+     not read or write `this` afterward. Default derived constructors, instance
+     fields, private scopes, parameter expressions, spread `super` arguments,
+     derived post-`super()` `this` access, and super property access must stay
+     on the existing constructor path until the VM owns the initialized-receiver
+     semantics for that shape. Prove route hits for base constructor `this`
+     initialization, base constructor object returns, and `super(value)` /
+     `super()`; prove no-route behavior for nearby instance-field, spread-super,
+     default-derived, and post-`super()` `this` assignment cases.
 10b. Treat `arguments` as an arguments-object dependency only after binding
      resolution proves it is not an ordinary activation slot. A parameter named
      `arguments` or a lexical body binding named `arguments` is regular slot

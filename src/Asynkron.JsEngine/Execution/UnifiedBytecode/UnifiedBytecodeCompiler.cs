@@ -4578,12 +4578,6 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (callTarget.IsArguments)
-        {
-            reason = "arguments call targets are outside the call-target preparation boundary.";
-            return false;
-        }
-
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         var isDirectEval = call.IsDirectEval &&
                            string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal);
@@ -4595,6 +4589,12 @@ internal static class UnifiedBytecodeCompiler
 
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
+            if (callTarget.IsArguments)
+            {
+                reason = "arguments call targets are outside the call-target preparation boundary.";
+                return false;
+            }
+
             if (!isDirectEval &&
                 !allowsDynamicIdentifiers &&
                 !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))

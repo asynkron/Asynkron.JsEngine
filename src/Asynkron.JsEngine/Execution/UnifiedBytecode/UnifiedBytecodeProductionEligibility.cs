@@ -2468,9 +2468,10 @@ internal static class UnifiedBytecodeProductionEligibility
         var firstOperation = program.GetOperation(0);
         if (firstOperation.Kind == ExpressionOpKind.LoadIdentifierCallTarget)
         {
-            return !firstOperation.IsArguments &&
-                   (TryGetActivationResolvedIdentifier(firstOperation, identifierConstants, activationSlots) ||
-                    allowsDynamicIdentifiers) &&
+            var firstIdentifier = firstOperation.GetIdentifier(identifierConstants);
+            var hasActivationCallTargetSlot = TryResolveActivationSlot(firstIdentifier, activationSlots);
+            return (hasActivationCallTargetSlot ||
+                    !firstOperation.IsArguments && allowsDynamicIdentifiers) &&
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 

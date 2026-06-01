@@ -1158,6 +1158,39 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.LoadSlot));
     }
 
+    [Theory]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box?.child[key];
+        }
+        """,
+        "remove")]
+    [InlineData(
+        """
+        function remove(box, key) {
+            return delete box.child?.[key];
+        }
+        """,
+        "remove")]
+    public void Evaluate_OptionalComputedPropertyDeleteCandidate_AcceptsOwnedPropertyOpcodes(
+        string source,
+        string functionName)
+    {
+        var plan = GetFunctionPlan(source, functionName);
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+    }
+
     [Fact]
     public void Evaluate_NamedCompoundPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
     {
@@ -2304,18 +2337,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [InlineData(
         """
         function remove(box, key) {
-            return delete box?.child[key];
+            return delete box?.child?.[key];
         }
         """,
         "remove")]
-    [InlineData(
-        """
-        function remove(box, key) {
-            return delete box.child?.[key];
-        }
-        """,
-        "remove")]
-    public void Evaluate_NestedComputedPropertyDeleteWithOptionalReceiver_DeclinesWithExplicitCode(
+    public void Evaluate_UnsupportedOptionalComputedPropertyDeleteNeighbor_DeclinesWithExplicitCode(
         string source,
         string functionName)
     {

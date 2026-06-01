@@ -4985,16 +4985,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "readComputedSpreadKey",
         42d)]
-    [InlineData(
-        """
-        function complexCompoundWrite(box, value) {
-            return box.child.value += value;
-        }
-
-        complexCompoundWrite({ child: { value: 40 } }, 2);
-        """,
-        "complexCompoundWrite",
-        42d)]
     public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
@@ -5007,6 +4997,43 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndGetterSetterSemantics()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var events = [];
+            var child = {};
+            Object.defineProperty(child, "value", {
+                get() {
+                    events.push("get");
+                    return 40;
+                },
+                set(value) {
+                    events.push("set:" + value);
+                }
+            });
+            var box = {
+                get child() {
+                    events.push("child");
+                    return child;
+                }
+            };
+
+            function write(box, value) {
+                return box.child.value += value;
+            }
+
+            String(write(box, 2)) + ":" + events.join(",");
+            """);
+
+        Assert.Equal("42:child,get,set:42", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=2",
                 StringComparison.Ordinal));
     }
 

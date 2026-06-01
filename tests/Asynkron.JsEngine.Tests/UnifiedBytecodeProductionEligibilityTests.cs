@@ -2478,7 +2478,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readBinaryTarget",
-        (int)UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function readComputedObjectLiteralKey(box) {

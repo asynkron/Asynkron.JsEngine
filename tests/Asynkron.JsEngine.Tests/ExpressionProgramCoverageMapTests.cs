@@ -154,6 +154,25 @@ public sealed class ExpressionProgramCoverageMapTests
     }
 
     [Fact]
+    public void UnifiedBytecodeVirtualMachine_HandlesEveryDeclaredOpcode()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var virtualMachinePath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeVirtualMachine.cs");
+        Assert.True(File.Exists(virtualMachinePath), $"Expected VM source at '{virtualMachinePath}'.");
+
+        var virtualMachineText = File.ReadAllText(virtualMachinePath);
+        var handledOpcodes = ExtractUnifiedBytecodeOpcodeCases(virtualMachineText);
+
+        AssertSameSet(Enum.GetNames<UnifiedBytecodeOpCode>(), handledOpcodes, "Unified bytecode VM opcode cases");
+    }
+
+    [Fact]
     public void UnifiedBytecodeProductionProofPack_CoversAdmittedOrdinarySyncBaseline()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -214,6 +233,16 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.True(
             pattern.IsMatch(sourceText),
             $"Production unified-bytecode proof pack shape '{shapeKey}' is missing proof method '{methodName}'.");
+    }
+
+    private static string[] ExtractUnifiedBytecodeOpcodeCases(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\bcase\s+UnifiedBytecodeOpCode\.(?<name>[A-Za-z0-9_]+)\s*:",
+                RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["name"].Value)
+            .ToArray();
     }
 
     private static string[] ExtractBacktickedBulletItemsUnderHeading(string documentText, string heading)

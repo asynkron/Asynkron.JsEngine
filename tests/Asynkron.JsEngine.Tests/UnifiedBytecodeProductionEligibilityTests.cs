@@ -6289,17 +6289,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_ConditionalExpression_ThisPropertyConditionAndArms_DeclinesWithPropertyReadBoundaryOutOfScope()
+    public void Evaluate_ConditionalExpression_ThisPropertyConditionAndArms_Accepts()
     {
-        // AC-5 deviation (intentional): AC-5 originally required an accept test for this.flag ? a : b.
-        // TryIsFirstBoundaryPropertyReadShortCircuitExpressionCandidate handles only logical short-circuit
-        // opcodes (JumpIfFalse/JumpIfTrue/JumpIfNotNullish) — not JumpIfConditionalFalse, which is the
-        // ternary condition opcode. The ternary condition is not a "short-circuit property read" candidate;
-        // the property value is consumed as a boolean condition, not returned directly. Extending the
-        // method to admit JumpIfConditionalFalse would be architecturally incorrect. This decline test
-        // documents the boundary as the intentional AC-5 resolution.
-        // this.flag ? this.a : other has GetNamedProperty in ternary condition position,
-        // which is outside the admitted property-read boundary shapes for ternary.
         var plan = GetClassMethodPlan("""
             class Toggle {
                 select(other) {
@@ -6314,8 +6305,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
     }
 
     [Fact]

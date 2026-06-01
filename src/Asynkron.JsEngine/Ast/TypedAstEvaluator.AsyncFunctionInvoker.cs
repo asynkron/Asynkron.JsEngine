@@ -114,8 +114,7 @@ public static partial class TypedAstEvaluator
                 IsAsyncLike: true,
                 IsGenerator: false,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
-                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function),
-                HasCallDependency: false);
+                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function));
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {

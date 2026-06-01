@@ -3342,8 +3342,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             //   • DynamicLookupDependency: HasDynamicLookupDependency is gated out by fast-path guard
             //     (!_allowIdentifierCache && !canUseDynamic), so any DynamicLookupDependency from
             //     Evaluate is plan-structural (e.g. a global like Math not in activation slots).
-            //   • CallDependency: ordinary sync invocation no longer sets the descriptor-level
-            //     call blocker; unowned call shapes are declined from the plan scan instead.
+            //   • CallDependency: unowned call shapes are declined from the plan scan.
             return code is not (
                 UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction or
                 UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
@@ -3427,7 +3426,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     IsArrowFunction && !canUseArrowFunctionPath || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation:
                     IsClassConstructor && !canUseDerivedClassConstructorPath && !canUseBaseClassConstructorPath,
-                HasCallDependency: false,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations: canUseOrdinaryDynamicNamePath);
         }

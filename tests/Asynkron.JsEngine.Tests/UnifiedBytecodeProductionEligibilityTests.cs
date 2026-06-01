@@ -4,6 +4,7 @@ using Asynkron.JsEngine.Ast.ShapeAnalyzer;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -41,6 +42,32 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                     UnifiedBytecodeOpCode.InitializeSlot,
                     UnifiedBytecodeOpCode.Return
                 }));
+    }
+
+    [Fact]
+    public void Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm()
+    {
+        var plan = GetFunctionPlan("""
+            function passThrough(x) {
+                var y = x;
+                return y;
+            }
+            """,
+            "passThrough");
+
+        var eligibility = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+        Assert.True(eligibility.IsEligible, eligibility.Reason);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(eligibility.Program.SlotCount, 1)];
+        SetSlot(eligibility.Program, slots, "x", JsValue.FromDouble(42));
+
+        var result = UnifiedBytecodeVirtualMachine.Execute(eligibility.Program, slots, context);
+
+        Assert.Equal(42d, result.AsDouble());
     }
 
     [Fact]
@@ -3836,6 +3863,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static void SetSlot(UnifiedBytecodeProgram program, JsValue[] slots, string name, JsValue value)
+    {
+        var slotIndex = program.SlotNames.IndexOf(name);
+        Assert.True(slotIndex >= 0, $"Expected unified bytecode slot '{name}'.");
+        slots[slotIndex] = value;
     }
 
     // This-binding widening proof pack (issue #2633 / ADR 0279)

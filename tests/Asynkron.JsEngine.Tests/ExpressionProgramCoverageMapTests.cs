@@ -49,6 +49,27 @@ public sealed class ExpressionProgramCoverageMapTests
         "prototype-guard:DefaultUnsupportedOpcode"
     ];
 
+    private sealed record ProductionUnifiedBytecodeProofPackShape(
+        string Key,
+        string ContractEvidenceText,
+        string SelectorAndOpcodeTest,
+        string VmBehaviorTest,
+        string PublicRouteHitTest,
+        string NearbyNoRouteTest,
+        string NoMixedExecutionSourceGate);
+
+    private static readonly ProductionUnifiedBytecodeProofPackShape[] ProductionUnifiedBytecodeProofPackShapes =
+    [
+        new(
+            "ordinary-sync:linear-slot-literal-return",
+            "function passThrough(x) { var y = x; return y; }",
+            "Evaluate_LinearSlotLiteralReturnPlan_Accepts",
+            "Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm",
+            "LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath",
+            "NestedFunctionDeclaration_DeclinesUnifiedBytecodeProductionFastPath",
+            "SourceGate_ProductionUnifiedBytecodeAcceptedPath_DoesNotDelegateToAstOrExecutionPlanRunner")
+    ];
+
     [Fact]
     public void CoverageMap_ListsEveryConcreteExpressionNodeType()
     {
@@ -133,6 +154,42 @@ public sealed class ExpressionProgramCoverageMapTests
         }
     }
 
+    [Fact]
+    public void UnifiedBytecodeProductionProofPack_CoversAdmittedOrdinarySyncBaseline()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        var eligibilityTestsPath = Path.Combine(
+            repositoryRoot.FullName,
+            "tests",
+            "Asynkron.JsEngine.Tests",
+            "UnifiedBytecodeProductionEligibilityTests.cs");
+        var invocationTestsPath = Path.Combine(
+            repositoryRoot.FullName,
+            "tests",
+            "Asynkron.JsEngine.Tests",
+            "UnifiedBytecodeProductionInvocationTests.cs");
+
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+        Assert.True(File.Exists(eligibilityTestsPath), $"Expected eligibility tests at '{eligibilityTestsPath}'.");
+        Assert.True(File.Exists(invocationTestsPath), $"Expected invocation tests at '{invocationTestsPath}'.");
+        Assert.NotEmpty(ProductionUnifiedBytecodeProofPackShapes);
+
+        var contractText = File.ReadAllText(contractPath);
+        var eligibilityTests = File.ReadAllText(eligibilityTestsPath);
+        var invocationTests = File.ReadAllText(invocationTestsPath);
+
+        foreach (var shape in ProductionUnifiedBytecodeProofPackShapes)
+        {
+            Assert.Contains(shape.ContractEvidenceText, contractText, StringComparison.Ordinal);
+            AssertMethodExists(eligibilityTests, shape.SelectorAndOpcodeTest, shape.Key);
+            AssertMethodExists(eligibilityTests, shape.VmBehaviorTest, shape.Key);
+            AssertMethodExists(invocationTests, shape.PublicRouteHitTest, shape.Key);
+            AssertMethodExists(invocationTests, shape.NearbyNoRouteTest, shape.Key);
+            AssertMethodExists(invocationTests, shape.NoMixedExecutionSourceGate, shape.Key);
+        }
+    }
+
     private static DirectoryInfo FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
@@ -147,5 +204,16 @@ public sealed class ExpressionProgramCoverageMapTests
         }
 
         throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
+    }
+
+    private static void AssertMethodExists(string sourceText, string methodName, string shapeKey)
+    {
+        var pattern = new Regex(
+            $@"\bpublic\s+(?:async\s+)?(?:Task|void)\s+{Regex.Escape(methodName)}\s*\(",
+            RegexOptions.CultureInvariant);
+
+        Assert.True(
+            pattern.IsMatch(sourceText),
+            $"Production unified-bytecode proof pack shape '{shapeKey}' is missing proof method '{methodName}'.");
     }
 }

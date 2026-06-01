@@ -73,9 +73,9 @@ internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
 
 internal static class UnifiedBytecodeProductionEligibility
 {
-    internal static bool ContainsOnlyTypeOfImplicitArgumentsObjectDependency(ExecutionPlan plan)
+    internal static bool ContainsOnlyImplicitArgumentsObjectReadDependency(ExecutionPlan plan)
     {
-        var foundTypeOfArguments = false;
+        var foundArgumentsRead = false;
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             if (!TryGetExpressionProgram(plan.Instructions[instructionIndex], out var program))
@@ -91,16 +91,16 @@ internal static class UnifiedBytecodeProductionEligibility
                     continue;
                 }
 
-                if (operation.Kind != ExpressionOpKind.TypeOfIdentifier)
+                if (operation.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier))
                 {
                     return false;
                 }
 
-                foundTypeOfArguments = true;
+                foundArgumentsRead = true;
             }
         }
 
-        return foundTypeOfArguments;
+        return foundArgumentsRead;
     }
 
     internal static bool ContainsOrdinaryDynamicIdentifierDependency(ExecutionPlan plan)
@@ -916,10 +916,15 @@ internal static class UnifiedBytecodeProductionEligibility
                     var hasActivationSlot = TryResolveActivationSlot(identifier, activationSlots);
                     if (operation.IsArguments && !hasActivationSlot)
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments object access is not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                            declineReason =
+                                "arguments object access is not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        break;
                     }
 
                     if (!hasActivationSlot)
@@ -1094,7 +1099,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
+                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryOptionalNamedThenComputedReadChainCandidate(program, identifierConstants, activationSlots))
                     {
@@ -1223,7 +1232,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1831,6 +1844,18 @@ internal static class UnifiedBytecodeProductionEligibility
         return TryResolveActivationSlot(identifier, activationSlots);
     }
 
+    private static bool TryGetActivationOrImplicitArgumentsObjectReadValue(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        return TryGetActivationResolvedValue(operation, identifierConstants, activationSlots) ||
+               allowsDynamicIdentifiers &&
+               operation.Kind == ExpressionOpKind.LoadIdentifier &&
+               operation.IsArguments;
+    }
+
     private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -2021,14 +2046,19 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryComputedPropertyReadChainCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         if (!TryGetComputedPropertyKeyPayloadBounds(program, out _, out _))
         {
             return false;
         }
 
-        return TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots);
+        return TryGetActivationOrImplicitArgumentsObjectReadValue(
+            program.GetOperation(0),
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
     }
 
     private static bool TryGetComputedPropertyKeyPayloadBounds(

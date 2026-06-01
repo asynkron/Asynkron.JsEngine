@@ -3265,7 +3265,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 UnifiedBytecodeProductionDeclineCode.GeneratorFunction or
                 UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation or
                 UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency or
-                UnifiedBytecodeProductionDeclineCode.ThisDependency or
                 UnifiedBytecodeProductionDeclineCode.NewTargetDependency or
                 UnifiedBytecodeProductionDeclineCode.ArrowLexicalThisDependency or
                 UnifiedBytecodeProductionDeclineCode.ClassConstructorActivation or
@@ -3329,7 +3328,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 HasArgumentsObjectDependency:
                     !_hasDirectEvalInBodyOrParameters &&
                     (_usesArguments || _needsArgumentsBinding && !canUseDynamicNamePath),
-                HasThisDependency: false,
                 HasNewTargetDependency: !newTarget.IsUndefined && !canUseDerivedClassConstructorPath,
                 HasArrowLexicalThisDependency: IsArrowFunction || _lexicalThisEnvironment is not null,
                 HasClassConstructorActivation: IsClassConstructor && !canUseDerivedClassConstructorPath,

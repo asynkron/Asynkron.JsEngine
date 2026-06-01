@@ -214,16 +214,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Theory]
-    [InlineData(true, false, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
-    [InlineData(false, true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
-    [InlineData(false, false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ThisDependency)]
-    [InlineData(false, false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.NewTargetDependency)]
-    [InlineData(false, false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
-    [InlineData(false, false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
+    [InlineData(true, false, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.CapturedOrDynamicActivation)]
+    [InlineData(false, true, false, false, false, (int)UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency)]
+    [InlineData(false, false, true, false, false, (int)UnifiedBytecodeProductionDeclineCode.NewTargetDependency)]
+    [InlineData(false, false, false, true, false, (int)UnifiedBytecodeProductionDeclineCode.CallDependency)]
+    [InlineData(false, false, false, false, true, (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
     public void Evaluate_ActivationDependencies_DeclineBeforeCompile(
         bool capturedOrDynamic,
         bool argumentsDependency,
-        bool thisDependency,
         bool newTargetDependency,
         bool callDependency,
         bool dynamicLookupDependency,
@@ -241,7 +239,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(
                 HasCapturedOrDynamicActivation: capturedOrDynamic,
                 HasArgumentsObjectDependency: argumentsDependency,
-                HasThisDependency: thisDependency,
                 HasNewTargetDependency: newTargetDependency,
                 HasCallDependency: callDependency,
                 HasDynamicLookupDependency: dynamicLookupDependency));

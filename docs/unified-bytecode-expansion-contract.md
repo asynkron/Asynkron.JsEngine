@@ -229,7 +229,6 @@ statement interpretation.
 - `GeneratorFunction`
 - `CapturedOrDynamicActivation`
 - `ArgumentsObjectDependency`
-- `ThisDependency` *(conditional — see Production This-Binding Boundary below; currently never triggered for ordinary sync, and no longer triggered on the resumable async/generator route — see Production Resumable Boundary and ADR 0283)*
 - `NewTargetDependency`
 - `ArrowLexicalThisDependency`
 - `ClassConstructorActivation`
@@ -267,7 +266,6 @@ must still obey the no-mixed-execution rule.
 | `GeneratorFunction` | `Evaluate` activation gate for ordinary sync production routing | Existing generator IR route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `CapturedOrDynamicActivation` | Activation descriptor `HasCapturedOrDynamicActivation`, including captured function scope or unresolved dynamic activation outside the with-backed lane | Existing sync IR / environment route | Dynamic activation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ActivationDependencies_DeclineBeforeCompile"` |
 | `ArgumentsObjectDependency` | Activation descriptor and expression scan for `arguments` object access or arguments call targets | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ArgumentsAccess_DeclinesWithArgumentsDependency"` |
-| `ThisDependency` | Activation descriptor gate retained for future ordinary sync shapes where `this` cannot be threaded into the VM | Existing sync IR route | This-binding follow-up lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ActivationDependencies_DeclineBeforeCompile"` |
 | `NewTargetDependency` | Activation descriptor gate for `new.target` dependency | Existing constructor / sync IR route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ActivationDependencies_DeclineBeforeCompile"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation before ordinary sync routing | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests&FullyQualifiedName~OrdinarySyncActivationBlockers_DeclineUnifiedBytecodeAndFallBack"` |
@@ -392,9 +390,9 @@ the final post-compile production subset check before VM entry.
   so the VM's `LoadThis` opcode always receives the correctly coerced value.
 - Arrow functions still decline via the `IsArrowFunction` and
   `_lexicalThisEnvironment is not null` pre-gates.
-- `HasThisDependency` in `UnifiedBytecodeProductionActivationDescriptor` is
-  never set for ordinary sync functions (defaults to `false`). It is kept as an
-  explicit gate for future shapes where `this` must be declined.
+- There is no retained `this` decline in the production activation descriptor;
+  future shapes that cannot thread `this` through the VM should introduce a
+  concrete gate with a current failing example instead of carrying a placeholder.
 
 ## Production Loop-Control Boundary
 - Current production control-flow support is compiler-owned, not

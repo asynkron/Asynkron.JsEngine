@@ -11,7 +11,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     GeneratorFunction,
     CapturedOrDynamicActivation,
     ArgumentsObjectDependency,
-    ThisDependency,
     NewTargetDependency,
     ArrowLexicalThisDependency,
     ClassConstructorActivation,
@@ -38,7 +37,6 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool IsGenerator = false,
     bool HasCapturedOrDynamicActivation = false,
     bool HasArgumentsObjectDependency = false,
-    bool HasThisDependency = false,
     bool HasNewTargetDependency = false,
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
@@ -169,13 +167,6 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         if (TryFindSharedActivationDecline(activation, isResumable: false, out declineCode, out declineReason))
         {
-            return true;
-        }
-
-        if (activation.HasThisDependency)
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.ThisDependency;
-            declineReason = "'this' dependency is not eligible for production unified bytecode routing.";
             return true;
         }
 

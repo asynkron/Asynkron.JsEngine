@@ -1129,7 +1129,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1345,7 +1349,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -2110,7 +2118,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryComputedPropertyDeleteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         if (program.OperationCount < 3)
         {
@@ -2142,7 +2151,8 @@ internal static class UnifiedBytecodeProductionEligibility
                    startInclusive: keyStartIndex,
                    endExclusive: program.OperationCount - 1,
                    identifierConstants,
-                   activationSlots) &&
+                   activationSlots,
+                   allowsDynamicIdentifiers) &&
                program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.DeleteComputedProperty;
     }
 
@@ -3400,7 +3410,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool IsSimpleComputedPropertyKey(
         PackedExpressionOp operation,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         return operation.Kind switch
         {
@@ -3410,7 +3421,9 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
                 operation,
                 identifierConstants,
-                activationSlots),
+                activationSlots) ||
+                allowsDynamicIdentifiers &&
+                !operation.IsArguments,
             _ => false
         };
     }
@@ -3420,7 +3433,8 @@ internal static class UnifiedBytecodeProductionEligibility
         int startInclusive,
         int endExclusive,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         var stackDepth = 0;
         for (var index = startInclusive; index < endExclusive; index++)
@@ -3432,7 +3446,11 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadIdentifier:
                 case ExpressionOpKind.LoadThis:
                 case ExpressionOpKind.LoadNewTarget:
-                    if (!IsSimpleComputedPropertyKey(operation, identifierConstants, activationSlots))
+                    if (!IsSimpleComputedPropertyKey(
+                            operation,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         return false;
                     }

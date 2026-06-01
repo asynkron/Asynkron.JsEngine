@@ -2963,8 +2963,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "remove",
-        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
-    public void Evaluate_NestedComputedPropertyDeleteUnsupportedKey_DeclinesBeforeVm(
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
+    public void Evaluate_NestedComputedPropertyDeleteDynamicKey_AcceptsOrdinaryDynamicNameOpcode(
         string source,
         string functionName,
         int expectedCode)
@@ -2973,10 +2973,16 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, (UnifiedBytecodeProductionDeclineCode)expectedCode);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
     }
 
     [Fact]
@@ -3141,7 +3147,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_DynamicIdentifierLookup_DeclinesWithDynamicLookupDependency()
+    public void Evaluate_DynamicIdentifierLookup_AcceptsOrdinaryDynamicNameOpcode()
     {
         var plan = GetFunctionPlan("""
             function readExternal() {
@@ -3152,11 +3158,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency, result.Code);
-        Assert.Contains("dynamic lookup", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
     }
 
     [Fact]

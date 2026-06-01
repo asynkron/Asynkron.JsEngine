@@ -5006,6 +5006,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedNamedReceiverComputedPropertyDeleteWithOrdinaryDynamicKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var externalKey = "value";
+            function remove(box) {
+                return delete box.child[externalKey];
+            }
+
+            var child = { value: 42 };
+            var box = { child: child };
+            remove(box) && !Object.prototype.hasOwnProperty.call(child, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedThenComputedPropertyDelete_UsesUnifiedBytecodeProductionFastPathAndPreservesKeyOrder()
     {
         await using var engine = CreateEngine();
@@ -5616,6 +5638,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=readDynamic argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DynamicIdentifierLookup_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            externalValue = 42;
+            function readExternal() {
+                return externalValue;
+            }
+
+            readExternal();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readExternal argc=0",
                 StringComparison.Ordinal));
     }
 

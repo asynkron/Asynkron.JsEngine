@@ -5087,20 +5087,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
     }
 
-    [Theory]
-    [InlineData("""
+    [Fact]
+    public void Evaluate_CallWithBinaryComputedKeyObjectArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
         function sendBinaryExprKey(receiver, a, b, v) {
             return receiver({ [a + b]: v });
         }
-        """, "sendBinaryExprKey")]
-    [InlineData("""
+        """, "sendBinaryExprKey");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Binary && instruction.Operand == (int)BinaryOperator.Add);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithCallExpressionComputedKeyObjectArg_DeclinesCallDependency()
+    {
+        var plan = GetFunctionPlan("""
         function sendCallExprKey(receiver, fn, v) {
             return receiver({ [fn()]: v });
         }
-        """, "sendCallExprKey")]
-    public void Evaluate_CallWithComplexComputedKeyObjectArg_DeclinesCallDependency(string source, string functionName)
-    {
-        var plan = GetFunctionPlan(source, functionName);
+        """, "sendCallExprKey");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,

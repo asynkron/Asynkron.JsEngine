@@ -3632,6 +3632,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return true;
@@ -3647,6 +3648,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return true;
@@ -3695,6 +3697,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return true;
@@ -3740,6 +3743,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return true;
@@ -6351,6 +6355,125 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool TryMeasureSimpleObjectLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.CreateObject)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var stringConstants = expressionProgram.StringConstants.AsSpan();
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            if (TryMeasureSimpleBinaryOperandSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    out var keySpanLength,
+                    out _) &&
+                i + keySpanLength < expressionProgram.OperationCount &&
+                expressionProgram.GetOperation(i + keySpanLength).Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                i += keySpanLength + 1;
+                if (i >= expressionProgram.OperationCount ||
+                    !CanAppendSimpleOperandLoad(expressionProgram.GetOperation(i), expressionProgram, activationSlots))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var computedDefineOp = expressionProgram.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                continue;
+            }
+
+            var firstOp = expressionProgram.GetOperation(i);
+            if (!CanAppendSimpleOperandLoad(firstOp, expressionProgram, activationSlots))
+            {
+                break;
+            }
+
+            i++;
+            if (i >= expressionProgram.OperationCount)
+            {
+                spanLength = 0;
+                return false;
+            }
+
+            var secondOp = expressionProgram.GetOperation(i);
+            if (secondOp.Kind == ExpressionOpKind.DefineObjectProperty)
+            {
+                if (secondOp.GetString(stringConstants).IsPrivateName() ||
+                    secondOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+            }
+            else if (secondOp.Kind == ExpressionOpKind.ResolvePropertyKey)
+            {
+                i++;
+                if (i >= expressionProgram.OperationCount ||
+                    !CanAppendSimpleOperandLoad(expressionProgram.GetOperation(i), expressionProgram, activationSlots))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+                if (i >= expressionProgram.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var computedDefineOp = expressionProgram.GetOperation(i);
+                if (computedDefineOp.Kind != ExpressionOpKind.DefineComputedObjectProperty ||
+                    computedDefineOp.AllowNameInference)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i++;
+            }
+            else if (secondOp.Kind == ExpressionOpKind.ObjectSpread)
+            {
+                i++;
+            }
+            else
+            {
+                spanLength = 0;
+                return false;
+            }
+        }
+
+        spanLength = i - startIndex;
+        return true;
+    }
+
     private static bool TryMeasureSimpleBinaryOperandSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -6555,6 +6678,7 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
         if (expressionProgram.OperationCount < 9)
@@ -6623,6 +6747,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
         stagedLiterals.AddRange(literalConstants);
 
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -6638,6 +6765,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 startInclusive: 1,
                 endExclusive: suffixStart,
                 out reason))
@@ -6666,6 +6794,8 @@ internal static class UnifiedBytecodeCompiler
         unified.AddRange(stagedUnified);
         literalConstants.Clear();
         literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }
@@ -6843,6 +6973,7 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
         if (expressionProgram.OperationCount < 15)
@@ -6934,6 +7065,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
         stagedLiterals.AddRange(literalConstants);
 
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -6949,6 +7083,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 startInclusive: 1,
                 endExclusive: suffixStart,
                 out reason))
@@ -6999,6 +7134,8 @@ internal static class UnifiedBytecodeCompiler
         unified.AddRange(stagedUnified);
         literalConstants.Clear();
         literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }
@@ -7147,6 +7284,7 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
         if (expressionProgram.OperationCount < 4)
@@ -7185,6 +7323,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
         stagedLiterals.AddRange(literalConstants);
 
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -7200,6 +7341,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 startInclusive: 1,
                 endExclusive: valueIndex,
                 out reason))
@@ -7223,6 +7365,8 @@ internal static class UnifiedBytecodeCompiler
         unified.AddRange(stagedUnified);
         literalConstants.Clear();
         literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }
@@ -7472,6 +7616,7 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
         if (expressionProgram.OperationCount < 3)
@@ -7504,6 +7649,9 @@ internal static class UnifiedBytecodeCompiler
         var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
         stagedLiterals.AddRange(literalConstants);
 
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -7519,6 +7667,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 startInclusive: 1,
                 endExclusive: propertyUpdateIndex,
                 out reason))
@@ -7533,6 +7682,8 @@ internal static class UnifiedBytecodeCompiler
         unified.AddRange(stagedUnified);
         literalConstants.Clear();
         literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }
@@ -7731,6 +7882,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 startInclusive: 2,
                 endExclusive: expressionProgram.OperationCount - 1,
                 out reason))
@@ -7821,6 +7973,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 startInclusive: jumpIndex + 1,
                 endExclusive: deleteIndex,
                 out reason))
@@ -7919,6 +8072,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 startInclusive: jumpIndex + 1,
                 endExclusive: deleteIndex,
                 out reason))
@@ -8280,6 +8434,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 startInclusive: optionalStartIndex + 1,
                 endExclusive: computedIndex,
                 out reason))
@@ -8425,6 +8580,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
                 startInclusive: jumpIndex + 1,
                 endExclusive: computedIndex,
                 out reason))
@@ -8453,6 +8609,7 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
         int startInclusive,
         int endExclusive,
         out string reason)
@@ -8475,6 +8632,23 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    break;
+
+                case ExpressionOpKind.CreateObject:
+                    if (!TryAppendSimpleObjectLiteralSpan(
+                            expressionProgram,
+                            index,
+                            activationSlots,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            out var objectSpanLength,
+                            out reason))
+                    {
+                        return false;
+                    }
+
+                    index += objectSpanLength - 1;
                     break;
 
                 case ExpressionOpKind.UnaryPlus:
@@ -8540,6 +8714,20 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.CreateObject:
+                    if (!TryMeasureSimpleObjectLiteralSpan(
+                            expressionProgram,
+                            index,
+                            activationSlots,
+                            out var objectSpanLength))
+                    {
+                        return false;
+                    }
+
+                    index += objectSpanLength - 1;
                     stackDepth++;
                     break;
 

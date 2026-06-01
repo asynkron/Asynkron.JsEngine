@@ -2494,7 +2494,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         }
         """,
         "readComputedSpreadKey",
-        (int)UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency)]
+        (int)UnifiedBytecodeProductionDeclineCode.None)]
     [InlineData(
         """
         function logicalWrite(box, value) {
@@ -2558,7 +2558,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedCode;
         if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)
         {
-            Assert.True(result.IsEligible);
+            Assert.True(result.IsEligible, $"{result.Code}: {result.Reason}");
             Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
             return;
         }

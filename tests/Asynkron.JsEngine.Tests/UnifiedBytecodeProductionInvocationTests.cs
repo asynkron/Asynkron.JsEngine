@@ -5375,29 +5375,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
-    [Theory(Timeout = 5000)]
-    [InlineData(
-        """
-        function readComputedSpreadKey(box, source) {
-            return box[{ ...source }];
-        }
-
-        readComputedSpreadKey({ value: 42 }, { toString() { return "value"; } });
-        """,
-        "readComputedSpreadKey",
-        42d)]
-    public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
-        string source,
-        string functionName,
-        object expected)
+    [Fact(Timeout = 5000)]
+    public async Task ComputedPropertyReadWithSpreadObjectKey_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
-        var result = await engine.Evaluate(source);
+        var result = await engine.Evaluate("""
+            function readComputedSpreadKey(box, source) {
+                return box[{ ...source }];
+            }
 
-        Assert.Equal(expected, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"unified-bytecode-production-fast-path func={functionName}",
+            readComputedSpreadKey({ value: 42 }, { toString() { return "value"; } });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readComputedSpreadKey argc=2",
                 StringComparison.Ordinal));
     }
 

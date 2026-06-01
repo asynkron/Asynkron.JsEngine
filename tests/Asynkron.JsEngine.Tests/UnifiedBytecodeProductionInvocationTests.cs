@@ -1995,6 +1995,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedMemberCallWithExpressionKey_UsesUnifiedBytecodeProductionFastPathAndPreservesThis()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return value + this.offset;
+                }
+            };
+
+            function invoke(box, left, right, value) {
+                return box[left + right](value);
+            }
+
+            invoke(box, "re", "ad", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedMemberCall_NullishReceiverThrowsBeforeKeyCoercion()
     {
         await using var engine = CreateEngine();

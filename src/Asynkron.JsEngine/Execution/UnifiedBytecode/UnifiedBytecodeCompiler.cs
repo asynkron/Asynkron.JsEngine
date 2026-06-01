@@ -5403,25 +5403,27 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        var keyIndex = callTargetIndexInProgram - 1;
+        var keyStartIndex = FindComputedCallKeyStart(expressionProgram, callTargetIndexInProgram);
         if (!TryAppendNamedReceiverOperations(
                 expressionProgram,
                 activationSlots,
                 unified,
                 stringConstants,
-                keyIndex,
+                keyStartIndex,
                 allowDeepChain: false,
                 out reason))
         {
             return false;
         }
 
-        if (!TryAppendComputedPropertyKeyLoad(
-                expressionProgram.GetOperation(keyIndex),
+        if (!TryAppendComputedPropertyKeySpan(
                 expressionProgram,
                 activationSlots,
                 unified,
                 literalConstants,
+                stringConstants,
+                startInclusive: keyStartIndex,
+                endExclusive: callTargetIndexInProgram,
                 out reason))
         {
             return false;
@@ -5443,6 +5445,31 @@ internal static class UnifiedBytecodeCompiler
             call,
             callIndex,
             out reason);
+    }
+
+    private static int FindComputedCallKeyStart(
+        ExpressionProgram expressionProgram,
+        int callTargetIndexInProgram)
+    {
+        var stringConstants = expressionProgram.StringConstants.AsSpan();
+        var keyStartIndex = 1;
+        while (keyStartIndex < callTargetIndexInProgram &&
+               IsPlainNamedPropertyRead(expressionProgram.GetOperation(keyStartIndex), stringConstants))
+        {
+            keyStartIndex++;
+        }
+
+        return keyStartIndex;
+    }
+
+    private static bool IsPlainNamedPropertyRead(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> stringConstants)
+    {
+        return operation.Kind == ExpressionOpKind.GetNamedProperty &&
+               !operation.IsOptional &&
+               !operation.ShortCircuitOnNullishTarget &&
+               !operation.GetString(stringConstants).IsPrivateName();
     }
 
     private static bool TryAppendNamedSuperCallTargetPreparation(

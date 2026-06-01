@@ -2730,7 +2730,7 @@ internal static class UnifiedBytecodeProductionEligibility
         if (computedCallTargetIndex >= 2)
         {
             var computedCallTarget = program.GetOperation(computedCallTargetIndex);
-            var keyIndex = computedCallTargetIndex - 1;
+            var keyStartIndex = FindComputedCallKeyStart(program, computedCallTargetIndex, stringConstants);
             return !computedCallTarget.IsOptional &&
                    !computedCallTarget.ShortCircuitOnNullishTarget &&
                    IsSupportedNamedReceiverChain(
@@ -2738,10 +2738,12 @@ internal static class UnifiedBytecodeProductionEligibility
                        identifierConstants,
                        stringConstants,
                        activationSlots,
-                       keyIndex,
+                       keyStartIndex,
                        allowDeepChain: false) &&
-                   IsSimpleComputedPropertyKey(
-                       program.GetOperation(keyIndex),
+                   IsSupportedComputedPropertyKeySpan(
+                       program,
+                       startInclusive: keyStartIndex,
+                       endExclusive: computedCallTargetIndex,
                        identifierConstants,
                        activationSlots) &&
                    HasSimpleCallArguments(
@@ -2753,6 +2755,21 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static int FindComputedCallKeyStart(
+        ExpressionProgram program,
+        int computedCallTargetIndex,
+        ReadOnlySpan<string> stringConstants)
+    {
+        var keyStartIndex = 1;
+        while (keyStartIndex < computedCallTargetIndex &&
+               IsPlainNamedPropertyRead(program.GetOperation(keyStartIndex), stringConstants))
+        {
+            keyStartIndex++;
+        }
+
+        return keyStartIndex;
     }
 
     private static bool IsFirstBoundaryDirectEvalCallCandidate(

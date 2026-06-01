@@ -50,3 +50,54 @@ Follow-up build-stage regression coverage tightened the callable guard from
 display-name matching to method-identity markers after cross-family method swaps
 exposed the broader name-based guard. See
 `docs/adrs/0319-keep-mapset-fast-dispatch-method-identity-marked.md`.
+
+## Residual Follow-Up: Issue #2954
+
+Timestamp: 2026-06-01T05:42:25Z
+
+Issue #2954 re-profiled the residual gap after the method-identity-marked fast
+path. The fresh selected-profile baseline was:
+
+```text
+rtk ./benchmark.sh mapset
+mapset  asynkron_ms=1055  jint_ms=796  delta=Jint 1.33x faster
+```
+
+The focused CPU profile:
+
+```bash
+rtk ./tools/profile mapset --cpu --calltree-depth 40 --calltree-width 40
+```
+
+still showed the owned route under `TryInvokePlainMapSetFast`, but the largest
+direct child in that route was `JsMap.Set` storage work:
+
+```text
+ExecuteInstructionLoop
+`- EvaluateExpressionProgram
+   `- ExecuteProgramCall
+      `- TryInvokePlainMapSetFast
+         `- JsMap.Set
+            |- Dictionary<JsValue,__Canon>.set_Item
+            |- List<__Canon>.AddWithResize
+            `- Dictionary<JsValue,JsValue>.TryGetValue
+```
+
+Two bounded runtime candidates were tried and reverted because selected-profile
+timing did not support retaining them:
+
+```text
+JsMap.Set CollectionsMarshal storage probe:
+mapset  asynkron_ms=1378  jint_ms=839  delta=Jint 1.64x faster
+mapset  asynkron_ms=2442  jint_ms=1134  delta=Jint 2.15x faster
+
+MapSetFastMethodKind-first dispatch:
+mapset  asynkron_ms=1461  jint_ms=925  delta=Jint 1.58x faster
+```
+
+`rtk dotnet test tests/Asynkron.JsEngine.Tests --filter
+"FullyQualifiedName~MapTests|FullyQualifiedName~SetTests"` passed for the
+attempted runtime slices, but no runtime change was retained. Future follow-up
+should start from a new focused profile and treat `JsMap.Set` storage, string
+key construction, and remaining expression-program overhead as separate owners
+instead of retrying these two micro-slices without fresh evidence.

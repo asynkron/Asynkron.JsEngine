@@ -3932,6 +3932,45 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ArraySpreadWithDirectNamedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function spreadNonSimple(source, take) {
+                return [...source.slice(0, take)];
+            }
+
+            var result = spreadNonSimple([40, 2, 99], 2);
+            result[0] + result[1];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadNonSimple",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectSpreadWithDirectNamedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function spreadObject(source) {
+                return { ...source.slice(0) };
+            }
+
+            spreadObject([42])[0];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadObject",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """

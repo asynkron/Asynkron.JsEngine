@@ -6053,7 +6053,7 @@ internal static class UnifiedBytecodeCompiler
             {
                 if (!TryAppendSimpleArrayLiteralSpan(
                         expressionProgram, operationIndex, activationSlots,
-                        unified, literalConstants, out var arraySpanLen, out reason))
+                        unified, literalConstants, stringConstants, callTargetConstants, slotLayout, out var arraySpanLen, out reason))
                 {
                     return false;
                 }
@@ -6151,6 +6151,9 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
         out int spanLength,
         out string reason)
     {
@@ -6175,14 +6178,44 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
-            if (!TryAppendSimpleOperandLoad(elementOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            if (slotLayout is not null &&
+                callTargetConstants is not null &&
+                TryMeasureSimpleDirectNamedCallOperandSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    out _,
+                    out _,
+                    out var callElementSpanLength))
+            {
+                if (!TryAppendSimpleDirectNamedCallOperandSpan(
+                        expressionProgram,
+                        i,
+                        activationSlots,
+                        slotLayout,
+                        unified,
+                        literalConstants,
+                        stringConstants,
+                        callTargetConstants,
+                        out reason))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i += callElementSpanLength;
+            }
+            else if (TryAppendSimpleOperandLoad(elementOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
+            {
+                i++;
+            }
+            else
             {
                 // Non-simple op — element scan is done; the array literal ends here.
                 // Undo the failed load (TryAppendSimpleOperandLoad adds nothing on failure).
                 break;
             }
 
-            i++;
             if (i >= expressionProgram.OperationCount)
             {
                 spanLength = 0;
@@ -6373,6 +6406,38 @@ internal static class UnifiedBytecodeCompiler
             }
 
             var firstOp = expressionProgram.GetOperation(i);
+            if (slotLayout is not null &&
+                callTargetConstants is not null &&
+                TryMeasureSimpleDirectNamedCallOperandSpan(
+                    expressionProgram,
+                    i,
+                    activationSlots,
+                    out _,
+                    out _,
+                    out var spreadCallSpanLength) &&
+                i + spreadCallSpanLength < expressionProgram.OperationCount &&
+                expressionProgram.GetOperation(i + spreadCallSpanLength).Kind == ExpressionOpKind.ObjectSpread)
+            {
+                if (!TryAppendSimpleDirectNamedCallOperandSpan(
+                        expressionProgram,
+                        i,
+                        activationSlots,
+                        slotLayout,
+                        unified,
+                        literalConstants,
+                        stringConstants,
+                        callTargetConstants,
+                        out reason))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ObjectSpread));
+                i += spreadCallSpanLength + 1;
+                continue;
+            }
+
             if (!TryAppendSimpleOperandLoad(firstOp, expressionProgram, activationSlots, unified, literalConstants, out reason))
             {
                 // Non-simple first op — property scan is done; the object literal ends here.
@@ -6540,6 +6605,131 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
             EncodeCallBoundaryOperand(0, spreadMaskIndex: -1, isDirectEval: false)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleDirectNamedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        out int callIndex,
+        out int argumentCount,
+        out int spanLength)
+    {
+        callIndex = -1;
+        argumentCount = 0;
+        spanLength = 0;
+        if (startIndex + 2 >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        if (!CanAppendSimpleOperandLoad(expressionProgram.GetOperation(startIndex), expressionProgram, activationSlots))
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex + 1);
+        if (callTarget.Kind != ExpressionOpKind.LoadNamedCallTarget ||
+            callTarget.IsOptional ||
+            callTarget.ShortCircuitOnNullishTarget ||
+            callTarget.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
+        {
+            return false;
+        }
+
+        var operationIndex = startIndex + 2;
+        while (operationIndex < expressionProgram.OperationCount &&
+               CanAppendSimpleOperandLoad(expressionProgram.GetOperation(operationIndex), expressionProgram, activationSlots))
+        {
+            argumentCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argumentCount)
+        {
+            argumentCount = 0;
+            return false;
+        }
+
+        callIndex = operationIndex;
+        spanLength = operationIndex - startIndex + 1;
+        return true;
+    }
+
+    private static bool TryAppendSimpleDirectNamedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (!TryMeasureSimpleDirectNamedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                out var callIndex,
+                out var argumentCount,
+                out _))
+        {
+            reason = "Spread sources only admit direct named member calls with simple arguments.";
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoad(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(startIndex + 1);
+        var callTargetNameIndex = stringConstants.Count;
+        stringConstants.Add(callTarget.GetString(expressionProgram.StringConstants.AsSpan()));
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.NamedMember,
+            NameConstantIndex: callTargetNameIndex));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+            callTargetConstantIndex));
+
+        for (var operationIndex = startIndex + 2; operationIndex < callIndex; operationIndex++)
+        {
+            if (!TryAppendSimpleOperandLoad(
+                    expressionProgram.GetOperation(operationIndex),
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            EncodeCallBoundaryOperand(argumentCount, spreadMaskIndex: -1, isDirectEval: false)));
         reason = string.Empty;
         return true;
     }
@@ -9076,7 +9266,8 @@ internal static class UnifiedBytecodeCompiler
             if (rhsOp.Kind == ExpressionOpKind.CreateArray)
             {
                 if (!TryAppendSimpleArrayLiteralSpan(
-                        expressionProgram, rhsStart, activationSlots, unified, literalConstants,
+                        expressionProgram, rhsStart, activationSlots, unified, literalConstants, stringConstants,
+                        callTargetConstants: null, slotLayout: null,
                         out var arraySpanLen, out reason) ||
                     rhsStart + arraySpanLen - 1 != rhsEnd)
                 {

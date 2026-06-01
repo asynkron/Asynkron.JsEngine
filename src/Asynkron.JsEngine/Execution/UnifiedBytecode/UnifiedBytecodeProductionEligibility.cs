@@ -4289,6 +4289,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:
                 case UnifiedBytecodeOpCode.Throw:
+                case UnifiedBytecodeOpCode.ThrowReferenceError:
                 case UnifiedBytecodeOpCode.Break:
                 case UnifiedBytecodeOpCode.Continue:
                 case UnifiedBytecodeOpCode.EnterTry:

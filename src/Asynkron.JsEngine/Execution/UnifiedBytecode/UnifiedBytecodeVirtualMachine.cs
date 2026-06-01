@@ -1986,6 +1986,12 @@ internal static class UnifiedBytecodeVirtualMachine
                     CleanupActiveDriverStates(slots, slotEnvironments, context, true);
                     return JsValue.Undefined;
 
+                case UnifiedBytecodeOpCode.ThrowReferenceError:
+                    throw StandardLibrary.ThrowReferenceError(
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        context.RealmState);
+
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
                     {
                         var flDescriptor = program.FunctionLiteralConstants[instruction.Operand >> 1];

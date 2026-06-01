@@ -2681,6 +2681,44 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ThrowReferenceErrorExpression_AcceptsAndVmThrowsReferenceError()
+    {
+        var message = "Unsupported reference to 'super'";
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(PackedExpressionOp.ThrowReferenceError(0)),
+            stringConstants: ImmutableArray.Create(message));
+        var seedPlan = GetFunctionPlan("function thrower() { return 0; }", "thrower");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ThrowReferenceError);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        _ = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        Assert.True(context.IsThrow);
+        var error = Assert.IsType<JsObject>(context.FlowValue.ObjectValue, exactMatch: false);
+        Assert.True(error.TryGetProperty("name", out var name));
+        Assert.Equal("ReferenceError", name.AsString());
+        Assert.True(error.TryGetProperty("message", out var actualMessage));
+        Assert.Equal(message, actualMessage.AsString());
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

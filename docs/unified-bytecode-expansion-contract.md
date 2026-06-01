@@ -71,17 +71,17 @@ statement interpretation.
   and generic binding declaration semantics are VM-owned.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
-  are admitted only through narrow shape helpers, while regex literals, template
-  objects, `import.meta`, private-field operations, object methods/accessors,
+  are admitted only through narrow shape helpers, while template objects,
+  `import.meta`, private-field operations, object methods/accessors,
   super property reads/writes/updates, generic call-target stack shuffles, and
-  `ThrowReferenceError` remain outside general unified bytecode lowering.
+  some call/reference helpers remain outside general unified bytecode lowering.
 - The current `ExpressionOpKind` names with no unified compiler reference are
   `DefineComputedObjectAccessor`, `DefineComputedObjectMethod`,
   `DefineObjectAccessor`, `DefineObjectMethod`, `GetComputedSuperProperty`,
   `GetNamedSuperProperty`, `LoadImportMeta`, `LoadTemplateObject`,
   `PrivateFieldIn`, `SetComputedSuperProperty`,
-  `SetNamedSuperProperty`, `ThrowReferenceError`,
-  `UpdateComputedSuperProperty`, and `UpdateNamedSuperProperty`.
+  `SetNamedSuperProperty`, `UpdateComputedSuperProperty`, and
+  `UpdateNamedSuperProperty`.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
   shapes via `UpdateSlot`. The opcode is used by `IncrementSlotInstruction`
   and activation-resolved `UpdateIdentifier`, while dynamic/with-backed updates
@@ -165,6 +165,7 @@ statement interpretation.
 - `Return`
 - `ReturnUndefined`
 - `Throw`
+- `ThrowReferenceError`
 - `Break`
 - `Continue`
 - `PushEnvironment`

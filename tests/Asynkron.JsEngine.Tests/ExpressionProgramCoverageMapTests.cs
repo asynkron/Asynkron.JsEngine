@@ -69,7 +69,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "PrivateFieldIn",
         "SetComputedSuperProperty",
         "SetNamedSuperProperty",
-        "ThrowReferenceError",
         "UpdateComputedSuperProperty",
         "UpdateNamedSuperProperty"
     ];

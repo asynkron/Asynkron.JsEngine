@@ -68,6 +68,7 @@ internal enum UnifiedBytecodeOpCode : byte
     Return,
     ReturnUndefined,
     Throw,
+    ThrowReferenceError,
     Break,
     Continue,
     PushEnvironment,

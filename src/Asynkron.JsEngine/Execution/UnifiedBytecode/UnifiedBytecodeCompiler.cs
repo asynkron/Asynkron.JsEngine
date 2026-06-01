@@ -3723,6 +3723,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
                     break;
 
+                case ExpressionOpKind.ThrowReferenceError:
+                    var referenceErrorMessageIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.ThrowReferenceError,
+                        referenceErrorMessageIndex));
+                    break;
+
                 case ExpressionOpKind.TypeOfIdentifier:
                     if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, slotLayout, out var typeOfSlot, out reason))
                     {

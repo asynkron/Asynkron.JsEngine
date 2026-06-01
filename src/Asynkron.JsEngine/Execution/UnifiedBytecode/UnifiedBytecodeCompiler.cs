@@ -7255,8 +7255,10 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    // Handles: [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
-    // Emits: LoadSlot, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b), key..., GetComputedProperty, GetNamedProperty*
+    // Handles: [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
+    // GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true), GetNamedProperty(SC:true)*]
+    // Emits: LoadSlot, GetNamedProperty*, JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    // key..., GetComputedProperty, GetNamedProperty*
     private static bool TryAppendFirstBoundaryOptionalNamedThenComputed(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -7273,9 +7275,35 @@ internal static class UnifiedBytecodeCompiler
 
         var baseLoad = expressionProgram.GetOperation(0);
         var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
-        var firstPropOp = expressionProgram.GetOperation(1);
+        var optionalStartIndex = 1;
+        while (optionalStartIndex < expressionProgram.OperationCount)
+        {
+            var prefixOp = expressionProgram.GetOperation(optionalStartIndex);
+            if (prefixOp.Kind != ExpressionOpKind.GetNamedProperty ||
+                prefixOp.IsOptional ||
+                prefixOp.ShortCircuitOnNullishTarget)
+            {
+                break;
+            }
+
+            if (prefixOp.GetString(expressionStringConstants).IsPrivateName())
+            {
+                reason = "Private named property reads are not supported.";
+                return false;
+            }
+
+            optionalStartIndex++;
+        }
+
+        if (optionalStartIndex >= expressionProgram.OperationCount)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var firstPropOp = expressionProgram.GetOperation(optionalStartIndex);
         var computedSuffixStart = expressionProgram.OperationCount;
-        while (computedSuffixStart > 4)
+        while (computedSuffixStart > optionalStartIndex + 3)
         {
             var suffixOp = expressionProgram.GetOperation(computedSuffixStart - 1);
             if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
@@ -7317,6 +7345,14 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        for (var operationIndex = 1; operationIndex < optionalStartIndex; operationIndex++)
+        {
+            var prefixOp = expressionProgram.GetOperation(operationIndex);
+            var prefixNameIndex = stringConstants.Count;
+            stringConstants.Add(prefixOp.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, prefixNameIndex));
+        }
+
         var jumpIndex = unified.Count;
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
 
@@ -7329,7 +7365,7 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 unified,
                 literalConstants,
-                startInclusive: 2,
+                startInclusive: optionalStartIndex + 1,
                 endExclusive: computedIndex,
                 out reason))
         {

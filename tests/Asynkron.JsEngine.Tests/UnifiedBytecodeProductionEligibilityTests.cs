@@ -5306,6 +5306,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_OptionalNamedThenComputedReadWithNamedPrefix_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function optChainComputed(obj, key) {
+                return obj.nested?.items[key].value;
+            }
+            """,
+            "optChainComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.True(
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty) >= 3);
+    }
+
+    [Fact]
     public void Evaluate_OptionalNamedPropertyReadChainWithNamedPrefix_Accepts()
     {
         // a.b?.c.d keeps the activation-resolved root, lowers the named prefix as a plain

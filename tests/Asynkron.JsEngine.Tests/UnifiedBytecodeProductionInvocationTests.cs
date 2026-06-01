@@ -2620,6 +2620,35 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task OptionalNamedThenComputedAfterNamedPrefix_SkipsKeyOnNullish()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var key = {
+                toString() {
+                    keyHits++;
+                    return "item";
+                }
+            };
+
+            function readChain(a, key) {
+                return a.box?.items[key];
+            }
+
+            var whenNull = readChain({ box: null }, key);
+            var whenPresent = readChain({ box: { items: { item: 42 } } }, key);
+            "" + whenNull + ":" + whenPresent + ":" + keyHits;
+            """);
+
+        Assert.Equal("undefined:42:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedThenComputedRichKeyWithTrailingNamedRead_ShortCircuitsBeforeKey()
     {
         await using var engine = CreateEngine();

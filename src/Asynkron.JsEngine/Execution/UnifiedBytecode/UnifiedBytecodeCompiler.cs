@@ -3711,6 +3711,14 @@ internal static class UnifiedBytecodeCompiler
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, literalIndex));
                     break;
 
+                case ExpressionOpKind.LoadRegexLiteral:
+                    var regexPatternIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.LoadRegexLiteral,
+                        EncodeRegexLiteralOperand(regexPatternIndex, operation.EncodedRegexFlags)));
+                    break;
+
                 case ExpressionOpKind.TypeOf:
                     unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
                     break;
@@ -7534,6 +7542,9 @@ internal static class UnifiedBytecodeCompiler
 
         return (stringConstantIndex << 2) | flags;
     }
+
+    private static int EncodeRegexLiteralOperand(int patternStringConstantIndex, byte encodedFlags) =>
+        (patternStringConstantIndex << 8) | encodedFlags;
 
     private static int EncodeDynamicStoreOperand(int stringConstantIndex, PackedExpressionOp store)
     {

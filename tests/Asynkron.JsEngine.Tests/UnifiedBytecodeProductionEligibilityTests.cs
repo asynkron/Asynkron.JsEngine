@@ -2648,6 +2648,39 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_RegexLiteralReturn_AcceptsLoadRegexLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeRegex() {
+                return /hello/gi;
+            }
+            """,
+            "makeRegex");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadRegexLiteral);
+
+        using var engine = CreateEngine();
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+
+        var vmResult = UnifiedBytecodeVirtualMachine.Execute(result.Program, slots, context);
+
+        var regexObject = Assert.IsType<JsObject>(vmResult.ObjectValue, exactMatch: false);
+        Assert.True(regexObject.TryGetProperty("__regex__", out var regexMarker));
+        var regex = Assert.IsType<JsRegExp>(regexMarker.ObjectValue);
+        Assert.Equal("hello", regex.Pattern);
+        Assert.Equal("gi", regex.Flags);
+        Assert.True(regex.Global);
+        Assert.True(regex.IgnoreCase);
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicAssignmentReference_AcceptsEnvironmentReferenceOpcodes()
     {
         var plan = GetFunctionPlan("""

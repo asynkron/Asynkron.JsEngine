@@ -12,6 +12,7 @@ internal enum UnifiedBytecodeOpCode : byte
     LoadThis,
     LoadNewTarget,
     LoadLiteral,
+    LoadRegexLiteral,
     StoreSlot,
     UpdateSlot,
     InitializeSlot,

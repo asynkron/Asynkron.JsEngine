@@ -78,8 +78,8 @@ statement interpretation.
 - The current `ExpressionOpKind` names with no unified compiler reference are
   `DefineComputedObjectAccessor`, `DefineComputedObjectMethod`,
   `DefineObjectAccessor`, `DefineObjectMethod`, `GetComputedSuperProperty`,
-  `GetNamedSuperProperty`, `LoadImportMeta`, `LoadRegexLiteral`,
-  `LoadTemplateObject`, `PrivateFieldIn`, `SetComputedSuperProperty`,
+  `GetNamedSuperProperty`, `LoadImportMeta`, `LoadTemplateObject`,
+  `PrivateFieldIn`, `SetComputedSuperProperty`,
   `SetNamedSuperProperty`, `ThrowReferenceError`,
   `UpdateComputedSuperProperty`, and `UpdateNamedSuperProperty`.
 - Slot update lowering is now VM-owned for activation-resolved ordinary-sync
@@ -108,6 +108,7 @@ statement interpretation.
 - `LoadThis`
 - `LoadNewTarget`
 - `LoadLiteral`
+- `LoadRegexLiteral`
 - `StoreSlot`
 - `UpdateSlot`
 - `InitializeSlot`

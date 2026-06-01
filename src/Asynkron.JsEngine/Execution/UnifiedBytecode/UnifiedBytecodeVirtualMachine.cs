@@ -187,6 +187,15 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
+                    stack[stackPointer++] = JsValue.FromObjectUnsafe(
+                        RegExpHelper.CreateRegExpLiteral(
+                            program.StringConstants[DecodeRegexLiteralPatternOperand(instruction.Operand)],
+                            DecodeRegexLiteralFlagsOperand(instruction.Operand),
+                            context.RealmState));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                     var callTarget = program.CallTargetConstants[instruction.Operand];
                     if (callTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
@@ -5771,6 +5780,10 @@ internal static class UnifiedBytecodeVirtualMachine
     private static int DecodeStringOperand(int operand) => operand >> 2;
 
     private static int DecodeUpdateIndex(int operand) => operand >> 2;
+
+    private static int DecodeRegexLiteralPatternOperand(int operand) => operand >> 8;
+
+    private static byte DecodeRegexLiteralFlagsOperand(int operand) => (byte)(operand & 0xFF);
 
     private static int DecodeDynamicStoreNameOperand(int operand) => operand >> 1;
 

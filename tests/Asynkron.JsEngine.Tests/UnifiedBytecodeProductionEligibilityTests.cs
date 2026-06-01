@@ -948,6 +948,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_SpreadConstructResultNamedRead_AcceptsConstructInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(ctor, args) {
+                return new ctor(...args).x;
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ConstructInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
     public void Evaluate_IdentifierConstructExpressionPlan_AcceptsConstructInvocationBoundary()
     {
         // gh2690: synchronous non-spread `new F(...)` is admitted to the production pipeline.

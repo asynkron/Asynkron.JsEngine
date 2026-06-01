@@ -878,14 +878,6 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.SuperConstruct:
-                    if (operation.SpreadMaskConstantIndex >= 0)
-                    {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
-                        declineReason =
-                            "Spread super construct arguments are not eligible for production unified bytecode routing.";
-                        return true;
-                    }
-
                     break;
 
                 case ExpressionOpKind.LoadNamedSuperCallTarget:

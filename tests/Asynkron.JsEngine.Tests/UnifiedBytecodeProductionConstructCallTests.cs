@@ -8,8 +8,8 @@ namespace Asynkron.JsEngine.Tests;
 /// <c>ConstructInvocationBoundary</c> opcode invokes <c>[[Construct]]</c> with the
 /// constructor as <c>new.target</c>.
 ///
-/// Derived-constructor <c>super(...)</c> is now admitted for the proved non-spread shape
-/// through an explicit super-construct boundary. Spread super constructs still decline.
+/// Derived-constructor <c>super(...)</c> is now admitted through an explicit
+/// super-construct boundary, including spread arguments.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelper output)
@@ -517,7 +517,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SuperConstructWithSpread_DeclinesAndFallsBack()
+    public async Task SuperConstructWithSpread_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -537,7 +537,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Derived",
                 StringComparison.Ordinal));

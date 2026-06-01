@@ -2651,7 +2651,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_SpreadSuperCall_DeclinesWithSpreadDependency()
+    public void Evaluate_SpreadSuperCall_AcceptsSuperConstructInvocationBoundary()
     {
         var plan = GetClassConstructorPlan("""
             class Base {
@@ -2672,9 +2672,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency, result.Code);
-        Assert.Contains("Spread super construct", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
     }
 
     [Fact]

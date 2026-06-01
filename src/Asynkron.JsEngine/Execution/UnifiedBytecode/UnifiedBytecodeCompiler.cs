@@ -4543,15 +4543,18 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.SuperConstruct:
-                    if (operation.SpreadMaskConstantIndex >= 0)
-                    {
-                        reason = "Spread super construct arguments are outside the super invocation boundary.";
-                        return false;
-                    }
+                    var superConstructSpreadIndices =
+                        operation.GetSpreadIndices(expressionProgram.SpreadMaskConstants.AsSpan());
+                    var superConstructSpreadMaskIndex = superConstructSpreadIndices.IsDefaultOrEmpty
+                        ? -1
+                        : slotLayout.RegisterSpreadMask(superConstructSpreadIndices);
 
                     unified.Add(new UnifiedBytecodeInstruction(
                         UnifiedBytecodeOpCode.SuperConstructInvocationBoundary,
-                        operation.ArgumentCount));
+                        EncodeCallBoundaryOperand(
+                            operation.ArgumentCount,
+                            superConstructSpreadMaskIndex,
+                            isDirectEval: false)));
                     break;
 
                 case ExpressionOpKind.LoadFunctionLiteral:

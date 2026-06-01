@@ -175,7 +175,6 @@ statement interpretation.
 - `ForInDriverStateDependency`
 - `DestructuringDependency`
 - `LabelControlFlow`
-- `BreakOrContinueControlFlow`
 - `UnsupportedPlanShape`
 - `CallInvocationBoundary`
 
@@ -219,7 +218,6 @@ must still obey the no-mixed-execution rule.
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Binding declarations, unsupported destructuring driver shapes, computed/default/nested declaration destructuring, and destructuring targets outside the admitted driver or descriptor-backed assignment lanes | Existing destructuring IR route | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_UnsupportedDestructuringDriverShapes_DeclineWithExplicitReason"` |
 | `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
-| `BreakOrContinueControlFlow` | Historical taxonomy member for the pre-ADR 0253 blanket break/continue decline; currently no ordinary sync site should produce it | Existing IR loop-control route if reintroduced | Loop-control guard lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
@@ -356,9 +354,10 @@ the final post-compile production subset check before VM entry.
   multi-driver labeled cleanup is the next loop-control widening frontier.
 - Unsupported complex loop/control-flow shapes must decline before VM execution
   instead of falling back from inside `UnifiedBytecodeVirtualMachine`.
-- `BreakOrContinueControlFlow` remains listed above because it is still a
-  decline-taxonomy enum member, but PR #2489 removed the blanket production
-  pre-scan that rejected every break/continue instruction.
+- The pre-ADR 0253 break/continue-only decline taxonomy is retired:
+  PR #2489 removed the blanket production pre-scan that rejected every
+  break/continue instruction, and no ordinary sync site should produce a
+  break/continue-specific decline code.
 
 ## Production Block Lexical Scope Boundary
 - Current production block-scope support is slot-layout-owned, not

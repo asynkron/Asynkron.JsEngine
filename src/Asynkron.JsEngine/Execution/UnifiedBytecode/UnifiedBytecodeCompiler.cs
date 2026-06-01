@@ -4207,7 +4207,12 @@ internal static class UnifiedBytecodeCompiler
                     {
                         if (operation.IsArguments)
                         {
-                            return false;
+                            var argumentsTypeIndex = literalConstants.Count;
+                            literalConstants.Add(new JsValue("object"));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadLiteral,
+                                argumentsTypeIndex));
+                            break;
                         }
 
                         var typeOfIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());

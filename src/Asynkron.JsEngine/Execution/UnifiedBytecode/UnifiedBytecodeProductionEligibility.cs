@@ -743,7 +743,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (program.GetOperation(i).Kind == ExpressionOpKind.ArraySpread &&
-                (i == 0 || !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots)))
+                !IsOperationInSimpleArrayLiteralSpan(program, i, identifierConstants, activationSlots))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
@@ -752,9 +752,7 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (program.GetOperation(i).Kind == ExpressionOpKind.ObjectSpread &&
-                (i == 0 ||
-                 !IsSimpleOperand(program.GetOperation(i - 1), identifierConstants, activationSlots) ||
-                 !IsOperationInSimpleObjectLiteralSpan(program, i, identifierConstants, activationSlots)))
+                !IsOperationInSimpleObjectLiteralSpan(program, i, identifierConstants, activationSlots))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
@@ -833,6 +831,12 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots) ||
+                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (operation.IsOptional || operation.ShortCircuitOnNullishTarget || hasOptionalChainOperation)
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
@@ -848,6 +852,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.Call:
                     if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
+                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots) ||
+                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1404,8 +1414,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.ArraySpread:
-                    if (operationIndex > 0 &&
-                        IsSimpleOperand(program.GetOperation(operationIndex - 1), identifierConstants, activationSlots))
+                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -1422,9 +1431,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.ObjectSpread:
-                    if (operationIndex > 0 &&
-                        IsSimpleOperand(program.GetOperation(operationIndex - 1), identifierConstants, activationSlots) &&
-                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    if (IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -3607,13 +3614,25 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (!IsSimpleOperand(elementOp, identifierConstants, activationSlots))
+            if (TryMeasureSimpleDirectNamedCallOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var callSpanLength))
+            {
+                i += callSpanLength;
+            }
+            else if (IsSimpleOperand(elementOp, identifierConstants, activationSlots))
+            {
+                i++;
+            }
+            else
             {
                 // Non-simple op terminates the element scan — the array literal ends here.
                 break;
             }
 
-            i++;
             if (i >= program.OperationCount)
             {
                 spanLength = 0;
@@ -3743,6 +3762,19 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var firstOp = program.GetOperation(i);
+            if (TryMeasureSimpleDirectNamedCallOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var spreadCallSpanLength) &&
+                i + spreadCallSpanLength < program.OperationCount &&
+                program.GetOperation(i + spreadCallSpanLength).Kind == ExpressionOpKind.ObjectSpread)
+            {
+                i += spreadCallSpanLength + 1;
+                continue;
+            }
+
             if (!IsSimpleOperand(firstOp, identifierConstants, activationSlots))
             {
                 // Non-simple first op terminates the property scan — the object literal ends here.
@@ -3889,6 +3921,89 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = 2;
         return true;
+    }
+
+    private static bool TryMeasureSimpleDirectNamedCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength)
+    {
+        spanLength = 0;
+        if (startIndex + 2 >= program.OperationCount)
+        {
+            return false;
+        }
+
+        if (!IsSimpleOperand(program.GetOperation(startIndex), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(startIndex + 1);
+        if (callTarget.Kind != ExpressionOpKind.LoadNamedCallTarget ||
+            callTarget.IsOptional ||
+            callTarget.ShortCircuitOnNullishTarget ||
+            callTarget.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+        {
+            return false;
+        }
+
+        var argCount = 0;
+        var operationIndex = startIndex + 2;
+        while (operationIndex < program.OperationCount &&
+               IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots))
+        {
+            argCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argCount)
+        {
+            return false;
+        }
+
+        spanLength = operationIndex - startIndex + 1;
+        return true;
+    }
+
+    private static bool IsOperationInSimpleArrayLiteralSpan(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        for (var startIndex = 0; startIndex <= operationIndex; startIndex++)
+        {
+            if (program.GetOperation(startIndex).Kind != ExpressionOpKind.CreateArray)
+            {
+                continue;
+            }
+
+            if (TryMeasureSimpleArrayLiteralSpan(
+                    program,
+                    startIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength) &&
+                operationIndex < startIndex + spanLength)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsOperationInSimpleObjectLiteralSpan(

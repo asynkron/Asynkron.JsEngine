@@ -297,11 +297,14 @@ all-or-nothing until a separate routing issue proves production readiness.
     text changes. The contract must separate current support from
     reserved/planned lanes, keep the no-mixed-execution rule explicit, and keep
     next unsupported buckets explicit (wider call families; unsupported
-    driver-state subshapes: async iterator drivers, TDZ head environments,
-    awaited iterator/for-in sources, object destructuring, expression-level
-    `ApplyBindingTarget` destructuring, dynamic-name destructuring targets, and
-    non-slot/unified-slot failures that still decline before VM execution;
-    dynamic lookup) until dedicated ownership slices land. Label-dependent
+    driver-state subshapes: async iterator drivers, awaited iterator/for-in
+    sources, descriptor-ineligible destructuring targets, dynamic-name
+    destructuring targets, and non-slot/unified-slot failures that still decline
+    before VM execution; dynamic lookup) until dedicated ownership slices land.
+    Expression-level `ApplyBindingTarget` assignment destructuring is no longer
+    a blanket unsupported bucket when it can use the descriptor-backed bridge
+    from ADR 0318; unsupported binding declarations and driver shapes still
+    decline before VM execution. Label-dependent
     control flow is no longer an unsupported bucket: ADR 0285 / issue #2679
     admitted it (see rule #36); only the narrow driver-crossing labeled-abrupt
     residue still declines as `LabelControlFlow`. Keep the drift guard in
@@ -1886,6 +1889,33 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     driver lifetime. Future changes must preserve explicit `ContinueTarget`
     metadata and pass the abrupt kind into cleanup selection (ADR 0314).
 
+54. When admitting expression-level assignment destructuring through
+    `ExpressionOpKind.ApplyBindingTarget` in production unified bytecode, keep
+    it a descriptor-backed bridge rather than a general fallback. The compiler
+    may lift an already-lowered `BindingTargetProgram` into
+    `UnifiedBytecodeProgram.BindingTargetConstants` and emit
+    `ApplyBindingTarget`; the VM must own the opcode dispatch, duplicate the RHS
+    when expression stack semantics require the assignment value to remain
+    available, sync unified slots to the activation environment before applying
+    the descriptor, then sync the environment back to unified slots afterward.
+    The bridge must call `ApplyLoweredAssignmentBindingTargetProgram(...)` with
+    `allowNameInference: false`, matching the existing expression-runner
+    assignment path. Do not
+    use this bridge to admit generic binding declarations, descriptor-ineligible
+    destructuring targets, dynamic-name target families, or unsupported driver
+    shapes; those remain pre-VM declines under `DestructuringDependency` or the
+    narrower owning decline. Pair each widening with positive route proof,
+    stack-shape proof for assignment result preservation, abrupt/default/rest or
+    nested-target behavior as applicable, and a no-name-inference regression for
+    existing anonymous function values. WHY: issue
+    `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-c537361518`
+    / PR #2941 admitted descriptor-backed `ApplyBindingTarget` assignment
+    destructuring into ordinary sync production routing. Review found the first
+    bridge call inferred a binding-target name for an existing anonymous
+    function value; the accepted repair set `allowNameInference: false` and
+    added a production-fast-path regression. ADR 0318 records the bounded bridge
+    decision.
+
 Related ADRs:
 - `docs/adrs/0181-keep-unified-bytecode-prototype-ir-owned-and-all-or-nothing.md`
 - `docs/adrs/0186-keep-unified-bytecode-function-kind-eligibility-explicit.md`
@@ -1937,3 +1967,4 @@ Related ADRs:
 - `docs/adrs/0313-admit-nested-driver-labeled-abrupt-cleanup-in-unified-bytecode.md`
 - `docs/adrs/0314-split-unified-bytecode-driver-break-and-continue-cleanup-targets.md`
 - `docs/adrs/0316-admit-nested-named-receiver-computed-delete-in-unified-bytecode.md`
+- `docs/adrs/0318-admit-apply-binding-target-assignment-destructuring-bridge-in-unified-bytecode.md`

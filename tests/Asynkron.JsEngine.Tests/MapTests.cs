@@ -381,4 +381,37 @@ public sealed class MapTests(ITestOutputHelper output) : InternalTestBase(output
                                        """);
         Assert.True((bool)result!);
     }
+
+    [Fact(Timeout = 2000)]
+    public async Task Map_Plain_Method_Calls_Preserve_Overrides_And_SameValueZero()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+
+                                           (() => {
+                                               const map = new Map();
+                                               map.set(NaN, "nan");
+                                               map.set(-0, "zero");
+
+                                               let overrideCalls = 0;
+                                               const originalSet = Map.prototype.set;
+                                               Map.prototype.set = function(key, value) {
+                                                   overrideCalls++;
+                                                   return originalSet.call(this, key, value + "-override");
+                                               };
+
+                                               map.set("patched", "value");
+                                               Map.prototype.set = originalSet;
+
+                                               map.set("restored", "ok");
+                                               return map.get(NaN) === "nan"
+                                                   && map.get(+0) === "zero"
+                                                   && map.get("patched") === "value-override"
+                                                   && map.get("restored") === "ok"
+                                                   && overrideCalls === 1;
+                                           })();
+
+                                       """);
+        Assert.True((bool)result!);
+    }
 }

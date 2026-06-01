@@ -5538,16 +5538,15 @@ internal static class UnifiedBytecodeCompiler
         out int slotIndex,
         out string reason)
     {
-        if (operation.IsArguments)
-        {
-            slotIndex = -1;
-            reason = "arguments typeof is not supported.";
-            return false;
-        }
-
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationSlot(identifier, slotLayout, out slotIndex))
         {
+            if (operation.IsArguments)
+            {
+                reason = "arguments typeof is not supported.";
+                return false;
+            }
+
             reason = $"Unsupported typeof identifier '{identifier.Name.Name}'.";
             return false;
         }

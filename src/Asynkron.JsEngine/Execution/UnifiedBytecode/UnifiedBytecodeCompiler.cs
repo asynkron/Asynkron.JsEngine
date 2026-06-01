@@ -4039,12 +4039,6 @@ internal static class UnifiedBytecodeCompiler
                         return false;
                     }
 
-                    if (operation.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
-                    {
-                        reason = "Private named property reads are not supported in the general expression loop.";
-                        return false;
-                    }
-
                     var namedPropNameIndex = stringConstants.Count;
                     stringConstants.Add(operation.GetString(expressionProgram.StringConstants.AsSpan()));
                     unified.Add(new UnifiedBytecodeInstruction(
@@ -7541,12 +7535,6 @@ internal static class UnifiedBytecodeCompiler
             if (propertyRead.Kind != ExpressionOpKind.GetNamedProperty)
             {
                 reason = string.Empty;
-                return false;
-            }
-
-            if (propertyRead.GetString(expressionProgram.StringConstants.AsSpan()).IsPrivateName())
-            {
-                reason = "Private named property reads are not supported.";
                 return false;
             }
 

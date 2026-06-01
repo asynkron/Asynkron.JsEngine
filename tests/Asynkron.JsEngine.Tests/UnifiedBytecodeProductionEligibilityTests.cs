@@ -2077,15 +2077,6 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         """,
         "complexCompoundWrite",
         (int)UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency)]
-    [InlineData(
-        """
-        function destructureWrite(box, source) {
-            ({ value: box.value } = source);
-            return 0;
-        }
-        """,
-        "destructureWrite",
-        (int)UnifiedBytecodeProductionDeclineCode.DestructuringDependency)]
     public void Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes(
         string source,
         string functionName,
@@ -2107,6 +2098,28 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.False(result.IsEligible);
         Assert.Equal(expectedDeclineCode, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_AssignmentDestructuringPropertyTarget_AcceptsDescriptorOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function destructureWrite(box, source) {
+                ({ value: box.value } = source);
+                return box.value;
+            }
+            """,
+            "destructureWrite");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
     }
 
     [Fact]
@@ -2945,6 +2958,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringRest);
+    }
+
+    [Fact]
+    public void Evaluate_AssignmentDestructuringApplyBindingTarget_AcceptsDescriptorOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function assignComputedDefault(source, key) {
+                var value = 0;
+                ({ [key]: value = 5 } = source);
+                return value;
+            }
+            """,
+            "assignComputedDefault");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ApplyBindingTarget);
+        Assert.NotEmpty(result.Program.BindingTargetConstants);
     }
 
     [Theory]

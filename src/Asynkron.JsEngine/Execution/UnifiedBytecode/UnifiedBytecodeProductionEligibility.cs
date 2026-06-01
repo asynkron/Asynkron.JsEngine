@@ -632,6 +632,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.InitializeSlot or
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.Pop or
+                UnifiedBytecodeOpCode.DuplicateTop or
                 UnifiedBytecodeOpCode.Jump or
                 UnifiedBytecodeOpCode.JumpIfFalse or
                 UnifiedBytecodeOpCode.Return or
@@ -1494,9 +1495,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.ApplyBindingTarget:
-                    declineCode = UnifiedBytecodeProductionDeclineCode.DestructuringDependency;
-                    declineReason = "Destructuring expressions are not eligible for production unified bytecode routing.";
-                    return true;
+                    break;
 
                 case ExpressionOpKind.Binary:
                     if (!IsProductionBinaryOperator(operation.Operator))
@@ -4261,6 +4260,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UnaryVoid:
                 case UnifiedBytecodeOpCode.ToString:
                 case UnifiedBytecodeOpCode.Pop:
+                case UnifiedBytecodeOpCode.DuplicateTop:
                 case UnifiedBytecodeOpCode.SwapTopTwo:
                 case UnifiedBytecodeOpCode.CreateArray:
                 case UnifiedBytecodeOpCode.ArrayPush:
@@ -4272,6 +4272,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.ObjectSpread:
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                 case UnifiedBytecodeOpCode.LoadFunctionLiteral:
+                case UnifiedBytecodeOpCode.ApplyBindingTarget:
                 case UnifiedBytecodeOpCode.EnsureHasName:
                 case UnifiedBytecodeOpCode.Return:
                 case UnifiedBytecodeOpCode.ReturnUndefined:

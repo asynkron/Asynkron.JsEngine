@@ -1126,6 +1126,36 @@ internal static class UnifiedBytecodeVirtualMachine
                     stackPointer--;
                     programCounter++;
                     break;
+
+                case UnifiedBytecodeOpCode.DuplicateTop:
+                    stack[stackPointer] = stack[stackPointer - 1];
+                    stackPointer++;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ApplyBindingTarget:
+                    var bindingTargetValue = stack[--stackPointer];
+                    var bindingEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments, bindingEnvironment);
+                    TypedAstEvaluator.ApplyLoweredAssignmentBindingTargetProgram(
+                        program.BindingTargetConstants[instruction.Operand],
+                        bindingTargetValue,
+                        bindingEnvironment,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                    }
+
+                    SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments, bindingEnvironment);
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.SwapTopTwo:
                     var top = stack[stackPointer - 1];
                     stack[stackPointer - 1] = stack[stackPointer - 2];
@@ -2523,6 +2553,13 @@ internal static class UnifiedBytecodeVirtualMachine
                     stackPointer--;
                     programCounter++;
                     break;
+
+                case UnifiedBytecodeOpCode.DuplicateTop:
+                    stack[stackPointer] = stack[stackPointer - 1];
+                    stackPointer++;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.SwapTopTwo:
                     var resumableTop = stack[stackPointer - 1];
                     stack[stackPointer - 1] = stack[stackPointer - 2];
@@ -3165,6 +3202,66 @@ internal static class UnifiedBytecodeVirtualMachine
 
         return slotEnvironments;
     }
+
+    private static void SyncUnifiedSlotsToEnvironment(
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        JsEnvironment environment)
+    {
+        var slotNames = program.SlotNames;
+        var count = Math.Min(slots.Length, slotNames.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (slotNames[i] is not { } name ||
+                slots[i].IsUninitialized)
+            {
+                continue;
+            }
+
+            var slotEnvironment = GetSlotEnvironment(slotEnvironments, i, environment);
+            if (slotEnvironment.TryGetSlotIndex(Symbol.Intern(name), out var slotIndex))
+            {
+                slotEnvironment.SetSlotDirect(slotIndex, slots[i]);
+            }
+        }
+    }
+
+    private static void SyncEnvironmentToUnifiedSlots(
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        JsEnvironment?[]? slotEnvironments,
+        JsEnvironment environment)
+    {
+        var slotNames = program.SlotNames;
+        var count = Math.Min(slots.Length, slotNames.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (slotNames[i] is not { } name)
+            {
+                continue;
+            }
+
+            var slotEnvironment = GetSlotEnvironment(slotEnvironments, i, environment);
+            if (!slotEnvironment.TryGetSlotIndex(Symbol.Intern(name), out var slotIndex))
+            {
+                continue;
+            }
+
+            ref var slot = ref slotEnvironment.GetSlotByIndex(slotIndex);
+            slots[i] = slot.IsUninitialized ? JsValue.Uninitialized : slot.Value;
+        }
+    }
+
+    private static JsEnvironment GetSlotEnvironment(
+        JsEnvironment?[]? slotEnvironments,
+        int slotIndex,
+        JsEnvironment fallback) =>
+        slotEnvironments is not null &&
+        (uint)slotIndex < (uint)slotEnvironments.Length &&
+        slotEnvironments[slotIndex] is { } slotEnvironment
+            ? slotEnvironment
+            : fallback;
 
     private static bool SlotNameMatchesEnvironment(
         UnifiedBytecodeProgram program,

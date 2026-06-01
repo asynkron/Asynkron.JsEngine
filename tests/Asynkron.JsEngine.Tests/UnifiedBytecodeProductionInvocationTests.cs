@@ -187,6 +187,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AssignmentDestructuringComputedDefault_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignComputedDefault(source, key) {
+                var value = 0;
+                ({ [key]: value = 5 } = source);
+                return value;
+            }
+
+            assignComputedDefault({}, "picked");
+            """);
+
+        Assert.Equal(5d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignComputedDefault argc=2",
+                StringComparison.Ordinal));
+    }
+
     [Theory(Timeout = 5000)]
     [InlineData(
         """
@@ -4539,17 +4560,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         """,
         "complexCompoundWrite",
         42d)]
-    [InlineData(
-        """
-        function destructureWrite(box, source) {
-            ({ value: box.value } = source);
-            return box.value;
-        }
-
-        destructureWrite({ value: 0 }, { value: 42 });
-        """,
-        "destructureWrite",
-        42d)]
     public async Task UnsupportedPropertyReadAdjacentFamilies_DeclineUnifiedBytecodeAndFallBack(
         string source,
         string functionName,
@@ -4562,6 +4572,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 $"unified-bytecode-production-fast-path func={functionName}",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AssignmentDestructuringPropertyTarget_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function destructureWrite(box, source) {
+                ({ value: box.value } = source);
+                return box.value;
+            }
+
+            destructureWrite({ value: 0 }, { value: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=destructureWrite argc=2",
                 StringComparison.Ordinal));
     }
 

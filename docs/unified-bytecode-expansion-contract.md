@@ -205,7 +205,7 @@ must still obey the no-mixed-execution rule.
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane and the with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
 | `SuperPropertyDependency` | Super property reads/writes/updates and out-of-boundary super call targets | Existing class / constructor route | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_DeclinesWithExplicitCode"` |
-| `OptionalChainDependency` | Optional chains outside the admitted optional property-read and optional-call boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
+| `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalSpreadCallExpressionPlan_DeclinesWithOptionalChainDependency"` |
 | `ObjectLiteralOrSpreadDependency` | Object methods/accessors, non-simple object spread sources, unsupported array spread, and spread construct arguments | Existing sync IR literal/spread route | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NonSimpleSourceArraySpread_DeclinesWithExplicitCode"` |
 | `PrivateFieldDependency` | Private member reads/writes/updates and `#name in obj` represented as named-property or private-field ops | Existing private-name route | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_DeclinesWithExplicitCode"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
@@ -296,11 +296,16 @@ the final post-compile production subset check before VM entry.
   receiver chain as owned `GetNamedProperty` opcodes before the final
   `SetNamedProperty` / `UpdateNamedProperty`. Nested named receiver chains
   ending in a simple computed delete (`delete box.child[key]`) are admitted by
-  `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; the compiler emits the
-  named receiver reads and final `DeleteComputedProperty`, while the VM's
-  descriptor-aware delete helper owns strict/sloppy results. Retained declines
-  include optional receiver hops, private/super property access, dynamic lookup,
-  richer computed keys, deeper compound/logical property chains
+  `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional computed delete
+  chains are admitted only for `delete box?.child[key]` and
+  `delete box.child?.[key]` shapes with activation-resolved receivers, supported
+  computed-key spans, and compiler-owned nullish short-circuit-to-true lowering.
+  The compiler emits the named receiver reads and final `DeleteComputedProperty`,
+  while the VM's descriptor-aware delete helper owns strict/sloppy results.
+  Retained declines include simple optional computed deletes without a named
+  receiver hop (`delete box?.[key]`), chained optional delete neighbors,
+  private/super property access, dynamic lookup, richer unowned computed keys,
+  deeper compound/logical property chains
   (`box.child.value += …`, `box.child.value &&= …`), and computed-expression
   keys (`box[key+suffix] += …`).
   Note: slot-identifier logical assignment (`x &&= y`) remains admitted.

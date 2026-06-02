@@ -1,6 +1,7 @@
 using System.IO;
 using Asynkron.JsEngine;
 using Asynkron.JsEngine.Ast;
+using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
 
 namespace Asynkron.JsEngine.Tests;
@@ -465,6 +466,70 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=readAb argc=1",
                 StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelScriptProductionRoute_PropagatesCalleeExplicitThrow()
+    {
+        // A top-level script that routes through the production unified-bytecode VM must
+        // surface an unhandled throw raised by a callee instead of silently completing
+        // with undefined (regression for the script-route throw-swallowing bug).
+        await using var engine = CreateEngine();
+        var signal = await AssertScriptThrowsAsync(engine, """
+            function boom() { throw new TypeError("kaboom"); }
+            boom();
+            """);
+        AssertIsTypeError(signal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelScriptProductionRoute_PropagatesDirectNullishDerefTypeError()
+    {
+        await using var engine = CreateEngine();
+        var signal = await AssertScriptThrowsAsync(engine, """
+            function f(box) { return box.child.value; }
+            f({ other: 1 });
+            """);
+        AssertIsTypeError(signal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelScriptProductionRoute_OptionalChainIntermediateNullish_ThrowsTypeError()
+    {
+        // `box?.child.value` only short-circuits on a nullish HEAD. With a non-nullish
+        // head and a nullish intermediate, reading `.value` of undefined must throw —
+        // matching the Tier-2 ExecutionPlanRunner. Standalone and call-argument forms
+        // must throw identically.
+        await using var engine = CreateEngine();
+        AssertIsTypeError(await AssertScriptThrowsAsync(engine, """
+            function standalone(box) { return box?.child.value; }
+            standalone({ other: 1 });
+            """));
+
+        await using var engine2 = CreateEngine();
+        AssertIsTypeError(await AssertScriptThrowsAsync(engine2, """
+            function id(v) { return v; }
+            function callArg(box) { return id(box?.child.value); }
+            callArg({ other: 1 });
+            """));
+    }
+
+    private async Task<ThrowSignal> AssertScriptThrowsAsync(JsEngine engine, string source)
+    {
+        var signal = await Assert.ThrowsAsync<ThrowSignal>(async () => await engine.Evaluate(source));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+        return signal;
+    }
+
+    private static void AssertIsTypeError(ThrowSignal signal)
+    {
+        Assert.True(signal.ThrownValue.TryGetObject<JsObject>(out var error), "Thrown value should be an error object.");
+        Assert.True(error.TryGetProperty("name", out var name), "Error should have a name property.");
+        Assert.True(name.TryGetString(out var nameText), "Error name should be a string.");
+        Assert.Equal("TypeError", nameText);
     }
 
     [Fact(Timeout = 5000)]

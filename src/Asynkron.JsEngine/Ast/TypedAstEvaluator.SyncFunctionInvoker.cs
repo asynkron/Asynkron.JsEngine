@@ -3381,8 +3381,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
             var canUseFinalRestParameterPath =
                 CanUseProductionUnifiedBytecodeFinalRestParameterPath();
+            var canUseSimpleLiteralDefaultParameterPath =
+                CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath();
             var hasAdmittedParameterShape =
                 _hasOnlySimpleIdentifierParameters ||
+                canUseSimpleLiteralDefaultParameterPath ||
                 canUseFinalRestParameterPath ||
                 _function.IsDefaultDerivedConstructor && canUseDerivedClassConstructorPath;
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
@@ -3397,7 +3400,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     activation,
                     out _,
                     out _) ||
-                _hasParameterExpressions ||
+                _hasParameterExpressions && !canUseSimpleLiteralDefaultParameterPath ||
                 !hasAdmittedParameterShape ||
                 !_instanceFields.IsDefaultOrEmpty &&
                 !canUseDerivedClassConstructorPath &&
@@ -3516,12 +3519,63 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     }
                     else
                     {
-                        value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                        value = GetProductionUnifiedBytecodeParameterValue(
+                            arguments,
+                            i,
+                            hasFinalRestParameter,
+                            finalRestParameterIndex);
                     }
 
                     slots[parameterSlotIndex] = value;
                 }
             }
+        }
+
+        private bool CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath()
+        {
+            return !IsClassConstructor &&
+                   !IsArrowFunction &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   _hasParameterExpressions &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _allowIdentifierCache &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _superConstructor is null &&
+                   _superPrototype is null &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   HasOnlySimpleIdentifierOrLiteralDefaultParameters();
+        }
+
+        private bool HasOnlySimpleIdentifierOrLiteralDefaultParameters()
+        {
+            var sawLiteralDefault = false;
+            foreach (var parameter in _function.Parameters)
+            {
+                if (parameter is not { IsRest: false, Pattern: null, Name: not null })
+                {
+                    return false;
+                }
+
+                if (parameter.DefaultValue is null)
+                {
+                    continue;
+                }
+
+                if (parameter.DefaultValue is not LiteralExpression)
+                {
+                    return false;
+                }
+
+                sawLiteralDefault = true;
+            }
+
+            return sawLiteralDefault;
         }
 
         private bool CanUseProductionUnifiedBytecodeFinalRestParameterPath()
@@ -3789,8 +3843,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
-                   !_hasParameterExpressions &&
-                   _hasOnlySimpleIdentifierParameters &&
+                   (!_hasParameterExpressions && _hasOnlySimpleIdentifierParameters ||
+                    CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath()) &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _allowIdentifierCache &&
@@ -4455,11 +4509,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             {
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
-                    var value = hasFinalRestParameter && i == finalRestParameterIndex
-                        ? CreateRestArguments(arguments, finalRestParameterIndex)
-                        : i < arguments.Count
-                            ? arguments[i]
-                            : JsValue.Undefined;
+                    var value = GetProductionUnifiedBytecodeParameterValue(
+                        arguments,
+                        i,
+                        hasFinalRestParameter,
+                        finalRestParameterIndex);
                     executionEnvironment.DefineParameterFast(_parameterNames[i], value);
                 }
 
@@ -4468,13 +4522,48 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             for (var i = 0; i < _parameterNames.Length; i++)
             {
-                var value = hasFinalRestParameter && i == finalRestParameterIndex
-                    ? CreateRestArguments(arguments, finalRestParameterIndex)
-                    : i < arguments.Count
-                        ? arguments[i]
-                        : JsValue.Undefined;
+                var value = GetProductionUnifiedBytecodeParameterValue(
+                    arguments,
+                    i,
+                    hasFinalRestParameter,
+                    finalRestParameterIndex);
                 executionEnvironment.SetSlotDirect(parameterSlotIndices[i], value);
             }
+        }
+
+        private JsValue GetProductionUnifiedBytecodeParameterValue<TArgs>(
+            TArgs arguments,
+            int parameterIndex,
+            bool hasFinalRestParameter,
+            int finalRestParameterIndex)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            if (hasFinalRestParameter && parameterIndex == finalRestParameterIndex)
+            {
+                return CreateRestArguments(arguments, finalRestParameterIndex);
+            }
+
+            var value = parameterIndex < arguments.Count ? arguments[parameterIndex] : JsValue.Undefined;
+            if (value.IsUndefined &&
+                TryGetSimpleLiteralDefaultParameterValue(parameterIndex, out var defaultValue))
+            {
+                return defaultValue;
+            }
+
+            return value;
+        }
+
+        private bool TryGetSimpleLiteralDefaultParameterValue(int parameterIndex, out JsValue value)
+        {
+            if ((uint)parameterIndex < (uint)_function.Parameters.Length &&
+                _function.Parameters[parameterIndex].DefaultValue is LiteralExpression literal)
+            {
+                value = literal.Value;
+                return true;
+            }
+
+            value = JsValue.Undefined;
+            return false;
         }
 
         private void BindDefaultDerivedConstructorRestParameter<TArgs>(

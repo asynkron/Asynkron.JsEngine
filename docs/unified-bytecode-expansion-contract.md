@@ -366,9 +366,10 @@ predicates and proof tests.
   super-adjacent call shapes.
 - Optional-chain shapes outside admitted optional property-read, optional-call,
   and exact optional named/computed delete boundaries.
-- Object/array spread sources outside simple operands and admitted member-call
-  spans; richer computed object keys/values; object methods/accessors outside
-  restricted simple literal spans.
+- Object/array spread sources outside simple operands, admitted member-call
+  spans, and simple-control-expression spans; richer computed object keys/values
+  outside admitted simple, member-call, and simple-control-expression spans;
+  object methods/accessors outside restricted simple literal spans.
 - Private-name operations outside admitted `#name in obj`, direct private
   reads/writes/updates, direct private compound/logical writes, and direct
   private named method calls.
@@ -402,7 +403,7 @@ predicates and proof tests.
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane, simple-return dynamic-base named/computed property delete lane, ordinary dynamic-key computed delete lane, and with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedComputedPropertyDeleteDynamicKey_AcceptsOrdinaryDynamicNameOpcode"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalChainNamedPrefixPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary"` |
-| `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, and receiver/callee-optional named/computed member-call spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
+| `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, receiver/callee-optional named/computed member-call spans, and simple-control-expression spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes; declaration defaults and computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
@@ -628,8 +629,11 @@ the final post-compile production subset check before VM entry.
   (`{items: [a, b]}`, `[{x}]`, `{total: a + b}`,
   `{value: -x}`, `{value: box.count}`, `{value: box[key]}`,
   `{value: left && right}`, `{value: condition ? yes : no}`,
+  `{[left && right]: value}`, `{[condition ? yes : no]: value}`,
   `{kind: typeof x}`, ``{label: `hello ${name}`}``) and object literal spread entries
-  whose spread source is a simple operand (`{...source}`), with no computed keys or name inference in that restricted
+  whose spread source is a simple operand (`{...source}`) or admitted
+  simple-control expression (`{...(condition ? left : right)}`,
+  `[...(condition ? left : right)]`), with no name inference in that restricted
   simple-span form (gh2705, ADR 0290). General object method/accessor literal
   construction is VM-owned outside that restricted span. Computed member keys
   must also be simple literal or slot operands. For accepted member receiver chains, the call

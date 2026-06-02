@@ -8941,6 +8941,82 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithLogicalComputedObjectKeyArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, left, right, value) {
+                return receiver({ [left && right]: value });
+            }
+
+            sendNested(function(obj) { return obj.answer; }, "unused", "answer", 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithConditionalComputedObjectKeyArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, condition, consequent, alternate, value) {
+                return receiver({ [condition ? consequent : alternate]: value });
+            }
+
+            sendNested(function(obj) { return obj.answer; }, false, "unused", "answer", 42);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=5",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithConditionalObjectSpreadSourceArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, condition, consequent, alternate) {
+                return receiver({ ...(condition ? consequent : alternate) });
+            }
+
+            sendNested(function(obj) { return obj.answer; }, false, { unused: 1 }, { answer: 42 });
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithConditionalArraySpreadSourceArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, condition, consequent, alternate) {
+                return receiver([...(condition ? consequent : alternate)]);
+            }
+
+            sendNested(function(items) { return items[0]; }, false, [1], [42]);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallWithNestedBinaryTemplateArrayLiteralArg_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

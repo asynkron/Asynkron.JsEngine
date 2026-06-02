@@ -6373,6 +6373,20 @@ internal static class UnifiedBytecodeCompiler
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryAppendSimpleOptionalNamedReadChainOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var optionalNamedChainSpanLen,
+                         out reason))
+            {
+                operationIndex += optionalNamedChainSpanLen;
+            }
             else if (TryAppendSimpleOptionalNamedPropertyReadOperandSpan(
                          expressionProgram,
                          operationIndex,
@@ -8150,6 +8164,116 @@ internal static class UnifiedBytecodeCompiler
         RollBackUnifiedBuilder(literalConstants, literalCount);
         RollBackUnifiedBuilder(stringConstants, stringCount);
         reason = "Failed to emit measured optional named property read span.";
+        return false;
+    }
+
+    // Emits an optional-start-then-plain named property-read operand span
+    // (`box?.child.value`): a simple base load, a JumpIfNullishReplaceUndefined that
+    // short-circuits the whole chain to undefined when the base is nullish, the
+    // optional hop read, and the plain continuation reads. Mirrors the proven
+    // standalone optional-named-chain emission (TryAppendFirstBoundaryOptionalNamedPropertyReadChain).
+    private static bool TryAppendSimpleOptionalNamedReadChainOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        spanLength = 0;
+        reason = string.Empty;
+        if (startIndex + 2 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var firstHop = expressionProgram.GetOperation(startIndex + 1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(expressionStringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var index = startIndex + 2;
+        while (index < endExclusive)
+        {
+            var continuation = expressionProgram.GetOperation(index);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            index++;
+        }
+
+        if (index == startIndex + 2)
+        {
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        // The optional hop short-circuits the remaining chain to undefined when the
+        // base is nullish, so the boundary jump targets the instruction after the
+        // last continuation read.
+        var boundaryJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        for (var readIndex = startIndex + 1; readIndex < index; readIndex++)
+        {
+            var read = expressionProgram.GetOperation(readIndex);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(read.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.GetNamedProperty,
+                propertyNameIndex));
+        }
+
+        var chainEnd = unified.Count;
+        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            chainEnd);
+
+        if (unified.Count > unifiedCount)
+        {
+            spanLength = index - startIndex;
+            reason = string.Empty;
+            return true;
+        }
+
+        RollBackUnifiedBuilder(unified, unifiedCount);
+        RollBackUnifiedBuilder(literalConstants, literalCount);
+        RollBackUnifiedBuilder(stringConstants, stringCount);
+        reason = "Failed to emit measured optional named read chain span.";
         return false;
     }
 

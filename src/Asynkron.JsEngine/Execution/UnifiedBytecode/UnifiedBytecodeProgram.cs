@@ -113,6 +113,7 @@ internal enum UnifiedBytecodeOpCode : byte
     PrepareIdentifierCallTarget,
     PrepareIdentifierOptionalCallTarget,
     PrepareDynamicIdentifierCallTarget,
+    PrepareDynamicIdentifierOptionalCallTarget,
     PrepareNamedCallTarget,
     PrepareComputedCallTarget,
     PrepareNamedOptionalCallTarget,

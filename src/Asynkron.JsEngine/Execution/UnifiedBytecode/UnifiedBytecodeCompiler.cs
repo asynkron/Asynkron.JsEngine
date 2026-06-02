@@ -4815,6 +4815,7 @@ internal static class UnifiedBytecodeCompiler
                     callTargetConstants,
                     call,
                     callIndex,
+                    allowsDynamicIdentifiers,
                     out reason))
             {
                 return true;
@@ -4985,6 +4986,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         PackedExpressionOp call,
         int callIndex,
+        bool allowsDynamicIdentifiers,
         out string reason)
     {
         if (callIndex < 2)
@@ -5010,10 +5012,42 @@ internal static class UnifiedBytecodeCompiler
         var identifier = callTarget.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
-            reason = callTarget.IsArguments
-                ? "arguments call targets are outside the optional identifier call-target preparation boundary."
-                : "Optional identifier call targets require an activation-resolved identifier slot.";
-            return false;
+            if (callTarget.IsArguments ||
+                !allowsDynamicIdentifiers ||
+                identifier.FlatSlotId >= 0)
+            {
+                reason = callTarget.IsArguments
+                    ? "arguments call targets are outside the optional identifier call-target preparation boundary."
+                    : "Optional identifier call targets require an activation-resolved identifier slot or admitted dynamic identifier operations.";
+                return false;
+            }
+
+            var dynamicNameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            var dynamicPrepareIndex = unified.Count;
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget,
+                dynamicNameIndex));
+
+            if (!TryAppendCallArguments(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    argsStartIndex: 2,
+                    call,
+                    callIndex,
+                    out reason))
+            {
+                return false;
+            }
+
+            unified[dynamicPrepareIndex] = new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget,
+                dynamicNameIndex | (unified.Count << 16));
+            return true;
         }
 
         var nameIndex = stringConstants.Count;

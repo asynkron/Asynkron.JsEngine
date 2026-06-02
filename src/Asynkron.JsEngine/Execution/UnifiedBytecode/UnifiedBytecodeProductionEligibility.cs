@@ -2926,7 +2926,11 @@ internal static class UnifiedBytecodeProductionEligibility
         // Jump/SwapTopTwo/Pop structure that the non-optional branches below would
         // reject (or never reach, because they end in Pop rather than Call). Detect
         // them first so the dedicated optional candidates own these shapes.
-        if (TryIsFirstBoundaryCalleeOptionalIdentifierCallCandidate(program, identifierConstants, activationSlots) ||
+        if (TryIsFirstBoundaryCalleeOptionalIdentifierCallCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
             TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
             TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots) ||
@@ -3096,7 +3100,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryCalleeOptionalIdentifierCallCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 6)
         {
@@ -3127,7 +3132,8 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var identifier = callTarget.GetIdentifier(identifierConstants);
-        return TryResolveActivationSlot(identifier, activationSlots) &&
+        return (TryResolveActivationSlot(identifier, activationSlots) ||
+                allowsDynamicIdentifiers && identifier.FlatSlotId < 0) &&
                HasSimpleCallArguments(
                    program,
                    identifierConstants,
@@ -5280,6 +5286,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
                 case UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget:
                 case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
                 case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:

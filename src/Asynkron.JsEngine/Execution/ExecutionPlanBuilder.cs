@@ -222,6 +222,18 @@ internal sealed partial class ExecutionPlanBuilder
             return false;
         }
 
+        // A block-scoped lexical binding (a `for (let/const ...)` head counter, or a `let`/`const`
+        // declared inside a nested block) gets a flat slot on the script fast path, but that flat
+        // slot is not torn down when the block exits. If such a binding is referenced from outside
+        // its declaring construct (e.g. `typeof i` or `i` after a `for (let i ...)` loop), the read
+        // would observe the binding's stale value instead of resolving against the live scope chain.
+        // Decline the fast path for these scripts so they run via the scope-chain-aware path, which
+        // correctly reports the out-of-scope binding as undeclared.
+        if (ScriptFastPathBlockBindingLeakDetector.HasOutOfScopeBlockBindingReference(function.Body))
+        {
+            return false;
+        }
+
         var sawBranch = false;
         var sawIncrement = false;
         foreach (var instruction in Instructions)

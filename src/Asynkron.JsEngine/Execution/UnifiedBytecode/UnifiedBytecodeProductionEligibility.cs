@@ -236,7 +236,76 @@ internal static class UnifiedBytecodeProductionEligibility
             return UnifiedBytecodeProductionEligibilityResult.Decline(prototypeDeclineCode, prototypeReason);
         }
 
+        if (isScript &&
+            TryFindBlockScopedTypeOfIdentifierLeak(program, out var typeOfLeakReason))
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                typeOfLeakReason);
+        }
+
         return UnifiedBytecodeProductionEligibilityResult.Accept(program);
+    }
+
+    /// <summary>
+    /// Detects a top-level script that resolves a <c>typeof &lt;identifier&gt;</c> to a slot that is
+    /// also a block-scoped lexical binding (i.e. listed in a <c>PushEnvironment</c> scope
+    /// descriptor). Such a binding is block-scoped to a <c>for (let ...)</c> head or a nested block,
+    /// so a flat <c>TypeOfIdentifier</c> read against it can observe the binding's stale value after
+    /// the block exits instead of <c>"undefined"</c> (the slot resolution does not track block-scope
+    /// liveness on the script fast path). Declining here routes the script back to the correct IR
+    /// runner, which performs a runtime environment lookup that respects block scope. This is
+    /// conservative: it also declines the in-scope <c>typeof</c> of a block-lexical binding, which is
+    /// rare and remains correct via the IR runner.
+    /// </summary>
+    private static bool TryFindBlockScopedTypeOfIdentifierLeak(
+        UnifiedBytecodeProgram program,
+        out string declineReason)
+    {
+        declineReason = string.Empty;
+
+        var hasTypeOfIdentifier = false;
+        foreach (var instruction in program.Instructions)
+        {
+            if (instruction.OpCode == UnifiedBytecodeOpCode.TypeOfIdentifier)
+            {
+                hasTypeOfIdentifier = true;
+                break;
+            }
+        }
+
+        if (!hasTypeOfIdentifier || program.ScopeDescriptors.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var instruction in program.Instructions)
+        {
+            if (instruction.OpCode != UnifiedBytecodeOpCode.TypeOfIdentifier)
+            {
+                continue;
+            }
+
+            var typeOfSlot = instruction.Operand;
+            foreach (var scopeDescriptor in program.ScopeDescriptors)
+            {
+                if (scopeDescriptor.LexicalSlotIndices.IsDefaultOrEmpty)
+                {
+                    continue;
+                }
+
+                if (scopeDescriptor.LexicalSlotIndices.Contains(typeOfSlot))
+                {
+                    declineReason =
+                        "typeof of a block-scoped lexical binding is not eligible for top-level script " +
+                        "production unified bytecode routing because the flat-slot read does not track " +
+                        "block-scope liveness.";
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     internal static bool TryFindOrdinarySyncActivationDecline(

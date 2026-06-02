@@ -5661,6 +5661,51 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function write(box, key, value) {
+                box.child[key] = value;
+                return box.child[key];
+            }
+
+            var box = { child: {} };
+            var a = write(box, "k", 7);
+            var b = write(box, "k2", 9);
+            (a === 7 && b === 9 && box.child.k === 7 && box.child.k2 === 9) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedPropertyWrite_BinaryKey_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function write(box, prefix, suffix, value) {
+                box.child[prefix + suffix] = value;
+                return box.child["ab"];
+            }
+
+            var box = { child: {} };
+            var stored = write(box, "a", "b", 42);
+            (stored === 42 && box.child.ab === 42) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedPropertyWrite_UsesUnifiedBytecodeProductionFastPathAndProxyReceiverIdentity()
     {
         await using var engine = CreateEngine();

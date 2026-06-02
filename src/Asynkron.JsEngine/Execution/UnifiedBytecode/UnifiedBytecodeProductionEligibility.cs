@@ -1277,6 +1277,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1482,6 +1483,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.SetNamedProperty:
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
@@ -6746,6 +6748,76 @@ internal static class UnifiedBytecodeProductionEligibility
                    program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
                spanLen > 1 &&
                rhsStart + spanLen - 1 == rhsEnd;
+    }
+
+    // Nested named receiver prefix followed by a computed property write
+    // (`box.child[key] = value`):
+    // [activation-resolved base, GetNamedProperty(prefix)+, key-span, value, SetComputedProperty].
+    private static bool TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 5)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.SetComputedProperty ||
+            lastOp.AllowNameInference ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        // Walk the named receiver-prefix chain (at least one plain named hop).
+        var keyStart = 1;
+        while (keyStart < program.OperationCount - 1)
+        {
+            var receiverRead = program.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        // Require at least one named prefix hop; the prefix-free shape is the simple
+        // computed write handled by TryIsFirstBoundaryPropertyWriteCandidate.
+        if (keyStart < 2)
+        {
+            return false;
+        }
+
+        var valueIndex = program.OperationCount - 2;
+        if (keyStart >= valueIndex)
+        {
+            return false;
+        }
+
+        return IsSupportedComputedPropertyKeySpan(
+                   program,
+                   startInclusive: keyStart,
+                   endExclusive: valueIndex,
+                   identifierConstants,
+                   activationSlots,
+                   allowsDynamicIdentifiers) &&
+               IsSimpleOperand(
+                   program.GetOperation(valueIndex),
+                   identifierConstants,
+                   activationSlots,
+                   allowsDynamicIdentifiers);
     }
 
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(

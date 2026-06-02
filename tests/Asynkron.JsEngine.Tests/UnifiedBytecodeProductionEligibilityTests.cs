@@ -8117,6 +8117,70 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NestedNamedComputedPropertyWrite_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeNestedComputed(box, key, value) {
+                box.child[key] = value;
+            }
+            """,
+            "writeNestedComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedComputedPropertyWriteWithBinaryKey_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeNestedComputed(box, key, suffix, value) {
+                box.child[key + suffix] = value;
+            }
+            """,
+            "writeNestedComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPrefixComputedPropertyWrite_DeclinesWithPropertyWriteDependency()
+    {
+        // A computed receiver prefix (`box[k1].child[k2] = v`) is outside the
+        // nested-NAMED-prefix computed-write boundary and must still decline.
+        var plan = GetFunctionPlan("""
+            function writeComputedPrefix(box, k1, k2, value) {
+                box[k1].child[k2] = value;
+            }
+            """,
+            "writeComputedPrefix");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPropertyWriteWithExpressionKey_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""

@@ -3744,6 +3744,23 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryNestedNamedComputedPropertySet(
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertySet(
                 expressionProgram,
                 activationSlots,
@@ -10970,6 +10987,146 @@ internal static class UnifiedBytecodeCompiler
                 stagedLiterals,
                 stagedStrings,
                 startInclusive: 1,
+                endExclusive: valueIndex,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(valueIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                stagedUnified,
+                stagedLiterals,
+                stagedStrings,
+                out reason))
+        {
+            return false;
+        }
+
+        stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.SetComputedProperty));
+        unified.Clear();
+        unified.AddRange(stagedUnified);
+        literalConstants.Clear();
+        literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
+        reason = string.Empty;
+        return true;
+    }
+
+    // Nested named receiver prefix followed by a computed property write
+    // (`box.child[key] = value`): emits the activation-resolved base, the named
+    // receiver-prefix reads, the computed key span, the value, then SetComputedProperty.
+    private static bool TryAppendFirstBoundaryNestedNamedComputedPropertySet(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 5)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (propertySet.Kind != ExpressionOpKind.SetComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (propertySet.AllowNameInference)
+        {
+            reason = "Nested named computed property writes with name inference are not supported.";
+            return false;
+        }
+
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        if (expressionProgram.GetOperation(1).Kind != ExpressionOpKind.GetNamedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var keyStart = 1;
+        while (keyStart < expressionProgram.OperationCount - 1)
+        {
+            var receiverRead = expressionProgram.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        if (keyStart < 2)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var valueIndex = expressionProgram.OperationCount - 2;
+        if (keyStart >= valueIndex)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        stagedUnified.AddRange(unified);
+
+        var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        stagedLiterals.AddRange(literalConstants);
+
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < keyStart; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stagedStrings.Count;
+            stagedStrings.Add(receiverRead.GetString(stringTable));
+            stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                stagedLiterals,
+                stagedStrings,
+                startInclusive: keyStart,
                 endExclusive: valueIndex,
                 out reason,
                 allowsDynamicIdentifiers))

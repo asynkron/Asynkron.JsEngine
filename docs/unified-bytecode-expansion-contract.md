@@ -329,7 +329,7 @@ must still obey the no-mixed-execution rule.
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route with post-super `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests&FullyQualifiedName~Constructor"` |
 | `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, and zero-argument activation-resolved identifier-call computed object keys | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
-| `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary and with-backed dynamic-name paths; plans that need both lanes now route when direct eval, captured activation, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_WithThenOutsideDynamicIdentifier_AcceptsMixedDynamicNameProgram"` |
+| `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, and direct-eval-backed dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved boundaries | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update, computed expression-key update, and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
@@ -512,9 +512,8 @@ the final post-compile production subset check before VM entry.
   name fallback, or calls back into `ExpressionProgram`, `ExecutionPlanRunner`,
   or AST evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, direct eval / unsupported dynamic lookup, captured
-  activation, per-iteration bindings, and `using` / `await using` remain pre-VM
-  declines.
+  driver instructions, unsupported dynamic lookup, captured activation,
+  per-iteration bindings, and `using` / `await using` remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.
@@ -838,10 +837,11 @@ support today.
    (`DestructuringDependency`).
 6. Dynamic lookup families remain outside the admitted boundary
    (`DynamicLookupDependency`) except for the ordinary dynamic-name environment
-   path and the explicit with-backed dynamic name slice above. Direct eval
-   outside the admitted one-argument non-spread eval-identifier boundary,
-   unresolved dynamic activation, and unsupported unresolved lookup shapes still
-   decline before VM execution.
+   path, the direct-eval-backed ordinary dynamic-name path, and the explicit
+   with-backed dynamic name slice above. Direct eval outside the admitted
+   one-argument non-spread eval-identifier boundary, unresolved dynamic
+   activation, and unsupported unresolved lookup shapes still decline before VM
+   execution.
 7. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
    labeled loops, labeled block `break`, and labeled `break`/`continue` route
    through the compiler-owned resolved-target path. The remaining

@@ -1972,30 +1972,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
                 or UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
-    [Theory]
-    [InlineData(
-        """
-        function directEval() {
-            eval("var value = 1");
-            return value;
-        }
-        """,
-        "directEval",
-        (int)UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency)]
-    public void Evaluate_UnsupportedDynamicAndDestructuringBlockShapes_StayDeclined(
-        string source,
-        string functionName,
-        int expectedCode)
+    [Fact]
+    public void Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram()
     {
-        var plan = GetFunctionPlan(source, functionName);
+        var plan = GetFunctionPlan("""
+            function directEval() {
+                eval("var value = 1");
+                return value;
+            }
+            """,
+            "directEval");
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal((UnifiedBytecodeProductionDeclineCode)expectedCode, result.Code);
-        Assert.NotEmpty(result.Reason);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
     }
 
     [Fact]

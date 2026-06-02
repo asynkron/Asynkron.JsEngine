@@ -4951,6 +4951,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetConstants,
                 argsStartIndex: 1,
                 call,
+                allowsDynamicIdentifiers,
                 out reason);
         }
 
@@ -4971,9 +4972,10 @@ internal static class UnifiedBytecodeCompiler
             unified,
             literalConstants,
             stringConstants,
-                callTargetConstants,
+            callTargetConstants,
             argsStartIndex: 1,
             call,
+            allowsDynamicIdentifiers,
             out reason);
     }
 
@@ -5039,6 +5041,7 @@ internal static class UnifiedBytecodeCompiler
                     argsStartIndex: 2,
                     call,
                     callIndex,
+                    allowsDynamicIdentifiers,
                     out reason))
             {
                 return false;
@@ -5073,6 +5076,7 @@ internal static class UnifiedBytecodeCompiler
                 argsStartIndex: 2,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -6057,6 +6061,33 @@ internal static class UnifiedBytecodeCompiler
             argsStartIndex,
             call,
             expressionProgram.OperationCount - 1,
+            allowsDynamicIdentifiers: false,
+            out reason);
+    }
+
+    private static bool TryAppendCallArguments(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        bool allowsDynamicIdentifiers,
+        out string reason)
+    {
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            argsStartIndex,
+            call,
+            expressionProgram.OperationCount - 1,
+            allowsDynamicIdentifiers,
             out reason);
     }
 
@@ -6072,10 +6103,38 @@ internal static class UnifiedBytecodeCompiler
         int callIndex,
         out string reason)
     {
+        return TryAppendCallArguments(
+            expressionProgram,
+            slotLayout,
+            unified,
+            literalConstants,
+            stringConstants,
+            callTargetConstants,
+            argsStartIndex,
+            call,
+            callIndex,
+            allowsDynamicIdentifiers: false,
+            out reason);
+    }
+
+    private static bool TryAppendCallArguments(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int argsStartIndex,
+        PackedExpressionOp call,
+        int callIndex,
+        bool allowsDynamicIdentifiers,
+        out string reason)
+    {
         var activationSlots = slotLayout.ActivationSlots;
 
         // Span-walk: each logical argument is a single simple operand or a multi-op
-        // array/object literal span. Validate argument count via span-walk (gh2705).
+        // binary/array/object/template literal span. Validate argument count via
+        // span-walk (gh2705).
         var argCount = 0;
         var operationIndex = argsStartIndex;
         while (operationIndex < callIndex)
@@ -6116,13 +6175,38 @@ internal static class UnifiedBytecodeCompiler
 
                 operationIndex += templateSpanLen;
             }
+            else if (TryAppendSimpleBinaryCallArgumentSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var binarySpanLen,
+                         out reason))
+            {
+                operationIndex += binarySpanLen;
+            }
             else
             {
                 // Spread arguments push the iterable value; flattening happens at the
                 // invocation boundary using the registered spread mask (gh2676).
-                if (!TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out reason) &&
-                    (!call.IsDirectEval ||
-                     !TryAppendDirectEvalArgumentLoad(op, expressionProgram, unified, stringConstants, out reason)))
+                var appendedArgument = call.IsDirectEval
+                    ? TryAppendSimpleOperandLoad(op, expressionProgram, activationSlots, unified, literalConstants, out reason) ||
+                      TryAppendDirectEvalArgumentLoad(op, expressionProgram, unified, stringConstants, out reason)
+                    : TryAppendSimpleOperandLoadWithDynamic(
+                        op,
+                        expressionProgram,
+                        activationSlots,
+                        allowsDynamicIdentifiers,
+                        unified,
+                        literalConstants,
+                        stringConstants,
+                        out reason);
+
+                if (!appendedArgument)
                 {
                     return false;
                 }
@@ -6147,6 +6231,79 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
             EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex, call.IsDirectEval)));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendSimpleBinaryCallArgumentSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (startIndex + 2 >= endExclusive)
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var left = expressionProgram.GetOperation(startIndex);
+        var right = expressionProgram.GetOperation(startIndex + 1);
+        var binary = expressionProgram.GetOperation(startIndex + 2);
+        if (binary.Kind != ExpressionOpKind.Binary)
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!IsSupportedBinaryOperator(binary.Operator))
+        {
+            spanLength = 0;
+            reason = "Call arguments only admit supported simple binary operators.";
+            return false;
+        }
+
+        if (!CanAppendSimpleOperandLoadWithDynamic(left, expressionProgram, activationSlots, allowsDynamicIdentifiers) ||
+            !CanAppendSimpleOperandLoadWithDynamic(right, expressionProgram, activationSlots, allowsDynamicIdentifiers))
+        {
+            spanLength = 0;
+            reason = "Call binary arguments require simple activation-resolved or admitted dynamic operands.";
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                left,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason) ||
+            !TryAppendSimpleOperandLoadWithDynamic(
+                right,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
+        spanLength = 3;
         reason = string.Empty;
         return true;
     }
@@ -9792,6 +9949,18 @@ internal static class UnifiedBytecodeCompiler
             ExpressionOpKind.LoadLiteral or ExpressionOpKind.LoadThis or ExpressionOpKind.LoadNewTarget => true,
             _ => false
         };
+    }
+
+    private static bool CanAppendSimpleOperandLoadWithDynamic(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        return CanAppendSimpleOperandLoad(operation, expressionProgram, activationSlots) ||
+               allowsDynamicIdentifiers &&
+               operation.Kind == ExpressionOpKind.LoadIdentifier &&
+               !operation.IsArguments;
     }
 
     private static bool TryAppendSimpleOperandLoad(

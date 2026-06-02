@@ -2967,7 +2967,13 @@ internal static class UnifiedBytecodeProductionEligibility
             var hasActivationCallTargetSlot = TryResolveActivationSlot(firstIdentifier, activationSlots);
             return (hasActivationCallTargetSlot ||
                     allowsDynamicIdentifiers) &&
-                   HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
+                   HasSimpleCallArguments(
+                       program,
+                       identifierConstants,
+                       activationSlots,
+                       argsStartIndex: 1,
+                       call,
+                       allowsDynamicIdentifiers);
         }
 
         if (firstOperation.Kind == ExpressionOpKind.LoadNamedSuperCallTarget)
@@ -3140,7 +3146,8 @@ internal static class UnifiedBytecodeProductionEligibility
                    activationSlots,
                    argsStartIndex: 2,
                    call,
-                   callIndex);
+                   callIndex,
+                   allowsDynamicIdentifiers);
     }
 
     // Case 1: box?.read(args) — receiver-optional named call
@@ -3681,7 +3688,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
         int argsStartIndex,
-        PackedExpressionOp call)
+        PackedExpressionOp call,
+        bool allowsDynamicIdentifiers = false)
     {
         return HasSimpleCallArguments(
             program,
@@ -3689,7 +3697,8 @@ internal static class UnifiedBytecodeProductionEligibility
             activationSlots,
             argsStartIndex,
             call,
-            program.OperationCount - 1);
+            program.OperationCount - 1,
+            allowsDynamicIdentifiers);
     }
 
     private static bool HasSimpleCallArguments(
@@ -3698,7 +3707,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         int argsStartIndex,
         PackedExpressionOp call,
-        int callIndex)
+        int callIndex,
+        bool allowsDynamicIdentifiers = false)
     {
         // Span-walk: each logical argument is either a single simple operand or a
         // multi-op array/object/template-literal span. Count logical arguments and
@@ -3741,7 +3751,18 @@ internal static class UnifiedBytecodeProductionEligibility
                     operationIndex++;
                 }
             }
-            else if (IsSimpleOperand(op, identifierConstants, activationSlots))
+            else if (TryMeasureSimpleBinaryOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         callIndex,
+                         out var binarySpanLen))
+            {
+                operationIndex += binarySpanLen;
+            }
+            else if (IsSimpleOperand(op, identifierConstants, activationSlots, allowsDynamicIdentifiers))
             {
                 operationIndex++;
             }
@@ -4035,7 +4056,26 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         out int spanLength)
     {
-        if (startIndex + 2 >= program.OperationCount)
+        return TryMeasureSimpleBinaryOperandSpan(
+            program,
+            startIndex,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers: false,
+            program.OperationCount,
+            out spanLength);
+    }
+
+    private static bool TryMeasureSimpleBinaryOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        int endExclusive,
+        out int spanLength)
+    {
+        if (startIndex + 2 >= endExclusive)
         {
             spanLength = 0;
             return false;
@@ -4044,8 +4084,8 @@ internal static class UnifiedBytecodeProductionEligibility
         var left = program.GetOperation(startIndex);
         var right = program.GetOperation(startIndex + 1);
         var binary = program.GetOperation(startIndex + 2);
-        if (IsSimpleOperand(left, identifierConstants, activationSlots) &&
-            IsSimpleOperand(right, identifierConstants, activationSlots) &&
+        if (IsSimpleOperand(left, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
+            IsSimpleOperand(right, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
             binary.Kind == ExpressionOpKind.Binary &&
             IsProductionBinaryOperator(binary.Operator))
         {

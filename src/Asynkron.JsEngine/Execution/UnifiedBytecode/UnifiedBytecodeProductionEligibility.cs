@@ -4578,6 +4578,28 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex += optionalNamedReadSpanLen;
             }
+            else if (TryMeasureSimpleUnaryOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var unarySpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + unarySpanLen <= callIndex)
+            {
+                operationIndex += unarySpanLen;
+            }
+            else if (TryMeasureSimpleTypeOfOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var typeOfSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + typeOfSpanLen <= callIndex)
+            {
+                operationIndex += typeOfSpanLen;
+            }
             else if (IsSimpleOperand(op, identifierConstants, activationSlots, allowsDynamicIdentifiers))
             {
                 operationIndex++;

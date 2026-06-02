@@ -85,6 +85,30 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithUnaryAndTypeOfArguments_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function id(v) { return v; }
+            function unary(fn, x) { return fn(-x); }
+            function logical(fn, x) { return fn(!x); }
+            function kind(fn, x) { return fn(typeof x); }
+
+            var a = unary(id, 5);
+            var b = logical(id, 0);
+            var c = kind(id, "hi");
+            (a === -5 && b === true && c === "string") ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        var snapshot = CurrentLogger!.Collector.Snapshot();
+        Assert.Contains(snapshot, static record => record.Message.Contains(
+            "unified-bytecode-production-fast-path func=unary argc=2", StringComparison.Ordinal));
+        Assert.Contains(snapshot, static record => record.Message.Contains(
+            "unified-bytecode-production-fast-path func=kind argc=2", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NamedMemberCallWithOptionalNamedPropertyReadArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -6919,6 +6919,23 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendSimpleTypeOfOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
         if (TryAppendSimpleBinaryOperandSpan(
                 expressionProgram,
                 startIndex,
@@ -6938,6 +6955,282 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 startIndex,
                 expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
+        if (TryAppendSimpleOperandLoadWithDynamic(
+                operation,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            spanLength = 1;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
+    }
+
+    private static bool TryAppendSimpleTypeOfOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        out int spanLength,
+        out string reason)
+    {
+        var operation = expressionProgram.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.TypeOfIdentifier)
+        {
+            return TryAppendSimpleTypeOfIdentifierOperand(
+                operation,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                slotLayout,
+                out spanLength,
+                out reason);
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        var callTargetCount = callTargetConstants?.Count ?? 0;
+        if (!TryAppendSimpleTypeOfValueOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out var operandSpanLength,
+                out reason) ||
+            startIndex + operandSpanLength >= endExclusive ||
+            expressionProgram.GetOperation(startIndex + operandSpanLength).Kind != ExpressionOpKind.TypeOf)
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            if (callTargetConstants is not null)
+            {
+                RollBackUnifiedBuilder(callTargetConstants, callTargetCount);
+            }
+
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
+        spanLength = operandSpanLength + 1;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static void RollBackUnifiedBuilder<T>(ImmutableArray<T>.Builder builder, int count)
+    {
+        if (builder.Count > count)
+        {
+            builder.RemoveRange(count, builder.Count - count);
+        }
+    }
+
+    private static bool TryAppendSimpleTypeOfIdentifierOperand(
+        PackedExpressionOp operation,
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        out int spanLength,
+        out string reason)
+    {
+        var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (slotLayout is not null
+                ? TryResolveActivationSlot(identifier, slotLayout, out var slotIndex)
+                : TryResolveActivationSlot(identifier, activationSlots, out slotIndex))
+        {
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOfIdentifier, slotIndex));
+            spanLength = 1;
+            reason = string.Empty;
+            return true;
+        }
+
+        if (operation.IsArguments && !allowsDynamicIdentifiers)
+        {
+            var argumentsTypeIndex = literalConstants.Count;
+            literalConstants.Add(new JsValue("object"));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, argumentsTypeIndex));
+            spanLength = 1;
+            reason = string.Empty;
+            return true;
+        }
+
+        if (!allowsDynamicIdentifiers)
+        {
+            spanLength = 0;
+            reason = $"typeof identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.";
+            return false;
+        }
+
+        var nameIndex = stringConstants.Count;
+        stringConstants.Add(identifier.Name.Name ?? string.Empty);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOfDynamicIdentifier, nameIndex));
+        spanLength = 1;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendSimpleTypeOfValueOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder? callTargetConstants,
+        UnifiedBytecodeSlotLayout? slotLayout,
+        out int spanLength,
+        out string reason)
+    {
+        if (slotLayout is not null &&
+            callTargetConstants is not null &&
+            TryMeasureSimpleMemberCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out spanLength))
+        {
+            if (TryAppendSimpleMemberCallOperandSpan(
+                    expressionProgram,
+                    startIndex,
+                    activationSlots,
+                    slotLayout,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    out reason))
+            {
+                return true;
+            }
+
+            spanLength = 0;
+            return false;
+        }
+
+        var operation = expressionProgram.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.CreateArray)
+        {
+            return TryAppendSimpleArrayLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.CreateObject)
+        {
+            return TryAppendSimpleObjectLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.LoadLiteral &&
+            TryMeasureSimpleTemplateLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                out var templateSpanLength,
+                allowsDynamicIdentifiers) &&
+            templateSpanLength > 1)
+        {
+            if (TryAppendSimpleTemplateLiteralSpan(
+                    expressionProgram,
+                    startIndex,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers,
+                    stringConstants) &&
+                spanLength == templateSpanLength)
+            {
+                return true;
+            }
+
+            spanLength = 0;
+            return false;
+        }
+
+        if (TryAppendSimpleBinaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
+        if (TryAppendSimpleUnaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
                 activationSlots,
                 allowsDynamicIdentifiers,
                 unified,

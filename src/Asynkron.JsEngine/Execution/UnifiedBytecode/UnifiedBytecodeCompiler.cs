@@ -6443,6 +6443,7 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram,
                     i,
                     activationSlots,
+                    allowsDynamicIdentifiers,
                     out _,
                     out _,
                     out var callElementSpanLength))
@@ -6452,6 +6453,7 @@ internal static class UnifiedBytecodeCompiler
                         i,
                         activationSlots,
                         slotLayout,
+                        allowsDynamicIdentifiers,
                         unified,
                         literalConstants,
                         stringConstants,
@@ -6701,6 +6703,7 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram,
                     i,
                     activationSlots,
+                    allowsDynamicIdentifiers,
                     out _,
                     out _,
                     out var spreadCallSpanLength) &&
@@ -6712,6 +6715,7 @@ internal static class UnifiedBytecodeCompiler
                         i,
                         activationSlots,
                         slotLayout,
+                        allowsDynamicIdentifiers,
                         unified,
                         literalConstants,
                         stringConstants,
@@ -6918,6 +6922,7 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         int startIndex,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         out int callIndex,
         out int argumentCount,
         out int spanLength)
@@ -6930,7 +6935,11 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!CanAppendSimpleOperandLoad(expressionProgram.GetOperation(startIndex), expressionProgram, activationSlots))
+        if (!CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -6946,7 +6955,11 @@ internal static class UnifiedBytecodeCompiler
 
         var operationIndex = startIndex + 2;
         while (operationIndex < expressionProgram.OperationCount &&
-               CanAppendSimpleOperandLoad(expressionProgram.GetOperation(operationIndex), expressionProgram, activationSlots))
+               CanAppendSimpleOperandLoadWithDynamic(
+                   expressionProgram.GetOperation(operationIndex),
+                   expressionProgram,
+                   activationSlots,
+                   allowsDynamicIdentifiers))
         {
             argumentCount++;
             operationIndex++;
@@ -6978,6 +6991,7 @@ internal static class UnifiedBytecodeCompiler
         int startIndex,
         ActivationSlotShape activationSlots,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -6988,6 +7002,7 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 startIndex,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 out var callIndex,
                 out var argumentCount,
                 out _))
@@ -6996,12 +7011,14 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(startIndex),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7020,12 +7037,14 @@ internal static class UnifiedBytecodeCompiler
 
         for (var operationIndex = startIndex + 2; operationIndex < callIndex; operationIndex++)
         {
-            if (!TryAppendSimpleOperandLoad(
+            if (!TryAppendSimpleOperandLoadWithDynamic(
                     expressionProgram.GetOperation(operationIndex),
                     expressionProgram,
                     activationSlots,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
+                    stringConstants,
                     out reason))
             {
                 return false;

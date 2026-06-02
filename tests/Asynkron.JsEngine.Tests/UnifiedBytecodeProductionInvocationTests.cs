@@ -8648,6 +8648,71 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithNestedUnaryObjectLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, value) {
+                return receiver({
+                    plus: +value,
+                    minus: -value,
+                    not: !value,
+                    bit: ~value,
+                    voided: void value
+                });
+            }
+
+            sendNested(function(obj) {
+                return obj.plus + ":" + obj.minus + ":" + obj.not + ":" + obj.bit + ":" + obj.voided;
+            }, "5");
+            """);
+
+        Assert.Equal("5:-5:false:-6:undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithNestedUnaryArrayLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, value) {
+                return receiver([-value, !value]);
+            }
+
+            sendNested(function(items) { return items[0] + ":" + items[1]; }, "5");
+            """);
+
+        Assert.Equal("-5:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithNestedComputedObjectUnaryValueArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, key, value) {
+                return receiver({ [key]: ~value });
+            }
+
+            sendNested(function(obj) { return obj.answer; }, "answer", 5);
+            """);
+
+        Assert.Equal(-6d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallWithNestedBinaryTemplateArrayLiteralArg_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

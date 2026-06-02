@@ -6934,6 +6934,21 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (TryAppendSimpleUnaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
         if (TryAppendSimpleOperandLoadWithDynamic(
                 operation,
                 expressionProgram,
@@ -6950,6 +6965,80 @@ internal static class UnifiedBytecodeCompiler
 
         spanLength = 0;
         return false;
+    }
+
+    private static bool TryAppendSimpleUnaryOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (startIndex + 1 >= endExclusive)
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        var operand = expressionProgram.GetOperation(startIndex);
+        var unary = expressionProgram.GetOperation(startIndex + 1);
+        if (!TryGetSimpleUnaryOpCode(unary.Kind, out var opCode))
+        {
+            spanLength = 0;
+            reason = string.Empty;
+            return false;
+        }
+
+        if (!CanAppendSimpleOperandLoadWithDynamic(operand, expressionProgram, activationSlots, allowsDynamicIdentifiers))
+        {
+            spanLength = 0;
+            reason = "Simple unary spans require a simple activation-resolved or admitted dynamic operand.";
+            return false;
+        }
+
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                operand,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(opCode));
+        spanLength = 2;
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryGetSimpleUnaryOpCode(ExpressionOpKind kind, out UnifiedBytecodeOpCode opCode)
+    {
+        opCode = kind switch
+        {
+            ExpressionOpKind.UnaryPlus => UnifiedBytecodeOpCode.UnaryPlus,
+            ExpressionOpKind.UnaryMinus => UnifiedBytecodeOpCode.UnaryMinus,
+            ExpressionOpKind.UnaryLogicalNot => UnifiedBytecodeOpCode.UnaryLogicalNot,
+            ExpressionOpKind.UnaryBitwiseNot => UnifiedBytecodeOpCode.UnaryBitwiseNot,
+            ExpressionOpKind.UnaryVoid => UnifiedBytecodeOpCode.UnaryVoid,
+            _ => default
+        };
+
+        return kind is ExpressionOpKind.UnaryPlus or
+            ExpressionOpKind.UnaryMinus or
+            ExpressionOpKind.UnaryLogicalNot or
+            ExpressionOpKind.UnaryBitwiseNot or
+            ExpressionOpKind.UnaryVoid;
     }
 
     private static bool TryMeasureSimpleIdentifierCallOperandSpan(

@@ -6676,6 +6676,51 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedOuterEnvironmentRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeGetter(obj) {
+                return function get() {
+                    return obj.value;
+                };
+            }
+
+            var get = makeGetter({ value: 42 });
+            get();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=get",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedOuterEnvironmentWrite_DoesNotUseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeSetter(obj) {
+                return function set() {
+                    obj.value = 43;
+                    return obj.value;
+                };
+            }
+
+            var set = makeSetter({ value: 42 });
+            set();
+            """);
+
+        Assert.Equal(43d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=set",
+                StringComparison.Ordinal));
+    }
+
     public static TheoryData<string, string, double, string> UnsupportedControlFlowFunctions =>
         new()
         {

@@ -3323,6 +3323,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     CanUseProductionUnifiedBytecodeDynamicNameFastPath(),
                     CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan),
                     CanUseProductionUnifiedBytecodeArrowFunctionActivation(plan, newTarget),
+                    CanUseProductionUnifiedBytecodeCapturedClosureActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan)));
@@ -3369,6 +3370,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var canUseDynamicNamePath = CanUseProductionUnifiedBytecodeDynamicNameFastPath();
             var canUseOrdinaryDynamicNamePath = CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(plan);
             var canUseArrowFunctionPath = CanUseProductionUnifiedBytecodeArrowFunctionActivation(plan, newTarget);
+            var canUseCapturedClosurePath =
+                CanUseProductionUnifiedBytecodeCapturedClosureActivation(plan, newTarget);
             var canUseDerivedClassConstructorPath =
                 CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget);
             var canUseBaseClassConstructorPath =
@@ -3382,6 +3385,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 canUseDynamicNamePath,
                 canUseOrdinaryDynamicNamePath,
                 canUseArrowFunctionPath,
+                canUseCapturedClosurePath,
                 canUseDerivedClassConstructorPath,
                 canUseBaseClassConstructorPath,
                 canUseImplicitArgumentsObjectReadPath);
@@ -3403,6 +3407,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                        canUseDynamicNamePath ||
                        canUseOrdinaryDynamicNamePath ||
                        canUseArrowFunctionPath ||
+                       canUseCapturedClosurePath ||
                        canUseImplicitArgumentsObjectReadPath) ||
                    (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
                    plan.ActivationSlots is not null;
@@ -3421,6 +3426,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             bool canUseDynamicNamePath,
             bool canUseOrdinaryDynamicNamePath,
             bool canUseArrowFunctionPath = false,
+            bool canUseCapturedClosurePath = false,
             bool canUseDerivedClassConstructorPath = false,
             bool canUseBaseClassConstructorPath = false,
             bool canUseImplicitArgumentsObjectReadPath = false)
@@ -3433,7 +3439,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 IsAsyncLike: IsAsyncLike,
                 IsGenerator: _function.IsGenerator,
                 HasCapturedOrDynamicActivation:
-                    _hasCapturedActivationInClosure && !canUseArrowFunctionPath ||
+                    _hasCapturedActivationInClosure &&
+                    !canUseArrowFunctionPath &&
+                    !canUseCapturedClosurePath ||
                     _hasClosureWithObject && !canUseDynamicNamePath ||
                     hasUnprovenDynamicActivation,
                 HasArgumentsObjectDependency:
@@ -3449,7 +3457,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations:
                     canUseOrdinaryDynamicNamePath ||
                     canUseImplicitArgumentsObjectReadPath ||
-                    canUseArrowFunctionPath);
+                    canUseArrowFunctionPath ||
+                    canUseCapturedClosurePath);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -3690,6 +3699,35 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _allowIdentifierCache &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _superConstructor is null &&
+                   _superPrototype is null &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   CanUseProductionUnifiedBytecodeArrowProgramShape(plan) &&
+                   CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(plan) &&
+                   CanUseSimpleIrActivationPlanShape(plan);
+        }
+
+        private bool CanUseProductionUnifiedBytecodeCapturedClosureActivation(
+            ExecutionPlan plan,
+            JsValue newTarget)
+        {
+            return !IsArrowFunction &&
+                   newTarget.IsUndefined &&
+                   !IsClassConstructor &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   !_hasParameterExpressions &&
+                   _hasOnlySimpleIdentifierParameters &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _allowIdentifierCache &&
+                   _hasCapturedActivationInClosure &&
+                   !_hasClosureWithObject &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&
                    PrivateNameScope is null &&

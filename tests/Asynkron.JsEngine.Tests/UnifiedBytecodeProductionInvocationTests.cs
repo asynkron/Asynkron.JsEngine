@@ -6843,6 +6843,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierCallExpression_WithLiteralStartSimpleBinaryCapturedArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeInvoker(fn, value) {
+                return () => fn(1 + value);
+            }
+
+            function probe(value) {
+                "use strict";
+                return this === undefined ? value : 0;
+            }
+
+            var invoke = makeInvoker(probe, 41);
+            invoke();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedIdentifierCallExpression_WithCapturedArrayArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

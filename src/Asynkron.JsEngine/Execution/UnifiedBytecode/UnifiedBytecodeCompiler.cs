@@ -9982,17 +9982,20 @@ internal static class UnifiedBytecodeCompiler
         out string reason)
     {
         if (operation.Kind == ExpressionOpKind.LoadIdentifier &&
-            operation.IsArguments &&
             allowsDynamicIdentifiers)
         {
             var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-            var identifierNameIndex = stringConstants.Count;
-            stringConstants.Add(identifier.Name.Name ?? string.Empty);
-            unified.Add(new UnifiedBytecodeInstruction(
-                UnifiedBytecodeOpCode.LoadDynamicIdentifier,
-                identifierNameIndex));
-            reason = string.Empty;
-            return true;
+            if (operation.IsArguments ||
+                !TryResolveActivationSlot(identifier, activationSlots, out _))
+            {
+                var identifierNameIndex = stringConstants.Count;
+                stringConstants.Add(identifier.Name.Name ?? string.Empty);
+                unified.Add(new UnifiedBytecodeInstruction(
+                    UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                    identifierNameIndex));
+                reason = string.Empty;
+                return true;
+            }
         }
 
         return TryAppendActivationValueLoad(

@@ -6677,6 +6677,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedComputedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeGetter(obj, key) {
+                return () => obj[key];
+            }
+
+            var get = makeGetter({ value: 42 }, "value");
+            get();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task FunctionExpression_CapturedOuterEnvironmentRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -6688,6 +6708,28 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             }
 
             var get = makeGetter({ value: 42 });
+            get();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=get",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedComputedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeGetter(obj, key) {
+                return function get() {
+                    return obj[key];
+                };
+            }
+
+            var get = makeGetter({ value: 42 }, "value");
             get();
             """);
 

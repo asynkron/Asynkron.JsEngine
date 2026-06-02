@@ -1321,6 +1321,16 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
+                    if (TryIsEmbeddedSimpleLiteralPropertyReadOperandOperation(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(
                             program,
                             identifierConstants,
@@ -2838,6 +2848,53 @@ internal static class UnifiedBytecodeProductionEligibility
                TryIsEmbeddedOptionalComputedReadSpanOperation(program, operationIndex, identifierConstants, activationSlots);
     }
 
+    private static bool TryIsEmbeddedSimpleLiteralPropertyReadOperandOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (operationIndex <= 0 || operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < operationIndex; index++)
+        {
+            var operation = program.GetOperation(index);
+            var isMeasuredLiteral = operation.Kind switch
+            {
+                ExpressionOpKind.CreateArray => TryMeasureSimpleArrayLiteralSpan(
+                    program,
+                    index,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
+                    operationIndex < index + spanLength,
+
+                ExpressionOpKind.CreateObject => TryMeasureSimpleObjectLiteralSpan(
+                    program,
+                    index,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
+                    operationIndex < index + spanLength,
+
+                _ => false
+            };
+
+            if (isMeasuredLiteral)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool HasOwningControlExpression(ExpressionProgram program)
     {
         for (var index = 0; index < program.OperationCount; index++)
@@ -4300,6 +4357,17 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (TryMeasureSimplePropertyReadOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
         if (IsSimpleOperand(
                 operation,
                 identifierConstants,
@@ -4311,6 +4379,140 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         spanLength = 0;
+        return false;
+    }
+
+    private static bool TryMeasureSimplePropertyReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        if (TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        return TryMeasureSimpleNamedPropertyReadOperandSpan(
+            program,
+            startIndex,
+            identifierConstants,
+            activationSlots,
+            out spanLength,
+            allowsDynamicIdentifiers);
+    }
+
+    private static bool TryMeasureSimpleNamedPropertyReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 1 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var i = startIndex + 1;
+        while (i < program.OperationCount &&
+               IsPlainNamedPropertyRead(program.GetOperation(i), stringConstants))
+        {
+            i++;
+        }
+
+        if (i == startIndex + 1)
+        {
+            return false;
+        }
+
+        spanLength = i - startIndex;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleComputedPropertyReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 4 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var keyStart = startIndex + 1;
+        while (keyStart < program.OperationCount &&
+               IsPlainNamedPropertyRead(program.GetOperation(keyStart), stringConstants))
+        {
+            keyStart++;
+        }
+
+        for (var requireIndex = keyStart + 1; requireIndex + 2 < program.OperationCount; requireIndex++)
+        {
+            var requireObjectCoercible = program.GetOperation(requireIndex);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+                requireObjectCoercible.Depth != 1)
+            {
+                continue;
+            }
+
+            var resolvePropertyKey = program.GetOperation(requireIndex + 1);
+            var getComputedProperty = program.GetOperation(requireIndex + 2);
+            if (resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+                getComputedProperty.Kind != ExpressionOpKind.GetComputedProperty ||
+                getComputedProperty.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (!IsSupportedComputedPropertyKeySpan(
+                    program,
+                    keyStart,
+                    requireIndex,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                continue;
+            }
+
+            var endExclusive = requireIndex + 3;
+            while (endExclusive < program.OperationCount &&
+                   IsPlainNamedPropertyRead(program.GetOperation(endExclusive), stringConstants))
+            {
+                endExclusive++;
+            }
+
+            spanLength = endExclusive - startIndex;
+            return true;
+        }
+
         return false;
     }
 
@@ -4423,6 +4625,17 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         if (TryMeasureSimpleUnaryOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        if (TryMeasureSimplePropertyReadOperandSpan(
                 program,
                 startIndex,
                 identifierConstants,

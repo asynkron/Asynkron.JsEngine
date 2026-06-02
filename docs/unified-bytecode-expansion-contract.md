@@ -324,6 +324,65 @@ pre-gates fall through to the existing sync route before eligibility runs,
 eligibility declines keep the plan out of the production VM, and accepted rows
 must still obey the no-mixed-execution rule.
 
+The decline-family list above is a coarse taxonomy, not a sub-gate burn-down
+counter. A family such as `CallDependency` or `PropertyWriteDependency` remains
+listed until every concrete shape in that family is VM-owned; individual
+widening slices reduce the text in the ledger row and the associated proof
+surface before the family itself can disappear.
+
+### Concrete Remaining Gate View
+
+This is the current human-maintained burn-down view beneath the coarse decline
+families. It is intentionally phrased as testable shapes rather than enum names;
+the next audit step is to generate this list from the selector/compiler
+predicates and proof tests.
+
+- Async-like ordinary functions, generator functions, awaited with-object plans,
+  and resumable opcode shapes outside the small `EvaluateResumable` subset.
+- Captured function scopes outside the simple-return captured-closure route,
+  unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
+  and class-constructor activation outside the bounded constructor routes.
+- Unbounded real `arguments` object dependency.
+- Direct eval outside the one-argument non-spread eval-identifier boundary.
+- Out-of-boundary call-target preparation, complex receiver/key/call-target
+  shapes, complex call arguments outside admitted simple/binary/unary/`typeof`/
+  property-read/literal spans, and remaining receiver-binding-sensitive adjacent
+  call families.
+- Unresolved identifier loads/stores/updates outside ordinary, with-backed,
+  direct-eval-backed, and simple-return captured-closure dynamic-name paths.
+- Named/computed property reads outside activation-resolved and read-only
+  dynamic-identifier-base boundaries, especially captured-closure dynamic bases
+  and richer computed-key spans.
+- Property writes and compound/logical writes outside direct property-write
+  shapes, supported computed expression-key mutation shapes, simple-return
+  dynamic-base writes, and current nested named receiver shapes.
+- Property/identifier updates outside direct update, computed expression-key
+  update, simple-return dynamic-base update, and the current simple nested named
+  receiver update boundary.
+- Delete expressions outside ordinary named/computed property delete,
+  simple-return dynamic-base delete, ordinary dynamic-key computed delete, and
+  with-backed dynamic-name delete.
+- Out-of-boundary super call targets and remaining class/constructor
+  super-adjacent call shapes.
+- Optional-chain shapes outside admitted optional property-read, optional-call,
+  and exact optional named/computed delete boundaries.
+- Object/array spread sources outside simple operands and admitted member-call
+  spans; richer computed object keys/values; object methods/accessors outside
+  restricted simple literal spans.
+- Private-name operations outside admitted `#name in obj`, direct private
+  reads/writes/updates, direct private compound/logical writes, and direct
+  private named method calls.
+- Awaited for-in sources, async iterator drivers, unsupported for-in driver
+  state, and labeled break/continue crossing intervening driver loops.
+- Awaited destructuring binding values, unsupported destructuring driver shapes,
+  and destructuring targets outside direct-slot or descriptor-backed lanes.
+- Missing slot metadata, unsupported instruction families, unsupported compiler
+  shapes, unsupported resumable opcodes, and unknown production opcode defaults.
+- Pre-gates: class constructor invokers outside bounded constructor routes;
+  arrow functions whose lowered body still has an unowned dependency;
+  identifier-cache disabled outside ordinary/with-backed lanes; super
+  constructor/prototype state outside admitted paths.
+
 ### Eligibility Decline Rows
 
 | Decline code | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
@@ -335,7 +394,7 @@ must still obey the no-mixed-execution rule.
 | `ArgumentsObjectDependency` | Activation descriptor gate for unbounded real `arguments` object dependency; implicit `arguments` reads/assignments/updates/calls materialize the existing arguments object and use the bounded identifier route, while parameter/lexical `arguments` reads, `typeof`, assignments, updates, and call targets route as activation slots | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation outside the admitted simple base constructor route, explicit derived-constructor `super(...)` route with post-super `this` body reads/writes, and default-derived constructor `super(...args)` forwarding route | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests&FullyQualifiedName~Constructor"` |
-| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, simple activation or dynamic identifier-call arguments, simple-binary arguments, nested simple, simple-binary, simple-unary, and simple-`typeof` array/object/template literal values/elements, and dynamic operands inside simple array/object/template call arguments for admitted identifier-call and member-call targets | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
+| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, simple activation or dynamic identifier-call arguments, simple-binary arguments, nested simple, simple-binary, simple-unary, simple-property-read, and simple-`typeof` array/object/template literal values/elements, and dynamic operands inside simple array/object/template call arguments for admitted identifier-call and member-call targets | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, direct-eval-backed, and simple-return captured-closure dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved and read-only dynamic-identifier-base boundaries, including captured closure dynamic bases | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes and compound/logical writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
@@ -564,9 +623,11 @@ the final post-compile production subset check before VM entry.
   member calls whose receiver chain remains inside the shallow computed-call
   boundary. Arguments may be simple literal or slot operands, or simple
   array/object literal spans (`[a, b]`, `{x: a, y: b}`), including nested
-  simple, simple-binary, simple-unary, or simple-`typeof` array/object/template literal values or elements
+  simple, simple-binary, simple-unary, simple-property-read, or
+  simple-`typeof` array/object/template literal values or elements
   (`{items: [a, b]}`, `[{x}]`, `{total: a + b}`,
-  `{value: -x}`, `{kind: typeof x}`, ``{label: `hello ${name}`}``) and object literal spread entries
+  `{value: -x}`, `{value: box.count}`, `{value: box[key]}`,
+  `{kind: typeof x}`, ``{label: `hello ${name}`}``) and object literal spread entries
   whose spread source is a simple operand (`{...source}`), with no computed keys or name inference in that restricted
   simple-span form (gh2705, ADR 0290). General object method/accessor literal
   construction is VM-owned outside that restricted span. Computed member keys

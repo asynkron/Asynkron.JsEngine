@@ -3824,6 +3824,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             !operation.IsArguments &&
             operation.Kind is
                 ExpressionOpKind.LoadIdentifier or
+                ExpressionOpKind.LoadIdentifierCallTarget or
                 ExpressionOpKind.StoreIdentifier or
                 ExpressionOpKind.ResolveIdentifierReference or
                 ExpressionOpKind.StoreResolvedIdentifier or

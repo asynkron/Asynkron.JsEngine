@@ -334,7 +334,7 @@ must still obey the no-mixed-execution rule.
 | `ArgumentsObjectDependency` | Activation descriptor gate for unbounded real `arguments` object dependency; implicit `arguments` reads/assignments/updates/calls materialize the existing arguments object and use the bounded identifier route, while parameter/lexical `arguments` reads, `typeof`, assignments, updates, and call targets route as activation slots | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation outside the admitted simple base constructor route, explicit derived-constructor `super(...)` route with post-super `this` body reads/writes, and default-derived constructor `super(...args)` forwarding route | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests&FullyQualifiedName~Constructor"` |
-| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, and zero-argument activation-resolved identifier-call computed object keys | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
+| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, and simple-return captured identifier calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, direct-eval-backed, and simple-return captured-closure dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved and read-only dynamic-identifier-base boundaries, including captured closure dynamic bases | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes and compound/logical writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
@@ -360,7 +360,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `pre-gate:IsClassConstructor` | Class constructor invokers outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route with post-super `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, call-target, nested function/class literal, or other unowned dependency. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads, captured identifier assignment/compound assignment/update/delete, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, unadmitted call-target, nested function/class literal, or other unowned dependency. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads/calls, captured identifier assignment/compound assignment/update/delete, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:hasParameterExpressions` | Default/rest/destructured parameter expressions | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -467,23 +467,23 @@ the final post-compile production subset check before VM entry.
 - Sloppy-mode `this` coercion is handled before VM entry: `boundThis` is
   computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
   so the VM's `LoadThis` opcode always receives the correctly coerced value.
-- Simple-return arrow functions whose lowered body has no super, call-target,
-  nested function/class literal, or other unowned dependency may route.
+- Simple-return arrow functions whose lowered body has no super, unadmitted
+  call-target, nested function/class literal, or other unowned dependency may
+  route.
   Captured lexical `this` / `new.target`, flat-slot reads, ordinary environment
-  identifier reads, captured identifier assignment, compound assignment, update,
-  and delete, and named/computed property reads, simple property writes,
+  identifier reads/calls, captured identifier assignment, compound assignment,
+  update, and delete, and named/computed property reads, simple property writes,
   compound/logical property writes, property updates, or property deletes from
   those dynamic identifier bases are VM-owned.
   Dependency-bearing arrows still decline via the `IsArrowFunction`,
   captured-activation, or `_lexicalThisEnvironment is not null` pre-gates.
 - Simple-return ordinary function expressions that capture an outer activation
   may route when the body uses the same ordinary environment identifier,
-  captured identifier assignment, compound assignment, update, delete,
+  captured identifier call, assignment, compound assignment, update, delete,
   named/computed property read, simple property write, compound/logical property
-  write, property update, or property delete subset. Captured identifier calls,
-  `arguments`, eval, with-backed closures, super/private/home-object shapes,
-  block-body mutations, and nested function/class literals remain outside this
-  route.
+  write, property update, or property delete subset. `arguments`, eval,
+  with-backed closures, super/private/home-object shapes, block-body mutations,
+  and nested function/class literals remain outside this route.
 - There is no retained `this` decline in the production activation descriptor;
   future shapes that cannot thread `this` through the VM should introduce a
   concrete gate with a current failing example instead of carrying a placeholder.
@@ -546,9 +546,10 @@ the final post-compile production subset check before VM entry.
   contains function-scoped var bindings before VM execution, so a callee's
   hoisted var names shadow an outer `with` object instead of falling through to
   dynamic lookup.
-- `PrepareDynamicIdentifierCallTarget` must resolve an active with binding
-  regardless of identifier-cache state. When the binding exists, the receiver is
-  the with binding object and the callee is read through that captured binding.
+- In with-backed programs, `PrepareDynamicIdentifierCallTarget` must resolve an
+  active with binding regardless of identifier-cache state. When the binding
+  exists, the receiver is the with binding object and the callee is read through
+  that captured binding.
 - Dynamic identifier support does not make dynamic activation globally
   admissible. Direct eval is admitted only through the one-argument non-spread
   eval-identifier call boundary; unresolved non-with dynamic activation,
@@ -602,14 +603,15 @@ the final post-compile production subset check before VM entry.
   current super binding, flattens spread iterables at the boundary when needed,
   invokes `[[Construct]]` with the caller's `new.target`, initializes `this`,
   and preserves the existing double-super-call `ReferenceError`.
-- Accepted identifier-call programs use `PrepareIdentifierCallTarget` or
-  `PrepareIdentifierOptionalCallTarget` followed by `CallInvocationBoundary`;
-  the VM resolves the callable from unified bytecode-owned slot state and
-  invokes it through existing callable invocation helpers with the active
-  `EvaluationContext` and caller `JsEnvironment` when the callee needs
-  environment-aware or debug-aware invocation state. The optional variant packs
-  a nullish short-circuit jump target and jumps past argument lowering and the
-  call boundary when the callee slot is nullish.
+- Accepted identifier-call programs use `PrepareIdentifierCallTarget`,
+  `PrepareIdentifierOptionalCallTarget`, or
+  `PrepareDynamicIdentifierCallTarget` followed by `CallInvocationBoundary`;
+  the VM resolves the callable from unified bytecode-owned slot state or the
+  active dynamic environment and invokes it through existing callable invocation
+  helpers with the active `EvaluationContext` and caller `JsEnvironment` when
+  the callee needs environment-aware or debug-aware invocation state. The
+  optional variant packs a nullish short-circuit jump target and jumps past
+  argument lowering and the call boundary when the callee slot is nullish.
 - Accepted named member-call programs use `PrepareNamedCallTarget` followed by
   `CallInvocationBoundary`; the VM keeps the final receiver on the stack, loads
   the named callee from that receiver, and invokes through the existing

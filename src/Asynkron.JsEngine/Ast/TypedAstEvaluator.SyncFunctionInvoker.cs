@@ -3318,6 +3318,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
             }
 
+            var canUseImplicitArgumentsObjectReadPath =
+                CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var canUseSimpleLiteralDefaultParameterPath =
+                CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
+                    canUseImplicitArgumentsObjectReadPath);
             var result = UnifiedBytecodeProductionEligibility.Evaluate(
                 plan,
                 CreateProductionUnifiedBytecodeActivationDescriptor(
@@ -3327,7 +3332,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     CanUseProductionUnifiedBytecodeCapturedClosureActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeDerivedClassConstructorActivation(plan, newTarget),
                     CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget),
-                    CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan)));
+                    canUseImplicitArgumentsObjectReadPath,
+                    allowImplicitArgumentsObjectPropertyReadOperands:
+                        canUseImplicitArgumentsObjectReadPath &&
+                        canUseSimpleLiteralDefaultParameterPath));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
             {
@@ -3437,7 +3445,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             bool canUseCapturedClosurePath = false,
             bool canUseDerivedClassConstructorPath = false,
             bool canUseBaseClassConstructorPath = false,
-            bool canUseImplicitArgumentsObjectReadPath = false)
+            bool canUseImplicitArgumentsObjectReadPath = false,
+            bool allowImplicitArgumentsObjectPropertyReadOperands = false)
         {
             var hasUnprovenDynamicActivation = !_allowIdentifierCache &&
                                                !canUseDynamicNamePath &&
@@ -3466,7 +3475,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     canUseOrdinaryDynamicNamePath ||
                     canUseImplicitArgumentsObjectReadPath ||
                     canUseArrowFunctionPath ||
-                    canUseCapturedClosurePath);
+                    canUseCapturedClosurePath,
+                AllowsImplicitArgumentsObjectPropertyReadOperands:
+                    allowImplicitArgumentsObjectPropertyReadOperands);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

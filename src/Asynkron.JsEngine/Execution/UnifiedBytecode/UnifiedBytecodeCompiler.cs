@@ -12670,7 +12670,6 @@ internal static class UnifiedBytecodeCompiler
 
         if (!allowsDynamicIdentifiers ||
             operation.Kind != ExpressionOpKind.LoadIdentifier ||
-            operation.IsArguments ||
             stringConstants is null)
         {
             return false;

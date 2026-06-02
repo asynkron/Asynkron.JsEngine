@@ -4087,6 +4087,54 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LiteralDefaultArgumentsLength_AcceptsImplicitArgumentsObjectPropertyRead()
+    {
+        var plan = GetFunctionPlan("""
+            function readArguments(value = 42) {
+                return value + ":" + arguments.length;
+            }
+            """,
+            "readArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                AllowsImplicitArgumentsObjectPropertyReadOperands: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_LiteralDefaultArgumentsIndexRead_AcceptsImplicitArgumentsObjectPropertyRead()
+    {
+        var plan = GetFunctionPlan("""
+            function readArguments(value = 42) {
+                return value + ":" + arguments[0];
+            }
+            """,
+            "readArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                AllowsImplicitArgumentsObjectPropertyReadOperands: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
     public void Evaluate_ParameterNamedArguments_AcceptsAsActivationSlot()
     {
         var plan = GetFunctionPlan("""

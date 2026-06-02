@@ -8361,6 +8361,125 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
+    [Theory]
+    [InlineData("box.child[key]++")]
+    [InlineData("++box.child[key]")]
+    [InlineData("box.child[key]--")]
+    [InlineData("--box.child[key]")]
+    public void Evaluate_NestedNamedComputedPropertyUpdate_AcceptsOwnedPropertyOpcodes(string expression)
+    {
+        var plan = GetFunctionPlan($$"""
+            function update(box, key) {
+                return {{expression}};
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+        // The named receiver prefix must collapse to a single GetNamedProperty hop, not a
+        // computed key-span read.
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_DeepNestedNamedComputedPropertyUpdate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function update(box, key) {
+                return box.child.branch[key]++;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(
+            2,
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedComputedPropertyUpdateWithBinaryKey_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function update(box, key) {
+                return box.child[key + 1]++;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction is { OpCode: UnifiedBytecodeOpCode.Binary, Operand: (int)BinaryOperator.Add });
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("box[k1].child[k2]++")]
+    [InlineData("--box[k1].child[k2]")]
+    public void Evaluate_ComputedPrefixComputedPropertyUpdate_DeclinesWithPropertyUpdateDependency(string expression)
+    {
+        // A computed receiver prefix (`box[k1].child[k2]++`) is outside the
+        // nested-NAMED-prefix computed-update boundary and must still decline.
+        var plan = GetFunctionPlan($$"""
+            function update(box, k1, k2) {
+                return {{expression}};
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_NestedNamedComputedPropertyWriteWithTernaryKey_DeclinesWithPropertyWriteDependency()
+    {
+        // A ternary computed key (`box.child[cond ? a : b] = value`) introduces branch
+        // control flow into the key span, which IsSupportedComputedPropertyKeySpan does not
+        // model; it must still decline (binary/unary keys are admitted, ternary deferred).
+        var plan = GetFunctionPlan("""
+            function write(box, cond, a, b, value) {
+                box.child[cond ? a : b] = value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+    }
+
     [Fact]
     public void Evaluate_ComputedPrefixComputedPropertyWrite_DeclinesWithPropertyWriteDependency()
     {

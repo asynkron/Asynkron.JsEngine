@@ -11628,4 +11628,97 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=orAssign argc=3",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedPropertyUpdate_PostfixAndPrefix_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function post(box, key) {
+                return box.child[key]++;
+            }
+
+            function pre(box, key) {
+                return ++box.child[key];
+            }
+
+            var counter = 0;
+            var box = {
+                child: {
+                    get n() { counter++; return this._n ?? 0; },
+                    set n(v) { this._n = v; }
+                }
+            };
+            // Postfix returns the old value, prefix returns the new value. The computed key
+            // must resolve once per update; record property reads through the getter.
+            var first = post(box, "n");   // reads 0, stores 1, returns 0
+            var second = post(box, "n");  // reads 1, stores 2, returns 1
+            var third = pre(box, "n");    // reads 2, stores 3, returns 3
+            "" + first + "," + second + "," + third + "," + box.child._n + ",reads=" + counter;
+            """);
+
+        Assert.Equal("0,1,3,3,reads=3", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=post argc=2",
+                StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pre argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedPropertyUpdate_DecrementAndDeepPrefix_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function dec(box, key) {
+                return box.child[key]--;
+            }
+
+            function deep(box, key) {
+                return box.child.branch[key]++;
+            }
+
+            var box = { child: { count: 10, branch: { score: 100 } } };
+            var first = dec(box, "count");   // returns 10, stores 9
+            var second = deep(box, "score"); // returns 100, stores 101
+            "" + first + "," + box.child.count + "," + second + "," + box.child.branch.score;
+            """);
+
+        Assert.Equal("10,9,100,101", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=dec argc=2",
+                StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=deep argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedPropertyWriteWithRichKey_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function write(box, base, value) {
+                box.child[base + 1] = value;
+            }
+
+            var keyReads = 0;
+            var box = { child: {} };
+            // The binary key `base + 1` must resolve once during the write.
+            var base = { valueOf() { keyReads++; return 2; } };
+            write(box, base, 99);
+            "" + box.child["3"] + ",keyReads=" + keyReads;
+            """);
+
+        Assert.Equal("99,keyReads=1", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
 }

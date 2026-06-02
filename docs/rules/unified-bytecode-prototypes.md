@@ -686,15 +686,17 @@ all-or-nothing until a separate routing issue proves production readiness.
     owned opcodes, and assert absence of non-executable call-target preparation
     or invocation-boundary opcodes. The matching public invocation proof should
     assert `unified-bytecode-production-fast-path` on the same function and
-    expected JavaScript result. Keep direct specialized simple-return binary and
-    binary-chain shortcuts ahead of unified bytecode and assert that those
-    functions do not log the unified route. Do not add VM fallback or broaden
-    adjacent unowned families to make an integrated test pass. WHY: issue
+    expected JavaScript result. For admitted ordinary sync plans, keep
+    production unified bytecode ahead of direct specialized simple-return binary
+    and binary-chain shortcuts; those shortcuts are fallback paths only for
+    shapes that do not pass production bytecode eligibility. Do not add VM
+    fallback or broaden adjacent unowned families to make an integrated test
+    pass. WHY: issue
     `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-fc03ae9db9`
     / PR #2503 closed the production-routing integration slice with a guard-only
     proof pack. The durable lesson was that per-lane acceptance is not enough:
     completed lanes must compose inside one VM-owned program while route
-    priority still protects older specialized fast paths.
+    priority explicitly protects the bytecode-first production boundary.
 31. Keep production unified-bytecode no-mixed-execution source gates both
     method-boundary-scoped and VM-scoped. The sync-invoker source gate should
     scan only `TryInvokeProductionUnifiedBytecode<TArgs>(...)`, because the
@@ -1588,11 +1590,14 @@ tests rather than runtime widening. The lesson is that the accepted surface must
 be proven both lane-by-lane and as an ordinary mixed program: literals, property
 reads/writes/updates, block lexical scopes, loop control, and primitive
 operations should compose as one `UnifiedBytecodeProgram` without non-executable
-call-boundary opcodes or fallback. The same slice also proved binary-chain
-simple returns still use their specialized fast path. WHY: without an
-integrated guard, future agents can have complete-looking per-lane coverage
-while an ordinary sync function either drifts into mixed execution or shadows a
-faster established route.
+call-boundary opcodes or fallback. That older slice proved binary-chain simple
+returns still used their specialized fast path; the later bytecode-only route
+work superseded that priority by making production unified bytecode run before
+the simple-return/simple-binary shortcuts whenever the plan is production
+eligible. WHY: without an integrated guard, future agents can have
+complete-looking per-lane coverage while an ordinary sync function either
+drifts into mixed execution or shadows the bytecode-first route with an older
+shortcut.
 
 Faktorial issue
 `planitem-planmanual1779943568009120000-batch-1-shared-bytecode-surface-and-parall-a88c0a9ba1`

@@ -927,6 +927,11 @@ public static partial class TypedAstEvaluator
             out JsValue result)
         {
             result = JsValue.Undefined;
+            if (ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(newTarget))
+            {
+                return false;
+            }
+
             if ((!_hasSimpleReturnLiteralFastPath && !_hasSimpleReturnParameterNoArgsFastPath) ||
                 !newTarget.IsUndefined ||
                 IsClassConstructor ||
@@ -1543,6 +1548,11 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                 return false;
             }
 
+            if (ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(JsValue.Undefined))
+            {
+                return false;
+            }
+
             RealmState.Logger?.LogInformation(
                 "simple-ir-parameter-number-binary-fast-path func={Function}",
                 _function.Name?.Name ?? "<anonymous>");
@@ -1600,6 +1610,11 @@ TryCreateSimpleNumericSelfRecursionFastPath(
                     arg2,
                     _simpleReturnParameterBinaryChainFastPath.ThirdParameterIndex,
                     out var third))
+            {
+                return false;
+            }
+
+            if (ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(JsValue.Undefined))
             {
                 return false;
             }
@@ -2740,6 +2755,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         {
             result = JsValue.Undefined;
 
+            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
+                TryInvokeProductionUnifiedBytecode(arguments, thisValue, newTarget, plan, context, callingContext, out result))
+            {
+                return true;
+            }
+
             var canUseSimpleIrActivationFastPath = CanUseSimpleIrActivationFastPath(plan, newTarget);
             if (canUseSimpleIrActivationFastPath &&
                 plan.SimpleReturnParameterBinary is { } parameterBinary)
@@ -2771,12 +2792,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
                 result = EvaluateSimpleReturnParameterBinaryChain(arguments, parameterBinaryChain, context);
                 return TryCompleteIrFastExpressionResult(context, callingContext, ref result);
-            }
-
-            if (CanUseProductionUnifiedBytecodeFastPath(plan, newTarget) &&
-                TryInvokeProductionUnifiedBytecode(arguments, thisValue, newTarget, plan, context, callingContext, out result))
-            {
-                return true;
             }
 
             if (SyncIrCallTrampoline.TryInvoke(
@@ -2859,6 +2874,24 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 // activation environments created above are owned by this fast path.
                 ReturnSimpleIrActivationEnvironment(executionEnvironment);
             }
+        }
+
+        [MethodImpl(JsEngineConstants.Inlining)]
+        private bool ShouldDeferSimpleIrFastPathToProductionUnifiedBytecode(JsValue newTarget)
+        {
+            if (_planSeed.Plan is not { } plan ||
+                plan.IsProductionEligibilityPermanentDecline)
+            {
+                return false;
+            }
+
+            if (ReferenceEquals(_unifiedBytecodeProductionEligibilityPlan, plan) &&
+                _unifiedBytecodeProductionEligibility != UnifiedBytecodeEligibilityUnknown)
+            {
+                return _unifiedBytecodeProductionEligibility == UnifiedBytecodeEligibilityAccepted;
+            }
+
+            return CanUseProductionUnifiedBytecodeFastPath(plan, newTarget);
         }
 
         private bool TryInvokeSimpleDerivedClassConstructorFastPath<TArgs>(

@@ -43,7 +43,7 @@ flowchart TB
     AstBridge --> Result
 
     subgraph GreenHandled["Handled production-bytecode areas"]
-        G1["Accepted ordinary sync functions route to VM before generic IR"]
+        G1["Accepted ordinary sync functions route to VM before simple IR and generic IR"]
         G2["Unified opcode inventory has VM switch coverage"]
         G3["General expression lowering gaps: none"]
         G4["Direct slot/literal/binary/control flow and loop shapes"]
@@ -100,6 +100,7 @@ is removed, or a proof gate becomes stricter.
 
 | Date | Gate surface | Concrete movement | Proof signal |
 |---|---|---|---|
+| 2026-06-02 | Ordinary sync simple-return / simple-binary route priority | Simple literal returns, simple parameter returns, parameter binary returns, and parameter binary-chain returns now defer their old caller-level and simple-IR shortcuts when the cached plan is production-bytecode eligible. The production VM is now attempted before `simple-ir-parameter-*`, `simple-ir-return-*`, `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner` for admitted ordinary sync functions. | Activation proof pack now asserts production unified-bytecode route logs for simple literal, parameter, binary, and binary-chain functions; source gate locks production VM before simple IR fallbacks; route-hit probes moved `activation-noargs-lite` and `functioncalls-lite` out of the zero-hit bucket. |
 | 2026-06-02 | `PropertyReadBoundaryOutOfScope` inside `CallInvocationBoundary` | Identifier and named-member calls now keep production unified bytecode when argument values are simple named or computed property-read spans, for example `fn(box.value)`, `fn(box["value"])`, and `sink.add(box.value)`. The call argument span walker and compiler now count and emit those reads as one logical argument instead of declining the property read before the call boundary. | Focused eligibility proof for `GetNamedProperty` / `GetComputedProperty` plus `CallInvocationBoundary`; runtime route-hit proof for identifier and named-member calls with property-read arguments. |
 | 2026-06-02 | `PropertyReadBoundaryOutOfScope` inside `SuperConstructInvocationBoundary` | Derived constructors now keep production unified bytecode when an admitted constructor parameter is read through a simple named or computed property inside `super(...)`, for example `constructor(values) { super(values.length); }`, `constructor(prefix, ...items) { super(items.length); }`, and `super(items["length"])`. The property-read op is now recognized as owned by the super-construct argument boundary instead of forcing the constructor back to the existing route. | Focused eligibility proof for `GetNamedProperty` / `GetComputedProperty` plus `SuperConstructInvocationBoundary`; runtime route-hit proof for `Derived` with `super(values.length)`, `super(items.length)`, and `super(items["length"])`. |
 | 2026-06-02 | `pre-gate:IsClassConstructor` plus derived-constructor parameter gates | Explicit derived class constructors now enter production unified bytecode with simple literal-default parameters and final-rest identifier parameters when the body is otherwise on the admitted `super(...)` route. Runtime-dependent derived-constructor defaults and destructured constructor parameters remain separately owned. | Focused derived-constructor route-hit and no-route tests; constructor proof pack; `UnifiedBytecodeProduction` pack. |
@@ -134,8 +135,8 @@ Current snapshot from local route-hit probes:
 | `forloop` | 20 | Green: ordinary sync loop/arithmetic VM route is active. |
 | `forofiteration` | 2000 | Green: admitted sync driver route is active. |
 | `propertyaccess` | 0 | Red: this profile did not enter the production VM. |
-| `functioncalls-lite` | 0 | Red: this profile did not enter the production VM. |
-| `activation-noargs-lite` | 0 | Red: this profile did not enter the production VM. |
+| `functioncalls-lite` | 1,600,000 | Green: simple ordinary function calls now route through production bytecode instead of the simple binary IR shortcuts. |
+| `activation-noargs-lite` | 600,000 | Green: simple literal-return activation now routes through production bytecode instead of the public simple-return shortcut. |
 
 Zero route hits do not necessarily mean the syntax family has no bytecode
 support. They mean the measured workload shape did not enter the production

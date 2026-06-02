@@ -953,6 +953,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task FoldedLiteralDefaultParameter_MissingArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function pick(value = 40 + 2) {
+                return value;
+            }
+
+            pick();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=pick argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleLiteralDefaultParameter_WithImplicitArgumentsMissingArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -7459,6 +7478,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var result = await engine.Evaluate("""
             var choose = (value = 42) => value;
             choose(undefined);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FoldedLiteralDefaultArrowFunction_MissingArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var choose = (value = 40 + 2) => value;
+            choose();
             """);
 
         Assert.Equal(42d, result);

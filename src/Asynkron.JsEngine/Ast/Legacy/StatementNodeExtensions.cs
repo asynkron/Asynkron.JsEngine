@@ -2596,6 +2596,20 @@ public static partial class TypedAstEvaluator
                 thisValue,
                 JsValue.Undefined,
                 executionEnvironment.IsStrict);
+
+            // The VM records an unhandled top-level throw in the context rather than
+            // raising it, returning JsValue.Undefined as the completion value. The IR
+            // script path (ExecutionPlanRunner.RunScript) surfaces such throws as a
+            // ThrowSignal exception, which JsEngine.Evaluate translates into a faulted
+            // task. Mirror that contract so const-reassignment TypeErrors and any other
+            // top-level throws are not silently swallowed on the bytecode fast path.
+            if (context.IsThrow)
+            {
+                var thrownValue = context.FlowValue;
+                context.Clear();
+                throw new ThrowSignal(thrownValue);
+            }
+
             return true;
         }
         finally

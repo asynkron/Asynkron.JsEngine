@@ -4720,6 +4720,7 @@ internal static class UnifiedBytecodeCompiler
             if (TryAppendNamedMemberCallTargetPreparation(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -4739,6 +4740,7 @@ internal static class UnifiedBytecodeCompiler
             if (TryAppendComputedMemberCallTargetPreparation(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -4829,6 +4831,7 @@ internal static class UnifiedBytecodeCompiler
             if (TryAppendNamedMemberCallTargetPreparation(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -4848,6 +4851,7 @@ internal static class UnifiedBytecodeCompiler
             if (TryAppendComputedMemberCallTargetPreparation(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5091,6 +5095,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendNamedMemberCallTargetPreparation(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5123,6 +5128,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendOptionalChainPlainCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5146,6 +5152,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendOptionalChainReceiverOptionalCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5167,6 +5174,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendReceiverOptionalNamedCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5189,6 +5197,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendCalleeOptionalNamedCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5234,12 +5243,14 @@ internal static class UnifiedBytecodeCompiler
             callTargetIndexInProgram + 1,
             call,
             callIndex,
+            allowsDynamicIdentifiers,
             out reason);
     }
 
     private static bool TryAppendReceiverOptionalNamedCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5298,6 +5309,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5312,6 +5324,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendCalleeOptionalNamedCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5366,6 +5379,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 2,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5380,6 +5394,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendComputedMemberCallTargetPreparation(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5412,6 +5427,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendOptionalChainComputedPlainCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5434,6 +5450,7 @@ internal static class UnifiedBytecodeCompiler
                 return TryAppendCalleeOptionalComputedCallTarget(
                     expressionProgram,
                     slotLayout,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
                     stringConstants,
@@ -5487,6 +5504,7 @@ internal static class UnifiedBytecodeCompiler
             callTargetIndexInProgram + 1,
             call,
             callIndex,
+            allowsDynamicIdentifiers,
             out reason);
     }
 
@@ -5641,6 +5659,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendCalleeOptionalComputedCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5696,6 +5715,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 2,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5713,6 +5733,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendOptionalChainComputedPlainCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5778,6 +5799,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5795,6 +5817,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendOptionalChainPlainCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5865,6 +5888,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5882,6 +5906,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendOptionalChainReceiverOptionalCallTarget(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -5946,6 +5971,7 @@ internal static class UnifiedBytecodeCompiler
                 callTargetIndexInProgram + 1,
                 call,
                 callIndex,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return false;

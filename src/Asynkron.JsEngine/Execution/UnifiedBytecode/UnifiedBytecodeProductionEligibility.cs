@@ -2931,12 +2931,41 @@ internal static class UnifiedBytecodeProductionEligibility
                 identifierConstants,
                 activationSlots,
                 allowsDynamicIdentifiers) ||
-            TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(program, identifierConstants, activationSlots) ||
-            TryIsFirstBoundaryOptionalChainPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(program, identifierConstants, stringConstants, activationSlots) ||
-            TryIsFirstBoundaryOptionalChainComputedPlainCallCandidate(program, identifierConstants, stringConstants, activationSlots))
+            TryIsFirstBoundaryReceiverOptionalNamedCallCandidate(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
+            TryIsFirstBoundaryCalleeOptionalNamedCallCandidate(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
+            TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
+            TryIsFirstBoundaryOptionalChainPlainCallCandidate(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
+            TryIsFirstBoundaryOptionalChainReceiverOptionalCallCandidate(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                allowsDynamicIdentifiers) ||
+            TryIsFirstBoundaryOptionalChainComputedPlainCallCandidate(
+                program,
+                identifierConstants,
+                stringConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return true;
         }
@@ -3028,7 +3057,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        identifierConstants,
                        activationSlots,
                        namedCallTargetIndex + 1,
-                       call);
+                       call,
+                       allowsDynamicIdentifiers);
         }
 
         var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
@@ -3056,7 +3086,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        identifierConstants,
                        activationSlots,
                        computedCallTargetIndex + 1,
-                       call);
+                       call,
+                       allowsDynamicIdentifiers);
         }
 
         return false;
@@ -3156,7 +3187,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         var callIndex = program.OperationCount - 1;
         var call = program.GetOperation(callIndex);
@@ -3196,7 +3228,8 @@ internal static class UnifiedBytecodeProductionEligibility
                    activationSlots,
                    namedCallTargetIndex + 1,
                    call,
-                   callIndex);
+                   callIndex,
+                   allowsDynamicIdentifiers);
     }
 
     // Case 2: box.read?.() — callee-optional named call
@@ -3205,7 +3238,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 7)
         {
@@ -3254,7 +3288,8 @@ internal static class UnifiedBytecodeProductionEligibility
                    activationSlots,
                    namedCallTargetIndex + 2,
                    call,
-                   callIndex);
+                   callIndex,
+                   allowsDynamicIdentifiers);
     }
 
     // Case 3: box[key]?.() — callee-optional computed call
@@ -3262,7 +3297,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryCalleeOptionalComputedCallCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 8)
         {
@@ -3311,7 +3347,8 @@ internal static class UnifiedBytecodeProductionEligibility
                    activationSlots,
                    computedCallTargetIndex + 2,
                    call,
-                   callIndex);
+                   callIndex,
+                   allowsDynamicIdentifiers);
     }
 
     // Case 4: a?.b.c() / a.x?.b.c() — optional-start chain, plain non-optional call
@@ -3321,7 +3358,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, LoadNamedCallTarget, Call] = 5
         if (program.OperationCount < 5)
@@ -3380,7 +3418,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return HasSimpleCallArguments(program, identifierConstants, activationSlots, namedCallTargetIndex + 1, call);
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            namedCallTargetIndex + 1,
+            call,
+            allowsDynamicIdentifiers);
     }
 
     // Case 5: a?.b?.c() — double-optional chain, receiver-optional call
@@ -3390,7 +3434,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, JumpIfNullish, LoadNamedCallTarget, Call] = 6
         if (program.OperationCount < 6)
@@ -3448,7 +3493,13 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        return HasSimpleCallArguments(program, identifierConstants, activationSlots, namedCallTargetIndex + 1, call);
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            namedCallTargetIndex + 1,
+            call,
+            allowsDynamicIdentifiers);
     }
 
     // Case 6: a?.b[k]() — optional-start chain, computed plain non-optional call
@@ -3458,7 +3509,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, key, LoadComputedCallTarget, Call] = 6
         if (program.OperationCount < 6)
@@ -3506,7 +3558,13 @@ internal static class UnifiedBytecodeProductionEligibility
         var computedCallTarget = program.GetOperation(computedCallTargetIndex);
         return !computedCallTarget.IsOptional &&
                !computedCallTarget.ShortCircuitOnNullishTarget &&
-               HasSimpleCallArguments(program, identifierConstants, activationSlots, computedCallTargetIndex + 1, call);
+               HasSimpleCallArguments(
+                   program,
+                   identifierConstants,
+                   activationSlots,
+                   computedCallTargetIndex + 1,
+                   call,
+                   allowsDynamicIdentifiers);
     }
 
     // Returns true and the index of the Call op when the expression program ends with

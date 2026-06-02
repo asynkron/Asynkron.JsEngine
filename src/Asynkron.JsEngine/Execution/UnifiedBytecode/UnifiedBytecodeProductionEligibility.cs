@@ -1898,9 +1898,10 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowsDynamicIdentifiers)
     {
         return TryGetActivationResolvedValue(operation, identifierConstants, activationSlots) ||
-               allowsDynamicIdentifiers &&
-               operation.Kind == ExpressionOpKind.LoadIdentifier &&
-               operation.IsArguments;
+               allowsDynamicIdentifiers && (
+                   operation.Kind == ExpressionOpKind.LoadIdentifier &&
+                   operation.IsArguments ||
+                   TryGetPlainDynamicIdentifierReadValue(operation, identifierConstants, activationSlots));
     }
 
     private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(

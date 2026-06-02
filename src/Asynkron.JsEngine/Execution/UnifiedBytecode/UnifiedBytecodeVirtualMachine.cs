@@ -424,6 +424,41 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget:
+                {
+                    var dynamicOptionalCallEnvironment = RequireDynamicEnvironment(currentCallingEnvironment);
+                    var dynamicOptionalNameIndex = instruction.Operand & 0xFFFF;
+                    var dynamicOptionalJumpTarget = instruction.Operand >> 16;
+                    PrepareDynamicIdentifierCallTarget(
+                        program.StringConstants[dynamicOptionalNameIndex],
+                        dynamicOptionalCallEnvironment,
+                        stack,
+                        ref stackPointer,
+                        context);
+                    ClearTopTwoShortCircuitFlags();
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return JsValue.Undefined;
+                    }
+
+                    var dynamicOptionalCallable = stack[stackPointer - 1];
+                    if (dynamicOptionalCallable.IsNullOrUndefined)
+                    {
+                        stackPointer -= 2;
+                        PushValue(JsValue.Undefined);
+                        programCounter = dynamicOptionalJumpTarget;
+                        break;
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
                 case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
                     var namedCallTarget = program.CallTargetConstants[instruction.Operand];
                     if (namedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember ||

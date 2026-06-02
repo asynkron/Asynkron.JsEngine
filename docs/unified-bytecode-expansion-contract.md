@@ -269,6 +269,7 @@ statement interpretation.
 - `PrepareIdentifierCallTarget`
 - `PrepareIdentifierOptionalCallTarget`
 - `PrepareDynamicIdentifierCallTarget`
+- `PrepareDynamicIdentifierOptionalCallTarget`
 - `PrepareNamedCallTarget`
 - `PrepareComputedCallTarget`
 - `PrepareNamedOptionalCallTarget`
@@ -334,7 +335,7 @@ must still obey the no-mixed-execution rule.
 | `ArgumentsObjectDependency` | Activation descriptor gate for unbounded real `arguments` object dependency; implicit `arguments` reads/assignments/updates/calls materialize the existing arguments object and use the bounded identifier route, while parameter/lexical `arguments` reads, `typeof`, assignments, updates, and call targets route as activation slots | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation outside the admitted simple base constructor route, explicit derived-constructor `super(...)` route with post-super `this` body reads/writes, and default-derived constructor `super(...args)` forwarding route | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests&FullyQualifiedName~Constructor"` |
-| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, and simple-return captured identifier calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
+| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, simple-return captured identifier calls, and simple-return captured optional identifier calls | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, direct-eval-backed, and simple-return captured-closure dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved and read-only dynamic-identifier-base boundaries, including captured closure dynamic bases | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes and compound/logical writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
@@ -604,14 +605,15 @@ the final post-compile production subset check before VM entry.
   invokes `[[Construct]]` with the caller's `new.target`, initializes `this`,
   and preserves the existing double-super-call `ReferenceError`.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget`,
-  `PrepareIdentifierOptionalCallTarget`, or
-  `PrepareDynamicIdentifierCallTarget` followed by `CallInvocationBoundary`;
-  the VM resolves the callable from unified bytecode-owned slot state or the
-  active dynamic environment and invokes it through existing callable invocation
-  helpers with the active `EvaluationContext` and caller `JsEnvironment` when
-  the callee needs environment-aware or debug-aware invocation state. The
-  optional variant packs a nullish short-circuit jump target and jumps past
-  argument lowering and the call boundary when the callee slot is nullish.
+  `PrepareIdentifierOptionalCallTarget`, `PrepareDynamicIdentifierCallTarget`,
+  or `PrepareDynamicIdentifierOptionalCallTarget` followed by
+  `CallInvocationBoundary`; the VM resolves the callable from unified
+  bytecode-owned slot state or the active dynamic environment and invokes it
+  through existing callable invocation helpers with the active
+  `EvaluationContext` and caller `JsEnvironment` when the callee needs
+  environment-aware or debug-aware invocation state. The optional variants pack
+  a nullish short-circuit jump target and jump past argument lowering and the
+  call boundary when the callee is nullish.
 - Accepted named member-call programs use `PrepareNamedCallTarget` followed by
   `CallInvocationBoundary`; the VM keeps the final receiver on the stack, loads
   the named callee from that receiver, and invokes through the existing
@@ -637,17 +639,20 @@ the final post-compile production subset check before VM entry.
 - Accepted optional call programs either use a jump-owned optional-start prefix
   followed by an ordinary call-target preparation opcode (`a?.b.c(args)`,
   `a.x?.b.c(args)`, `a?.b[k](args)`) or use
-  `PrepareIdentifierOptionalCallTarget`, `PrepareNamedOptionalCallTarget`, or
-  `PrepareComputedOptionalCallTarget` followed by `CallInvocationBoundary`.
+  `PrepareIdentifierOptionalCallTarget`,
+  `PrepareDynamicIdentifierOptionalCallTarget`,
+  `PrepareNamedOptionalCallTarget`, or `PrepareComputedOptionalCallTarget`
+  followed by `CallInvocationBoundary`.
   The optional preparation opcodes pack a call-target constant index (low 16
   bits) and a nullish short-circuit jump target (high 16 bits) into a single
   operand. The VM checks the receiver or callee for nullish before argument
   evaluation proceeds; if nullish, the stack top becomes `Undefined` and
   execution jumps past the call boundary. Admitted callee/receiver-optional
-  patterns include callee-optional identifier calls (`fn?.(args)`),
-  receiver-optional named calls (`box?.read(args)`), callee-optional named
-  calls (`box.read?.(args)`), and callee-optional computed calls
-  (`box[key]?.(args)`). The `IsOptionalReceiverCheck` flag in
+  patterns include activation-resolved and captured/dynamic callee-optional
+  identifier calls (`fn?.(args)`), receiver-optional named calls
+  (`box?.read(args)`), callee-optional named calls (`box.read?.(args)`), and
+  callee-optional computed calls (`box[key]?.(args)`). The
+  `IsOptionalReceiverCheck` flag in
   `UnifiedBytecodeCallTarget` distinguishes the two named variants. (Optional
   member calls admitted as of gh2689; ADR 0289.)
 - Direct eval programs use `PrepareIdentifierCallTarget` followed by

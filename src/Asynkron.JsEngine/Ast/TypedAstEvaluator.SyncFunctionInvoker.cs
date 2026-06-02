@@ -3320,6 +3320,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             var canUseImplicitArgumentsObjectReadPath =
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var canUseFinalRestParameterPath =
+                CanUseProductionUnifiedBytecodeFinalRestParameterPath(
+                    canUseImplicitArgumentsObjectReadPath);
             var canUseSimpleLiteralDefaultParameterPath =
                 CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
                     canUseImplicitArgumentsObjectReadPath);
@@ -3335,7 +3338,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     canUseImplicitArgumentsObjectReadPath,
                     allowImplicitArgumentsObjectPropertyReadOperands:
                         canUseImplicitArgumentsObjectReadPath &&
-                        canUseSimpleLiteralDefaultParameterPath));
+                        (canUseSimpleLiteralDefaultParameterPath ||
+                         canUseFinalRestParameterPath)));
 
             if (!result.IsEligible && IsPlanStructuralDecline(result.Code))
             {
@@ -3388,7 +3392,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var canUseImplicitArgumentsObjectReadPath =
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
             var canUseFinalRestParameterPath =
-                CanUseProductionUnifiedBytecodeFinalRestParameterPath();
+                CanUseProductionUnifiedBytecodeFinalRestParameterPath(
+                    canUseImplicitArgumentsObjectReadPath);
             var canUseSimpleLiteralDefaultParameterPath =
                 CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
                     canUseImplicitArgumentsObjectReadPath);
@@ -3590,15 +3595,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return sawLiteralDefault;
         }
 
-        private bool CanUseProductionUnifiedBytecodeFinalRestParameterPath()
+        private bool CanUseProductionUnifiedBytecodeFinalRestParameterPath(
+            bool allowArgumentsObjectDependency = false)
         {
             return !IsClassConstructor &&
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
                    !_hasParameterExpressions &&
-                   !_usesArguments &&
-                   !_needsArgumentsBinding &&
+                   (!_usesArguments && !_needsArgumentsBinding ||
+                    allowArgumentsObjectDependency && !IsArrowFunction) &&
                    _allowIdentifierCache &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&

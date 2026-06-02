@@ -405,6 +405,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_FinalRestArgumentsLength_AcceptsImplicitArgumentsObjectPropertyRead()
+    {
+        var plan = GetFunctionPlan("""
+            function inspect(prefix, ...items) {
+                return (arguments.length, items);
+            }
+            """,
+            "inspect");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                AllowsImplicitArgumentsObjectPropertyReadOperands: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+    }
+
+    [Fact]
     public void Evaluate_SimpleLiteralDefaultParameterPlan_Accepts()
     {
         var plan = GetFunctionPlan("""

@@ -834,6 +834,11 @@ internal static class UnifiedBytecodeProductionEligibility
             stringConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+        var isGeneralIdentifierCallExpressionCandidate = TryIsGeneralIdentifierCallExpressionCandidate(
+            program,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
         var isConstructInvocationCandidate = TryIsConstructInvocationCandidate(program, identifierConstants, activationSlots);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
@@ -850,7 +855,7 @@ internal static class UnifiedBytecodeProductionEligibility
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadIdentifierCallTarget:
-                    if (isCallTargetPreparationCandidate)
+                    if (isCallTargetPreparationCandidate || isGeneralIdentifierCallExpressionCandidate)
                     {
                         break;
                     }
@@ -933,7 +938,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.Call:
-                    if (isCallTargetPreparationCandidate)
+                    if (isCallTargetPreparationCandidate || isGeneralIdentifierCallExpressionCandidate)
                     {
                         break;
                     }
@@ -3206,6 +3211,39 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool TryIsGeneralIdentifierCallExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 2)
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(program.OperationCount - 1);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0)
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(0);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(identifierConstants);
+        return TryResolveActivationSlot(identifier, activationSlots) ||
+               allowsDynamicIdentifiers ||
+               CanUseMaterializedActivationDynamicLookup(identifier, activationSlots);
+    }
+
     private static int FindComputedCallKeyStart(
         ExpressionProgram program,
         int computedCallTargetIndex,
@@ -4277,6 +4315,25 @@ internal static class UnifiedBytecodeProductionEligibility
         out int spanLength,
         bool allowsDynamicIdentifiers = false)
     {
+        return TryMeasureSimpleLiteralValueOperandSpanCore(
+            program,
+            startIndex,
+            identifierConstants,
+            activationSlots,
+            out spanLength,
+            allowsDynamicIdentifiers,
+            allowControlExpressions: true);
+    }
+
+    private static bool TryMeasureSimpleLiteralValueOperandSpanCore(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers,
+        bool allowControlExpressions)
+    {
         if (TryMeasureSimpleMemberCallOperandSpan(
                 program,
                 startIndex,
@@ -4368,6 +4425,18 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (allowControlExpressions &&
+            TryMeasureSimpleControlExpressionOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
         if (IsSimpleOperand(
                 operation,
                 identifierConstants,
@@ -4380,6 +4449,160 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = 0;
         return false;
+    }
+
+    private static bool TryMeasureSimpleControlExpressionOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        return TryMeasureSimpleLogicalControlExpressionOperandSpan(
+                   program,
+                   startIndex,
+                   identifierConstants,
+                   activationSlots,
+                   out spanLength,
+                   allowsDynamicIdentifiers) ||
+               TryMeasureSimpleConditionalExpressionOperandSpan(
+                   program,
+                   startIndex,
+                   identifierConstants,
+                   activationSlots,
+                   out spanLength,
+                   allowsDynamicIdentifiers);
+    }
+
+    private static bool TryMeasureSimpleLogicalControlExpressionOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out var leftSpanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: false))
+        {
+            return false;
+        }
+
+        var jumpIndex = startIndex + leftSpanLength;
+        var popIndex = jumpIndex + 1;
+        var rhsStartIndex = jumpIndex + 2;
+        if (rhsStartIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var jump = program.GetOperation(jumpIndex);
+        if (jump.Kind is not (ExpressionOpKind.JumpIfFalse or ExpressionOpKind.JumpIfTrue or ExpressionOpKind.JumpIfNotNullish) ||
+            program.GetOperation(popIndex).Kind != ExpressionOpKind.Pop)
+        {
+            return false;
+        }
+
+        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                rhsStartIndex,
+                identifierConstants,
+                activationSlots,
+                out var rhsSpanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: true))
+        {
+            return false;
+        }
+
+        var endIndex = rhsStartIndex + rhsSpanLength;
+        if (jump.Target != endIndex)
+        {
+            return false;
+        }
+
+        spanLength = endIndex - startIndex;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleConditionalExpressionOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out var conditionSpanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: false))
+        {
+            return false;
+        }
+
+        var branchIndex = startIndex + conditionSpanLength;
+        if (branchIndex >= program.OperationCount ||
+            program.GetOperation(branchIndex).Kind != ExpressionOpKind.JumpIfConditionalFalse)
+        {
+            return false;
+        }
+
+        var consequentStartIndex = branchIndex + 1;
+        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                consequentStartIndex,
+                identifierConstants,
+                activationSlots,
+                out var consequentSpanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: true))
+        {
+            return false;
+        }
+
+        var jumpIndex = consequentStartIndex + consequentSpanLength;
+        var alternateStartIndex = jumpIndex + 1;
+        if (alternateStartIndex >= program.OperationCount ||
+            program.GetOperation(jumpIndex).Kind != ExpressionOpKind.Jump ||
+            program.GetOperation(branchIndex).Target != alternateStartIndex)
+        {
+            return false;
+        }
+
+        if (!TryMeasureSimpleLiteralValueOperandSpanCore(
+                program,
+                alternateStartIndex,
+                identifierConstants,
+                activationSlots,
+                out var alternateSpanLength,
+                allowsDynamicIdentifiers,
+                allowControlExpressions: true))
+        {
+            return false;
+        }
+
+        var endIndex = alternateStartIndex + alternateSpanLength;
+        if (program.GetOperation(jumpIndex).Target != endIndex)
+        {
+            return false;
+        }
+
+        spanLength = endIndex - startIndex;
+        return true;
     }
 
     private static bool TryMeasureSimplePropertyReadOperandSpan(

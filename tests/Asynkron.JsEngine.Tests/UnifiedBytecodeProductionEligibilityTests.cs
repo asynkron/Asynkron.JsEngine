@@ -769,6 +769,50 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
+    [Theory]
+    [InlineData("function invoke(fn, x) { return fn(-x); }", (int)UnifiedBytecodeOpCode.UnaryMinus)]
+    [InlineData("function invoke(fn, x) { return fn(+x); }", (int)UnifiedBytecodeOpCode.UnaryPlus)]
+    [InlineData("function invoke(fn, x) { return fn(!x); }", (int)UnifiedBytecodeOpCode.UnaryLogicalNot)]
+    [InlineData("function invoke(fn, x) { return fn(~x); }", (int)UnifiedBytecodeOpCode.UnaryBitwiseNot)]
+    [InlineData("function invoke(fn, x) { return fn(void x); }", (int)UnifiedBytecodeOpCode.UnaryVoid)]
+    public void Evaluate_IdentifierCallWithUnaryOperandArgument_AcceptsUnaryOpcode(string source, int expectedOpCode)
+    {
+        var plan = GetFunctionPlan(source, "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == (UnifiedBytecodeOpCode)expectedOpCode);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierCallWithTypeOfIdentifierArgument_AcceptsTypeOfIdentifier()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(fn, x) {
+                return fn(typeof x);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
     [Fact]
     public void Evaluate_BlockScopedIdentifierCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {

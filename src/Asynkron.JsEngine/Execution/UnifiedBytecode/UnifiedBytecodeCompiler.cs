@@ -6457,6 +6457,36 @@ internal static class UnifiedBytecodeCompiler
             {
                 operationIndex += optionalNamedReadSpanLen;
             }
+            else if (TryAppendSimpleUnaryOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var unarySpanLen,
+                         out reason))
+            {
+                operationIndex += unarySpanLen;
+            }
+            else if (TryAppendSimpleTypeOfOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         callTargetConstants,
+                         slotLayout,
+                         out var typeOfSpanLen,
+                         out reason))
+            {
+                operationIndex += typeOfSpanLen;
+            }
             else
             {
                 // Spread arguments push the iterable value; flattening happens at the

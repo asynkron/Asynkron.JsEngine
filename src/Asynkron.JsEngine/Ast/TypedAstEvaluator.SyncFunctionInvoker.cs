@@ -3124,6 +3124,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var defaultDerivedRestArguments = _function.IsDefaultDerivedConstructor
                     ? CreateDefaultDerivedConstructorRestArguments(arguments)
                     : (JsValue?)null;
+                if (CanUseProductionUnifiedBytecodeFinalRestParameterPath() &&
+                    (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program)))
+                {
+                    return false;
+                }
+
                 PopulateProductionUnifiedBytecodeParameterSlots(
                     arguments,
                     slots,
@@ -3379,8 +3385,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
             var canUseImplicitArgumentsObjectReadPath =
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var canUseFinalRestParameterPath =
+                CanUseProductionUnifiedBytecodeFinalRestParameterPath();
             var hasAdmittedParameterShape =
                 _hasOnlySimpleIdentifierParameters ||
+                canUseFinalRestParameterPath ||
                 _function.IsDefaultDerivedConstructor && canUseDerivedClassConstructorPath;
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 canUseDynamicNamePath,
@@ -3493,21 +3502,85 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return;
             }
 
+            var hasFinalRestParameter =
+                TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out var finalRestParameterIndex);
             for (var i = 0; i < _parameterNames.Length; i++)
             {
                 var parameterSlotIndex = parameterSlotIndices[i];
                 if (parameterSlotIndex >= 0)
                 {
-                    slots[parameterSlotIndex] =
-                        defaultDerivedRestArguments is { } restArguments &&
+                    JsValue value;
+                    if (defaultDerivedRestArguments is { } restArguments &&
                         TryGetDefaultDerivedConstructorRestParameter(out _) &&
-                        i == 0
-                            ? restArguments
-                            : i < arguments.Count
-                                ? arguments[i]
-                                : JsValue.Undefined;
+                        i == 0)
+                    {
+                        value = restArguments;
+                    }
+                    else if (hasFinalRestParameter && i == finalRestParameterIndex)
+                    {
+                        value = CreateRestArguments(arguments, finalRestParameterIndex);
+                    }
+                    else
+                    {
+                        value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    }
+
+                    slots[parameterSlotIndex] = value;
                 }
             }
+        }
+
+        private bool CanUseProductionUnifiedBytecodeFinalRestParameterPath()
+        {
+            return !IsClassConstructor &&
+                   !IsArrowFunction &&
+                   !IsAsyncLike &&
+                   !_function.IsGenerator &&
+                   !_function.IsDefaultDerivedConstructor &&
+                   !_hasParameterExpressions &&
+                   !_usesArguments &&
+                   !_needsArgumentsBinding &&
+                   _allowIdentifierCache &&
+                   _lexicalThisEnvironment is null &&
+                   _homeObject is null &&
+                   PrivateNameScope is null &&
+                   _capturedPrivateNameScopes.IsDefaultOrEmpty &&
+                   _superConstructor is null &&
+                   _superPrototype is null &&
+                   _instanceFields.IsDefaultOrEmpty &&
+                   TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out _);
+        }
+
+        private bool TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out int restIndex)
+        {
+            restIndex = -1;
+            if (_function.Parameters.IsDefaultOrEmpty)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _function.Parameters.Length; i++)
+            {
+                var parameter = _function.Parameters[i];
+                var isFinal = i == _function.Parameters.Length - 1;
+                if (isFinal)
+                {
+                    if (parameter is { IsRest: true, Pattern: null, DefaultValue: null, Name: not null })
+                    {
+                        restIndex = i;
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                if (parameter is not { IsRest: false, Pattern: null, DefaultValue: null, Name: not null })
+                {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -4427,6 +4500,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             where TArgs : IReadOnlyList<JsValue>
         {
             return JsValue.FromJsArray(new JsArray(arguments, RealmState));
+        }
+
+        private JsValue CreateRestArguments<TArgs>(TArgs arguments, int startIndex)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var restArray = new JsArray(RealmState);
+            for (var i = startIndex; i < arguments.Count; i++)
+            {
+                restArray.Push(arguments[i]);
+            }
+
+            return JsValue.FromJsArray(restArray);
         }
 
         private bool TryGetDefaultDerivedConstructorRestParameter(out Symbol restName)

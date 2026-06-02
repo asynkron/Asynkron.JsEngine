@@ -387,6 +387,24 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_FinalRestParameterPlan_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function pick(prefix, ...items) {
+                return items;
+            }
+            """,
+            "pick");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_ClassDeclarationInstruction_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""

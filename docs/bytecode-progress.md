@@ -54,7 +54,7 @@ flowchart TB
     end
 
     subgraph RedRemaining["Needs handling before full bytecode execution"]
-        R1["Activation model gaps\nasync-like, broad generators, lexical-this arrows,\nreal arguments object, non-simple params"]
+        R1["Activation model gaps\nasync-like, broad generators, lexical-this arrows,\nreal arguments object, remaining non-simple params"]
         R2["Wider call invocation\ncomplex receivers, keys, eval, private-adjacent targets,\nreceiver-binding-sensitive families"]
         R3["Dynamic lookup beyond admitted ordinary/direct-eval/with-backed lanes"]
         R4["Property and assignment neighbors\nricher computed keys, optional/super/private mutation,\nunsupported RHS spans"]

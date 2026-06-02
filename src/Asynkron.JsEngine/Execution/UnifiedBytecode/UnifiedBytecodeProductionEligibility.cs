@@ -179,7 +179,16 @@ internal static class UnifiedBytecodeProductionEligibility
 
     public static UnifiedBytecodeProductionEligibilityResult Evaluate(
         ExecutionPlan plan,
-        in UnifiedBytecodeProductionActivationDescriptor activation)
+        in UnifiedBytecodeProductionActivationDescriptor activation) =>
+        EvaluateCore(plan, activation, isScript: false);
+
+    public static UnifiedBytecodeProductionEligibilityResult EvaluateScript(ExecutionPlan plan) =>
+        EvaluateCore(plan, new UnifiedBytecodeProductionActivationDescriptor(), isScript: true);
+
+    private static UnifiedBytecodeProductionEligibilityResult EvaluateCore(
+        ExecutionPlan plan,
+        in UnifiedBytecodeProductionActivationDescriptor activation,
+        bool isScript)
     {
         if (TryFindOrdinarySyncActivationDecline(activation, out var activationDeclineCode, out var activationDeclineReason))
         {
@@ -210,7 +219,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 isGenerator: false,
                 out var program,
                 out var compileReason,
-                activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations))
+                activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations,
+                isScript))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
@@ -2963,8 +2973,7 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowsDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands)
     {
-        if (!allowImplicitArgumentsObjectPropertyReadOperands ||
-            operationIndex <= 0 ||
+        if (operationIndex <= 0 ||
             operationIndex >= program.OperationCount)
         {
             return false;
@@ -2973,8 +2982,9 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var startIndex = 0; startIndex < operationIndex; startIndex++)
         {
             var baseOperation = program.GetOperation(startIndex);
-            if (baseOperation.Kind != ExpressionOpKind.LoadIdentifier ||
-                !IsImplicitArgumentsIdentifier(baseOperation, identifierConstants, activationSlots))
+            if (!allowImplicitArgumentsObjectPropertyReadOperands &&
+                baseOperation.Kind == ExpressionOpKind.LoadIdentifier &&
+                IsImplicitArgumentsIdentifier(baseOperation, identifierConstants, activationSlots))
             {
                 continue;
             }

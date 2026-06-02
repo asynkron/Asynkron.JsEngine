@@ -306,4 +306,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<ClassDeclarationDescriptor> ClassDeclarationConstants = default,
     ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
     ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default,
-    bool RequiresShortCircuitStackFlags = false);
+    bool RequiresShortCircuitStackFlags = false,
+    int ScriptCompletionSlot = -1);

@@ -15,6 +15,32 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         "simple-ir-parameter-number-binary-chain-fast-path";
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelPropertyAccessLoop_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let obj = {
+                a: { b: { c: { d: { e: 1 } } } },
+                x: 10,
+                y: 20,
+                z: 30
+            };
+            let sum = 0;
+            for (let i = 0; i < 5; i++) {
+                sum += obj.a.b.c.d.e;
+                sum += obj.x + obj.y + obj.z;
+            }
+            sum;
+            """);
+
+        Assert.Equal(305d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -7691,7 +7717,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                UnifiedBytecodeProductionFastPathLog,
+                "unified-bytecode-production-fast-path func=choose",
                 StringComparison.Ordinal));
     }
 

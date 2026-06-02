@@ -29,7 +29,8 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<int> ParameterSlotIndices,
         ImmutableArray<int> LexicalSlotIndices,
         ImmutableArray<string?> SlotNames,
-        bool AllowsOrdinaryDynamicIdentifiers)
+        bool AllowsOrdinaryDynamicIdentifiers,
+        int ScriptCompletionSlot = -1)
     {
         // Spread masks discovered while compiling synchronous spread invocations.
         // Each entry holds the spread argument positions for one invocation
@@ -88,7 +89,8 @@ internal static class UnifiedBytecodeCompiler
         bool isGenerator,
         out UnifiedBytecodeProgram program,
         out string reason,
-        bool allowsOrdinaryDynamicIdentifiers = false)
+        bool allowsOrdinaryDynamicIdentifiers = false,
+        bool isScript = false)
     {
         if ((uint)plan.EntryPoint >= (uint)plan.Instructions.Length)
         {
@@ -116,6 +118,10 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var slotLayout = BuildSlotLayout(plan, allowsOrdinaryDynamicIdentifiers);
+        if (isScript)
+        {
+            slotLayout = WithScriptCompletionSlot(slotLayout);
+        }
 
         var unified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         var literalConstants = ImmutableArray.CreateBuilder<JsValue>();
@@ -200,7 +206,8 @@ internal static class UnifiedBytecodeCompiler
             templateObjectConstants.Count == 0
                 ? ImmutableArray<TaggedTemplateDescriptor>.Empty
                 : templateObjectConstants.ToImmutable(),
-            RequiresShortCircuitStackFlags(compiledInstructions));
+            RequiresShortCircuitStackFlags(compiledInstructions),
+            slotLayout.ScriptCompletionSlot);
         reason = string.Empty;
         return true;
     }
@@ -234,6 +241,17 @@ internal static class UnifiedBytecodeCompiler
             ImmutableArray<UnifiedBytecodeTryDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
+
+    private static UnifiedBytecodeSlotLayout WithScriptCompletionSlot(UnifiedBytecodeSlotLayout slotLayout)
+    {
+        var completionSlot = slotLayout.SlotCount;
+        return slotLayout with
+        {
+            SlotCount = completionSlot + 1,
+            SlotNames = slotLayout.SlotNames.Add(null),
+            ScriptCompletionSlot = completionSlot
+        };
+    }
 
     private static int GetCompiledExpressionMaxStackDepth(ExpressionProgram expressionProgram)
     {
@@ -2040,6 +2058,17 @@ internal static class UnifiedBytecodeCompiler
                             out reason);
 
                     case SetCompletionValueInstruction setCompletionValue:
+                        if (slotLayout.ScriptCompletionSlot >= 0)
+                        {
+                            var undefinedIndex = literalConstants.Count;
+                            literalConstants.Add(JsValue.Undefined);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, undefinedIndex));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreSlot,
+                                slotLayout.ScriptCompletionSlot));
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 setCompletionValue.Next,
@@ -2314,7 +2343,19 @@ internal static class UnifiedBytecodeCompiler
                         return true;
 
                     case ReturnInstruction { ReturnProgram: null, AwaitedProgram: null }:
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined));
+                        if (slotLayout.ScriptCompletionSlot >= 0)
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.LoadSlot,
+                                slotLayout.ScriptCompletionSlot));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return));
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+                        else
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ReturnUndefined));
+                        }
+
                         reason = string.Empty;
                         return true;
 
@@ -2565,8 +2606,22 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
+                        if (slotLayout.ScriptCompletionSlot >= 0 && !discard.SuppressCompletionValue)
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreSlot,
+                                slotLayout.ScriptCompletionSlot));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(discardedProgram));
+                        var discardedMaxStackDepth = GetCompiledExpressionMaxStackDepth(discardedProgram);
+                        if (slotLayout.ScriptCompletionSlot >= 0 && !discard.SuppressCompletionValue)
+                        {
+                            discardedMaxStackDepth++;
+                        }
+
+                        maxStackDepth = Math.Max(maxStackDepth, discardedMaxStackDepth);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 discard.Next,
@@ -3852,6 +3907,23 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryOptionalComputedPropertyReadChain(
                 expressionProgram,
                 activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
+        if (TryAppendSimplePropertyReadBinaryExpression(
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -11988,6 +12060,115 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return stackDepth == 1;
+    }
+
+    private static bool TryAppendSimplePropertyReadBinaryExpression(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var containsPropertyRead = false;
+        var containsBinary = false;
+        var stackDepth = 0;
+        var startCount = unified.Count;
+        var startLiteralCount = literalConstants.Count;
+        var startStringCount = stringConstants.Count;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        void RollBack()
+        {
+            unified.Count = startCount;
+            literalConstants.Count = startLiteralCount;
+            stringConstants.Count = startStringCount;
+        }
+
+        for (var operationIndex = 0; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        {
+            var operation = expressionProgram.GetOperation(operationIndex);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                    if (!TryAppendSimpleOperandLoadWithDynamic(
+                            operation,
+                            expressionProgram,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            out reason))
+                    {
+                        RollBack();
+                        reason = string.Empty;
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.GetNamedProperty:
+                    if (stackDepth < 1 ||
+                        operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(expressionStringConstants).IsPrivateName())
+                    {
+                        RollBack();
+                        reason = string.Empty;
+                        return false;
+                    }
+
+                    var propertyNameIndex = stringConstants.Count;
+                    stringConstants.Add(operation.GetString(expressionStringConstants));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.GetNamedProperty,
+                        propertyNameIndex));
+                    containsPropertyRead = true;
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsSupportedBinaryOperator(operation.Operator))
+                    {
+                        RollBack();
+                        reason = string.Empty;
+                        return false;
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.Binary,
+                        (int)operation.Operator));
+                    stackDepth--;
+                    containsBinary = true;
+                    break;
+
+                default:
+                    RollBack();
+                    reason = string.Empty;
+                    return false;
+            }
+        }
+
+        if (!containsPropertyRead || !containsBinary || stackDepth != 1)
+        {
+            RollBack();
+            reason = string.Empty;
+            return false;
+        }
+
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendFirstBoundaryPropertyReadBinaryExpression(

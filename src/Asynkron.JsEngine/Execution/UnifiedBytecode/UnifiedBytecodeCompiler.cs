@@ -7027,11 +7027,24 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
-        return TryMeasureSimpleOptionalNamedCallOperandSpan(
+        if (TryMeasureSimpleOptionalNamedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out _,
+                out _,
+                out spanLength))
+        {
+            return true;
+        }
+
+        return TryMeasureSimpleOptionalComputedCallOperandSpan(
             expressionProgram,
             startIndex,
             activationSlots,
             allowsDynamicIdentifiers,
+            out _,
             out _,
             out _,
             out spanLength);
@@ -7116,7 +7129,28 @@ internal static class UnifiedBytecodeCompiler
                 out reason);
         }
 
-        return TryAppendSimpleOptionalNamedCallOperandSpan(
+        if (TryMeasureSimpleOptionalNamedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out _,
+                out _,
+                out _))
+        {
+            return TryAppendSimpleOptionalNamedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                out reason);
+        }
+
+        return TryAppendSimpleOptionalComputedCallOperandSpan(
             expressionProgram,
             startIndex,
             activationSlots,
@@ -7444,6 +7478,461 @@ internal static class UnifiedBytecodeCompiler
             EncodeCallBoundaryOperand(argumentCount, spreadMaskIndex: -1, isDirectEval: false)));
         unified[prepareIndex] = new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget,
+            callTargetConstantIndex | (unified.Count << 16));
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int callTargetIndex,
+        out int callIndex,
+        out int argumentCount,
+        out int spanLength)
+    {
+        if (TryMeasureSimpleReceiverOptionalComputedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out callTargetIndex,
+                out callIndex,
+                out argumentCount,
+                out spanLength))
+        {
+            return true;
+        }
+
+        return TryMeasureSimpleCalleeOptionalComputedCallOperandSpan(
+            expressionProgram,
+            startIndex,
+            activationSlots,
+            allowsDynamicIdentifiers,
+            out callTargetIndex,
+            out callIndex,
+            out argumentCount,
+            out spanLength);
+    }
+
+    private static bool TryMeasureSimpleReceiverOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int callTargetIndex,
+        out int callIndex,
+        out int argumentCount,
+        out int spanLength)
+    {
+        callTargetIndex = -1;
+        callIndex = -1;
+        argumentCount = 0;
+        spanLength = 0;
+        if (startIndex + 5 >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        if (!CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var jump = expressionProgram.GetOperation(startIndex + 1);
+        if (jump.Kind != ExpressionOpKind.JumpIfNullish || !jump.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        callTargetIndex = startIndex + 3;
+        while (callTargetIndex < expressionProgram.OperationCount &&
+               expressionProgram.GetOperation(callTargetIndex).Kind != ExpressionOpKind.LoadComputedCallTarget)
+        {
+            callTargetIndex++;
+        }
+
+        if (callTargetIndex >= expressionProgram.OperationCount)
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: startIndex + 2,
+                endExclusive: callTargetIndex,
+                allowsDynamicIdentifiers))
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        var callTarget = expressionProgram.GetOperation(callTargetIndex);
+        if (callTarget.IsOptional || callTarget.ShortCircuitOnNullishTarget)
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        var operationIndex = callTargetIndex + 1;
+        while (operationIndex < expressionProgram.OperationCount &&
+               CanAppendSimpleOperandLoadWithDynamic(
+                   expressionProgram.GetOperation(operationIndex),
+                   expressionProgram,
+                   activationSlots,
+                   allowsDynamicIdentifiers))
+        {
+            argumentCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex >= expressionProgram.OperationCount)
+        {
+            callTargetIndex = -1;
+            argumentCount = 0;
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argumentCount)
+        {
+            callTargetIndex = -1;
+            argumentCount = 0;
+            return false;
+        }
+
+        callIndex = operationIndex;
+        spanLength = operationIndex - startIndex + 1;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleCalleeOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int callTargetIndex,
+        out int callIndex,
+        out int argumentCount,
+        out int spanLength)
+    {
+        callTargetIndex = -1;
+        callIndex = -1;
+        argumentCount = 0;
+        spanLength = 0;
+        if (startIndex + 7 >= expressionProgram.OperationCount)
+        {
+            return false;
+        }
+
+        if (!CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        callTargetIndex = startIndex + 2;
+        while (callTargetIndex < expressionProgram.OperationCount &&
+               expressionProgram.GetOperation(callTargetIndex).Kind != ExpressionOpKind.LoadComputedCallTarget)
+        {
+            callTargetIndex++;
+        }
+
+        if (callTargetIndex >= expressionProgram.OperationCount)
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: startIndex + 1,
+                endExclusive: callTargetIndex,
+                allowsDynamicIdentifiers))
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        var jump = expressionProgram.GetOperation(callTargetIndex + 1);
+        if (jump.Kind != ExpressionOpKind.JumpIfNullish || !jump.ReplaceWithUndefined)
+        {
+            callTargetIndex = -1;
+            return false;
+        }
+
+        var operationIndex = callTargetIndex + 2;
+        while (operationIndex < expressionProgram.OperationCount &&
+               CanAppendSimpleOperandLoadWithDynamic(
+                   expressionProgram.GetOperation(operationIndex),
+                   expressionProgram,
+                   activationSlots,
+                   allowsDynamicIdentifiers))
+        {
+            argumentCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex + 3 >= expressionProgram.OperationCount)
+        {
+            callTargetIndex = -1;
+            argumentCount = 0;
+            return false;
+        }
+
+        var call = expressionProgram.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argumentCount)
+        {
+            callTargetIndex = -1;
+            argumentCount = 0;
+            return false;
+        }
+
+        if (expressionProgram.GetOperation(operationIndex + 1).Kind != ExpressionOpKind.Jump ||
+            expressionProgram.GetOperation(operationIndex + 2).Kind != ExpressionOpKind.SwapTopTwo ||
+            expressionProgram.GetOperation(operationIndex + 3).Kind != ExpressionOpKind.Pop)
+        {
+            callTargetIndex = -1;
+            argumentCount = 0;
+            return false;
+        }
+
+        callIndex = operationIndex;
+        spanLength = operationIndex - startIndex + 4;
+        return true;
+    }
+
+    private static bool TryAppendSimpleOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        out string reason)
+    {
+        if (TryMeasureSimpleReceiverOptionalComputedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var receiverOptionalCallTargetIndex,
+                out var receiverOptionalCallIndex,
+                out var receiverOptionalArgumentCount,
+                out _))
+        {
+            return TryAppendMeasuredSimpleReceiverOptionalComputedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                receiverOptionalCallTargetIndex,
+                receiverOptionalCallIndex,
+                receiverOptionalArgumentCount,
+                out reason);
+        }
+
+        if (TryMeasureSimpleCalleeOptionalComputedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var calleeOptionalCallTargetIndex,
+                out var calleeOptionalCallIndex,
+                out var calleeOptionalArgumentCount,
+                out _))
+        {
+            return TryAppendMeasuredSimpleCalleeOptionalComputedCallOperandSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                calleeOptionalCallTargetIndex,
+                calleeOptionalCallIndex,
+                calleeOptionalArgumentCount,
+                out reason);
+        }
+
+        reason = "Literal spans only admit optional computed member calls with simple receiver, key, and arguments.";
+        return false;
+    }
+
+    private static bool TryAppendMeasuredSimpleReceiverOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int callTargetIndex,
+        int callIndex,
+        int argumentCount,
+        out string reason)
+    {
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: startIndex + 2,
+                endExclusive: callTargetIndex,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        for (var operationIndex = callTargetIndex + 1; operationIndex < callIndex; operationIndex++)
+        {
+            if (!TryAppendSimpleOperandLoadWithDynamic(
+                    expressionProgram.GetOperation(operationIndex),
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            EncodeCallBoundaryOperand(argumentCount, spreadMaskIndex: -1, isDirectEval: false)));
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            unified.Count);
+        reason = string.Empty;
+        return true;
+    }
+
+    private static bool TryAppendMeasuredSimpleCalleeOptionalComputedCallOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int callTargetIndex,
+        int callIndex,
+        int argumentCount,
+        out string reason)
+    {
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: startIndex + 1,
+                endExclusive: callTargetIndex,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+            UnifiedBytecodeCallTargetKind.ComputedMember,
+            IsOptionalReceiverCheck: false));
+        var prepareIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
+            callTargetConstantIndex));
+
+        for (var operationIndex = callTargetIndex + 2; operationIndex < callIndex; operationIndex++)
+        {
+            if (!TryAppendSimpleOperandLoadWithDynamic(
+                    expressionProgram.GetOperation(operationIndex),
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    out reason))
+            {
+                return false;
+            }
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.CallInvocationBoundary,
+            EncodeCallBoundaryOperand(argumentCount, spreadMaskIndex: -1, isDirectEval: false)));
+        unified[prepareIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget,
             callTargetConstantIndex | (unified.Count << 16));
         reason = string.Empty;
         return true;

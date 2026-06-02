@@ -8185,6 +8185,101 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NestedNamedComputedCompoundPropertyWrite_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, key, value) {
+                return box.child[key] += value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_DeepNestedNamedComputedCompoundPropertyWrite_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function write(box, key, value) {
+                return box.child.branch[key] += value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(
+            2,
+            result.Program.Instructions.Count(static instruction =>
+                instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("&&=")]
+    [InlineData("||=")]
+    [InlineData("??=")]
+    public void Evaluate_NestedNamedComputedLogicalPropertyWrite_AcceptsOwnedPropertyOpcodes(string op)
+    {
+        var plan = GetFunctionPlan($$"""
+            function write(box, key, value) {
+                return box.child[key] {{op}} value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPrefixComputedCompoundPropertyWrite_DeclinesWithPropertyWriteDependency()
+    {
+        // A computed receiver prefix (`box[k1].child[k2] += v`) is outside the
+        // nested-NAMED-prefix computed compound-write boundary and must still decline.
+        var plan = GetFunctionPlan("""
+            function writeComputedPrefix(box, k1, k2, value) {
+                box[k1].child[k2] += value;
+            }
+            """,
+            "writeComputedPrefix");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPropertyWriteWithExpressionKey_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""

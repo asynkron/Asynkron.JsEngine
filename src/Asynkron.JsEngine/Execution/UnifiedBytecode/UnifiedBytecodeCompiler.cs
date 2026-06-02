@@ -10354,10 +10354,42 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        var keyStart = 1;
+        while (keyStart < suffixStart)
+        {
+            var receiverRead = expressionProgram.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        if (keyStart >= suffixStart)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
         if (!IsSupportedComputedPropertyKeySpan(
                 expressionProgram,
                 activationSlots,
-                startInclusive: 1,
+                startInclusive: keyStart,
                 endExclusive: suffixStart,
                 allowsDynamicIdentifiers))
         {
@@ -10386,13 +10418,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        for (var operationIndex = 1; operationIndex < keyStart; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stagedStrings.Count;
+            stagedStrings.Add(receiverRead.GetString(stringTable));
+            stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
         if (!TryAppendComputedPropertyKeySpan(
                 expressionProgram,
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
                 stagedStrings,
-                startInclusive: 1,
+                startInclusive: keyStart,
                 endExclusive: suffixStart,
                 out reason,
                 allowsDynamicIdentifiers))
@@ -10618,6 +10658,33 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var propertySetIndex = expressionProgram.OperationCount - 6;
+
+        // Walk an optional named receiver-prefix chain (e.g. box.child[key] &&= value).
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        var keyStart = 1;
+        while (keyStart < propertySetIndex)
+        {
+            var receiverRead = expressionProgram.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            keyStart++;
+        }
+
         var suffixStart = -1;
         var matchedLayout = false;
         PackedExpressionOp propertyRead = default;
@@ -10626,11 +10693,11 @@ internal static class UnifiedBytecodeCompiler
         for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
         {
             var candidateSuffixStart = propertySetIndex - 6 - rhsLength;
-            if (candidateSuffixStart <= 1 ||
+            if (candidateSuffixStart <= keyStart ||
                 !IsSupportedComputedPropertyKeySpan(
                     expressionProgram,
                     activationSlots,
-                    startInclusive: 1,
+                    startInclusive: keyStart,
                     endExclusive: candidateSuffixStart,
                     allowsDynamicIdentifiers))
             {
@@ -10716,13 +10783,21 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        for (var operationIndex = 1; operationIndex < keyStart; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stagedStrings.Count;
+            stagedStrings.Add(receiverRead.GetString(stringTable));
+            stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
         if (!TryAppendComputedPropertyKeySpan(
                 expressionProgram,
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
                 stagedStrings,
-                startInclusive: 1,
+                startInclusive: keyStart,
                 endExclusive: suffixStart,
                 out reason,
                 allowsDynamicIdentifiers))

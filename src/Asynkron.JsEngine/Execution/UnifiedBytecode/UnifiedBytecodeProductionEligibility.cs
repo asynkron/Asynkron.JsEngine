@@ -38,7 +38,8 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasArrowLexicalThisDependency = false,
     bool HasClassConstructorActivation = false,
     bool HasDynamicLookupDependency = false,
-    bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false);
+    bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false,
+    bool AllowsImplicitArgumentsObjectPropertyReadOperands = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
     bool IsEligible,
@@ -196,6 +197,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 plan,
                 activationSlots,
                 activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations,
+                activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
                 out var declineCode,
                 out var declineReason))
         {
@@ -384,6 +386,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ExecutionPlan plan,
         ActivationSlotShape activationSlots,
         bool allowsOrdinaryDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
@@ -515,6 +518,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     program,
                     activationSlots,
                     allowsDynamicIdentifiers,
+                    allowImplicitArgumentsObjectPropertyReadOperands &&
+                    allowsDynamicIdentifiers,
                     out declineCode,
                     out declineReason))
             {
@@ -574,6 +579,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     program,
                     activationSlots,
                     allowsDynamicIdentifiers,
+                    allowImplicitArgumentsObjectPropertyReadOperands: false,
                     out declineCode,
                     out declineReason))
             {
@@ -759,6 +765,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
@@ -1205,6 +1212,17 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsEmbeddedSimplePropertyReadOperandOperation(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands))
+                    {
+                        break;
+                    }
+
                     if (isFirstBoundaryNamedCompoundPropertyWriteCandidate)
                     {
                         break;
@@ -1332,6 +1350,17 @@ internal static class UnifiedBytecodeProductionEligibility
                             identifierConstants,
                             activationSlots,
                             allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
+                    if (TryIsEmbeddedSimplePropertyReadOperandOperation(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            allowImplicitArgumentsObjectPropertyReadOperands))
                     {
                         break;
                     }
@@ -2860,7 +2889,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers)
     {
-        if (operationIndex <= 0 || operationIndex >= program.OperationCount)
+        if (operationIndex <= 0 ||
+            operationIndex >= program.OperationCount)
         {
             return false;
         }
@@ -2892,6 +2922,46 @@ internal static class UnifiedBytecodeProductionEligibility
             };
 
             if (isMeasuredLiteral)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryIsEmbeddedSimplePropertyReadOperandOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        bool allowImplicitArgumentsObjectPropertyReadOperands)
+    {
+        if (!allowImplicitArgumentsObjectPropertyReadOperands ||
+            operationIndex <= 0 ||
+            operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        for (var startIndex = 0; startIndex < operationIndex; startIndex++)
+        {
+            var baseOperation = program.GetOperation(startIndex);
+            if (baseOperation.Kind != ExpressionOpKind.LoadIdentifier ||
+                !IsImplicitArgumentsIdentifier(baseOperation, identifierConstants, activationSlots))
+            {
+                continue;
+            }
+
+            if (TryMeasureSimplePropertyReadOperandSpan(
+                    program,
+                    startIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
+                operationIndex < startIndex + spanLength)
             {
                 return true;
             }
@@ -3788,12 +3858,11 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.LoadLiteral => true,
             ExpressionOpKind.LoadThis => true,
             ExpressionOpKind.LoadNewTarget => true,
-            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
+            ExpressionOpKind.LoadIdentifier => TryGetActivationOrImplicitArgumentsObjectReadValue(
                 operation,
                 identifierConstants,
-                activationSlots) ||
-                allowsDynamicIdentifiers &&
-                !operation.IsArguments,
+                activationSlots,
+                allowsDynamicIdentifiers),
             _ => false
         };
     }
@@ -6409,12 +6478,11 @@ internal static class UnifiedBytecodeProductionEligibility
             ExpressionOpKind.LoadLiteral => true,
             ExpressionOpKind.LoadThis => true,
             ExpressionOpKind.LoadNewTarget => true,
-            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
+            ExpressionOpKind.LoadIdentifier => TryGetActivationOrImplicitArgumentsObjectReadValue(
                 operation,
                 identifierConstants,
-                activationSlots) ||
-                allowsDynamicIdentifiers &&
-                !operation.IsArguments,
+                activationSlots,
+                allowsDynamicIdentifiers),
             _ => false
         };
     }

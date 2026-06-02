@@ -1010,6 +1010,44 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleLiteralDefaultParameter_WithImplicitArgumentsLength_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(value = 42) {
+                return value + ":" + arguments.length;
+            }
+
+            inspect();
+            """);
+
+        Assert.Equal("42:0", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleLiteralDefaultParameter_WithImplicitArgumentsIndexRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(value = 42) {
+                return value + ":" + arguments[0];
+            }
+
+            inspect(undefined);
+            """);
+
+        Assert.Equal("42:undefined", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleStringDefaultParameter_NestedFunctionCapture_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

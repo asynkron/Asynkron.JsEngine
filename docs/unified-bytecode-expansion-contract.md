@@ -632,7 +632,8 @@ the final post-compile production subset check before VM entry.
   `{[left && right]: value}`, `{[condition ? yes : no]: value}`,
   `{kind: typeof x}`, ``{label: `hello ${name}`}``) and object literal spread entries
   whose spread source is a simple operand (`{...source}`) or admitted
-  simple-control expression (`{...(condition ? left : right)}`,
+  simple-control expression (`{...(left && right)}`,
+  `{...(condition ? left : right)}`, `[...(left && right)]`,
   `[...(condition ? left : right)]`), with no name inference in that restricted
   simple-span form (gh2705, ADR 0290). General object method/accessor literal
   construction is VM-owned outside that restricted span. Computed member keys

@@ -4308,6 +4308,72 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_LiteralDefaultArgumentsUpdate_AcceptsDynamicIdentifierUpdate()
+    {
+        var plan = GetFunctionPlan("""
+            function bump(value = 42) {
+                arguments++;
+                return value + ":" + arguments;
+            }
+            """,
+            "bump");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_LiteralDefaultArgumentsCall_AcceptsDynamicIdentifierCallTarget()
+    {
+        var plan = GetFunctionPlan("""
+            function callArguments(value = 42) {
+                return arguments();
+            }
+            """,
+            "callArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+    }
+
+    [Fact]
+    public void Evaluate_LiteralDefaultArgumentsAssignment_AcceptsDynamicIdentifierStore()
+    {
+        var plan = GetFunctionPlan("""
+            function assignArguments(value = 42) {
+                arguments;
+                arguments = 7;
+                return value + ":" + arguments;
+            }
+            """,
+            "assignArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifier);
+    }
+
+    [Fact]
     public void Evaluate_DynamicIdentifierLookup_AcceptsOrdinaryDynamicNameOpcode()
     {
         var plan = GetFunctionPlan("""

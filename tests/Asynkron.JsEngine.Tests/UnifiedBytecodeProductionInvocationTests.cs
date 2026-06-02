@@ -113,6 +113,60 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedReadChainArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box) {
+                return fn(box?.child.value);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            // Only the `?.` head short-circuits: a nullish `box` yields undefined for
+            // the whole chain. (A non-nullish box with a missing `.child` would throw,
+            // which is correct chain semantics and covered elsewhere.)
+            var present = invoke(id, { child: { value: 7 } });
+            var missingHead = invoke(id, null);
+            var missingHeadUndefined = invoke(id, undefined);
+            (present === 7 && missingHead === undefined && missingHeadUndefined === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedReadChainArgument_AmongOtherArguments_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, a, box, b) {
+                return fn(a, box?.child.nested, b);
+            }
+
+            function pack(a, mid, b) {
+                return "" + a + ":" + mid + ":" + b;
+            }
+
+            var present = invoke(pack, 1, { child: { nested: 9 } }, 2);
+            var missing = invoke(pack, 1, null, 2);
+            (present === "1:9:2" && missing === "1:undefined:2") ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

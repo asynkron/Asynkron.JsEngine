@@ -919,6 +919,74 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_IdentifierCallWithOptionalNamedReadChainArgument_AcceptsGetNamedPropertyChain()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(fn, box) {
+                return fn(box?.child.value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_NamedMemberCallWithOptionalNamedReadChainArgument_AcceptsGetNamedPropertyChain()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(sink, box) {
+                return sink.add(box?.child.nested.deep);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierCallWithOptionalThenOptionalNamedReadChainArgument_DeclinesWithOptionalChainDependency()
+    {
+        // `box?.child?.value` carries a SECOND optional hop (IsOptional + short-circuit)
+        // and stays outside the optional-start-then-plain chain boundary.
+        var plan = GetFunctionPlan("""
+            function invoke(fn, box) {
+                return fn(box?.child?.value);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_NestedNamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""

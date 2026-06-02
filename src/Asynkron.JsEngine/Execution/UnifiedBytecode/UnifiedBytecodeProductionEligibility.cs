@@ -1160,6 +1160,18 @@ internal static class UnifiedBytecodeProductionEligibility
                             break;
                         }
 
+                        // Plain continuation read of an optional-start named read chain used as a
+                        // call argument (`fn(box?.child.value)`).
+                        if (TryIsEmbeddedOptionalNamedReadChainCallArgumentContinuation(
+                                program,
+                                operationIndex,
+                                identifierConstants,
+                                activationSlots,
+                                allowsDynamicIdentifiers))
+                        {
+                            break;
+                        }
+
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                         declineReason =
                             "Optional-chain property reads are outside the first production property-read boundary.";
@@ -3182,6 +3194,77 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    // Recognizes a plain continuation read (IsOptional:false, ShortCircuit:true) that
+    // belongs to an optional-start-then-plain named read chain (`box?.child.value`)
+    // used as a call argument. The span is [simple base, GetNamedProperty(IsOptional,
+    // !SC), GetNamedProperty(!IsOptional, SC)+] and the enclosing program ends in a
+    // Call. A continuation hop that is itself optional (`box?.child?.value`) is not
+    // matched, so that shape still declines as OptionalChainDependency.
+    private static bool TryIsEmbeddedOptionalNamedReadChainCallArgumentContinuation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (operationIndex < 2 || operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        if (program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.Call)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var op = program.GetOperation(operationIndex);
+        if (op.Kind != ExpressionOpKind.GetNamedProperty ||
+            op.IsOptional ||
+            !op.ShortCircuitOnNullishTarget ||
+            op.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        // Walk back over preceding plain continuation reads to the optional hop.
+        var hopIndex = operationIndex - 1;
+        while (hopIndex >= 0)
+        {
+            var prev = program.GetOperation(hopIndex);
+            if (prev.Kind == ExpressionOpKind.GetNamedProperty &&
+                !prev.IsOptional &&
+                prev.ShortCircuitOnNullishTarget &&
+                !prev.GetString(stringConstants).IsPrivateName())
+            {
+                hopIndex--;
+                continue;
+            }
+
+            break;
+        }
+
+        if (hopIndex < 1)
+        {
+            return false;
+        }
+
+        var hop = program.GetOperation(hopIndex);
+        if (hop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !hop.IsOptional ||
+            hop.ShortCircuitOnNullishTarget ||
+            hop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        return IsSimpleOperand(
+            program.GetOperation(hopIndex - 1),
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
+    }
+
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -4264,6 +4347,17 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryMeasureSimpleOptionalNamedReadChainOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var optionalNamedChainSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + optionalNamedChainSpanLen <= callIndex)
+            {
+                operationIndex += optionalNamedChainSpanLen;
+            }
             else if (TryMeasureSimpleOptionalNamedPropertyReadOperandSpan(
                          program,
                          operationIndex,
@@ -4978,6 +5072,66 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         spanLength = 2;
+        return true;
+    }
+
+    // Measures an optional-start-then-plain named property-read operand span
+    // (`box?.child.value`, `box?.child.nested.deep`): a simple base operand, one
+    // optional GetNamedProperty hop (IsOptional, !ShortCircuit), and at least one
+    // plain continuation read carrying the chain short-circuit flag
+    // (!IsOptional, ShortCircuitOnNullishTarget). A nullish base short-circuits the
+    // whole chain to undefined. A continuation hop that is itself optional
+    // (`box?.child?.value`) is NOT part of this span and leaves the call to decline.
+    private static bool TryMeasureSimpleOptionalNamedReadChainOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 2 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var firstHop = program.GetOperation(startIndex + 1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var index = startIndex + 2;
+        while (index < program.OperationCount)
+        {
+            var continuation = program.GetOperation(index);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            index++;
+        }
+
+        if (index == startIndex + 2)
+        {
+            return false;
+        }
+
+        spanLength = index - startIndex;
         return true;
     }
 

@@ -1368,6 +1368,21 @@ internal static class UnifiedBytecodeCompiler
 
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnterWith));
                         maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(enterWithObjectProgram));
+
+                        // Mirror HandleEnterWith in the AST runner: entering a `with` statement
+                        // resets the script completion value to undefined so an empty/value-less
+                        // body produces undefined rather than leaking the previous statement's value.
+                        if (slotLayout.ScriptCompletionSlot >= 0)
+                        {
+                            var enterWithUndefinedIndex = literalConstants.Count;
+                            literalConstants.Add(JsValue.Undefined);
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.LoadLiteral, enterWithUndefinedIndex));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreSlot,
+                                slotLayout.ScriptCompletionSlot));
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 enterWith.Next,

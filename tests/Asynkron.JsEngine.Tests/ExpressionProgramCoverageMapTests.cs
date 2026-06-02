@@ -23,7 +23,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "pre-gate:IsArrowFunction",
         "pre-gate:IsAsyncLike",
         "pre-gate:IsGenerator",
-        "pre-gate:IsDefaultDerivedConstructor",
         "pre-gate:hasParameterExpressions",
         "pre-gate:hasOnlySimpleIdentifierParameters",
         "pre-gate:usesArguments",

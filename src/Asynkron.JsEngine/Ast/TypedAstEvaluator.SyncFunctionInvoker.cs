@@ -6,6 +6,7 @@ using Asynkron.JsEngine.Converters;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
 using Asynkron.JsEngine.Execution.UnifiedBytecode;
+using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -3120,7 +3121,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var slots = slotStorage.AsSpan(0, program.SlotCount);
                 slots.Fill(JsValue.Undefined);
                 InitializeProductionUnifiedBytecodeLexicalSlots(slots, program);
-                PopulateProductionUnifiedBytecodeParameterSlots(arguments, slots, program);
+                var defaultDerivedRestArguments = _function.IsDefaultDerivedConstructor
+                    ? CreateDefaultDerivedConstructorRestArguments(arguments)
+                    : (JsValue?)null;
+                PopulateProductionUnifiedBytecodeParameterSlots(
+                    arguments,
+                    slots,
+                    program,
+                    defaultDerivedRestArguments);
                 var boundThis = IsArrowFunction || _isStrict
                     ? vmThisValue
                     : CoerceThisValueForNonStrict(vmThisValue);
@@ -3135,7 +3143,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 else if (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program))
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
-                        ? CreateSimpleDerivedClassConstructorEnvironment(arguments, vmNewTarget, plan)
+                        ? CreateSimpleDerivedClassConstructorEnvironment(
+                            arguments,
+                            vmNewTarget,
+                            plan,
+                            defaultDerivedRestArguments)
                         : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context, vmNewTarget);
                 }
 
@@ -3363,6 +3375,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(plan, newTarget);
             var canUseImplicitArgumentsObjectReadPath =
                 CanUseProductionUnifiedBytecodeImplicitArgumentsObjectReadPath(plan);
+            var hasAdmittedParameterShape =
+                _hasOnlySimpleIdentifierParameters ||
+                _function.IsDefaultDerivedConstructor && canUseDerivedClassConstructorPath;
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 canUseDynamicNamePath,
                 canUseOrdinaryDynamicNamePath,
@@ -3374,9 +3389,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     activation,
                     out _,
                     out _) ||
-                _function.IsDefaultDerivedConstructor ||
                 _hasParameterExpressions ||
-                !_hasOnlySimpleIdentifierParameters ||
+                !hasAdmittedParameterShape ||
                 !_instanceFields.IsDefaultOrEmpty &&
                 !canUseDerivedClassConstructorPath &&
                 !canUseBaseClassConstructorPath)
@@ -3452,7 +3466,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private void PopulateProductionUnifiedBytecodeParameterSlots<TArgs>(
             TArgs arguments,
             Span<JsValue> slots,
-            UnifiedBytecodeProgram program)
+            UnifiedBytecodeProgram program,
+            JsValue? defaultDerivedRestArguments = null)
             where TArgs : IReadOnlyList<JsValue>
         {
             var parameterSlotIndices = program.ParameterSlotIndices;
@@ -3466,7 +3481,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var parameterSlotIndex = parameterSlotIndices[i];
                 if (parameterSlotIndex >= 0)
                 {
-                    slots[parameterSlotIndex] = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    slots[parameterSlotIndex] =
+                        defaultDerivedRestArguments is { } restArguments &&
+                        TryGetDefaultDerivedConstructorRestParameter(out _) &&
+                        i == 0
+                            ? restArguments
+                            : i < arguments.Count
+                                ? arguments[i]
+                                : JsValue.Undefined;
                 }
             }
         }
@@ -3634,9 +3656,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !IsArrowFunction &&
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
-                   !_function.IsDefaultDerivedConstructor &&
                    !_hasParameterExpressions &&
-                   _hasOnlySimpleIdentifierParameters &&
+                   (_hasOnlySimpleIdentifierParameters ||
+                    _function.IsDefaultDerivedConstructor &&
+                    TryGetDefaultDerivedConstructorRestParameter(out _)) &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&
@@ -4100,7 +4123,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private JsEnvironment CreateSimpleDerivedClassConstructorEnvironment<TArgs>(
             TArgs arguments,
             JsValue newTarget,
-            ExecutionPlan plan)
+            ExecutionPlan plan,
+            JsValue? defaultDerivedRestArguments = null)
             where TArgs : IReadOnlyList<JsValue>
         {
             var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
@@ -4128,6 +4152,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             functionEnvironment.SetThisInitializationStatus(false);
             functionEnvironment.DefineJsValue(Symbol.This, JsValue.Uninitialized);
+            if (_function.IsDefaultDerivedConstructor)
+            {
+                functionEnvironment.IsDefaultDerivedConstructor = true;
+                executionEnvironment.IsDefaultDerivedConstructor = true;
+            }
+
             functionEnvironment.DefineJsValue(Symbol.LexicalThisEnvironment,
                 JsValue.FromObjectUnsafe(functionEnvironment));
             functionEnvironment.DefineJsValue(Symbol.NewTarget, newTarget, true, isLexicalBinding: true,
@@ -4148,7 +4178,20 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
-            BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            if (TryGetDefaultDerivedConstructorRestParameter(out var defaultDerivedRestName))
+            {
+                BindDefaultDerivedConstructorRestParameter(
+                    arguments,
+                    executionEnvironment,
+                    activationSlots,
+                    defaultDerivedRestName,
+                    defaultDerivedRestArguments);
+            }
+            else
+            {
+                BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
+            }
+
             return executionEnvironment;
         }
 
@@ -4287,6 +4330,57 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
                 executionEnvironment.SetSlotDirect(parameterSlotIndices[i], value);
             }
+        }
+
+        private void BindDefaultDerivedConstructorRestParameter<TArgs>(
+            TArgs arguments,
+            JsEnvironment executionEnvironment,
+            ActivationSlotShape activationSlots,
+            Symbol restName,
+            JsValue? defaultDerivedRestArguments)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            var restValue = defaultDerivedRestArguments ?? CreateDefaultDerivedConstructorRestArguments(arguments);
+            var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefault || parameterSlotIndices.Length == 0)
+            {
+                executionEnvironment.DefineParameterFast(restName, restValue);
+                return;
+            }
+
+            var parameterSlotIndex = parameterSlotIndices[0];
+            if (parameterSlotIndex >= 0)
+            {
+                executionEnvironment.SetSlotDirect(parameterSlotIndex, restValue);
+            }
+        }
+
+        private JsValue CreateDefaultDerivedConstructorRestArguments<TArgs>(TArgs arguments)
+            where TArgs : IReadOnlyList<JsValue>
+        {
+            return JsValue.FromJsArray(new JsArray(arguments, RealmState));
+        }
+
+        private bool TryGetDefaultDerivedConstructorRestParameter(out Symbol restName)
+        {
+            if (_function.IsDefaultDerivedConstructor &&
+                _function.Parameters is
+                [
+                    {
+                        Name: { } name,
+                        Pattern: null,
+                        DefaultValue: null,
+                        IsRest: true
+                    }
+                ] &&
+                _parameterNames.Length == 1)
+            {
+                restName = name;
+                return true;
+            }
+
+            restName = default!;
+            return false;
         }
 
         private static HashSet<Symbol> RentSymbolSet()

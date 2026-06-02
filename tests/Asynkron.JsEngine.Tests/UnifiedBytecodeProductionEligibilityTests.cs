@@ -2715,6 +2715,33 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DefaultDerivedConstructor_AcceptsSuperConstructInvocationBoundary()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                HasClassConstructorActivation: false));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+        Assert.NotEmpty(result.Program.CallSpreadMasks);
+    }
+
+    [Fact]
     public void Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand()
     {
         var plan = GetClassMethodPlan("""

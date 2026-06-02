@@ -245,7 +245,8 @@ internal sealed partial class ExecutionPlanBuilder
             EvaluateAndDiscardInstruction evaluate =>
                 CanUseScriptRootSlotFastPath(evaluate.ExpressionProgram),
 
-            SimpleVariableDeclarationInstruction { VarKind: VariableKind.Var } declaration =>
+            SimpleVariableDeclarationInstruction
+                { VarKind: VariableKind.Var or VariableKind.Let or VariableKind.Const } declaration =>
                 declaration.AwaitedProgram is null &&
                 (declaration.InitializerProgram is null ||
                  CanUseScriptRootSlotFastPath(declaration.InitializerProgram.Value)),
@@ -266,6 +267,8 @@ internal sealed partial class ExecutionPlanBuilder
                 CanUseScriptRootSlotFastPath(branch.ConditionProgram),
 
             JumpInstruction => true,
+            PushEnvironmentInstruction => true,
+            PopEnvironmentInstruction => true,
             ReturnInstruction { ReturnProgram: null, AwaitedProgram: null } => true,
             SetCompletionValueInstruction => true,
             BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue } => true,
@@ -297,6 +300,9 @@ internal sealed partial class ExecutionPlanBuilder
             ExpressionOpKind.UpdateIdentifier or
             ExpressionOpKind.TypeOf or
             ExpressionOpKind.TypeOfIdentifier or
+            ExpressionOpKind.CreateObject or
+            ExpressionOpKind.DefineObjectProperty or
+            ExpressionOpKind.GetNamedProperty or
             ExpressionOpKind.UnaryPlus or
             ExpressionOpKind.UnaryMinus or
             ExpressionOpKind.UnaryBitwiseNot or

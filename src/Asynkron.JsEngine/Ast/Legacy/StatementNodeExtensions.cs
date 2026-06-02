@@ -1,7 +1,9 @@
 using System.Collections.Immutable;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using Asynkron.JsEngine.Execution;
 using Asynkron.JsEngine.Execution.Instructions;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.Runtime;
 using Asynkron.JsEngine.StdLib;
 using Microsoft.Extensions.Logging;
@@ -2537,15 +2539,70 @@ public static partial class TypedAstEvaluator
             throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
         }
 
-        context.RealmState.Logger?.LogInformation(
-            "Executing script via IR path ({InstructionCount} instructions)",
-            scriptPlan.Instructions.Length);
+        if (executionKind == ExecutionKind.Script &&
+            TryRunScriptViaProductionUnifiedBytecode(scriptPlan, executionEnvironment, context, out var scriptBytecodeResult))
+        {
+            return scriptBytecodeResult;
+        }
 
         // Script-level var declarations are marked with IsScriptLevel=true in the IR
         // so they correctly update the global object.
+        context.RealmState.Logger?.LogInformation(
+            "Executing script via IR path ({InstructionCount} instructions)",
+            scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
             scriptPlan,
             executionEnvironment,
             context);
+    }
+
+    private static bool TryRunScriptViaProductionUnifiedBytecode(
+        ExecutionPlan scriptPlan,
+        JsEnvironment executionEnvironment,
+        EvaluationContext context,
+        out JsValue result)
+    {
+        result = JsValue.Undefined;
+        var eligibility = UnifiedBytecodeProductionEligibility.EvaluateScript(scriptPlan);
+        if (!eligibility.IsEligible || eligibility.Program.ScriptCompletionSlot < 0)
+        {
+            return false;
+        }
+
+        var program = eligibility.Program;
+        var slotStorage = ArrayPool<JsValue>.Shared.Rent(program.SlotCount);
+        var previousContext = EvaluationContext.Current;
+        var previousEnvironment = JsEnvironment.Current;
+        try
+        {
+            var slots = slotStorage.AsSpan(0, program.SlotCount);
+            slots.Fill(JsValue.Undefined);
+            slots[program.ScriptCompletionSlot] = JsValue.Unit;
+
+            context.RealmState.Logger?.LogInformation(
+                "unified-bytecode-production-fast-path script slots={SlotCount}",
+                program.SlotCount);
+
+            EvaluationContext.Current = context;
+            JsEnvironment.Current = executionEnvironment;
+            var thisValue = context.RealmState.Engine?.GlobalObject is { } globalObject
+                ? new JsValue(globalObject)
+                : JsValue.Undefined;
+            result = UnifiedBytecodeVirtualMachine.Execute(
+                program,
+                slots,
+                context,
+                executionEnvironment,
+                thisValue,
+                JsValue.Undefined,
+                executionEnvironment.IsStrict);
+            return true;
+        }
+        finally
+        {
+            EvaluationContext.Current = previousContext;
+            JsEnvironment.Current = previousEnvironment;
+            ArrayPool<JsValue>.Shared.Return(slotStorage, clearArray: true);
+        }
     }
 }

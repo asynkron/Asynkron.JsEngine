@@ -72,6 +72,40 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateScript_TopLevelPropertyAccessLoop_AcceptsWithScriptCompletionSlot()
+    {
+        var plan = GetScriptPlan("""
+            let obj = {
+                a: { b: { c: { d: { e: 1 } } } },
+                x: 10,
+                y: 20,
+                z: 30
+            };
+            let sum = 0;
+            for (let i = 0; i < 5; i++) {
+                sum += obj.a.b.c.d.e;
+                sum += obj.x + obj.y + obj.z;
+            }
+            sum;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.Program.ScriptCompletionSlot >= 0);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreSlot &&
+            instruction.Operand == result.Program.ScriptCompletionSlot);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadSlot &&
+            instruction.Operand == result.Program.ScriptCompletionSlot);
+        Assert.Equal(
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return),
+            result.Program.Instructions[^1]);
+    }
+
+    [Fact]
     public void Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection()
     {
         var plan = GetFunctionPlan("""
@@ -6404,6 +6438,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetScriptPlan(string source)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var cache = ((IAstCacheable<ScriptPlanCache>)pipeline.Analyzed).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

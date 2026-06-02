@@ -386,8 +386,9 @@ predicates and proof tests.
   shapes, unsupported resumable opcodes, and unknown production opcode defaults.
 - Pre-gates: class constructor invokers outside bounded constructor routes;
   arrow functions whose lowered body still has an unowned dependency;
-  identifier-cache disabled outside ordinary/with-backed lanes; super
-  constructor/prototype state outside admitted paths.
+  non-literal default and destructured parameter expressions; identifier-cache
+  disabled outside ordinary/with-backed lanes; super constructor/prototype state
+  outside admitted paths.
 
 ### Eligibility Decline Rows
 
@@ -429,8 +430,8 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, unadmitted call-target, nested function/class literal, or other unowned dependency. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads/calls, captured identifier assignment/compound assignment/update/delete, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
-| `pre-gate:hasParameterExpressions` | Default and destructured parameter expressions; final rest identifier parameters are admitted when the surrounding activation is otherwise production-owned | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:hasOnlySimpleIdentifierParameters` | Non-simple parameter lists outside the admitted final-rest identifier route | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:hasParameterExpressions` | Default parameter expressions outside the admitted simple literal-default identifier route, plus destructured parameter expressions; final rest identifier parameters are admitted when the surrounding activation is otherwise production-owned | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:hasOnlySimpleIdentifierParameters` | Non-simple parameter lists outside the admitted final-rest identifier and simple literal-default identifier routes | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:usesArguments` | Functions that read, assign, update, call, or `typeof` the real implicit `arguments` object through bounded identifier use; shadowing parameter/lexical `arguments` reads, `typeof`, assignments, updates, and calls are activation-slot traffic | Existing arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget"` |
 | `pre-gate:needsArgumentsBinding` | Sloppy mapped arguments binding when an implicit arguments object is needed and not admitted by with-backed dynamic-name routing | Existing arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:allowIdentifierCache` | Identifier cache disabled outside the ordinary and with-backed dynamic-name lanes, including the admitted mixed `with` plus outside ordinary dynamic-name path | Existing environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_WithThenOutsideDynamicIdentifier_AcceptsMixedDynamicNameProgram"` |
@@ -890,8 +891,9 @@ support today.
    functions, generators, arrows needing lexical-this environments or super
    bindings, closure or dynamic identifier dependencies, or non-simple bodies,
    real `arguments` object and sloppy mapped-arguments dependencies, non-simple
-   parameter lists outside the admitted final-rest identifier route,
-   default/destructured parameter expressions, broader
+   parameter lists outside the admitted final-rest identifier and simple
+   literal-default identifier routes, non-literal default/destructured parameter
+   expressions, broader
    class constructor routes beyond simple base constructors and the bounded
    explicit derived `super(...)` path, default derived constructors, and captured
    activation outside the explicit with-backed

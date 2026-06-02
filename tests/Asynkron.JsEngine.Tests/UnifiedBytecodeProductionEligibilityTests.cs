@@ -6580,6 +6580,102 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_CallWithNestedLogicalObjectLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, left, right) {
+                return receiver({ value: left && right });
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithNestedLogicalArrayLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, left, right) {
+                return receiver([left && right]);
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfShortCircuitFalse);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPush);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithNestedConditionalObjectLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, condition, consequent, alternate) {
+                return receiver({ value: condition ? consequent : alternate });
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithNestedConditionalArrayLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, condition, consequent, alternate) {
+                return receiver([condition ? consequent : alternate]);
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.JumpIfFalse);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPush);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_CallWithNestedBinaryTemplateArrayLiteralArg_Accepts()
     {
         var plan = GetFunctionPlan("""

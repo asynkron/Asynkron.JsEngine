@@ -6825,6 +6825,182 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedPropertyUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater(obj) {
+                return () => obj.value++;
+            }
+
+            var box = { value: 40 };
+            var update = makeUpdater(box);
+            update() + box.value;
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedPropertyUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater(obj) {
+                return function update() {
+                    return obj.value++;
+                };
+            }
+
+            var box = { value: 40 };
+            var update = makeUpdater(box);
+            update() + box.value;
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedComputedPropertyUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater(obj, key) {
+                return () => obj[key]++;
+            }
+
+            var box = { value: 40 };
+            var update = makeUpdater(box, "value");
+            update() + box.value;
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedComputedPropertyUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater(obj, key) {
+                return function update() {
+                    return obj[key]++;
+                };
+            }
+
+            var box = { value: 40 };
+            var update = makeUpdater(box, "value");
+            update() + box.value;
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedPropertyDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover(obj) {
+                return () => delete obj.value;
+            }
+
+            var box = { value: 42 };
+            var remove = makeRemover(box);
+            remove() && !Object.prototype.hasOwnProperty.call(box, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedPropertyDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover(obj) {
+                return function remove() {
+                    return delete obj.value;
+                };
+            }
+
+            var box = { value: 42 };
+            var remove = makeRemover(box);
+            remove() && !Object.prototype.hasOwnProperty.call(box, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedComputedPropertyDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover(obj, key) {
+                return () => delete obj[key];
+            }
+
+            var box = { value: 42 };
+            var remove = makeRemover(box, "value");
+            remove() && !Object.prototype.hasOwnProperty.call(box, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedComputedPropertyDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover(obj, key) {
+                return function remove() {
+                    return delete obj[key];
+                };
+            }
+
+            var box = { value: 42 };
+            var remove = makeRemover(box, "value");
+            remove() && !Object.prototype.hasOwnProperty.call(box, "value");
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task FunctionExpression_CapturedOuterEnvironmentWrite_DoesNotUseUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

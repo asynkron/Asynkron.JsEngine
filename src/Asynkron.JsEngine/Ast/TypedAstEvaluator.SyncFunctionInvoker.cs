@@ -3124,12 +3124,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 var defaultDerivedRestArguments = _function.IsDefaultDerivedConstructor
                     ? CreateDefaultDerivedConstructorRestArguments(arguments)
                     : (JsValue?)null;
-                if (CanUseProductionUnifiedBytecodeFinalRestParameterPath() &&
-                    (_hasFunctionDeclarations || RequiresProductionUnifiedBytecodeCallEnvironment(program)))
-                {
-                    return false;
-                }
-
                 PopulateProductionUnifiedBytecodeParameterSlots(
                     arguments,
                     slots,
@@ -4455,11 +4449,17 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             where TArgs : IReadOnlyList<JsValue>
         {
             var parameterSlotIndices = activationSlots.ParameterSlotIndices;
+            var hasFinalRestParameter =
+                TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out var finalRestParameterIndex);
             if (parameterSlotIndices.IsDefault)
             {
                 for (var i = 0; i < _parameterNames.Length; i++)
                 {
-                    var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                    var value = hasFinalRestParameter && i == finalRestParameterIndex
+                        ? CreateRestArguments(arguments, finalRestParameterIndex)
+                        : i < arguments.Count
+                            ? arguments[i]
+                            : JsValue.Undefined;
                     executionEnvironment.DefineParameterFast(_parameterNames[i], value);
                 }
 
@@ -4468,7 +4468,11 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
             for (var i = 0; i < _parameterNames.Length; i++)
             {
-                var value = i < arguments.Count ? arguments[i] : JsValue.Undefined;
+                var value = hasFinalRestParameter && i == finalRestParameterIndex
+                    ? CreateRestArguments(arguments, finalRestParameterIndex)
+                    : i < arguments.Count
+                        ? arguments[i]
+                        : JsValue.Undefined;
                 executionEnvironment.SetSlotDirect(parameterSlotIndices[i], value);
             }
         }

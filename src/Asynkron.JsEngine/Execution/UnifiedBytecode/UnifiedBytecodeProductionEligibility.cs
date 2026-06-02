@@ -4267,6 +4267,150 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (TryMeasureSimpleTypeOfOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        if (TryMeasureSimpleBinaryOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        if (TryMeasureSimpleUnaryOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        if (IsSimpleOperand(
+                operation,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            spanLength = 1;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
+    }
+
+    private static bool TryMeasureSimpleTypeOfOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        var operation = program.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.TypeOfIdentifier)
+        {
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (IsImplicitArgumentsIdentifier(identifier, activationSlots) ||
+                TryResolveActivationSlot(identifier, activationSlots) ||
+                allowsDynamicIdentifiers)
+            {
+                spanLength = 1;
+                return true;
+            }
+
+            spanLength = 0;
+            return false;
+        }
+
+        if (!TryMeasureSimpleTypeOfValueOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out var operandSpanLength,
+                allowsDynamicIdentifiers) ||
+            startIndex + operandSpanLength >= program.OperationCount ||
+            program.GetOperation(startIndex + operandSpanLength).Kind != ExpressionOpKind.TypeOf)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        spanLength = operandSpanLength + 1;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleTypeOfValueOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        if (TryMeasureSimpleMemberCallOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        var operation = program.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.CreateArray)
+        {
+            return TryMeasureSimpleArrayLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.CreateObject)
+        {
+            return TryMeasureSimpleObjectLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.LoadLiteral &&
+            TryMeasureSimpleTemplateLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers) &&
+            spanLength > 1)
+        {
+            return true;
+        }
+
         if (TryMeasureSimpleBinaryOperandSpan(
                 program,
                 startIndex,

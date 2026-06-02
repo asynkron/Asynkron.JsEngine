@@ -3471,6 +3471,71 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DynamicIdentifierAssignmentExpression_AcceptsEnvironmentReferenceOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeExternal(value) {
+                return externalValue = value;
+            }
+            """,
+            "writeExternal");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
+    }
+
+    [Fact]
+    public void Evaluate_DynamicIdentifierUpdateExpression_AcceptsEnvironmentOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function updateExternal() {
+                return externalValue++;
+            }
+            """,
+            "updateExternal");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_DynamicIdentifierDeleteExpression_AcceptsEnvironmentOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function removeExternal() {
+                return delete externalValue;
+            }
+            """,
+            "removeExternal");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
+    }
+
+    [Fact]
     public void Evaluate_OrdinaryDynamicIdentifierOperations_AcceptsEnvironmentOpcodes()
     {
         var plan = GetFunctionPlan("""

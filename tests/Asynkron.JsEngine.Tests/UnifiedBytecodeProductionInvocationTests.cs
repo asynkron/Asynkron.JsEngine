@@ -6741,6 +6741,182 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierAssignmentExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeWriter() {
+                var value = 1;
+                return () => value = value + 41;
+            }
+
+            var write = makeWriter();
+            write() + write();
+            """);
+
+        Assert.Equal(125d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedIdentifierAssignmentExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeWriter() {
+                var value = 1;
+                return function write() {
+                    return value = value + 41;
+                };
+            }
+
+            var write = makeWriter();
+            write() + write();
+            """);
+
+        Assert.Equal(125d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierCompoundAssignmentExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeWriter() {
+                var value = 40;
+                return () => value += 2;
+            }
+
+            var write = makeWriter();
+            write() + write();
+            """);
+
+        Assert.Equal(86d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedIdentifierCompoundAssignmentExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeWriter() {
+                var value = 40;
+                return function write() {
+                    return value += 2;
+                };
+            }
+
+            var write = makeWriter();
+            write() + write();
+            """);
+
+        Assert.Equal(86d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater() {
+                var value = 40;
+                return () => value++;
+            }
+
+            var update = makeUpdater();
+            update() + update();
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedIdentifierUpdateExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeUpdater() {
+                var value = 40;
+                return function update() {
+                    return value++;
+                };
+            }
+
+            var update = makeUpdater();
+            update() + update();
+            """);
+
+        Assert.Equal(81d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=update",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover() {
+                var value = 42;
+                return () => delete value;
+            }
+
+            var remove = makeRemover();
+            remove();
+            """);
+
+        Assert.Equal(false, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FunctionExpression_CapturedIdentifierDeleteExpression_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeRemover() {
+                var value = 42;
+                return function remove() {
+                    return delete value;
+                };
+            }
+
+            var remove = makeRemover();
+            remove();
+            """);
+
+        Assert.Equal(false, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedPropertyWriteExpression_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

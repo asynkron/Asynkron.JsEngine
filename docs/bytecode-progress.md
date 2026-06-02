@@ -54,13 +54,13 @@ flowchart TB
     end
 
     subgraph RedRemaining["Needs handling before full bytecode execution"]
-        R1["Activation model gaps\nasync-like, broad generators, lexical-this arrows,\nreal arguments object, remaining non-simple/default params"]
-        R2["Wider call invocation\ncomplex receivers, keys, eval, private-adjacent targets,\nreceiver-binding-sensitive families"]
+        R1["Activation model gaps remaining\nasync-like, broad generators, lexical-this arrows,\nreal arguments object, runtime defaults/destructuring"]
+        R2["Wider call invocation remaining\ncomplex receivers, keys, eval, private-adjacent targets,\nreceiver-binding-sensitive families"]
         R3["Dynamic lookup beyond admitted ordinary/direct-eval/with-backed lanes"]
-        R4["Property and assignment neighbors\nricher computed keys, optional/super/private mutation,\nunsupported RHS spans"]
+        R4["Property and assignment neighbors remaining\nricher computed keys, optional/super/private mutation,\nunsupported RHS spans"]
         R5["Driver states\nasync iterators, awaited iterator/for-in sources,\nmulti-driver labeled cleanup"]
-        R6["Destructuring model gaps\ndefaults, nested patterns, generic declarations,\nunsupported targets"]
-        R7["Top-level/script and remaining fallback route coverage"]
+        R6["Destructuring model gaps remaining\ndefaults, nested patterns, generic declarations,\nunsupported targets"]
+        R7["Top-level/script remains\nfunction-call and simple-activation fallbacks now route green"]
         R8["Delete Tier 1 ExpressionProgram VM and Tier 2 statement IR runner"]
     end
 
@@ -91,6 +91,23 @@ The biggest remaining gap is not missing VM switch arms. The current contract
 states that the opcode inventory and VM switch are expected to stay in lockstep.
 The remaining work is mostly semantic admission: activation, calls, dynamic
 lookup, driver state, destructuring, and fallback-route retirement.
+
+## Needs-Handling Progress
+
+The red boxes are broad remaining buckets, not untouched work. A bucket stays
+red until every shape in that family is gone. Track progress inside those
+buckets here so partial burn-down is visible.
+
+| Bucket | Still red because | Concrete progress already removed |
+|---|---|---|
+| R1 Activation model gaps | Async-like broadening, broad generators, lexical-this arrows outside the admitted route, real `arguments` object semantics, runtime-dependent default parameters, and destructured parameters still need VM-owned execution. | Simple literal defaults and folded literal defaults route through VM slot initialization; final rest identifier parameters route through VM setup; bounded implicit `arguments` spans are admitted; simple literal/parameter/binary activation now tries production bytecode before the old public/simple-IR shortcuts. |
+| R2 Wider call invocation | Complex receivers, complex computed keys, eval-sensitive calls, private-adjacent targets, and receiver-binding-sensitive families still need owned call semantics. | Simple calls, constructs, spread calls, optional calls, super calls, and simple property-read call arguments have been admitted into production unified bytecode. |
+| R3 Dynamic lookup | Non-admitted dynamic lookup, closure-sensitive lookup, and dynamic activation lanes still need explicit bytecode ownership or hard pre-VM declines. | Ordinary activation-resolved identifiers, selected direct-eval/with-backed lanes, and admitted lexical/local reads no longer force the old generic route for accepted programs. |
+| R4 Property and assignment neighbors | Rich computed-key payloads, optional/super/private mutation, richer RHS spans, and remaining update/delete/write variants outside the accepted spans still need VM-owned semantics. | Many activation-resolved property read/write/update/delete families now compile to owned unified bytecode, including nested named writes, updates, deletes, and selected computed reads within proven boundaries. |
+| R5 Driver states | Async iterators, awaited iterator sources, for-in source handling, and multi-driver labeled cleanup still need bytecode-owned driver state. | Admitted sync loop and selected sync driver routes are already green, including `forloop` and `forofiteration` route-hit coverage. |
+| R6 Destructuring model gaps | Defaults, nested patterns, generic declarations, unsupported targets, and parameter destructuring still need VM-owned binding semantics. | Selected declaration and assignment destructuring now route through the `ApplyBindingTarget` bridge inside accepted bytecode spans. |
+| R7 Top-level/script and fallback route coverage | Top-level script execution still enters `ExecutionPlanRunner.RunScript`; script completion-value semantics are not yet modeled by the unified VM, so `propertyaccess` remains zero-hit even though similar function-wrapped work can route. | PR #3081 moved simple activation and function-call workloads out of the zero-hit bucket: `activation-noargs-lite` now reports 600,000 production route hits and `functioncalls-lite` reports 1,600,000. |
+| R8 Retire fallback tiers | The expression VM and statement IR runner are still active for unsupported or not-yet-admitted non-dynamic code. Full bytecode execution requires deleting or quarantining these fallback tiers once all required semantics are admitted. | Source gates now prove accepted production routes do not call back into `ExpressionProgram`, `ExecutionPlanRunner`, or AST evaluation; old simple IR shortcuts have been moved behind production-bytecode eligibility for admitted ordinary sync functions. |
 
 ## Latest Concrete Admissions
 

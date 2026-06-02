@@ -4254,6 +4254,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 allowsDynamicIdentifiers);
         }
 
+        if (operation.Kind == ExpressionOpKind.LoadLiteral &&
+            TryMeasureSimpleTemplateLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers) &&
+            spanLength > 1)
+        {
+            return true;
+        }
+
         if (IsSimpleOperand(
                 operation,
                 identifierConstants,

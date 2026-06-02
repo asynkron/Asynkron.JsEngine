@@ -6891,6 +6891,34 @@ internal static class UnifiedBytecodeCompiler
                 allowsDynamicIdentifiers);
         }
 
+        if (operation.Kind == ExpressionOpKind.LoadLiteral &&
+            TryMeasureSimpleTemplateLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                out var templateSpanLength,
+                allowsDynamicIdentifiers) &&
+            templateSpanLength > 1)
+        {
+            if (TryAppendSimpleTemplateLiteralSpan(
+                    expressionProgram,
+                    startIndex,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    out spanLength,
+                    out reason,
+                    allowsDynamicIdentifiers,
+                    stringConstants) &&
+                spanLength == templateSpanLength)
+            {
+                return true;
+            }
+
+            spanLength = 0;
+            return false;
+        }
+
         if (TryAppendSimpleOperandLoadWithDynamic(
                 operation,
                 expressionProgram,

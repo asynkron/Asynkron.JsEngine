@@ -8249,6 +8249,48 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ComputedPrefixNamedPropertyWrite_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function writeNamedThroughComputed(box, key, value) {
+                box[key].child = value;
+            }
+            """,
+            "writeNamedThroughComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_DoubleComputedPrefixNamedPropertyWrite_DeclinesWithPropertyWriteDependency()
+    {
+        // A double computed receiver prefix (`box[k1][k2].child = v`) is outside the
+        // single-computed-read prefix boundary and must still decline.
+        var plan = GetFunctionPlan("""
+            function writeDoubleComputed(box, k1, k2, value) {
+                box[k1][k2].child = value;
+            }
+            """,
+            "writeDoubleComputed");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_NestedNamedComputedCompoundPropertyWrite_AcceptsOwnedPropertyOpcodes()
     {
         var plan = GetFunctionPlan("""

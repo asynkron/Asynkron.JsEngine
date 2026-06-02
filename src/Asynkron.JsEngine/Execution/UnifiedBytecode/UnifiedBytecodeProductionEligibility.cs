@@ -1478,6 +1478,16 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // Computed read prefix of a `box[key].child = value` named write.
+                    if (TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (ContainsPropertyWriteOperation(program))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency;
@@ -1495,6 +1505,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.SetComputedProperty:
                     if (TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
@@ -6966,6 +6977,55 @@ internal static class UnifiedBytecodeProductionEligibility
                    identifierConstants,
                    activationSlots,
                    allowsDynamicIdentifiers);
+    }
+
+    // Computed property-read receiver prefix followed by a named property write
+    // (`box[key].child = value`):
+    // [activation-resolved base, computed-read span (`box[key]`), value, SetNamedProperty].
+    private static bool TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 6)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.SetNamedProperty ||
+            lastOp.AllowNameInference ||
+            lastOp.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        // The receiver is a simple computed property read (`box[key]`, optionally with
+        // trailing plain named reads) ending exactly before the written value.
+        if (!TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var valueIndex = program.OperationCount - 2;
+        if (receiverSpanLength != valueIndex)
+        {
+            return false;
+        }
+
+        return IsSimpleOperand(
+            program.GetOperation(valueIndex),
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
     }
 
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(

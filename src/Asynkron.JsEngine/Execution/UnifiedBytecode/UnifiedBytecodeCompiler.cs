@@ -10979,6 +10979,22 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // This handler only owns the simple `base.name = rhs` shape (base at op 0, the
+        // RHS spanning the rest). A receiver chain between the base and the write — e.g.
+        // a computed read prefix `box[key].child = value` — is not this shape; reject it
+        // BEFORE emitting the base load so the general expression loop owns it. (Bailing
+        // after emitting the base would leave a stray operand load for the general loop
+        // to double, overflowing MaxStackDepth.)
+        var rhsStart = 1;
+        var rhsEnd = expressionProgram.OperationCount - 2;
+        var rhsIsSingleSimpleOperand = rhsStart == rhsEnd;
+        if (!rhsIsSingleSimpleOperand &&
+            expressionProgram.GetOperation(rhsStart).Kind != ExpressionOpKind.LoadLiteral)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
         if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -10992,10 +11008,7 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var rhsStart = 1;
-        var rhsEnd = expressionProgram.OperationCount - 2;
-
-        if (rhsStart == rhsEnd)
+        if (rhsIsSingleSimpleOperand)
         {
             if (!TryAppendSimpleOperandLoadWithDynamic(
                     expressionProgram.GetOperation(rhsStart),
@@ -11012,13 +11025,6 @@ internal static class UnifiedBytecodeCompiler
         }
         else
         {
-            var rhsOp = expressionProgram.GetOperation(rhsStart);
-            if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
-            {
-                reason = string.Empty;
-                return false;
-            }
-
             if (!TryAppendSimpleTemplateLiteralSpan(
                     expressionProgram, rhsStart, activationSlots,
                     unified, literalConstants, out var spanLen, out reason))

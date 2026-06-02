@@ -5709,6 +5709,29 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ComputedPrefixNamedPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function write(box, key, value) {
+                box[key].child = value;
+                return box[key].child;
+            }
+
+            var box = { a: {}, b: {} };
+            var x = write(box, "a", 7);
+            var y = write(box, "b", 9);
+            (x === 7 && y === 9 && box.a.child === 7 && box.b.child === 9) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=write argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task NestedNamedComputedPropertyWrite_BinaryKey_UsesUnifiedBytecodeProductionFastPathAndResolvesKeyOnce()
     {
         await using var engine = CreateEngine();

@@ -3401,6 +3401,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _hasOnlySimpleIdentifierParameters ||
                 canUseSimpleLiteralDefaultParameterPath ||
                 canUseFinalRestParameterPath ||
+                canUseBaseClassConstructorPath ||
                 _function.IsDefaultDerivedConstructor && canUseDerivedClassConstructorPath;
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 canUseDynamicNamePath,
@@ -3414,7 +3415,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     activation,
                     out _,
                     out _) ||
-                _hasParameterExpressions && !canUseSimpleLiteralDefaultParameterPath ||
+                _hasParameterExpressions &&
+                !canUseSimpleLiteralDefaultParameterPath &&
+                !canUseBaseClassConstructorPath ||
                 !hasAdmittedParameterShape ||
                 !_instanceFields.IsDefaultOrEmpty &&
                 !canUseDerivedClassConstructorPath &&
@@ -3976,6 +3979,10 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan,
             JsValue newTarget)
         {
+            var hasAdmittedParameterShape =
+                !_hasParameterExpressions && _hasOnlySimpleIdentifierParameters ||
+                _hasParameterExpressions && HasOnlySimpleIdentifierOrLiteralDefaultParameters() ||
+                !_hasParameterExpressions && TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out _);
             return IsClassConstructor &&
                    !_isDerivedClassConstructor &&
                    !newTarget.IsUndefined &&
@@ -3983,8 +3990,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
-                   !_hasParameterExpressions &&
-                   _hasOnlySimpleIdentifierParameters &&
+                   hasAdmittedParameterShape &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _allowIdentifierCache &&

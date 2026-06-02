@@ -3922,9 +3922,9 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Measures the op span for a simple array literal starting at startIndex.
-    // Admitted shapes (CreateArray followed by N ≥ 0 elements, each one of):
-    //   Normal:  [simple-operand, ArrayPush]
-    //   Spread:  [simple-operand, ArraySpread]
+    // Admitted shapes (CreateArray followed by N >= 0 elements, each one of):
+    //   Normal:  [simple-literal-value-span, ArrayPush]
+    //   Spread:  [simple-literal-value-span, ArraySpread]
     //   Hole:    ArrayPushHole (standalone)
     // Non-simple operands and any other ops terminate the element scan (end of literal).
     private static bool TryMeasureSimpleArrayLiteralSpan(
@@ -3952,26 +3952,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (TryMeasureSimpleMemberCallOperandSpan(
+            if (!TryMeasureSimpleLiteralValueOperandSpan(
                     program,
                     i,
                     identifierConstants,
                     activationSlots,
-                    out var callSpanLength,
+                    out var elementSpanLength,
                     allowsDynamicIdentifiers))
-            {
-                i += callSpanLength;
-            }
-            else if (IsSimpleOperand(elementOp, identifierConstants, activationSlots, allowsDynamicIdentifiers))
-            {
-                i++;
-            }
-            else
             {
                 // Non-simple op terminates the element scan — the array literal ends here.
                 break;
             }
 
+            i += elementSpanLength;
             if (i >= program.OperationCount)
             {
                 spanLength = 0;
@@ -3994,9 +3987,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
     // Measures the op span for a simple object literal starting at startIndex.
     // Admitted shapes (CreateObject followed by N >= 0 property triples/spreads):
-    //   Static:   [simple-value-span, DefineObjectProperty(non-private, no name inference)]
+    //   Static:   [simple-literal-value-span, DefineObjectProperty(non-private, no name inference)]
     //   Computed: [simple-key-span or simple-binary-key-expression, ResolvePropertyKey,
-    //              simple-value-span, DefineComputedObjectProperty(no name inference)]
+    //              simple-literal-value-span, DefineComputedObjectProperty(no name inference)]
     //   Spread:   [simple-spread-source-span, ObjectSpread]
     // DefineObjectMethod, accessors, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
@@ -4033,7 +4026,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                if (!TryMeasureSimpleObjectValueOperandSpan(
+                if (!TryMeasureSimpleLiteralValueOperandSpan(
                         program,
                         i,
                         identifierConstants,
@@ -4082,7 +4075,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                if (!TryMeasureSimpleObjectValueOperandSpan(
+                if (!TryMeasureSimpleLiteralValueOperandSpan(
                         program,
                         i,
                         identifierConstants,
@@ -4127,7 +4120,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (!TryMeasureSimpleObjectValueOperandSpan(
+            if (!TryMeasureSimpleLiteralValueOperandSpan(
                     program,
                     i,
                     identifierConstants,
@@ -4174,7 +4167,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                if (!TryMeasureSimpleObjectValueOperandSpan(
+                if (!TryMeasureSimpleLiteralValueOperandSpan(
                         program,
                         i,
                         identifierConstants,
@@ -4219,7 +4212,7 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    private static bool TryMeasureSimpleObjectValueOperandSpan(
+    private static bool TryMeasureSimpleLiteralValueOperandSpan(
         ExpressionProgram program,
         int startIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -4238,8 +4231,31 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        var operation = program.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.CreateArray)
+        {
+            return TryMeasureSimpleArrayLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.CreateObject)
+        {
+            return TryMeasureSimpleObjectLiteralSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers);
+        }
+
         if (IsSimpleOperand(
-                program.GetOperation(startIndex),
+                operation,
                 identifierConstants,
                 activationSlots,
                 allowsDynamicIdentifiers))

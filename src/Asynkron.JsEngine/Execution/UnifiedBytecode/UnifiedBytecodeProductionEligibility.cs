@@ -768,7 +768,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var isFirstBoundaryPropertyWriteCandidate =
             TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         var isFirstBoundaryPropertyUpdateCandidate =
-            TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots);
+            TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         var isFirstBoundaryNamedCompoundPropertyWriteCandidate =
             TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots);
         var isFirstBoundaryNamedLogicalPropertyWriteCandidate =
@@ -1187,7 +1187,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1355,7 +1359,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.UpdateNamedProperty:
                 case ExpressionOpKind.UpdateComputedProperty:
-                    if (TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots) ||
+                    if (TryIsFirstBoundaryPropertyUpdateCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -1390,7 +1398,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryNamedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -2188,14 +2200,19 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryNamedPropertyDeleteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 2)
         {
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -2229,7 +2246,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4697,13 +4718,18 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryPropertyUpdateCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount == 2)
         {
             var propertyUpdate = program.GetOperation(1);
             return propertyUpdate.Kind == ExpressionOpKind.UpdateNamedProperty &&
-                   TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots);
+                   TryGetActivationOrPlainDynamicIdentifierReadValue(
+                       program.GetOperation(0),
+                       identifierConstants,
+                       activationSlots,
+                       allowsDynamicIdentifiers);
         }
 
         if (program.OperationCount < 3)
@@ -4713,13 +4739,18 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var propertyUpdateIndex = program.OperationCount - 1;
         return program.GetOperation(propertyUpdateIndex).Kind == ExpressionOpKind.UpdateComputedProperty &&
-               TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
+               TryGetActivationOrPlainDynamicIdentifierReadValue(
+                   program.GetOperation(0),
+                   identifierConstants,
+                   activationSlots,
+                   allowsDynamicIdentifiers) &&
                IsSupportedComputedPropertyKeySpan(
                    program,
                    startInclusive: 1,
                    endExclusive: propertyUpdateIndex,
                    identifierConstants,
-                   activationSlots);
+                   activationSlots,
+                   allowsDynamicIdentifiers);
     }
 
     private static bool TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(

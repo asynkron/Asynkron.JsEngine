@@ -41,6 +41,24 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelSimpleArithmeticBuiltins_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let x = 1 + 2 * 3 - 4 / 2;
+            let y = x * x + Math.sqrt(16);
+            let z = y % 7 + Math.pow(2, 10);
+            z;
+            """);
+
+        Assert.Equal(1025d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -6561,29 +6579,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Theory(Timeout = 5000)]
-    [MemberData(nameof(UnsupportedControlFlowFunctions))]
-    public async Task UnsupportedControlFlowShapes_DeclineUnifiedBytecodeAndFallBack(
-        string source,
-        string invocation,
-        double expected,
-        string functionName)
-    {
-        await using var engine = CreateEngine();
-        var result = await engine.Evaluate($$"""
-            {{source}}
-
-            {{invocation}};
-            """);
-
-        var logRecords = CurrentLogger!.Collector.Snapshot();
-        Assert.Equal(expected, result);
-        Assert.DoesNotContain(logRecords,
-            record => record.Message.Contains(
-                $"unified-bytecode-production-fast-path func={functionName}",
-                StringComparison.Ordinal));
-    }
-
-    [Theory(Timeout = 5000)]
     [MemberData(nameof(SupportedLoopControlFunctions))]
     public async Task SupportedLoopControlShapes_UseUnifiedBytecodeProductionFastPath(
         string source,
@@ -8933,12 +8928,12 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
-    public static TheoryData<string, string, double, string> UnsupportedControlFlowFunctions =>
+    public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
         new()
         {
             {
                 """
-                function unsupportedBranchPayload(a, b, pick) {
+                function branchMemberCall(a, b, pick) {
                     if (pick) {
                         return Math.max(a, b);
                     }
@@ -8946,15 +8941,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                     return b;
                 }
                 """,
-                "unsupportedBranchPayload(2, 3, true)",
+                "branchMemberCall(2, 3, true)",
                 3d,
-                "unsupportedBranchPayload"
-            }
-        };
-
-    public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
-        new()
-        {
+                "branchMemberCall",
+                3
+            },
             {
                 """
                 function breakLoop(n) {

@@ -19,6 +19,8 @@ internal enum UnifiedBytecodeOpCode : byte
     UpdateSlot,
     InitializeSlot,
     DeclareDynamicVar,
+    DeclareDynamicLexical,
+    InitializeDynamicLexical,
     StoreDynamicIdentifier,
     ResolveDynamicIdentifierReference,
     LoadDynamicIdentifierReference,

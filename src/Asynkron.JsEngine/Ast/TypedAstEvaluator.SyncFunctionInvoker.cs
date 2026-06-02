@@ -3302,6 +3302,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
                     UnifiedBytecodeOpCode.UpdateComputedSuperProperty or
                     UnifiedBytecodeOpCode.DeclareDynamicVar or
+                    UnifiedBytecodeOpCode.DeclareDynamicLexical or
+                    UnifiedBytecodeOpCode.InitializeDynamicLexical or
                     UnifiedBytecodeOpCode.LoadImportMeta or
                     UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                     UnifiedBytecodeOpCode.StoreDynamicIdentifier or

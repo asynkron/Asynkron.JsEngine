@@ -4107,6 +4107,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArraySpreadWithReceiverOptionalComputedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function spreadNonSimple(source, method, take) {
+                return [...source?.[method](0, take)];
+            }
+
+            var result = spreadNonSimple([40, 2, 99], "slice", 2);
+            result[0] + result[1];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadNonSimple",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArraySpreadWithCalleeOptionalComputedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function spreadNonSimple(source, method, take) {
+                return [...source[method]?.(0, take)];
+            }
+
+            var result = spreadNonSimple([40, 2, 99], "slice", 2);
+            result[0] + result[1];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=spreadNonSimple",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ObjectPropertyValueWithDirectComputedCall_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -4120,6 +4160,45 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=objectValue",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectPropertyValueWithCalleeOptionalComputedCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function objectValue(source, method, take) {
+                return { part: source[method]?.(0, take) };
+            }
+
+            var result = objectValue([40, 2, 99], "slice", 2);
+            result.part[0] + result.part[1];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=objectValue",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ObjectPropertyValueWithCalleeOptionalComputedCall_ShortCircuitsToUndefinedOnFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function objectValue(source, method) {
+                return { part: source[method]?.(0, 1) };
+            }
+
+            objectValue({ }, "missing").part === undefined;
+            """);
+
+        Assert.Equal(true, result);
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=objectValue",
@@ -4187,6 +4266,48 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallArgumentObjectValueWithReceiverOptionalComputedCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function callSink(sink, source, method, take) {
+                return sink({ part: source?.[method](0, take) });
+            }
+
+            callSink(function(value) {
+                return value.part[0] + value.part[1];
+            }, [40, 2, 99], "slice", 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=callSink",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallArgumentObjectValueWithCalleeOptionalComputedCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function callSink(sink, source, method, take) {
+                return sink({ part: source[method]?.(0, take) });
+            }
+
+            callSink(function(value) {
+                return value.part[0] + value.part[1];
+            }, [40, 2, 99], "slice", 2);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=callSink",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ComputedObjectPropertyKeyWithDirectComputedCall_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -4196,6 +4317,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             }
 
             objectKey(["part"]).part;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=objectKey",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedObjectPropertyKeyWithCalleeOptionalComputedCall_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function objectKey(source, method) {
+                return { [source[method]?.("")]: 42 };
+            }
+
+            objectKey(["part"], "join").part;
             """);
 
         Assert.Equal(42d, result);

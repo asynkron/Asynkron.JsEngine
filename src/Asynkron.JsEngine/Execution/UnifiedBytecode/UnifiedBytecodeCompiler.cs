@@ -3783,7 +3783,9 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 activationSlots,
                 unified,
+                literalConstants,
                 stringConstants,
+                allowsDynamicIdentifiers,
                 out reason))
         {
             return true;
@@ -8485,7 +8487,9 @@ internal static class UnifiedBytecodeCompiler
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
+        bool allowsDynamicIdentifiers,
         out string reason)
     {
         if (expressionProgram.OperationCount < 2)
@@ -8511,7 +8515,15 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                baseLoad,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
         {
             return false;
         }

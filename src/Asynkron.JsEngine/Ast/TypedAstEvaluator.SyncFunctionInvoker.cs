@@ -3398,7 +3398,12 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 return false;
             }
 
-            return CanUseProductionUnifiedBytecodePlanShape(plan, canUseDynamicNamePath) ||
+            return CanUseProductionUnifiedBytecodePlanShape(
+                       plan,
+                       canUseDynamicNamePath ||
+                       canUseOrdinaryDynamicNamePath ||
+                       canUseArrowFunctionPath ||
+                       canUseImplicitArgumentsObjectReadPath) ||
                    (canUseDerivedClassConstructorPath || canUseBaseClassConstructorPath) &&
                    plan.ActivationSlots is not null;
         }
@@ -3442,7 +3447,9 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     IsClassConstructor && !canUseDerivedClassConstructorPath && !canUseBaseClassConstructorPath,
                 HasDynamicLookupDependency: hasUnprovenDynamicActivation,
                 AllowsOrdinaryDynamicIdentifierEnvironmentOperations:
-                    canUseOrdinaryDynamicNamePath || canUseImplicitArgumentsObjectReadPath);
+                    canUseOrdinaryDynamicNamePath ||
+                    canUseImplicitArgumentsObjectReadPath ||
+                    canUseArrowFunctionPath);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]
@@ -3719,7 +3726,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 }
 
                 if (TryGetIdentifierDependency(operation, identifierConstants, out var identifier) &&
-                    !ResolvesToOwnActivationSlot(identifier, activationSlots))
+                    !ResolvesToOwnActivationOrFlatSlot(identifier, activationSlots) &&
+                    !CanUseArrowDynamicIdentifierRead(operation, identifier))
                 {
                     return false;
                 }
@@ -3764,6 +3772,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             return identifier.FlatSlotId < 0 &&
                    activationSlots.SlotMap.ContainsKey(identifier.Name);
         }
+
+        private static bool ResolvesToOwnActivationOrFlatSlot(
+            IdentifierOperand identifier,
+            ActivationSlotShape activationSlots) =>
+            ResolvesToOwnActivationSlot(identifier, activationSlots) ||
+            identifier.FlatSlotId >= 0;
+
+        private static bool CanUseArrowDynamicIdentifierRead(
+            PackedExpressionOp operation,
+            IdentifierOperand identifier) =>
+            identifier.FlatSlotId < 0 &&
+            operation.Kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier;
 
         private bool CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(
             ExecutionPlan plan,

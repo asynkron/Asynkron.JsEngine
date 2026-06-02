@@ -6657,22 +6657,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath()
+    public async Task ArrowFunction_CapturedOuterEnvironmentRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function makeGetter(obj) {
-                var get = () => obj.value;
-                return get();
+                return () => obj.value;
             }
 
-            makeGetter({ value: 42 });
+            var get = makeGetter({ value: 42 });
+            get();
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
-                "unified-bytecode-production-fast-path func=get",
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 

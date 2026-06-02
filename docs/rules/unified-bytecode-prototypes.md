@@ -114,14 +114,17 @@ all-or-nothing until a separate routing issue proves production readiness.
      parameters, and final-rest identifier parameters are the admitted parameter
      variants. Explicit derived constructors may route when the derived
      environment bridge owns the same admitted parameter variants and the body is
-     otherwise on the proven `super(...)` route, including separately proven
+     otherwise on the proven `super(...)` route, including simple named/computed
+     property-read argument spans such as `super(items.length)` or
+     `super(items["length"])` and separately proven
      post-`super()` `this`/field/private-brand shapes. Runtime-dependent default
      parameter expressions, destructured parameters, observable `arguments`, and
      unowned super property access must stay on the existing constructor path
      until the VM owns those semantics for that shape. Prove route hits for base
      constructor `this` initialization, base constructor object returns,
-     `super(value)` / `super()`, admitted constructor parameter variants, and
-     nearby no-route behavior for runtime defaults and destructuring.
+     `super(value)` / `super()`, simple property-read `super(...)` arguments,
+     admitted constructor parameter variants, and nearby no-route behavior for
+     runtime defaults and destructuring.
 10b. Treat `arguments` as an arguments-object dependency only after binding
      resolution proves it is not an ordinary activation slot. A parameter named
      `arguments` or a lexical body binding named `arguments` is regular slot

@@ -3871,6 +3871,99 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_SuperCallWithSimpleParameterPropertyReadArgument_AcceptsSuperConstructInvocationBoundary()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(values) {
+                    super(values.length);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                HasClassConstructorActivation: false));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_SuperCallWithPropertyReadArgument_AcceptsSuperConstructInvocationBoundary()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(prefix, ...items) {
+                    super(items.length);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                HasClassConstructorActivation: false));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_SuperCallWithComputedPropertyReadArgument_AcceptsSuperConstructInvocationBoundary()
+    {
+        var plan = GetClassConstructorPlan("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(prefix, ...items) {
+                    super(items["length"]);
+                }
+            }
+            """,
+            "Derived");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                HasClassConstructorActivation: false));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SuperConstructInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_DefaultDerivedConstructor_AcceptsSuperConstructInvocationBoundary()
     {
         var plan = GetClassConstructorPlan("""

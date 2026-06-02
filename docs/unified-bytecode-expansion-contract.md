@@ -677,10 +677,12 @@ the final post-compile production subset check before VM entry.
   throws `TypeError` at the boundary.
 - Derived-constructor `super(...)` calls are admitted through
   `SuperConstructInvocationBoundary`, including spread arguments such as
-  `super(...args)`. The VM resolves the dynamic super constructor from the
-  current super binding, flattens spread iterables at the boundary when needed,
-  invokes `[[Construct]]` with the caller's `new.target`, initializes `this`,
-  and preserves the existing double-super-call `ReferenceError`.
+  `super(...args)` and simple property-read argument spans such as
+  `super(items.length)` or `super(items["length"])`. The VM resolves the dynamic
+  super constructor from the current super binding, lowers each admitted
+  argument in source order, flattens spread iterables at the boundary when
+  needed, invokes `[[Construct]]` with the caller's `new.target`, initializes
+  `this`, and preserves the existing double-super-call `ReferenceError`.
 - Accepted identifier-call programs use `PrepareIdentifierCallTarget`,
   `PrepareIdentifierOptionalCallTarget`, `PrepareDynamicIdentifierCallTarget`,
   or `PrepareDynamicIdentifierOptionalCallTarget` followed by

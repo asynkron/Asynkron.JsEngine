@@ -586,6 +586,33 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithSimpleParameterPropertyReadInSuperArgument_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(values) {
+                    super(values.length);
+                }
+            }
+
+            new Derived([1, 2]).count;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DerivedConstructorWithSimpleLiteralDefaultParameter_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -630,6 +657,60 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             }
 
             new Derived(40, 1, 2).values.length;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithFinalRestParameterPropertyReadInSuperArgument_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(prefix, ...items) {
+                    super(items.length);
+                }
+            }
+
+            new Derived(40, 1, 2).count;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithFinalRestParameterComputedPropertyReadInSuperArgument_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(count) {
+                    this.count = count;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(prefix, ...items) {
+                    super(items["length"]);
+                }
+            }
+
+            new Derived(40, 1, 2).count;
             """);
 
         Assert.Equal(2d, result);

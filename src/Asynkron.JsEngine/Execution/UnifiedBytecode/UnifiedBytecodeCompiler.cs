@@ -6192,18 +6192,57 @@ internal static class UnifiedBytecodeCompiler
             }
             else if (op.Kind == ExpressionOpKind.LoadLiteral)
             {
-                // A LoadLiteral may be the seed of a multi-op template literal span.
-                // TryAppendSimpleTemplateLiteralSpan always emits at least the seed and returns spanLength >= 1.
-                if (!TryAppendSimpleTemplateLiteralSpan(
-                        expressionProgram, operationIndex, activationSlots,
-                        unified, literalConstants, out var templateSpanLen, out reason,
-                        allowsDynamicIdentifiers,
-                        stringConstants))
+                // A LoadLiteral may be a real template literal seed. Preserve that
+                // ownership before treating a standalone literal as a binary left operand.
+                if (TryMeasureSimpleTemplateLiteralSpan(
+                        expressionProgram,
+                        operationIndex,
+                        activationSlots,
+                        out var templateSpanLen,
+                        allowsDynamicIdentifiers) &&
+                    templateSpanLen > 1)
+                {
+                    if (!TryAppendSimpleTemplateLiteralSpan(
+                            expressionProgram, operationIndex, activationSlots,
+                            unified, literalConstants, out _, out reason,
+                            allowsDynamicIdentifiers,
+                            stringConstants))
+                    {
+                        return false;
+                    }
+
+                    operationIndex += templateSpanLen;
+                }
+                else if (TryAppendSimpleBinaryCallArgumentSpan(
+                             expressionProgram,
+                             operationIndex,
+                             callIndex,
+                             activationSlots,
+                             allowsDynamicIdentifiers,
+                             unified,
+                             literalConstants,
+                             stringConstants,
+                             out var binarySpanLen,
+                             out reason))
+                {
+                    operationIndex += binarySpanLen;
+                }
+                else if (TryAppendSimpleOperandLoadWithDynamic(
+                             op,
+                             expressionProgram,
+                             activationSlots,
+                             allowsDynamicIdentifiers,
+                             unified,
+                             literalConstants,
+                             stringConstants,
+                             out reason))
+                {
+                    operationIndex++;
+                }
+                else
                 {
                     return false;
                 }
-
-                operationIndex += templateSpanLen;
             }
             else if (TryAppendSimpleBinaryCallArgumentSpan(
                          expressionProgram,
@@ -9914,6 +9953,81 @@ internal static class UnifiedBytecodeCompiler
                 reason = $"Unsupported computed property key op '{operation.Kind}'.";
                 return false;
         }
+    }
+
+    private static bool TryMeasureSimpleTemplateLiteralSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        if (expressionProgram.GetOperation(startIndex).Kind != ExpressionOpKind.LoadLiteral)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var i = startIndex + 1;
+        while (i < expressionProgram.OperationCount)
+        {
+            var op = expressionProgram.GetOperation(i);
+
+            if (op.Kind == ExpressionOpKind.LoadLiteral)
+            {
+                if (i + 1 >= expressionProgram.OperationCount)
+                {
+                    break;
+                }
+
+                var next = expressionProgram.GetOperation(i + 1);
+                if (next.Kind != ExpressionOpKind.Binary || next.Operator != BinaryOperator.Add)
+                {
+                    break;
+                }
+
+                i += 2;
+                continue;
+            }
+
+            if (i + 4 < expressionProgram.OperationCount)
+            {
+                var rightOperand = expressionProgram.GetOperation(i + 1);
+                var binary = expressionProgram.GetOperation(i + 2);
+                var toString = expressionProgram.GetOperation(i + 3);
+                var add = expressionProgram.GetOperation(i + 4);
+                if (binary.Kind == ExpressionOpKind.Binary &&
+                    IsSupportedBinaryOperator(binary.Operator) &&
+                    toString.Kind == ExpressionOpKind.ToString &&
+                    add.Kind == ExpressionOpKind.Binary &&
+                    add.Operator == BinaryOperator.Add &&
+                    CanAppendSimpleOperandLoadWithDynamic(op, expressionProgram, activationSlots, allowsDynamicIdentifiers) &&
+                    CanAppendSimpleOperandLoadWithDynamic(rightOperand, expressionProgram, activationSlots, allowsDynamicIdentifiers))
+                {
+                    i += 5;
+                    continue;
+                }
+            }
+
+            if (i + 2 < expressionProgram.OperationCount)
+            {
+                var toString = expressionProgram.GetOperation(i + 1);
+                var add = expressionProgram.GetOperation(i + 2);
+                if (toString.Kind == ExpressionOpKind.ToString &&
+                    add.Kind == ExpressionOpKind.Binary &&
+                    add.Operator == BinaryOperator.Add &&
+                    CanAppendSimpleOperandLoadWithDynamic(op, expressionProgram, activationSlots, allowsDynamicIdentifiers))
+                {
+                    i += 3;
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        spanLength = i - startIndex;
+        return true;
     }
 
     // Compiles a simple untagged template literal span starting at startIndex.

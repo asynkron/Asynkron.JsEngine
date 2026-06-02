@@ -3822,6 +3822,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 {
                     operationIndex += spanLen;
                 }
+                else if (TryMeasureSimpleBinaryOperandSpan(
+                             program,
+                             operationIndex,
+                             identifierConstants,
+                             activationSlots,
+                             allowsDynamicIdentifiers,
+                             callIndex,
+                             out var binarySpanLen))
+                {
+                    operationIndex += binarySpanLen;
+                }
                 else
                 {
                     // Standalone literal — same as IsSimpleOperand.

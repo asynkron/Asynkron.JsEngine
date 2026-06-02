@@ -8572,6 +8572,44 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallWithNestedTemplateObjectLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, name) {
+                return receiver({ label: `hello ${name}` });
+            }
+
+            sendNested(function(obj) { return obj.label; }, "bytecode");
+            """);
+
+        Assert.Equal("hello bytecode", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task CallWithNestedBinaryTemplateArrayLiteralArg_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function sendNested(receiver, a, b) {
+                return receiver([`total: ${a + b}`]);
+            }
+
+            sendNested(function(items) { return items[0]; }, 40, 2);
+            """);
+
+        Assert.Equal("total: 42", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=sendNested argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task CallWithEmptyArrayArg_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

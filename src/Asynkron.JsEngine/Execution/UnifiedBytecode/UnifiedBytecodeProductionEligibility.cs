@@ -96,8 +96,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 if (operation.Kind is
                     ExpressionOpKind.ResolveIdentifierReference or
                     ExpressionOpKind.StoreResolvedIdentifier or
-                    ExpressionOpKind.StoreIdentifier or
-                    ExpressionOpKind.DeleteIdentifier)
+                    ExpressionOpKind.StoreIdentifier)
                 {
                     if (IsImplicitArgumentsIdentifier(operation, identifierConstants, activationSlots))
                     {
@@ -111,7 +110,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     ExpressionOpKind.LoadIdentifier or
                     ExpressionOpKind.LoadIdentifierCallTarget or
                     ExpressionOpKind.TypeOfIdentifier or
-                    ExpressionOpKind.UpdateIdentifier))
+                    ExpressionOpKind.UpdateIdentifier or
+                    ExpressionOpKind.DeleteIdentifier))
                 {
                     continue;
                 }

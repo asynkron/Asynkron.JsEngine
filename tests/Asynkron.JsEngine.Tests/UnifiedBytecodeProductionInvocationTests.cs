@@ -1068,6 +1068,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleLiteralDefaultParameter_WithImplicitArgumentsDelete_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(value = 42) {
+                return value + ":" + (delete arguments) + ":" + typeof arguments;
+            }
+
+            inspect();
+            """);
+
+        Assert.Equal("42:false:object", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleLiteralDefaultParameter_WithImplicitArgumentsCall_UsesUnifiedBytecodeProductionFastPathAndThrowsTypeError()
     {
         await using var engine = CreateEngine();
@@ -6725,6 +6744,25 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=bump argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeleteImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function removeArguments() {
+                return (delete arguments) + ":" + typeof arguments;
+            }
+
+            removeArguments(41);
+            """);
+
+        Assert.Equal("false:object", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=removeArguments argc=1",
                 StringComparison.Ordinal));
     }
 

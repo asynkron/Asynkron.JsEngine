@@ -219,6 +219,31 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalComputedThenNamedReadChainArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.[key].value);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            var present = invoke(id, { k: { value: 7 } }, "k");
+            var missingHead = invoke(id, null, "k");
+            (present === 7 && missingHead === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

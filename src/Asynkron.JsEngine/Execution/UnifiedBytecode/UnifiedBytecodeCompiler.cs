@@ -8430,12 +8430,34 @@ internal static class UnifiedBytecodeCompiler
 
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
 
+        // Emit plain named continuation reads (`box?.[key].value`): they run on the
+        // computed-read result when the base was non-nullish, and are skipped by the head
+        // boundary jump (to chainEnd) when the base was nullish.
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var continuationIndex = computedIndex + 1;
+        while (continuationIndex < endExclusive)
+        {
+            var continuation = expressionProgram.GetOperation(continuationIndex);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            var continuationNameIndex = stringConstants.Count;
+            stringConstants.Add(continuation.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, continuationNameIndex));
+            continuationIndex++;
+        }
+
         var chainEnd = unified.Count;
         unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
             chainEnd);
 
-        spanLength = computedIndex + 1 - startIndex;
+        spanLength = continuationIndex - startIndex;
         reason = string.Empty;
         return true;
     }

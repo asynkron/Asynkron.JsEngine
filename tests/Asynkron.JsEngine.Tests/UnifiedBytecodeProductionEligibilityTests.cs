@@ -2642,6 +2642,99 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.ObjectSpread);
     }
 
+    [Fact]
+    public void Evaluate_ObjectPropertyValue_AcceptsDirectNamedCallValue()
+    {
+        var plan = GetFunctionPlan("""
+            function objectValue(source, take) {
+                return { part: source.slice(0, take) };
+            }
+            """,
+            "objectValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectPropertyValue_WithDynamicDirectNamedCallValue_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function objectValue() {
+                return { part: source.slice(0, take) };
+            }
+            """,
+            "objectValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedObjectPropertyValue_AcceptsDirectNamedCallValue()
+    {
+        var plan = GetFunctionPlan("""
+            function objectValue(source, take, key) {
+                return { [key]: source.slice(0, take) };
+            }
+            """,
+            "objectValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedObjectPropertyKey_AcceptsDirectNamedCallKey()
+    {
+        var plan = GetFunctionPlan("""
+            function objectKey(source, take) {
+                return { [source.slice(0, take)]: 42 };
+            }
+            """,
+            "objectKey");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
     [Theory]
     [InlineData(
         """

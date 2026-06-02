@@ -3978,10 +3978,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
     // Measures the op span for a simple object literal starting at startIndex.
     // Admitted shapes (CreateObject followed by N >= 0 property triples/spreads):
-    //   Static:   [simple-value-operand, DefineObjectProperty(non-private, no name inference)]
-    //   Computed: [simple-key-operand or simple-binary-key-expression, ResolvePropertyKey,
-    //              simple-value-operand, DefineComputedObjectProperty(no name inference)]
-    //   Spread:   [simple-spread-source-operand, ObjectSpread]
+    //   Static:   [simple-value-span, DefineObjectProperty(non-private, no name inference)]
+    //   Computed: [simple-key-span or simple-binary-key-expression, ResolvePropertyKey,
+    //              simple-value-span, DefineComputedObjectProperty(no name inference)]
+    //   Spread:   [simple-spread-source-span, ObjectSpread]
     // DefineObjectMethod, accessors, private names, name inference, and complex key expressions are declined.
     private static bool TryMeasureSimpleObjectLiteralSpan(
         ExpressionProgram program,
@@ -4017,14 +4017,19 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                var valueOp = program.GetOperation(i);
-                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots))
+                if (!TryMeasureSimpleObjectValueOperandSpan(
+                        program,
+                        i,
+                        identifierConstants,
+                        activationSlots,
+                        out var valueSpanLength,
+                        allowsDynamicIdentifiers))
                 {
                     spanLength = 0;
                     return false;
                 }
 
-                i++;
+                i += valueSpanLength;
                 if (i >= program.OperationCount)
                 {
                     spanLength = 0;
@@ -4061,14 +4066,19 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                var valueOp = program.GetOperation(i);
-                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+                if (!TryMeasureSimpleObjectValueOperandSpan(
+                        program,
+                        i,
+                        identifierConstants,
+                        activationSlots,
+                        out var valueSpanLength,
+                        allowsDynamicIdentifiers))
                 {
                     spanLength = 0;
                     return false;
                 }
 
-                i++;
+                i += valueSpanLength;
                 if (i >= program.OperationCount)
                 {
                     spanLength = 0;
@@ -4087,7 +4097,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            var firstOp = program.GetOperation(i);
             if (TryMeasureSimpleDirectNamedCallOperandSpan(
                     program,
                     i,
@@ -4102,13 +4111,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (!IsSimpleOperand(firstOp, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+            if (!TryMeasureSimpleObjectValueOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var firstSpanLength,
+                    allowsDynamicIdentifiers))
             {
                 // Non-simple first op terminates the property scan — the object literal ends here.
                 break;
             }
 
-            i++;
+            i += firstSpanLength;
             if (i >= program.OperationCount)
             {
                 spanLength = 0;
@@ -4143,14 +4158,19 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
-                var valueOp = program.GetOperation(i);
-                if (!IsSimpleOperand(valueOp, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+                if (!TryMeasureSimpleObjectValueOperandSpan(
+                        program,
+                        i,
+                        identifierConstants,
+                        activationSlots,
+                        out var valueSpanLength,
+                        allowsDynamicIdentifiers))
                 {
                     spanLength = 0;
                     return false;
                 }
 
-                i++;
+                i += valueSpanLength;
                 if (i >= program.OperationCount)
                 {
                     spanLength = 0;
@@ -4181,6 +4201,39 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = i - startIndex;
         return true;
+    }
+
+    private static bool TryMeasureSimpleObjectValueOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        if (TryMeasureSimpleDirectNamedCallOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        if (IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            spanLength = 1;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
     }
 
     private static bool TryMeasureSimpleBinaryOperandSpan(

@@ -6966,6 +6966,21 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (TryAppendSimplePropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
         if (TryAppendSimpleOperandLoadWithDynamic(
                 operation,
                 expressionProgram,
@@ -7242,6 +7257,21 @@ internal static class UnifiedBytecodeCompiler
             return true;
         }
 
+        if (TryAppendSimplePropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
+        }
+
         if (TryAppendSimpleOperandLoadWithDynamic(
                 operation,
                 expressionProgram,
@@ -7258,6 +7288,313 @@ internal static class UnifiedBytecodeCompiler
 
         spanLength = 0;
         return false;
+    }
+
+    private static bool TryAppendSimplePropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        if (TryMeasureSimpleComputedPropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var keyStart,
+                out var keyEndExclusive,
+                out spanLength))
+        {
+            return TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                keyStart,
+                keyEndExclusive,
+                spanLength,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason);
+        }
+
+        if (TryMeasureSimpleNamedPropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                endExclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out spanLength))
+        {
+            return TryAppendMeasuredSimpleNamedPropertyReadOperandSpan(
+                expressionProgram,
+                startIndex,
+                spanLength,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason);
+        }
+
+        spanLength = 0;
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool TryMeasureSimpleNamedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int spanLength)
+    {
+        spanLength = 0;
+        if (startIndex + 1 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var index = startIndex + 1;
+        while (index < endExclusive &&
+               IsPlainNamedPropertyRead(expressionProgram.GetOperation(index), expressionStringConstants))
+        {
+            index++;
+        }
+
+        if (index == startIndex + 1)
+        {
+            return false;
+        }
+
+        spanLength = index - startIndex;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleComputedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        out int keyStart,
+        out int keyEndExclusive,
+        out int spanLength)
+    {
+        keyStart = 0;
+        keyEndExclusive = 0;
+        spanLength = 0;
+        if (startIndex + 4 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        keyStart = startIndex + 1;
+        while (keyStart < endExclusive &&
+               IsPlainNamedPropertyRead(expressionProgram.GetOperation(keyStart), expressionStringConstants))
+        {
+            keyStart++;
+        }
+
+        for (var requireIndex = keyStart + 1; requireIndex + 2 < endExclusive; requireIndex++)
+        {
+            var requireObjectCoercible = expressionProgram.GetOperation(requireIndex);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+                requireObjectCoercible.Depth != 1)
+            {
+                continue;
+            }
+
+            var resolvePropertyKey = expressionProgram.GetOperation(requireIndex + 1);
+            var getComputedProperty = expressionProgram.GetOperation(requireIndex + 2);
+            if (resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+                getComputedProperty.Kind != ExpressionOpKind.GetComputedProperty ||
+                getComputedProperty.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (!IsSupportedComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    keyStart,
+                    requireIndex,
+                    allowsDynamicIdentifiers))
+            {
+                continue;
+            }
+
+            var end = requireIndex + 3;
+            while (end < endExclusive &&
+                   IsPlainNamedPropertyRead(expressionProgram.GetOperation(end), expressionStringConstants))
+            {
+                end++;
+            }
+
+            keyEndExclusive = requireIndex;
+            spanLength = end - startIndex;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryAppendMeasuredSimpleNamedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int spanLength,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        for (var index = startIndex + 1; index < startIndex + spanLength; index++)
+        {
+            AppendPlainNamedPropertyRead(
+                expressionProgram.GetOperation(index),
+                expressionStringConstants,
+                unified,
+                stringConstants);
+        }
+
+        if (unified.Count > unifiedCount &&
+            literalConstants.Count >= literalCount &&
+            stringConstants.Count >= stringCount)
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        RollBackUnifiedBuilder(unified, unifiedCount);
+        RollBackUnifiedBuilder(literalConstants, literalCount);
+        RollBackUnifiedBuilder(stringConstants, stringCount);
+        reason = "Failed to emit measured named property read span.";
+        return false;
+    }
+
+    private static bool TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int keyStart,
+        int keyEndExclusive,
+        int spanLength,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        for (var index = startIndex + 1; index < keyStart; index++)
+        {
+            AppendPlainNamedPropertyRead(
+                expressionProgram.GetOperation(index),
+                expressionStringConstants,
+                unified,
+                stringConstants);
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                keyStart,
+                keyEndExclusive,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RequireObjectCoercible, 1));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+
+        for (var index = keyEndExclusive + 3; index < startIndex + spanLength; index++)
+        {
+            AppendPlainNamedPropertyRead(
+                expressionProgram.GetOperation(index),
+                expressionStringConstants,
+                unified,
+                stringConstants);
+        }
+
+        reason = string.Empty;
+        return true;
+    }
+
+    private static void AppendPlainNamedPropertyRead(
+        PackedExpressionOp operation,
+        ReadOnlySpan<string> expressionStringConstants,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<string>.Builder stringConstants)
+    {
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(operation.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, propertyNameIndex));
     }
 
     private static bool TryAppendSimpleUnaryOperandSpan(

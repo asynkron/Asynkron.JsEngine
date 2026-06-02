@@ -125,6 +125,48 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithSimpleLiteralDefaultParameter_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Box {
+                constructor(value = 42) {
+                    this.value = value;
+                }
+            }
+
+            new Box().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task BaseClassConstructorWithFinalRestParameter_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Box {
+                constructor(prefix, ...items) {
+                    this.items = items;
+                }
+            }
+
+            new Box(40, 1, 2).items.length;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Box argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task BaseClassConstructorReturnObject_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();

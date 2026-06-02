@@ -1271,8 +1271,26 @@ internal static class UnifiedBytecodeCompiler
                                     increment.IsPrefix)));
                         }
 
+                        // The update opcodes leave the result (new value for prefix, old
+                        // numeric value for postfix) on the stack. When this update is the
+                        // value of an expression statement, that result is the statement's
+                        // completion value, so capture it into the script completion slot
+                        // before discarding. Loop update expressions set SuppressCompletionValue
+                        // and must not contribute to the completion value (per ES spec).
+                        if (slotLayout.ScriptCompletionSlot >= 0 && !increment.SuppressCompletionValue)
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreSlot,
+                                slotLayout.ScriptCompletionSlot));
+                            maxStackDepth = Math.Max(maxStackDepth, 2);
+                        }
+                        else
+                        {
+                            maxStackDepth = Math.Max(maxStackDepth, 1);
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
-                        maxStackDepth = Math.Max(maxStackDepth, 1);
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 increment.Next,

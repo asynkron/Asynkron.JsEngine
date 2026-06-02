@@ -6400,9 +6400,9 @@ internal static class UnifiedBytecodeCompiler
 
     // Compiles a simple array literal span starting at startIndex in the expression program.
     // Emits: CreateArray, then N elements where each element is one of:
-    //   - [simple-operand-load, ArrayPush]   — normal element
-    //   - [simple-operand-load, ArraySpread] — spread element
-    //   - ArrayPushHole                      — hole element
+    //   - [simple-literal-value-span, ArrayPush]   - normal element
+    //   - [simple-literal-value-span, ArraySpread] - spread element
+    //   - ArrayPushHole                            - hole element
     private static bool TryAppendSimpleArrayLiteralSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
@@ -6437,44 +6437,20 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
-            if (slotLayout is not null &&
-                callTargetConstants is not null &&
-                TryMeasureSimpleMemberCallOperandSpan(
+            if (TryAppendSimpleLiteralValueOperandSpan(
                     expressionProgram,
                     i,
                     activationSlots,
                     allowsDynamicIdentifiers,
-                    out var callElementSpanLength))
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var elementSpanLength,
+                    out reason))
             {
-                if (!TryAppendSimpleMemberCallOperandSpan(
-                        expressionProgram,
-                        i,
-                        activationSlots,
-                        slotLayout,
-                        allowsDynamicIdentifiers,
-                        unified,
-                        literalConstants,
-                        stringConstants,
-                        callTargetConstants,
-                        out reason))
-                {
-                    spanLength = 0;
-                    return false;
-                }
-
-                i += callElementSpanLength;
-            }
-            else if (TryAppendSimpleOperandLoadWithDynamic(
-                         elementOp,
-                         expressionProgram,
-                         activationSlots,
-                         allowsDynamicIdentifiers,
-                         unified,
-                         literalConstants,
-                         stringConstants,
-                         out reason))
-            {
-                i++;
+                i += elementSpanLength;
             }
             else
             {
@@ -6516,9 +6492,9 @@ internal static class UnifiedBytecodeCompiler
 
     // Compiles a simple object literal span starting at startIndex in the expression program.
     // Emits: CreateObject, then N property triples/spreads:
-    //   Static:   [simple-value-span, DefineObjectProperty(non-private, no name inference)]
+    //   Static:   [simple-literal-value-span, DefineObjectProperty(non-private, no name inference)]
     //   Computed: [simple-key-span or simple-binary-key-expression, ResolvePropertyKey,
-    //              simple-value-span, DefineComputedObjectProperty(no name inference)]
+    //              simple-literal-value-span, DefineComputedObjectProperty(no name inference)]
     //   Spread:   [simple-spread-source-span, ObjectSpread]
     private static bool TryAppendSimpleObjectLiteralSpan(
         ExpressionProgram expressionProgram,
@@ -6579,7 +6555,7 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
 
-                if (!TryAppendSimpleObjectValueOperandSpan(
+                if (!TryAppendSimpleLiteralValueOperandSpan(
                         expressionProgram,
                         i,
                         activationSlots,
@@ -6658,7 +6634,7 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
 
-                if (!TryAppendSimpleObjectValueOperandSpan(
+                if (!TryAppendSimpleLiteralValueOperandSpan(
                         expressionProgram,
                         i,
                         activationSlots,
@@ -6730,7 +6706,7 @@ internal static class UnifiedBytecodeCompiler
                 continue;
             }
 
-            if (!TryAppendSimpleObjectValueOperandSpan(
+            if (!TryAppendSimpleLiteralValueOperandSpan(
                     expressionProgram,
                     i,
                     activationSlots,
@@ -6785,7 +6761,7 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
 
-                if (!TryAppendSimpleObjectValueOperandSpan(
+                if (!TryAppendSimpleLiteralValueOperandSpan(
                         expressionProgram,
                         i,
                         activationSlots,
@@ -6841,7 +6817,7 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool TryAppendSimpleObjectValueOperandSpan(
+    private static bool TryAppendSimpleLiteralValueOperandSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
         ActivationSlotShape activationSlots,
@@ -6882,8 +6858,41 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var operation = expressionProgram.GetOperation(startIndex);
+        if (operation.Kind == ExpressionOpKind.CreateArray)
+        {
+            return TryAppendSimpleArrayLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason,
+                allowsDynamicIdentifiers);
+        }
+
+        if (operation.Kind == ExpressionOpKind.CreateObject)
+        {
+            return TryAppendSimpleObjectLiteralSpan(
+                expressionProgram,
+                startIndex,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                slotLayout,
+                out spanLength,
+                out reason,
+                allowsDynamicIdentifiers);
+        }
+
         if (TryAppendSimpleOperandLoadWithDynamic(
-                expressionProgram.GetOperation(startIndex),
+                operation,
                 expressionProgram,
                 activationSlots,
                 allowsDynamicIdentifiers,

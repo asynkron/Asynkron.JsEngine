@@ -987,6 +987,70 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_IdentifierCallWithOptionalComputedPropertyReadArgument_AcceptsGetComputedProperty()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(fn, box, key) {
+                return fn(box?.[key]);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierCallWithOptionalComputedBinaryKeyArgument_AcceptsGetComputedProperty()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(fn, box, a, b) {
+                return fn(box?.[a + b]);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_IdentifierCallWithChainedOptionalComputedReadArgument_DeclinesWithOptionalChainDependency()
+    {
+        // `box?.[key]?.[key]` carries a second optional computed hop and stays outside
+        // the baseline optional computed call-argument boundary.
+        var plan = GetFunctionPlan("""
+            function invoke(fn, box, key) {
+                return fn(box?.[key]?.[key]);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_NestedNamedMemberCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""

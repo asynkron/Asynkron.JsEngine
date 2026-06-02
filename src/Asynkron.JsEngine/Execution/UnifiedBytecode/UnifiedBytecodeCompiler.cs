@@ -6387,6 +6387,20 @@ internal static class UnifiedBytecodeCompiler
             {
                 operationIndex += optionalNamedChainSpanLen;
             }
+            else if (TryAppendSimpleOptionalComputedPropertyReadOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var optionalComputedSpanLen,
+                         out reason))
+            {
+                operationIndex += optionalComputedSpanLen;
+            }
             else if (TryAppendSimpleOptionalNamedPropertyReadOperandSpan(
                          expressionProgram,
                          operationIndex,
@@ -8275,6 +8289,113 @@ internal static class UnifiedBytecodeCompiler
         RollBackUnifiedBuilder(stringConstants, stringCount);
         reason = "Failed to emit measured optional named read chain span.";
         return false;
+    }
+
+    // Emits a baseline optional computed property-read operand span (`box?.[key]`):
+    // a simple base load, a JumpIfNullishReplaceUndefined short-circuit guard, the
+    // computed key span, and a GetComputedProperty. A nullish base short-circuits the
+    // read to undefined. Mirrors TryAppendFirstBoundaryOptionalComputedPropertyReadChain.
+    private static bool TryAppendSimpleOptionalComputedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        spanLength = 0;
+        reason = string.Empty;
+        if (startIndex + 3 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var jumpOp = expressionProgram.GetOperation(startIndex + 1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish ||
+            !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        var computedIndex = jumpOp.Target - 1;
+        if (computedIndex <= startIndex + 1 ||
+            computedIndex >= endExclusive)
+        {
+            return false;
+        }
+
+        var computedOp = expressionProgram.GetOperation(computedIndex);
+        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+            computedOp.IsOptional ||
+            computedOp.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: startIndex + 2,
+                endExclusive: computedIndex,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var boundaryJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: startIndex + 2,
+                endExclusive: computedIndex,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+
+        var chainEnd = unified.Count;
+        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            chainEnd);
+
+        spanLength = computedIndex + 1 - startIndex;
+        reason = string.Empty;
+        return true;
     }
 
     private static bool TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(

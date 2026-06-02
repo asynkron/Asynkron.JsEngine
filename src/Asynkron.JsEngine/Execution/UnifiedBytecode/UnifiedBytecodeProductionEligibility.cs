@@ -1369,6 +1369,12 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // Read op of an optional computed read used as a call argument (`fn(box?.[key])`).
+                    if (TryIsOptionalComputedReadCallArgumentOperation(program, operationIndex, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
                     if (operation.ShortCircuitOnNullishTarget)
                     {
                         if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
@@ -1658,6 +1664,12 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     // Nullish guard of a?.[k] — admitted when the program matches the optional computed read shape.
                     if (TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
+                    {
+                        break;
+                    }
+
+                    // Nullish guard of an optional computed read used as a call argument (`fn(box?.[key])`).
+                    if (TryIsOptionalComputedReadCallArgumentOperation(program, operationIndex, identifierConstants, activationSlots))
                     {
                         break;
                     }
@@ -3265,6 +3277,29 @@ internal static class UnifiedBytecodeProductionEligibility
             allowsDynamicIdentifiers);
     }
 
+    // Recognizes a JumpIfNullish or GetComputedProperty operation that belongs to a
+    // baseline optional computed property-read (`box?.[key]`) used as a call argument.
+    // Reuses the embedded optional-computed span scanner, scoped to a program that
+    // ends in a Call so it only admits the call-argument context.
+    private static bool TryIsOptionalComputedReadCallArgumentOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (program.OperationCount < 2 ||
+            program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.Call)
+        {
+            return false;
+        }
+
+        return TryIsEmbeddedOptionalComputedReadSpanOperation(
+            program,
+            operationIndex,
+            identifierConstants,
+            activationSlots);
+    }
+
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -4358,6 +4393,17 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex += optionalNamedChainSpanLen;
             }
+            else if (TryMeasureSimpleOptionalComputedPropertyReadOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var optionalComputedSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + optionalComputedSpanLen <= callIndex)
+            {
+                operationIndex += optionalComputedSpanLen;
+            }
             else if (TryMeasureSimpleOptionalNamedPropertyReadOperandSpan(
                          program,
                          operationIndex,
@@ -5132,6 +5178,68 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         spanLength = index - startIndex;
+        return true;
+    }
+
+    // Measures a baseline optional computed property-read operand span
+    // (`box?.[key]`, `box?.[a + b]`): a simple base operand, a
+    // JumpIfNullish(ReplaceWithUndefined) short-circuit guard, a supported computed
+    // key span, and a non-optional/non-short-circuit GetComputedProperty whose read
+    // is the jump target. A nullish base short-circuits the read to undefined.
+    private static bool TryMeasureSimpleOptionalComputedPropertyReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 3 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var jumpOp = program.GetOperation(startIndex + 1);
+        if (jumpOp.Kind != ExpressionOpKind.JumpIfNullish ||
+            !jumpOp.ReplaceWithUndefined)
+        {
+            return false;
+        }
+
+        // The optional guard jumps to the instruction after the computed read.
+        var computedIndex = jumpOp.Target - 1;
+        if (computedIndex <= startIndex + 1 ||
+            computedIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var computedOp = program.GetOperation(computedIndex);
+        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+            computedOp.IsOptional ||
+            computedOp.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                program,
+                startIndex + 2,
+                computedIndex,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        spanLength = computedIndex + 1 - startIndex;
         return true;
     }
 

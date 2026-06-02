@@ -678,6 +678,17 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case ExpressionOpKind.TypeOfIdentifier:
                 {
                     var identifier = operation.GetIdentifier(identifierConstants);
+
+                    // When re-stamping a nested function's plan from an outer scope, the nested
+                    // plan was already resolved via its own CFG-aware pass (which respects block
+                    // scopes / shadowed lets). Preserve identifiers that are already resolved so a
+                    // linear restamp cannot overwrite a block-local shadow with an enclosing-scope
+                    // binding of the same name.
+                    if (_isRestampingNestedFunction && identifier.ScopeId >= 0 && identifier.SlotIndex >= 0)
+                    {
+                        return operation;
+                    }
+
                     if (!TryResolve(identifier.Name, out var resolution))
                     {
                         return operation;

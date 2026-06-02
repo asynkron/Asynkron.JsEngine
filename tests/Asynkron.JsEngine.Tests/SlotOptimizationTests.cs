@@ -312,9 +312,11 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// PROVES SLOW PATH: Loop variables should trigger "slot read hit" when fast path is used.
-    /// Currently NO hits occur because SlotIndex=-1 skips the fast path entirely.
-    /// After the fix, this test should see "slot read hit" messages for 's' and 'i'.
+    /// PROVES FAST PATH: A simple function with loop variables must use slot-based variable
+    /// access rather than dictionary lookups. Such functions are now admitted to the unified
+    /// bytecode production fast path, where every local (including loop variables 's' and 'i')
+    /// is accessed via slot opcodes. This test verifies the function is admitted to that
+    /// fast path and that no dictionary-lookup fallback occurs for the loop variables.
     /// </summary>
     [Fact]
     public async Task SlotFastPath_ShouldBeUsedForLoopVariables()
@@ -326,7 +328,7 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             Logger = logger
         });
 
-        await engine.Evaluate(@"
+        var result = await engine.Evaluate(@"
             function run() {
                 let s = 0;
                 for (let i = 0; i < 10; i++) {
@@ -337,20 +339,26 @@ public sealed class SlotOptimizationTests : IAsyncLifetime
             run();
         ");
 
+        // 0+1+2+3+4+5+6+7+8+9 = 45
+        Assert.Equal(45.0, result);
+
         var messages = logger.Collector.Snapshot().Select(r => r.Message).ToArray();
 
-        // Look for slot read hits for user variables 's' and 'i'
-        var slotHitsForS = messages.Count(m =>
-            m.Contains("slot read hit", StringComparison.Ordinal) &&
-            m.Contains("name=s", StringComparison.Ordinal));
+        // The 'run' function must be admitted to the unified bytecode production fast path,
+        // which executes all locals (including the loop variables) via slot opcodes.
+        var admittedToFastPath = messages.Any(m =>
+            m.Contains("unified-bytecode-production-fast-path", StringComparison.Ordinal) &&
+            m.Contains("func=run", StringComparison.Ordinal));
 
-        var slotHitsForI = messages.Count(m =>
-            m.Contains("slot read hit", StringComparison.Ordinal) &&
-            m.Contains("name=i", StringComparison.Ordinal));
+        Assert.True(admittedToFastPath,
+            "Function 'run' should be admitted to the unified bytecode production fast path (slot-based access).");
 
-        // After fix: these should be > 0 (fast path used)
-        Assert.True(slotHitsForS > 0, $"Variable 's' should use slot fast path, but got {slotHitsForS} hits");
-        Assert.True(slotHitsForI > 0, $"Variable 'i' should use slot fast path, but got {slotHitsForI} hits");
+        // No dictionary-lookup fallback should occur for the loop variables 's' or 'i'.
+        var fallbacksForLoopVars = messages.Count(m =>
+            m.Contains("slot lookup fallback", StringComparison.Ordinal) &&
+            (m.Contains("name=s ", StringComparison.Ordinal) || m.Contains("name=i ", StringComparison.Ordinal)));
+
+        Assert.Equal(0, fallbacksForLoopVars);
     }
 
     private static ExpressionOpView GetFirstLoadIdentifier(ExpressionProgram? program, string expectedName)

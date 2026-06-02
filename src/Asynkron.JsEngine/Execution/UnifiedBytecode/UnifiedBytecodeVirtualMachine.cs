@@ -6009,16 +6009,28 @@ internal static class UnifiedBytecodeVirtualMachine
                     baseIndex,
                     argumentCount,
                     context.RealmState)
-                : ReflectHelper.Construct(
-                    callable,
-                    MaterializeSpreadCallArguments(
-                        argumentCount,
-                        spreadMask,
-                        stack,
-                        baseIndex,
-                        context),
-                    newTargetCallable,
-                    context.RealmState);
+                : TryGetDefaultDerivedConstructorForwardedArguments(
+                    environment,
+                    argumentCount,
+                    spreadMask,
+                    stack,
+                    baseIndex,
+                    out var forwardedArguments)
+                    ? ReflectHelper.Construct(
+                        callable,
+                        forwardedArguments,
+                        newTargetCallable,
+                        context.RealmState)
+                    : ReflectHelper.Construct(
+                        callable,
+                        MaterializeSpreadCallArguments(
+                            argumentCount,
+                            spreadMask,
+                            stack,
+                            baseIndex,
+                            context),
+                        newTargetCallable,
+                        context.RealmState);
 
             var callResultObject = result.Kind == JsValueKind.Object ? result.ObjectValue : null;
             object? thisAfterSuper = callResultObject;
@@ -6275,6 +6287,28 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         return arguments.ToArray();
+    }
+
+    private static bool TryGetDefaultDerivedConstructorForwardedArguments(
+        JsEnvironment environment,
+        int argumentCount,
+        ImmutableArray<int> spreadMask,
+        Span<JsValue> stack,
+        int argumentsStartIndex,
+        out IReadOnlyList<JsValue> arguments)
+    {
+        if (environment.IsDefaultDerivedConstructor &&
+            argumentCount == 1 &&
+            spreadMask.Length == 1 &&
+            spreadMask[0] == 0 &&
+            stack[argumentsStartIndex].TryGetObject<JsArray>(out var restArray))
+        {
+            arguments = restArray.Items;
+            return true;
+        }
+
+        arguments = [];
+        return false;
     }
 
     private static JsValue ResolveCurrentThisValue(

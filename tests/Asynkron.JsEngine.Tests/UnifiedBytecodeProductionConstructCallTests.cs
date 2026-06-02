@@ -634,7 +634,7 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DefaultDerivedConstructor_DeclinesAndFallsBack()
+    public async Task DefaultDerivedConstructor_UsesProductionFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -651,7 +651,35 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
             """);
 
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DefaultDerivedConstructor_ForwardsArgumentsWithoutIteratorProtocol()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            Array.prototype[Symbol.iterator] = function() {
+                throw new Error('iterator should not run');
+            };
+
+            class Base {
+                constructor(left, right) {
+                    this.value = left + right;
+                }
+            }
+
+            class Derived extends Base {
+            }
+
+            new Derived(20, 22).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=Derived",
                 StringComparison.Ordinal));

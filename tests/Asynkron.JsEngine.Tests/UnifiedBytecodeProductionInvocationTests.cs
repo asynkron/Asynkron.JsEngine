@@ -2211,7 +2211,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BinaryReturnFunction_KeepsExistingSpecializedFastPath()
+    public async Task BinaryReturnFunction_UsesProductionUnifiedBytecodeBeforeSpecializedFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -2224,14 +2224,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var logRecords = CurrentLogger!.Collector.Snapshot();
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(logRecords,
-            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
         Assert.Contains(logRecords,
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(logRecords,
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BinaryChainReturnFunction_KeepsExistingSpecializedFastPath()
+    public async Task BinaryChainReturnFunction_UsesProductionUnifiedBytecodeBeforeSpecializedFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -2244,9 +2244,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
 
         var logRecords = CurrentLogger!.Collector.Snapshot();
         Assert.Equal(42d, result);
-        Assert.DoesNotContain(logRecords,
-            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
         Assert.Contains(logRecords,
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(logRecords,
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryChainFastPathLog, StringComparison.Ordinal));
     }
 
@@ -7254,7 +7254,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact]
-    public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeGenericIr()
+    public void SourceGate_OrdinarySyncRouteAttemptsProductionUnifiedBytecodeBeforeSimpleIr()
     {
         var repositoryRoot = FindRepositoryRootForSourceGate();
         var invokerPath = Path.Combine(
@@ -7291,17 +7291,17 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
 
         Assert.True(
-            binaryFastPathIndex >= 0,
-            "Simple binary fast path is missing from the ordinary sync route.");
+            unifiedBytecodeIndex >= 0,
+            "Production unified bytecode is missing from the ordinary sync route.");
+        Assert.True(
+            binaryFastPathIndex > unifiedBytecodeIndex,
+            "Production unified bytecode should be attempted before the simple binary fast path.");
         Assert.True(
             binaryChainFastPathIndex > binaryFastPathIndex,
             "Binary-chain fast path should stay after the simple binary fast path.");
         Assert.True(
-            unifiedBytecodeIndex > binaryChainFastPathIndex,
-            "Production unified bytecode should stay behind the specialized simple-return fast paths.");
-        Assert.True(
-            syncIrTrampolineIndex > unifiedBytecodeIndex,
-            "Production unified bytecode should be attempted before SyncIrCallTrampoline.");
+            syncIrTrampolineIndex > binaryChainFastPathIndex,
+            "SyncIrCallTrampoline should stay behind production unified bytecode and simple binary fallbacks.");
         Assert.True(
             genericRunnerIndex > syncIrTrampolineIndex,
             "Generic ExecutionPlanRunner fallback should stay after production unified bytecode and SyncIrCallTrampoline.");

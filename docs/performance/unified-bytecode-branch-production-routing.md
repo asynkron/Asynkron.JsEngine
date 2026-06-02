@@ -1,6 +1,7 @@
 # Unified Bytecode Production Routing Evidence
 
 Date: 2026-05-27
+Updated: 2026-06-02
 Issues: #2227 (initial direct-branch slice), #2243 (expanded control-flow boundary), Batch 5 plan proof run (`planitem-planmanual1779822558747978000-batch-1-production-eligibility-boundary-ba-a10f14eb22`)
 
 ## Current boundary summary
@@ -28,7 +29,7 @@ unsupported payloads/opcodes/operators.
 Command:
 
 ```bash
-rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_DirectBranchReturnPlan_Accepts|FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_NestedDirectBranchReturnPlan_DeclinesAsPrototypeOnlyJumpIfFalse|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.BinaryReturnFunction_KeepsExistingSpecializedFastPath"
+rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_DirectBranchReturnPlan_Accepts|FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_NestedDirectBranchReturnPlan_DeclinesAsPrototypeOnlyJumpIfFalse|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.DirectBranchReturnFunction_UsesUnifiedBytecodeProductionFastPathForTrueAndFalseOutcomes|FullyQualifiedName~UnifiedBytecodeProductionInvocationTests.BinaryReturnFunction_UsesProductionUnifiedBytecodeBeforeSpecializedFastPath"
 ```
 
 Result:
@@ -39,8 +40,8 @@ This historical slice proved:
 
 - Direct `JumpIfFalse` branch-return eligibility is accepted.
 - Nested adjacent `JumpIfFalse` shape remains declined.
-- Invocation routes accepted branch-return through `unified-bytecode-production-fast-path` for both `pick(true)` and `pick(false)` while keeping `SyncIrCallTrampoline` priority intact.
-- Existing binary specialized fast path remains prioritized.
+- Invocation routes accepted branch-return through `unified-bytecode-production-fast-path` for both `pick(true)` and `pick(false)`.
+- The original 2026-05-27 slice kept the binary specialized fast path prioritized. That route priority is superseded as of 2026-06-02: production unified bytecode now runs before simple binary fallbacks for admitted ordinary sync plans.
 
 ## Batch 5 production proof pack (current evidence)
 

@@ -23,18 +23,18 @@ for assignment destructuring parity instead of falling back to expression or
 statement interpretation.
 
 ## Ordinary Sync Routing Boundary
-- Ordinary sync invocation keeps the dedicated simple-return binary and
-  binary-chain fast paths ahead of the broader production unified-bytecode
-  route, matching ADR 0258's route-priority contract.
 - For ordinary sync functions that pass both
   `CanUseProductionUnifiedBytecodeFastPath` and
   `UnifiedBytecodeProductionEligibility.Evaluate`, the production VM is the
-  primary default attempt before `SyncIrCallTrampoline` and generic
-  `ExecutionPlanRunner` interpretation.
+  primary default attempt before dedicated simple-return/simple-binary IR
+  shortcuts, `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner`
+  interpretation. This supersedes ADR 0258's earlier route-priority contract
+  for admitted ordinary sync production shapes.
 - Current route coverage estimate: 100% of accepted ordinary sync production
-  programs attempt `UnifiedBytecodeVirtualMachine` before generic IR fallback.
-  This is a selector coverage estimate, not a full ECMAScript function-surface
-  claim; unsupported buckets below remain pre-VM declines.
+  programs attempt `UnifiedBytecodeVirtualMachine` before simple IR shortcuts
+  and generic IR fallback. This is a selector coverage estimate, not a full
+  ECMAScript function-surface claim; unsupported buckets below remain pre-VM
+  declines.
 
 - Coverage evidence: `docs/performance/unified-bytecode-primary-sync-route-coverage.md`
 

@@ -42,7 +42,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnFunction_NumberArgumentsUseCallerBinaryFastPath()
+    public async Task SimpleReturnFunction_NumberArgumentsUseProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -56,16 +56,18 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnFunction_NumberParameterBinaryChainUsesCallerFastPath()
+    public async Task SimpleReturnFunction_NumberParameterBinaryChainUsesProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -79,16 +81,18 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 SimpleIrParameterNumberBinaryChainFastPathLog,
                 StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryChainFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnFunction_CoercingParameterBinaryChainUsesIrFastPath()
+    public async Task SimpleReturnFunction_CoercingParameterBinaryChainUsesProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -106,8 +110,10 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             static record => record.Message.Contains(
                 SimpleIrParameterNumberBinaryChainFastPathLog,
                 StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryChainFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -131,13 +137,14 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("42:1", result);
-        // Non-number args bypass the precomputed numeric path but use the general binary parameter path.
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterNumberBinaryFastPathLog, StringComparison.Ordinal));
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrParameterBinaryFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -167,7 +174,7 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnLiteralFunction_UsesLiteralFastPath()
+    public async Task SimpleReturnLiteralFunction_UsesProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -181,10 +188,14 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(1d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
-    public async Task SimpleReturnParameterFunction_NoArguments_UsesNoArgsReturnFastPath()
+    public async Task SimpleReturnParameterFunction_NoArguments_UsesProductionUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -196,10 +207,12 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal(Asynkron.JsEngine.Ast.Symbol.Undefined, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrActivationFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]
@@ -217,6 +230,8 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
         Assert.Equal(42d, result);
         Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains("simple-ir-return-fast-path func=probe argc=0", StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Theory(Timeout = 5000)]

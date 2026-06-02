@@ -92,6 +92,18 @@ states that the opcode inventory and VM switch are expected to stay in lockstep.
 The remaining work is mostly semantic admission: activation, calls, dynamic
 lookup, driver state, destructuring, and fallback-route retirement.
 
+## Latest Concrete Admissions
+
+Use this section as the visible progress ledger. Add a row whenever a real
+source shape starts using the production unified-bytecode VM, a fallback route
+is removed, or a proof gate becomes stricter.
+
+| Date | Gate surface | Concrete movement | Proof signal |
+|---|---|---|---|
+| 2026-06-02 | `pre-gate:hasParameterExpressions` | Ordinary sync functions with simple identifier parameters and literal defaults now initialize default values directly into VM parameter slots, including materialized activation environments used by nested closures. Non-literal defaults still use the existing parameter environment route. | Focused default-literal route-hit tests; `UnifiedBytecodeProduction` pack. |
+| 2026-06-02 | `pre-gate:hasParameterExpressions` / `pre-gate:IsArrowFunction` | Arrow functions with the same simple literal-default parameter shape now share the production slot-initialization path. Non-literal arrow defaults still decline. | Focused arrow default-literal route-hit tests; `UnifiedBytecodeProduction` pack. |
+| 2026-06-02 | `pre-gate:hasParameterExpressions` plus bounded `pre-gate:usesArguments` | Ordinary sync functions with simple literal defaults now enter production unified bytecode when the existing implicit-arguments read predicate owns the body, such as `typeof arguments`. Broader `arguments.length` and `arguments[0]` expression combinations remain pending. | Focused default-plus-implicit-arguments route-hit tests; `UnifiedBytecodeProduction` pack. |
+
 ## Better Progress Meter
 
 Do not use `Production Decline Families` alone as the progress meter. The

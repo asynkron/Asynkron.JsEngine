@@ -3382,7 +3382,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             var canUseFinalRestParameterPath =
                 CanUseProductionUnifiedBytecodeFinalRestParameterPath();
             var canUseSimpleLiteralDefaultParameterPath =
-                CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath();
+                CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
+                    canUseImplicitArgumentsObjectReadPath);
             var hasAdmittedParameterShape =
                 _hasOnlySimpleIdentifierParameters ||
                 canUseSimpleLiteralDefaultParameterPath ||
@@ -3531,15 +3532,16 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
         }
 
-        private bool CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath()
+        private bool CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath(
+            bool allowArgumentsObjectDependency = false)
         {
             return !IsClassConstructor &&
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
                    _hasParameterExpressions &&
-                   !_usesArguments &&
-                   !_needsArgumentsBinding &&
+                   (!_usesArguments && !_needsArgumentsBinding ||
+                    allowArgumentsObjectDependency && !IsArrowFunction) &&
                    _allowIdentifierCache &&
                    _lexicalThisEnvironment is null &&
                    _homeObject is null &&

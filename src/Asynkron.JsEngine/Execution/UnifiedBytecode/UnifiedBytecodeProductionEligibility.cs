@@ -4278,6 +4278,17 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (TryMeasureSimpleUnaryOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
         if (IsSimpleOperand(
                 operation,
                 identifierConstants,
@@ -4285,6 +4296,33 @@ internal static class UnifiedBytecodeProductionEligibility
                 allowsDynamicIdentifiers))
         {
             spanLength = 1;
+            return true;
+        }
+
+        spanLength = 0;
+        return false;
+    }
+
+    private static bool TryMeasureSimpleUnaryOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        if (startIndex + 1 >= program.OperationCount)
+        {
+            spanLength = 0;
+            return false;
+        }
+
+        var operand = program.GetOperation(startIndex);
+        var unary = program.GetOperation(startIndex + 1);
+        if (IsSimpleOperand(operand, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
+            IsSimpleUnaryOperator(unary.Kind))
+        {
+            spanLength = 2;
             return true;
         }
 
@@ -4339,6 +4377,15 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = 0;
         return false;
+    }
+
+    private static bool IsSimpleUnaryOperator(ExpressionOpKind kind)
+    {
+        return kind is ExpressionOpKind.UnaryPlus or
+            ExpressionOpKind.UnaryMinus or
+            ExpressionOpKind.UnaryLogicalNot or
+            ExpressionOpKind.UnaryBitwiseNot or
+            ExpressionOpKind.UnaryVoid;
     }
 
     private static bool TryMeasureSimpleIdentifierCallOperandSpan(

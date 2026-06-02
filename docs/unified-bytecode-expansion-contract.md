@@ -165,6 +165,18 @@ statement interpretation.
   identifier bases such as the global `Math` object and invoke named members
   through the normal `PrepareNamedCallTarget` plus `CallInvocationBoundary`
   contract.
+- Top-level script programs that resolve a `typeof <identifier>` to a
+  block-scoped lexical binding decline the production route. On the flat-slot
+  script path a block-scoped `let` / `const` (such as a `for (let i ...)`
+  counter) keeps its flat slot after its block exits, so a `TypeOfIdentifier`
+  read against that slot would observe the binding's stale value instead of
+  `"undefined"`. `UnifiedBytecodeProductionEligibility.EvaluateScript` declines
+  these scripts (`TryFindBlockScopedTypeOfIdentifierLeak`) so they run via the
+  scope-chain-aware IR runner, which performs a runtime environment lookup that
+  respects block scope. The companion script-root-slot fast path in
+  `ExecutionPlanBuilder` applies the same guard via
+  `ScriptFastPathBlockBindingLeakDetector` for any out-of-scope reference to a
+  block-scoped lexical binding.
 - `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
   the VM owns dispatch and stack/slot state, then applies an already-lowered
   `BindingTargetProgram` for assignment destructuring parity. This is not a

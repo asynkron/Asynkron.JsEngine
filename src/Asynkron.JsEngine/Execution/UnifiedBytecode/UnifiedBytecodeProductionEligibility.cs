@@ -800,7 +800,12 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (program.GetOperation(i).Kind == ExpressionOpKind.ArraySpread &&
-                !IsOperationInSimpleArrayLiteralSpan(program, i, identifierConstants, activationSlots))
+                !IsOperationInSimpleArrayLiteralSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
@@ -809,7 +814,12 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (program.GetOperation(i).Kind == ExpressionOpKind.ObjectSpread &&
-                !IsOperationInSimpleObjectLiteralSpan(program, i, identifierConstants, activationSlots))
+                !IsOperationInSimpleObjectLiteralSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.ObjectLiteralOrSpreadDependency;
                 declineReason =
@@ -893,8 +903,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots) ||
-                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    if (IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
+                        IsOperationInSimpleObjectLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -918,8 +938,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots) ||
-                        IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    if (IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
+                        IsOperationInSimpleObjectLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1525,7 +1555,12 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.ArraySpread:
-                    if (IsOperationInSimpleArrayLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    if (IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1542,7 +1577,12 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.ObjectSpread:
-                    if (IsOperationInSimpleObjectLiteralSpan(program, operationIndex, identifierConstants, activationSlots))
+                    if (IsOperationInSimpleObjectLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -3901,7 +3941,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     i,
                     identifierConstants,
                     activationSlots,
-                    out var callSpanLength))
+                    out var callSpanLength,
+                    allowsDynamicIdentifiers))
             {
                 i += callSpanLength;
             }
@@ -4052,7 +4093,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     i,
                     identifierConstants,
                     activationSlots,
-                    out var spreadCallSpanLength) &&
+                    out var spreadCallSpanLength,
+                    allowsDynamicIdentifiers) &&
                 i + spreadCallSpanLength < program.OperationCount &&
                 program.GetOperation(i + spreadCallSpanLength).Kind == ExpressionOpKind.ObjectSpread)
             {
@@ -4195,7 +4237,8 @@ internal static class UnifiedBytecodeProductionEligibility
         int startIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
-        out int spanLength)
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
     {
         if (startIndex + 1 >= program.OperationCount)
         {
@@ -4233,7 +4276,8 @@ internal static class UnifiedBytecodeProductionEligibility
         int startIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ActivationSlotShape activationSlots,
-        out int spanLength)
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
     {
         spanLength = 0;
         if (startIndex + 2 >= program.OperationCount)
@@ -4241,7 +4285,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!IsSimpleOperand(program.GetOperation(startIndex), identifierConstants, activationSlots))
+        if (!IsSimpleOperand(program.GetOperation(startIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4258,7 +4302,7 @@ internal static class UnifiedBytecodeProductionEligibility
         var argCount = 0;
         var operationIndex = startIndex + 2;
         while (operationIndex < program.OperationCount &&
-               IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots))
+               IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
         {
             argCount++;
             operationIndex++;
@@ -4287,7 +4331,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         int operationIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         for (var startIndex = 0; startIndex <= operationIndex; startIndex++)
         {
@@ -4301,7 +4346,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     startIndex,
                     identifierConstants,
                     activationSlots,
-                    out var spanLength) &&
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
                 operationIndex < startIndex + spanLength)
             {
                 return true;
@@ -4315,7 +4361,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ExpressionProgram program,
         int operationIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers = false)
     {
         for (var startIndex = 0; startIndex <= operationIndex; startIndex++)
         {
@@ -4329,7 +4376,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     startIndex,
                     identifierConstants,
                     activationSlots,
-                    out var spanLength) &&
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
                 operationIndex < startIndex + spanLength)
             {
                 return true;

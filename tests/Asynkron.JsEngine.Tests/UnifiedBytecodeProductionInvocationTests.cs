@@ -4007,6 +4007,27 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_ArraySpreadWithCapturedDirectNamedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeSpread(source, take) {
+                return () => [...source.slice(0, take)];
+            }
+
+            var spread = makeSpread([40, 2, 99], 2);
+            var result = spread();
+            result[0] + result[1];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ObjectSpreadWithDirectNamedCallSource_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();
@@ -4022,6 +4043,26 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=spreadObject",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_ObjectSpreadWithCapturedDirectNamedCallSource_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeSpread(source, take) {
+                return () => ({ ...source.slice(0, take) });
+            }
+
+            var spread = makeSpread([42, 99], 1);
+            spread()[0];
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
                 StringComparison.Ordinal));
     }
 

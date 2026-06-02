@@ -484,6 +484,19 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        // The production VM does not implement same-function tail-call optimization. A call expression
+        // returned from inside a finally block is a tail position per spec (the finally completion
+        // overrides the protected block), so deep self-recursion through such a return must run on the
+        // TCO-capable IR runner (ExecutionPlanRunner) instead of the VM; otherwise the native call stack
+        // grows unbounded and overflows. Decline so these functions route to the IR runner.
+        if (ContainsCallReturnReachableFromFinally(plan))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+            declineReason =
+                "A call returned from within a finally block is a tail position and requires the tail-call-optimizing IR runner; not eligible for production unified bytecode routing.";
+            return true;
+        }
+
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             if (activeWithDepths[instructionIndex] < 0)
@@ -612,6 +625,129 @@ internal static class UnifiedBytecodeProductionEligibility
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    ///     Returns true when the plan contains a <c>return &lt;call&gt;;</c> reachable inside a finally
+    ///     block. Such a return is in tail position (the finally completion overrides the protected
+    ///     block), but the production VM has no tail-call optimization, so deep self-recursion through it
+    ///     would overflow the native stack. These functions must run on the TCO-capable IR runner.
+    /// </summary>
+    private static bool ContainsCallReturnReachableFromFinally(ExecutionPlan plan)
+    {
+        var instructions = plan.Instructions;
+        for (var i = 0; i < instructions.Length; i++)
+        {
+            if (instructions[i] is EnterTryInstruction { FinallyIndex: >= 0 } enterTry &&
+                FinallyRegionContainsCallReturn(instructions, enterTry.FinallyIndex))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FinallyRegionContainsCallReturn(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int finallyIndex)
+    {
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        pending.Push(finallyIndex);
+        while (pending.Count > 0)
+        {
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || !visited.Add(index))
+            {
+                continue;
+            }
+
+            var instruction = instructions[index];
+
+            // The finally body terminates at its EndFinally marker; do not traverse past it so that we
+            // only inspect instructions that execute as part of the finally block itself.
+            if (instruction is EndFinallyInstruction)
+            {
+                continue;
+            }
+
+            if (instruction is ReturnInstruction { AwaitedProgram: null, ReturnProgram: { } returnProgram } &&
+                ExpressionProgramContainsCall(returnProgram))
+            {
+                return true;
+            }
+
+            switch (instruction)
+            {
+                case ReturnInstruction:
+                case ThrowInstruction:
+                    break;
+
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+
+                case JumpInstruction jump:
+                    pending.Push(jump.TargetIndex);
+                    break;
+
+                case BreakInstruction breakInstruction:
+                    pending.Push(breakInstruction.TargetIndex);
+                    break;
+
+                case ContinueInstruction continueInstruction:
+                    pending.Push(continueInstruction.TargetIndex);
+                    break;
+
+                case EnterTryInstruction nestedTry:
+                    if (nestedTry.HandlerIndex >= 0)
+                    {
+                        pending.Push(nestedTry.HandlerIndex);
+                    }
+
+                    if (nestedTry.FinallyIndex >= 0)
+                    {
+                        pending.Push(nestedTry.FinallyIndex);
+                    }
+
+                    if (nestedTry.EndFinallyIndex >= 0)
+                    {
+                        pending.Push(nestedTry.EndFinallyIndex);
+                    }
+
+                    if (instruction.Next >= 0)
+                    {
+                        pending.Push(instruction.Next);
+                    }
+
+                    break;
+
+                default:
+                    if (instruction.Next >= 0)
+                    {
+                        pending.Push(instruction.Next);
+                    }
+
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramContainsCall(ExpressionProgram program)
+    {
+        for (var i = 0; i < program.OperationCount; i++)
+        {
+            if (program.GetOperation(i).Kind == ExpressionOpKind.Call)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

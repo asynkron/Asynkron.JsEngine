@@ -110,16 +110,18 @@ all-or-nothing until a separate routing issue proves production readiness.
      route body-shaped, not just descriptor-shaped. Base constructors may route
      only when the invocation bridge creates the constructed `this`, supplies the
      base constructor environment, and the body otherwise satisfies the ordinary
-     production plan shape. The first admitted derived slice is explicit
-     non-spread `super(...)` execution in a derived constructor body that does
-     not read or write `this` afterward. Default derived constructors, instance
-     fields, private scopes, parameter expressions, spread `super` arguments,
-     derived post-`super()` `this` access, and super property access must stay
-     on the existing constructor path until the VM owns the initialized-receiver
-     semantics for that shape. Prove route hits for base constructor `this`
-     initialization, base constructor object returns, and `super(value)` /
-     `super()`; prove no-route behavior for nearby instance-field, spread-super,
-     default-derived, and post-`super()` `this` assignment cases.
+     production plan shape; simple identifier parameters, simple literal-default
+     parameters, and final-rest identifier parameters are the admitted parameter
+     variants. Explicit derived constructors may route when the derived
+     environment bridge owns the same admitted parameter variants and the body is
+     otherwise on the proven `super(...)` route, including separately proven
+     post-`super()` `this`/field/private-brand shapes. Runtime-dependent default
+     parameter expressions, destructured parameters, observable `arguments`, and
+     unowned super property access must stay on the existing constructor path
+     until the VM owns those semantics for that shape. Prove route hits for base
+     constructor `this` initialization, base constructor object returns,
+     `super(value)` / `super()`, admitted constructor parameter variants, and
+     nearby no-route behavior for runtime defaults and destructuring.
 10b. Treat `arguments` as an arguments-object dependency only after binding
      resolution proves it is not an ordinary activation slot. A parameter named
      `arguments` or a lexical body binding named `arguments` is regular slot

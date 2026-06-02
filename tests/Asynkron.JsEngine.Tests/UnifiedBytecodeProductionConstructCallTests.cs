@@ -586,6 +586,116 @@ public sealed class UnifiedBytecodeProductionConstructCallTests(ITestOutputHelpe
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithSimpleLiteralDefaultParameter_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(value = 42) {
+                    super(value);
+                }
+            }
+
+            new Derived().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithFinalRestParameter_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(values) {
+                    this.values = values;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(prefix, ...items) {
+                    super(items);
+                }
+            }
+
+            new Derived(40, 1, 2).values.length;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithRuntimeDefaultParameter_DoesNotUseProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var fallback = 42;
+
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor(value = fallback) {
+                    super(value);
+                }
+            }
+
+            new Derived().value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DerivedConstructorWithDestructuredParameter_DoesNotUseProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            class Derived extends Base {
+                constructor({ value }) {
+                    super(value);
+                }
+            }
+
+            new Derived({ value: 42 }).value;
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=Derived",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DerivedConstructorWithInstanceField_UsesProductionFastPathAndInitializesAfterSuper()
     {
         await using var engine = CreateEngine();

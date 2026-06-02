@@ -3401,8 +3401,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 _hasOnlySimpleIdentifierParameters ||
                 canUseSimpleLiteralDefaultParameterPath ||
                 canUseFinalRestParameterPath ||
-                canUseBaseClassConstructorPath ||
-                _function.IsDefaultDerivedConstructor && canUseDerivedClassConstructorPath;
+                canUseDerivedClassConstructorPath ||
+                canUseBaseClassConstructorPath;
             var activation = CreateProductionUnifiedBytecodeActivationDescriptor(
                 canUseDynamicNamePath,
                 canUseOrdinaryDynamicNamePath,
@@ -3417,6 +3417,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     out _) ||
                 _hasParameterExpressions &&
                 !canUseSimpleLiteralDefaultParameterPath &&
+                !canUseDerivedClassConstructorPath &&
                 !canUseBaseClassConstructorPath ||
                 !hasAdmittedParameterShape ||
                 !_instanceFields.IsDefaultOrEmpty &&
@@ -3808,16 +3809,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ExecutionPlan plan,
             JsValue newTarget)
         {
+            var hasAdmittedParameterShape =
+                !_hasParameterExpressions && _hasOnlySimpleIdentifierParameters ||
+                _hasParameterExpressions && HasOnlySimpleIdentifierOrLiteralDefaultParameters() ||
+                !_hasParameterExpressions && TryGetProductionUnifiedBytecodeFinalRestParameterIndex(out _) ||
+                _function.IsDefaultDerivedConstructor && TryGetDefaultDerivedConstructorRestParameter(out _);
             return IsClassConstructor &&
                    _isDerivedClassConstructor &&
                    !newTarget.IsUndefined &&
                    !IsArrowFunction &&
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
-                   !_hasParameterExpressions &&
-                   (_hasOnlySimpleIdentifierParameters ||
-                    _function.IsDefaultDerivedConstructor &&
-                    TryGetDefaultDerivedConstructorRestParameter(out _)) &&
+                   hasAdmittedParameterShape &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _lexicalThisEnvironment is null &&

@@ -243,6 +243,81 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedThenComputedReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.prop[key]);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            var present = invoke(id, { prop: { k: 11 } }, "k");
+            var missingHead = invoke(id, null, "k");
+            (present === 11 && missingHead === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedThenComputedBinaryKeyArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, a, b) {
+                return fn(box?.prop[a + b]);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            var present = invoke(id, { prop: { ab: 9 } }, "a", "b");
+            var missingHead = invoke(id, null, "a", "b");
+            (present === 9 && missingHead === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=4",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithDeepOptionalNamedThenComputedReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box, key) {
+                return fn(box?.a.b[key]);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            var present = invoke(id, { a: { b: { k: 7 } } }, "k");
+            var missingHead = invoke(id, null, "k");
+            (present === 7 && missingHead === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task IdentifierCallWithOptionalComputedThenNamedReadChainArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

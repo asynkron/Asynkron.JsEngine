@@ -1469,6 +1469,13 @@ internal static class UnifiedBytecodeProductionEligibility
                             break;
                         }
 
+                        // `fn(box?.prop[key])` — optional-named-then-plain-computed read used as a
+                        // call argument; the program ends in a Call rather than the standalone shape.
+                        if (TryIsOptionalNamedThenComputedReadCallArgumentOperation(program, operationIndex, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         declineCode = UnifiedBytecodeProductionDeclineCode.OptionalChainDependency;
                         declineReason =
                             "Optional-chain computed property reads are outside the first production property-read boundary.";
@@ -3463,6 +3470,95 @@ internal static class UnifiedBytecodeProductionEligibility
             activationSlots);
     }
 
+    // Recognizes the chain-short-circuit GetComputedProperty op that belongs to an
+    // optional-named-then-plain-computed read chain (`box?.prop[key]`, `box?.a.b[key]`)
+    // used as a call argument. The span is [simple base, GetNamedProperty(IsOptional,
+    // !SC), GetNamedProperty(!IsOptional, SC)*, key.., GetComputedProperty(!IsOptional,
+    // SC)] and the enclosing program ends in a Call. A second optional hop
+    // (`box?.prop?.[key]`) emits a JumpIfNullish instead and is not matched here, so it
+    // still declines as OptionalChainDependency.
+    private static bool TryIsOptionalNamedThenComputedReadCallArgumentOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operationIndex < 0 || operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        if (program.GetOperation(program.OperationCount - 1).Kind != ExpressionOpKind.Call)
+        {
+            return false;
+        }
+
+        var computedOp = program.GetOperation(operationIndex);
+        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+            computedOp.IsOptional ||
+            !computedOp.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        // Walk back over the supported computed key span and the named continuation/hop
+        // prefix to confirm the optional-named-then-computed shape rooted at a simple base.
+        var stringConstants = program.StringConstants.AsSpan();
+        var hopIndex = -1;
+        for (var spanStart = 1; spanStart < operationIndex; spanStart++)
+        {
+            var hop = program.GetOperation(spanStart);
+            if (hop.Kind != ExpressionOpKind.GetNamedProperty ||
+                !hop.IsOptional ||
+                hop.ShortCircuitOnNullishTarget ||
+                hop.GetString(stringConstants).IsPrivateName())
+            {
+                continue;
+            }
+
+            if (!IsSimpleOperand(
+                    program.GetOperation(spanStart - 1),
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers: true))
+            {
+                continue;
+            }
+
+            hopIndex = spanStart;
+            break;
+        }
+
+        if (hopIndex < 1)
+        {
+            return false;
+        }
+
+        // Plain named continuations between the optional hop and the computed key span.
+        var keyStart = hopIndex + 1;
+        while (keyStart < operationIndex)
+        {
+            var continuation = program.GetOperation(keyStart);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            keyStart++;
+        }
+
+        return IsSupportedComputedPropertyKeySpan(
+            program,
+            keyStart,
+            operationIndex,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers: true);
+    }
+
     private static bool TryIsFirstBoundaryCallTargetPreparationCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -4545,6 +4641,17 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryMeasureSimpleOptionalNamedThenComputedReadOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var optionalNamedThenComputedSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + optionalNamedThenComputedSpanLen <= callIndex)
+            {
+                operationIndex += optionalNamedThenComputedSpanLen;
+            }
             else if (TryMeasureSimpleOptionalNamedReadChainOperandSpan(
                          program,
                          operationIndex,
@@ -5364,6 +5471,105 @@ internal static class UnifiedBytecodeProductionEligibility
 
         spanLength = index - startIndex;
         return true;
+    }
+
+    // Measures an optional-named-then-plain-computed read operand span used as a call
+    // argument (`box?.prop[key]`, `box?.prop[a + b]`, `box?.a.b[key]`): a simple base
+    // operand, an optional named hop (GetNamedProperty(IsOptional, !SC, non-private)),
+    // zero or more plain named continuations (GetNamedProperty(!IsOptional, SC,
+    // non-private)), a supported computed key span, and a chain-short-circuit
+    // GetComputedProperty (!IsOptional, SC). A nullish base short-circuits the whole
+    // chain to undefined. A second optional hop (`box?.prop?.[key]`) carries its own
+    // JumpIfNullish and is not consumed here, so it still declines.
+    private static bool TryMeasureSimpleOptionalNamedThenComputedReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 3 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var firstHop = program.GetOperation(startIndex + 1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        // Plain named continuations (`box?.a.b[key]`) before the computed read.
+        var keyStart = startIndex + 2;
+        while (keyStart < program.OperationCount)
+        {
+            var continuation = program.GetOperation(keyStart);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(stringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            keyStart++;
+        }
+
+        // Locate the chain-short-circuit computed read after the key span.
+        for (var computedIndex = keyStart + 1; computedIndex < program.OperationCount; computedIndex++)
+        {
+            var computedOp = program.GetOperation(computedIndex);
+            if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+                computedOp.IsOptional ||
+                !computedOp.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            if (!IsSupportedComputedPropertyKeySpan(
+                    program,
+                    keyStart,
+                    computedIndex,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                break;
+            }
+
+            // Trailing plain named continuations (`box?.prop[key].child`) carry the chain
+            // short-circuit flag; an optional continuation hop is not consumed here.
+            var index = computedIndex + 1;
+            while (index < program.OperationCount)
+            {
+                var continuation = program.GetOperation(index);
+                if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                    continuation.IsOptional ||
+                    !continuation.ShortCircuitOnNullishTarget ||
+                    continuation.GetString(stringConstants).IsPrivateName())
+                {
+                    break;
+                }
+
+                index++;
+            }
+
+            spanLength = index - startIndex;
+            return true;
+        }
+
+        return false;
     }
 
     // Measures a baseline optional computed property-read operand span

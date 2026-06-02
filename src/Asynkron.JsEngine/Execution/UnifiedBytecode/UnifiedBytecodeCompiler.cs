@@ -6221,6 +6221,20 @@ internal static class UnifiedBytecodeCompiler
                 {
                     operationIndex += binarySpanLen;
                 }
+                else if (TryAppendSimplePropertyReadOperandSpan(
+                             expressionProgram,
+                             operationIndex,
+                             callIndex,
+                             activationSlots,
+                             allowsDynamicIdentifiers,
+                             unified,
+                             literalConstants,
+                             stringConstants,
+                             out var propertyReadSpanLen,
+                             out reason))
+                {
+                    operationIndex += propertyReadSpanLen;
+                }
                 else if (TryAppendSimpleOperandLoadWithDynamic(
                              op,
                              expressionProgram,
@@ -6251,6 +6265,20 @@ internal static class UnifiedBytecodeCompiler
                          out reason))
             {
                 operationIndex += binarySpanLen;
+            }
+            else if (TryAppendSimplePropertyReadOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var propertyReadSpanLen,
+                         out reason))
+            {
+                operationIndex += propertyReadSpanLen;
             }
             else
             {

@@ -630,7 +630,8 @@ the final post-compile production subset check before VM entry.
   activation-resolved identifier calls, direct named member calls whose
   optional-free named receiver chain is activation-resolved, and direct computed
   member calls whose receiver chain remains inside the shallow computed-call
-  boundary. Arguments may be simple literal or slot operands, or simple
+  boundary. Arguments may be simple literal or slot operands, simple
+  named/computed property-read spans (`box.count`, `box[key]`), or simple
   array/object literal spans (`[a, b]`, `{x: a, y: b}`), including nested
   simple, simple-binary, simple-unary, simple-property-read, simple-control-
   expression, or simple-`typeof` array/object/template literal values or elements
@@ -694,14 +695,15 @@ the final post-compile production subset check before VM entry.
   a nullish short-circuit jump target and jump past argument lowering and the
   call boundary when the callee is nullish. Identifier-call arguments can be
   activation-slot or admitted dynamic identifier operands, including
-  simple-binary spans over those operands and simple array/object/template
-  literal spans containing those operands.
+  simple-binary spans, simple named/computed property-read spans, and simple
+  array/object/template literal spans containing those operands.
 - Accepted named member-call programs use `PrepareNamedCallTarget` followed by
   `CallInvocationBoundary`; the VM keeps the final receiver on the stack, loads
   the named callee from that receiver, and invokes through the existing
   receiver-as-`this` stack contract. Member-call arguments can use the same
   activation-slot or admitted dynamic identifier operands, simple-binary spans,
-  and simple array/object/template literal spans as
+  simple named/computed property-read spans, and simple array/object/template
+  literal spans as
   identifier calls when the receiver/key boundary is otherwise admitted.
 - Accepted computed member-call programs use `PrepareComputedCallTarget`
   followed by `CallInvocationBoundary`; the VM keeps the final receiver on the

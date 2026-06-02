@@ -1385,6 +1385,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (isCallTargetPreparationCandidate)
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryComputedPropertyReadChainCandidate(
                             program,
                             identifierConstants,
@@ -4111,6 +4116,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 {
                     operationIndex += binarySpanLen;
                 }
+                else if (TryMeasureSimplePropertyReadOperandSpan(
+                             program,
+                             operationIndex,
+                             identifierConstants,
+                             activationSlots,
+                             out var propertyReadSpanLen,
+                             allowsDynamicIdentifiers) &&
+                         operationIndex + propertyReadSpanLen <= callIndex)
+                {
+                    operationIndex += propertyReadSpanLen;
+                }
                 else
                 {
                     // Standalone literal — same as IsSimpleOperand.
@@ -4127,6 +4143,17 @@ internal static class UnifiedBytecodeProductionEligibility
                          out var binarySpanLen))
             {
                 operationIndex += binarySpanLen;
+            }
+            else if (TryMeasureSimplePropertyReadOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var propertyReadSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + propertyReadSpanLen <= callIndex)
+            {
+                operationIndex += propertyReadSpanLen;
             }
             else if (IsSimpleOperand(op, identifierConstants, activationSlots, allowsDynamicIdentifiers))
             {

@@ -303,6 +303,31 @@ public sealed class StaticClassFieldsTests(ITestOutputHelper output) : InternalT
     }
 
     [Fact(Timeout = 2000)]
+    public async Task ComputedHashStringKey_TreatedAsOrdinaryProperty_AcrossSetUpdateDelete()
+    {
+        // A computed member access with a '#'-prefixed STRING key (`obj["#x"]`) is an
+        // ordinary property, NOT a private member. The production VM must not route the
+        // computed set/update/compound/delete paths through private resolution.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function run(o) {
+                o["#x"] = 1;        // SetComputedProperty
+                o["#x"] += 4;       // GetComputedPropertyForCompoundSet + SetComputedProperty
+                o["#x"]++;          // update
+                var read = o["#x"]; // GetComputedProperty
+                var deleted = delete o["#x"];
+                return [read, deleted, ("#x" in o)];
+            }
+            run({});
+            """);
+
+        var array = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(6d, array.Items[0].NumberValue); // 1 + 4, then ++ => 6
+        Assert.True(array.Items[1].AsBoolean());       // delete succeeded
+        Assert.False(array.Items[2].AsBoolean());      // property gone
+    }
+
+    [Fact(Timeout = 2000)]
     public async Task Instance_Method_Cannot_Access_Static_Field_Via_This()
     {
         await using var engine = CreateEngine();

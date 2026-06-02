@@ -59,6 +59,60 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithOptionalNamedPropertyReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box) {
+                return fn(box?.value);
+            }
+
+            function id(v) {
+                return v;
+            }
+
+            var present = invoke(id, { value: 42 });
+            var missing = invoke(id, null);
+            (present === 42 && missing === undefined) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedMemberCallWithOptionalNamedPropertyReadArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(sink, box) {
+                return sink.add(box?.value);
+            }
+
+            var sink = {
+                total: 0,
+                add(v) {
+                    this.total += (v === undefined ? 100 : v);
+                    return this.total;
+                }
+            };
+
+            var present = invoke(sink, { value: 5 });
+            var missing = invoke(sink, null);
+            (present === 5 && missing === 105) ? 1 : 0;
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -6373,6 +6373,20 @@ internal static class UnifiedBytecodeCompiler
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryAppendSimpleOptionalNamedPropertyReadOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var optionalNamedReadSpanLen,
+                         out reason))
+            {
+                operationIndex += optionalNamedReadSpanLen;
+            }
             else
             {
                 // Spread arguments push the iterable value; flattening happens at the
@@ -8061,6 +8075,81 @@ internal static class UnifiedBytecodeCompiler
         RollBackUnifiedBuilder(literalConstants, literalCount);
         RollBackUnifiedBuilder(stringConstants, stringCount);
         reason = "Failed to emit measured named property read span.";
+        return false;
+    }
+
+    // Emits a baseline optional named property-read operand span (`box?.value`):
+    // a simple base operand load followed by a single GetNamedPropertyOptional.
+    // The optional opcode yields undefined for a nullish base, so no short-circuit
+    // jump is needed. Chained optional reads carry a ShortCircuitOnNullishTarget
+    // continuation hop and are not handled here.
+    private static bool TryAppendSimpleOptionalNamedPropertyReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        spanLength = 0;
+        reason = string.Empty;
+        if (startIndex + 1 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var namedRead = expressionProgram.GetOperation(startIndex + 1);
+        if (namedRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            !namedRead.IsOptional ||
+            namedRead.ShortCircuitOnNullishTarget ||
+            namedRead.GetString(expressionStringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var propertyNameIndex = stringConstants.Count;
+        stringConstants.Add(namedRead.GetString(expressionStringConstants));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.GetNamedPropertyOptional,
+            propertyNameIndex));
+
+        if (unified.Count > unifiedCount)
+        {
+            spanLength = 2;
+            reason = string.Empty;
+            return true;
+        }
+
+        RollBackUnifiedBuilder(unified, unifiedCount);
+        RollBackUnifiedBuilder(literalConstants, literalCount);
+        RollBackUnifiedBuilder(stringConstants, stringCount);
+        reason = "Failed to emit measured optional named property read span.";
         return false;
     }
 

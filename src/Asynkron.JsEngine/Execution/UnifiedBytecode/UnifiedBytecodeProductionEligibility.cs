@@ -4264,6 +4264,17 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryMeasureSimpleOptionalNamedPropertyReadOperandSpan(
+                         program,
+                         operationIndex,
+                         identifierConstants,
+                         activationSlots,
+                         out var optionalNamedReadSpanLen,
+                         allowsDynamicIdentifiers) &&
+                     operationIndex + optionalNamedReadSpanLen <= callIndex)
+            {
+                operationIndex += optionalNamedReadSpanLen;
+            }
             else if (IsSimpleOperand(op, identifierConstants, activationSlots, allowsDynamicIdentifiers))
             {
                 operationIndex++;
@@ -4929,6 +4940,44 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         spanLength = i - startIndex;
+        return true;
+    }
+
+    // Measures a baseline optional named property-read operand span: a simple base
+    // operand followed by a single optional GetNamedProperty (`box?.value`). The
+    // optional GetNamedProperty yields undefined for a nullish base without a
+    // short-circuit jump, so it is a self-contained operand. Chained optional reads
+    // (`box?.value?.nested`) carry a ShortCircuitOnNullishTarget continuation hop and
+    // are not admitted by this baseline span.
+    private static bool TryMeasureSimpleOptionalNamedPropertyReadOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers)
+    {
+        spanLength = 0;
+        if (startIndex + 1 >= program.OperationCount ||
+            !IsSimpleOperand(
+                program.GetOperation(startIndex),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var namedRead = program.GetOperation(startIndex + 1);
+        if (namedRead.Kind != ExpressionOpKind.GetNamedProperty ||
+            !namedRead.IsOptional ||
+            namedRead.ShortCircuitOnNullishTarget ||
+            namedRead.GetString(program.StringConstants.AsSpan()).IsPrivateName())
+        {
+            return false;
+        }
+
+        spanLength = 2;
         return true;
     }
 

@@ -982,6 +982,18 @@ internal static class UnifiedBytecodeCompiler
                                 return false;
                             }
 
+                            // §13.15.2: with no static slot resolution, resolve the LHS
+                            // assignment reference BEFORE evaluating the RHS so that an RHS
+                            // side effect (e.g. creating a matching global property) cannot
+                            // change whether the LHS was originally resolvable. This mirrors
+                            // ExecutionPlanRunner.HandleAssignmentSlot's pre-resolved-reference
+                            // path and keeps strict-mode unresolved-reference ReferenceErrors.
+                            var dynamicAssignmentNameIndex = stringConstants.Count;
+                            stringConstants.Add(assignmentTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference,
+                                dynamicAssignmentNameIndex));
+
                             if (!TryAppendExpressionProgramOps(
                                     valueProgram,
                                     slotLayout,
@@ -999,11 +1011,9 @@ internal static class UnifiedBytecodeCompiler
                                 return false;
                             }
 
-                            AppendDynamicStoreInstruction(
-                                assignmentTargetSymbol,
-                                assignment.AllowNameInference,
-                                unified,
-                                stringConstants);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.StoreDynamicIdentifierReference,
+                                EncodeDynamicStoreOperand(dynamicAssignmentNameIndex, assignment.AllowNameInference)));
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
                             maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(valueProgram));
                             if (TryAppendJumpToCompiledTarget(

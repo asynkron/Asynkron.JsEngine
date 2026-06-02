@@ -4248,12 +4248,6 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.DeleteIdentifier:
                     var deleteIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
-                    if (IsImplicitArgumentsIdentifier(deleteIdentifier, slotLayout))
-                    {
-                        reason = "arguments delete is not supported.";
-                        return false;
-                    }
-
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =

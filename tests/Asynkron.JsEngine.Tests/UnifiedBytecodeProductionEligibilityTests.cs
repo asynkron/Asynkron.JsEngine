@@ -4249,6 +4249,27 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DeleteImplicitArgumentsObject_AcceptsDynamicIdentifierDelete()
+    {
+        var plan = GetFunctionPlan("""
+            function removeArguments() {
+                return delete arguments;
+            }
+            """,
+            "removeArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
+    }
+
+    [Fact]
     public void Evaluate_CallParameterNamedArguments_AcceptsAsActivationSlot()
     {
         var plan = GetFunctionPlan("""
@@ -4327,6 +4348,27 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_LiteralDefaultArgumentsDelete_AcceptsDynamicIdentifierDelete()
+    {
+        var plan = GetFunctionPlan("""
+            function removeArguments(value = 42) {
+                return value + ":" + (delete arguments);
+            }
+            """,
+            "removeArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteDynamicIdentifier);
     }
 
     [Fact]

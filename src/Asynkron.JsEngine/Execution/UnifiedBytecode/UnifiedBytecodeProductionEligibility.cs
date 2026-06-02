@@ -1113,7 +1113,11 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryNamedPropertyReadCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1247,7 +1251,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     declineCode = UnifiedBytecodeProductionDeclineCode.PropertyReadBoundaryOutOfScope;
                     declineReason =
-                        "Named property reads are outside the first production property-read boundary unless they are direct activation-resolved base reads or exact two-hop named chains.";
+                        "Named property reads are outside the first production property-read boundary unless they are activation-resolved or admitted dynamic-identifier base reads.";
                     return true;
 
                 case ExpressionOpKind.GetComputedProperty:
@@ -1902,14 +1906,17 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryNamedPropertyReadCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 2)
         {
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots) &&
+            !(allowsDynamicIdentifiers &&
+              TryGetPlainDynamicIdentifierReadValue(program.GetOperation(0), identifierConstants, activationSlots)))
         {
             return false;
         }
@@ -1926,6 +1933,21 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    private static bool TryGetPlainDynamicIdentifierReadValue(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots)
+    {
+        if (operation.Kind != ExpressionOpKind.LoadIdentifier || operation.IsArguments)
+        {
+            return false;
+        }
+
+        var identifier = operation.GetIdentifier(identifierConstants);
+        return identifier.FlatSlotId < 0 &&
+               !TryResolveActivationSlot(identifier, activationSlots);
     }
 
     private static bool TryIsFirstBoundaryObjectLiteralNamedPropertyReadCandidate(

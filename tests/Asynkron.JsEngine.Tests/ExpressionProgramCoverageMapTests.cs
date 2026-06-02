@@ -77,7 +77,7 @@ public sealed class ExpressionProgramCoverageMapTests
             "Evaluate_LinearSlotLiteralReturnPlan_Accepts",
             "Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm",
             "LinearSlotReturnFunction_UsesUnifiedBytecodeProductionFastPath",
-            "ArrowFunction_CapturedThis_DeclinesUnifiedBytecodeProductionFastPath",
+            "BinaryReturnFunction_KeepsExistingSpecializedFastPath",
             "SourceGate_ProductionUnifiedBytecodeAcceptedPath_DoesNotDelegateToAstOrExecutionPlanRunner")
     ];
 

@@ -150,11 +150,11 @@ statement interpretation.
   them. Parenthesized `yield (left && right)`, `return yield`, and `yield*`
   state/result shapes therefore compile and route without borrowing parameter
   slots.
-- Ordinary sync functions with plain leading identifier parameters and a final
-  rest identifier parameter can route through production unified bytecode. The
-  invocation bridge materializes the rest array into the rest parameter slot and
-  mirrors that binding into materialized call/dynamic environments before VM
-  entry.
+- Ordinary sync and arrow functions with plain leading identifier parameters
+  and a final rest identifier parameter can route through production unified
+  bytecode. The invocation bridge materializes the rest array into the rest
+  parameter slot and mirrors that binding into materialized call/dynamic
+  environments before VM entry when such an environment is needed.
 - `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
   the VM owns dispatch and stack/slot state, then applies an already-lowered
   `BindingTargetProgram` for assignment destructuring parity. This is not a
@@ -427,7 +427,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `pre-gate:IsClassConstructor` | Class constructor invokers outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route with post-super `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, unadmitted call-target, nested function/class literal, or other unowned dependency. Simple literal-default identifier parameters, including defaults folded to literals before invocation, are admitted on the same VM slot-initialization path as ordinary functions. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads/calls, captured identifier assignment/compound assignment/update/delete, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, unadmitted call-target, nested function/class literal, or other unowned dependency. Simple literal-default identifier parameters, including defaults folded to literals before invocation, and final-rest identifier parameters are admitted on the same VM slot-initialization path as ordinary functions. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads/calls, captured identifier assignment/compound assignment/update/delete, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:hasParameterExpressions` | Runtime-dependent default parameter expressions outside the admitted simple literal-default identifier route, where literal includes defaults folded to literals before invocation, including its bounded implicit-arguments read/property-read/update/assignment/delete/call-target variant, plus destructured parameter expressions; final rest identifier parameters are admitted when the surrounding activation is otherwise production-owned | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |

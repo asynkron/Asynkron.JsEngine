@@ -1397,6 +1397,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedPropertyWriteWithDynamicIdentifierBase_AcceptsWhenDynamicReadsAreAdmitted()
+    {
+        var plan = GetFunctionPlan("""
+            function write(value) {
+                return outer.value = value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetNamedProperty);
+        Assert.Equal(new[] { "outer", "value" }, result.Program.StringConstants);
+    }
+
+    [Fact]
     public void Evaluate_ComputedPropertyWriteCandidate_AcceptsOwnedPropertyOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -1414,6 +1438,30 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPropertyWriteWithDynamicIdentifierBase_AcceptsWhenDynamicReadsAreAdmitted()
+    {
+        var plan = GetFunctionPlan("""
+            function write(key, value) {
+                return outer[key] = value;
+            }
+            """,
+            "write");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
+        Assert.Equal(new[] { "outer" }, result.Program.StringConstants);
     }
 
     [Fact]

@@ -4575,7 +4575,11 @@ internal static class UnifiedBytecodeProductionEligibility
         // Named property write: [base, rhs..., SetNamedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetNamedProperty &&
             !lastOp.AllowNameInference &&
-            TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+            TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             var rhsStart = 1;
             var rhsEnd = program.OperationCount - 2;
@@ -4599,19 +4603,39 @@ internal static class UnifiedBytecodeProductionEligibility
         // Computed property write: [base, key..., value, SetComputedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetComputedProperty &&
             !lastOp.AllowNameInference &&
-            TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+            TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             var valueIndex = program.OperationCount - 2;
             return IsSupportedComputedPropertyKeySpan(
-                       program,
-                       startInclusive: 1,
-                       endExclusive: valueIndex,
+                   program,
+                   startInclusive: 1,
+                   endExclusive: valueIndex,
+                   identifierConstants,
+                   activationSlots,
+                   allowsDynamicIdentifiers) &&
+                   IsSimpleOperand(
+                       program.GetOperation(valueIndex),
                        identifierConstants,
-                       activationSlots) &&
-                   IsSimpleOperand(program.GetOperation(valueIndex), identifierConstants, activationSlots);
+                       activationSlots,
+                       allowsDynamicIdentifiers);
         }
 
         return false;
+    }
+
+    private static bool TryGetActivationOrPlainDynamicIdentifierReadValue(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        return TryGetActivationResolvedValue(operation, identifierConstants, activationSlots) ||
+               allowsDynamicIdentifiers &&
+               TryGetPlainDynamicIdentifierReadValue(operation, identifierConstants, activationSlots);
     }
 
     private static bool TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(

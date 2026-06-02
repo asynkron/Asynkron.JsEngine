@@ -654,6 +654,56 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NamedMemberCallExpressionPlan_WithDynamicArrayArgument_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box) {
+                return box.read([externalValue]);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedMemberCallExpressionPlan_WithDynamicArrayArgument_AcceptsExecutableInvocationBoundary()
+    {
+        var plan = GetFunctionPlan("""
+            function invoke(box, key) {
+                return box[key]([externalValue]);
+            }
+            """,
+            "invoke");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_ReceiverOptionalNamedCallExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         // gh2689: receiver-optional named call box?.read(value) is admitted.

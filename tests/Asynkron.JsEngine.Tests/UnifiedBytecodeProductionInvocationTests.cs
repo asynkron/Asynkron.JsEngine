@@ -7037,6 +7037,138 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_NamedMemberCallExpression_WithCapturedArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return this === box ? value + this.offset : -1;
+                }
+            };
+
+            function makeInvoker(value) {
+                return receiver => receiver.read(value);
+            }
+
+            var invoke = makeInvoker(41);
+            invoke(box);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_NamedMemberCallExpression_WithCapturedArrayArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                read(values) {
+                    return this === box ? values[0] : 0;
+                }
+            };
+
+            function makeInvoker(value) {
+                return receiver => receiver.read([value]);
+            }
+
+            var invoke = makeInvoker(42);
+            invoke(box);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_ComputedMemberCallExpression_WithCapturedArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return this === box ? value + this.offset : -1;
+                }
+            };
+
+            function makeInvoker(value) {
+                return (receiver, key) => receiver[key](value);
+            }
+
+            var invoke = makeInvoker(41);
+            invoke(box, "read");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_ComputedMemberCallExpression_WithCapturedArrayArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                read(values) {
+                    return this === box ? values[0] : 0;
+                }
+            };
+
+            function makeInvoker(value) {
+                return (receiver, key) => receiver[key]([value]);
+            }
+
+            var invoke = makeInvoker(42);
+            invoke(box, "read");
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CalleeOptionalNamedMemberCallExpression_WithCapturedArrayArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                read(values) {
+                    return this === box ? values[0] : 0;
+                }
+            };
+
+            function makeInvoker(value) {
+                return receiver => receiver.read?.([value]);
+            }
+
+            var invoke = makeInvoker(42);
+            invoke(box);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedIdentifierAssignmentExpression_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

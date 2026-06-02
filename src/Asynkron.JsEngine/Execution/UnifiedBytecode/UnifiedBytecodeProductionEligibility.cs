@@ -183,7 +183,11 @@ internal static class UnifiedBytecodeProductionEligibility
         EvaluateCore(plan, activation, isScript: false);
 
     public static UnifiedBytecodeProductionEligibilityResult EvaluateScript(ExecutionPlan plan) =>
-        EvaluateCore(plan, new UnifiedBytecodeProductionActivationDescriptor(), isScript: true);
+        EvaluateCore(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true),
+            isScript: true);
 
     private static UnifiedBytecodeProductionEligibilityResult EvaluateCore(
         ExecutionPlan plan,
@@ -856,6 +860,12 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             activationSlots,
             allowsDynamicIdentifiers);
+        var isGeneralNamedMemberCallExpressionCandidate = TryIsGeneralNamedMemberCallExpressionCandidate(
+            program,
+            identifierConstants,
+            stringConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
         var isConstructInvocationCandidate = TryIsConstructInvocationCandidate(program, identifierConstants, activationSlots);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
@@ -920,7 +930,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.LoadNamedCallTarget:
                 case ExpressionOpKind.LoadComputedCallTarget:
-                    if (isCallTargetPreparationCandidate)
+                    if (isCallTargetPreparationCandidate || isGeneralNamedMemberCallExpressionCandidate)
                     {
                         break;
                     }
@@ -955,7 +965,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     return true;
 
                 case ExpressionOpKind.Call:
-                    if (isCallTargetPreparationCandidate || isGeneralIdentifierCallExpressionCandidate)
+                    if (isCallTargetPreparationCandidate ||
+                        isGeneralIdentifierCallExpressionCandidate ||
+                        isGeneralNamedMemberCallExpressionCandidate)
                     {
                         break;
                     }
@@ -3312,7 +3324,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        stringConstants,
                        activationSlots,
                        namedCallTargetIndex,
-                       allowDeepChain: true) &&
+                       allowDeepChain: true,
+                       allowsDynamicIdentifiers) &&
                    HasSimpleCallArguments(
                        program,
                        identifierConstants,
@@ -3335,7 +3348,8 @@ internal static class UnifiedBytecodeProductionEligibility
                        stringConstants,
                        activationSlots,
                        keyStartIndex,
-                       allowDeepChain: true) &&
+                       allowDeepChain: true,
+                       allowsDynamicIdentifiers) &&
                    IsSupportedComputedPropertyKeySpan(
                        program,
                        startInclusive: keyStartIndex,
@@ -3385,6 +3399,88 @@ internal static class UnifiedBytecodeProductionEligibility
         return TryResolveActivationSlot(identifier, activationSlots) ||
                allowsDynamicIdentifiers ||
                CanUseMaterializedActivationDynamicLookup(identifier, activationSlots);
+    }
+
+    private static bool TryIsGeneralNamedMemberCallExpressionCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        var stackDepth = 0;
+        var hasNamedMemberCall = false;
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.LoadIdentifier:
+                    if (!IsSimpleOperand(operation, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.GetNamedProperty:
+                    if (stackDepth < 1 ||
+                        operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.LoadNamedCallTarget:
+                    if (stackDepth < 1 ||
+                        operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.Call:
+                    if (!operation.HasExplicitThis ||
+                        operation.IsDirectEval ||
+                        operation.SpreadMaskConstantIndex >= 0 ||
+                        stackDepth < operation.ArgumentCount + 2)
+                    {
+                        return false;
+                    }
+
+                    stackDepth -= operation.ArgumentCount + 1;
+                    hasNamedMemberCall = true;
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return hasNamedMemberCall && stackDepth == 1;
     }
 
     private static int FindComputedCallKeyStart(
@@ -3892,7 +3988,8 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
         int endExclusive,
-        bool allowDeepChain)
+        bool allowDeepChain,
+        bool allowsDynamicIdentifiers = false)
     {
         if (endExclusive < 1 || (!allowDeepChain && endExclusive > 3))
         {
@@ -3900,7 +3997,9 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var firstOperation = program.GetOperation(0);
-        if (!TryGetActivationResolvedValue(firstOperation, identifierConstants, activationSlots))
+        if (!TryGetActivationResolvedValue(firstOperation, identifierConstants, activationSlots) &&
+            !(allowsDynamicIdentifiers &&
+              TryGetPlainDynamicIdentifierReadValue(firstOperation, identifierConstants, activationSlots)))
         {
             return false;
         }
@@ -6857,6 +6956,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.UpdateSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
+                case UnifiedBytecodeOpCode.DeclareDynamicLexical:
+                case UnifiedBytecodeOpCode.InitializeDynamicLexical:
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                 case UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference:
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifierReference:

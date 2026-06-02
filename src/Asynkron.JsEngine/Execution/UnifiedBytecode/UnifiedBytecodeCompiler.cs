@@ -830,7 +830,7 @@ internal static class UnifiedBytecodeCompiler
                         } declaration:
                         if (!TryResolveDeclarationSlot(declarationTargetSymbol, declaration.VarKind, slotLayout, activeScopes, out var storeSlot))
                         {
-                            if (!TryAppendDynamicVarDeclaration(
+                            if (!TryAppendDynamicDeclaration(
                                     declaration,
                                     initializerProgram,
                                     allowsDynamicIdentifiers,
@@ -5282,6 +5282,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetIndexInProgram,
                 allowDeepChain: true,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5336,6 +5337,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 receiverEnd,
                 allowDeepChain: true,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5408,6 +5410,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 callTargetIndexInProgram,
                 allowDeepChain: true,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5536,6 +5539,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 keyStartIndex,
                 allowDeepChain: true,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5745,6 +5749,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 keyIndex,
                 allowDeepChain: false,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -5911,6 +5916,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 optionalHopIndex,
                 allowDeepChain: true,
+                allowsDynamicIdentifiers: allowsDynamicIdentifiers,
                 out reason))
         {
             return false;
@@ -6059,6 +6065,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<string>.Builder stringConstants,
         int endExclusive,
         bool allowDeepChain,
+        bool allowsDynamicIdentifiers,
         out string reason)
     {
         if (endExclusive < 1 || (!allowDeepChain && endExclusive > 3))
@@ -6074,7 +6081,21 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
-            return false;
+            var receiverBase = expressionProgram.GetOperation(0);
+            if (!allowsDynamicIdentifiers ||
+                receiverBase.Kind != ExpressionOpKind.LoadIdentifier ||
+                receiverBase.IsArguments)
+            {
+                return false;
+            }
+
+            var receiverIdentifier = receiverBase.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+            var receiverNameIndex = stringConstants.Count;
+            stringConstants.Add(receiverIdentifier.Name.Name ?? string.Empty);
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.LoadDynamicIdentifier,
+                receiverNameIndex));
+            reason = string.Empty;
         }
 
         for (var operationIndex = 1; operationIndex < endExclusive; operationIndex++)
@@ -12920,6 +12941,12 @@ internal static class UnifiedBytecodeCompiler
         return (stringConstantIndex << 1) | flags;
     }
 
+    private static int EncodeDynamicLexicalDeclarationOperand(int stringConstantIndex, VariableKind varKind)
+    {
+        var flags = varKind == VariableKind.Const ? 1 : 0;
+        return (stringConstantIndex << 1) | flags;
+    }
+
     private static int EncodeDeclarationBindingTargetOperand(
         int bindingTargetIndex,
         VariableKind varKind,
@@ -12929,7 +12956,7 @@ internal static class UnifiedBytecodeCompiler
         return (bindingTargetIndex << DeclarationBindingTargetShift) | (int)varKind | flags;
     }
 
-    private static bool TryAppendDynamicVarDeclaration(
+    private static bool TryAppendDynamicDeclaration(
         SimpleVariableDeclarationInstruction declaration,
         ExpressionProgram initializerProgram,
         bool allowsDynamicIdentifiers,
@@ -12944,9 +12971,7 @@ internal static class UnifiedBytecodeCompiler
         out string reason,
         ImmutableArray<BindingTargetProgram>.Builder? bindingTargetConstants = null)
     {
-        if (declaration.VarKind != VariableKind.Var ||
-            declaration.TargetSymbol is not { } targetSymbol ||
-            !slotLayout.ActivationSlots.MaterializedBindingNames.Contains(targetSymbol))
+        if (declaration.TargetSymbol is not { } targetSymbol)
         {
             reason = $"Unsupported declaration target '{declaration.TargetSymbol?.Name}'.";
             return false;
@@ -12954,6 +12979,49 @@ internal static class UnifiedBytecodeCompiler
 
         var targetNameIndex = stringConstants.Count;
         stringConstants.Add(targetSymbol.Name);
+
+        if (declaration.VarKind is VariableKind.Let or VariableKind.Const)
+        {
+            if (!allowsDynamicIdentifiers)
+            {
+                reason = $"Lexical declaration target '{targetSymbol.Name}' requires dynamic identifier operations.";
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.DeclareDynamicLexical,
+                EncodeDynamicLexicalDeclarationOperand(targetNameIndex, declaration.VarKind)));
+            if (!TryAppendExpressionProgramOps(
+                    initializerProgram,
+                    slotLayout,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    functionLiteralConstants,
+                    classLiteralConstants,
+                    templateObjectConstants,
+                    out reason,
+                    bindingTargetConstants))
+            {
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.InitializeDynamicLexical,
+                EncodeDynamicStoreOperand(targetNameIndex, declaration.AllowNameInference)));
+            reason = string.Empty;
+            return true;
+        }
+
+        if (declaration.VarKind != VariableKind.Var ||
+            !slotLayout.ActivationSlots.MaterializedBindingNames.Contains(targetSymbol))
+        {
+            reason = $"Unsupported declaration target '{targetSymbol.Name}'.";
+            return false;
+        }
+
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DeclareDynamicVar, targetNameIndex));
         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolveDynamicIdentifierReference, targetNameIndex));
         if (!TryAppendExpressionProgramOps(

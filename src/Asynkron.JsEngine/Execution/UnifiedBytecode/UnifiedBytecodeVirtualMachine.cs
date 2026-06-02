@@ -850,6 +850,46 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.DeclareDynamicLexical:
+                    DeclareDynamicLexical(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicLexicalDeclarationIsConst(instruction.Operand),
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.InitializeDynamicLexical:
+                    var dynamicLexicalValue = stack[--stackPointer];
+                    InitializeDynamicLexical(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        dynamicLexicalValue,
+                        RequireDynamicEnvironment(currentCallingEnvironment),
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        if (TryHandleCurrentContextThrow(slots))
+                        {
+                            break;
+                        }
+
+                        return JsValue.Undefined;
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.StoreDynamicIdentifier:
                     var dynamicStoredValue = stack[stackPointer - 1];
                     StoreDynamicIdentifierValue(
@@ -3787,6 +3827,54 @@ internal static class UnifiedBytecodeVirtualMachine
     {
         environment.DefineFunctionScoped(Symbol.Intern(name), JsValue.Undefined, hasInitializer: false,
             context: context);
+    }
+
+    private static void DeclareDynamicLexical(
+        string name,
+        bool isConst,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        try
+        {
+            environment.DefineJsValue(
+                Symbol.Intern(name),
+                JsValue.Uninitialized,
+                isConst,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
+    }
+
+    private static void InitializeDynamicLexical(
+        string name,
+        bool allowNameInference,
+        JsValue value,
+        JsEnvironment environment,
+        EvaluationContext context)
+    {
+        if (allowNameInference &&
+            value is { Kind: JsValueKind.Object, ObjectValue: TypedAstEvaluator.IFunctionNameTarget nameTarget })
+        {
+            nameTarget.EnsureHasName(name);
+        }
+
+        try
+        {
+            environment.DefineJsValue(
+                Symbol.Intern(name),
+                value,
+                isLexicalBinding: true,
+                blocksFunctionScopeOverride: true);
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+        }
     }
 
     private static void DeclareFunction(
@@ -7122,6 +7210,9 @@ internal static class UnifiedBytecodeVirtualMachine
     private static int DecodeDynamicStoreNameOperand(int operand) => operand >> 1;
 
     private static bool DecodeDynamicStoreAllowsNameInference(int operand) =>
+        (operand & 1) != 0;
+
+    private static bool DecodeDynamicLexicalDeclarationIsConst(int operand) =>
         (operand & 1) != 0;
 
     private static int DecodeFunctionDeclarationIndex(int operand) =>

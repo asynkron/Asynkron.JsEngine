@@ -157,6 +157,14 @@ statement interpretation.
   the rest array into the rest parameter slot and mirrors that binding into
   materialized call/dynamic environments before VM entry when such an environment
   is needed.
+- Top-level script programs can route when otherwise admitted, including
+  slotless `let` / `const` declarations backed by the active dynamic
+  environment. `DeclareDynamicLexical` creates the TDZ lexical binding and
+  `InitializeDynamicLexical` completes initialization while preserving name
+  inference. Accepted top-level expression spans can also read dynamic
+  identifier bases such as the global `Math` object and invoke named members
+  through the normal `PrepareNamedCallTarget` plus `CallInvocationBoundary`
+  contract.
 - `ApplyBindingTarget` is the one explicit bridge inside accepted VM execution:
   the VM owns dispatch and stack/slot state, then applies an already-lowered
   `BindingTargetProgram` for assignment destructuring parity. This is not a
@@ -181,6 +189,8 @@ statement interpretation.
 - `UpdateSlot`
 - `InitializeSlot`
 - `DeclareDynamicVar`
+- `DeclareDynamicLexical`
+- `InitializeDynamicLexical`
 - `StoreDynamicIdentifier`
 - `ResolveDynamicIdentifierReference`
 - `LoadDynamicIdentifierReference`
@@ -356,7 +366,8 @@ predicates and proof tests.
   property-read/control-expression/literal spans, and remaining
   receiver-binding-sensitive adjacent call families.
 - Unresolved identifier loads/stores/updates outside ordinary, with-backed,
-  direct-eval-backed, and simple-return captured-closure dynamic-name paths.
+  direct-eval-backed, simple-return captured-closure dynamic-name paths, and
+  accepted top-level dynamic-global read paths.
 - Named/computed property reads outside activation-resolved and read-only
   dynamic-identifier-base boundaries, especially captured-closure dynamic bases
   and richer computed-key spans.
@@ -403,8 +414,8 @@ predicates and proof tests.
 | `ArgumentsObjectDependency` | Activation descriptor gate for unbounded real `arguments` object dependency; implicit `arguments` reads/assignments/updates/deletes/calls materialize the existing arguments object and use the bounded identifier route, including admitted simple literal-default and final-rest parameter routes, while parameter/lexical `arguments` reads, `typeof`, assignments, updates, deletes, and call targets route as activation slots | Existing sync IR / arguments-object route | Arguments object lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget"` |
 | `ArrowLexicalThisDependency` | Activation descriptor gate for arrow lexical `this` / `new.target` ownership before ordinary sync routing | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OrdinarySyncActivationDescriptorBlockers_DeclineBeforeCompile"` |
 | `ClassConstructorActivation` | Activation descriptor gate for class constructor activation outside the admitted base constructor routes with simple identifier parameters, simple literal-default parameters, or final-rest identifier parameters; explicit derived-constructor `super(...)` routes with simple identifier parameters, simple literal-default parameters, final-rest identifier parameters, and post-super `this` body reads/writes; and default-derived constructor `super(...args)` forwarding route | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionConstructCallTests&FullyQualifiedName~Constructor"` |
-| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, simple activation or dynamic identifier-call arguments, simple-binary arguments, nested simple, simple-binary, simple-unary, simple-property-read, simple-control-expression, and simple-`typeof` array/object/template literal values/elements, and dynamic operands inside simple array/object/template call arguments for admitted identifier-call and member-call targets | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
-| `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, direct-eval-backed, and simple-return captured-closure dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
+| `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, zero-argument activation-resolved identifier-call computed object keys, simple activation or dynamic identifier-call arguments, simple-binary arguments, nested simple, simple-binary, simple-unary, simple-property-read, simple-control-expression, and simple-`typeof` array/object/template literal values/elements, dynamic operands inside simple array/object/template call arguments for admitted identifier-call and member-call targets, and embedded named member calls on admitted dynamic identifier bases such as `Math.sqrt(...)` in supported expression spans | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
+| `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, direct-eval-backed, simple-return captured-closure dynamic-name paths, and top-level dynamic-global read paths used by accepted script expression spans; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved and read-only dynamic-identifier-base boundaries, including captured closure dynamic bases | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
 | `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes and compound/logical writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update, computed expression-key update, simple-return dynamic-base named/computed property update, and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
@@ -628,9 +639,10 @@ the final post-compile production subset check before VM entry.
 ## Production Call Invocation Boundary
 - Current executable call support covers
   activation-resolved identifier calls, direct named member calls whose
-  optional-free named receiver chain is activation-resolved, and direct computed
-  member calls whose receiver chain remains inside the shallow computed-call
-  boundary. Arguments may be simple literal or slot operands, simple
+  optional-free named receiver chain is activation-resolved or starts from an
+  admitted dynamic identifier base, and direct computed member calls whose
+  receiver chain remains inside the shallow computed-call boundary. Arguments
+  may be simple literal or slot operands, simple
   named/computed property-read spans (`box.count`, `box[key]`), or simple
   array/object literal spans (`[a, b]`, `{x: a, y: b}`), including nested
   simple, simple-binary, simple-unary, simple-property-read, simple-control-

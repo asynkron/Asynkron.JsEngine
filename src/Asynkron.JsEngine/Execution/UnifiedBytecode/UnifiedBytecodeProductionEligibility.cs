@@ -1223,6 +1223,16 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (TryIsEmbeddedSuperConstructPropertyReadArgumentOperation(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (isFirstBoundaryNamedCompoundPropertyWriteCandidate)
                     {
                         break;
@@ -1361,6 +1371,16 @@ internal static class UnifiedBytecodeProductionEligibility
                             activationSlots,
                             allowsDynamicIdentifiers,
                             allowImplicitArgumentsObjectPropertyReadOperands))
+                    {
+                        break;
+                    }
+
+                    if (TryIsEmbeddedSuperConstructPropertyReadArgumentOperation(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -2962,6 +2982,44 @@ internal static class UnifiedBytecodeProductionEligibility
                     out var spanLength,
                     allowsDynamicIdentifiers) &&
                 operationIndex < startIndex + spanLength)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryIsEmbeddedSuperConstructPropertyReadArgumentOperation(
+        ExpressionProgram program,
+        int operationIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (operationIndex <= 0 ||
+            operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var superConstructIndex = FindFirstOperation(program, ExpressionOpKind.SuperConstruct);
+        if (superConstructIndex <= operationIndex)
+        {
+            return false;
+        }
+
+        for (var startIndex = 0; startIndex < operationIndex; startIndex++)
+        {
+            if (TryMeasureSimplePropertyReadOperandSpan(
+                    program,
+                    startIndex,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
+                operationIndex < startIndex + spanLength &&
+                startIndex + spanLength <= superConstructIndex)
             {
                 return true;
             }

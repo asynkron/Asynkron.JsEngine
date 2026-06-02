@@ -6433,6 +6433,20 @@ internal static class UnifiedBytecodeCompiler
             {
                 operationIndex += propertyReadSpanLen;
             }
+            else if (TryAppendSimpleOptionalNamedThenComputedReadOperandSpan(
+                         expressionProgram,
+                         operationIndex,
+                         callIndex,
+                         activationSlots,
+                         allowsDynamicIdentifiers,
+                         unified,
+                         literalConstants,
+                         stringConstants,
+                         out var optionalNamedThenComputedSpanLen,
+                         out reason))
+            {
+                operationIndex += optionalNamedThenComputedSpanLen;
+            }
             else if (TryAppendSimpleOptionalNamedReadChainOperandSpan(
                          expressionProgram,
                          operationIndex,
@@ -8379,6 +8393,169 @@ internal static class UnifiedBytecodeCompiler
         RollBackUnifiedBuilder(stringConstants, stringCount);
         reason = "Failed to emit measured optional named read chain span.";
         return false;
+    }
+
+    // Emits an optional-named-then-plain-computed read operand span used as a call
+    // argument (`box?.prop[key]`, `box?.prop[a + b]`, `box?.a.b[key]`): a simple base
+    // load, a JumpIfNullishReplaceUndefined short-circuit guard at the optional hop, the
+    // optional named hop read, plain named continuation reads, the computed key span, a
+    // GetComputedProperty, and any trailing plain named reads. A nullish base
+    // short-circuits the whole chain to undefined. Mirrors
+    // TryAppendFirstBoundaryOptionalNamedThenComputed for the call-argument boundary.
+    private static bool TryAppendSimpleOptionalNamedThenComputedReadOperandSpan(
+        ExpressionProgram expressionProgram,
+        int startIndex,
+        int endExclusive,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out int spanLength,
+        out string reason)
+    {
+        spanLength = 0;
+        reason = string.Empty;
+        if (startIndex + 3 >= endExclusive ||
+            !CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+        var firstHop = expressionProgram.GetOperation(startIndex + 1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(expressionStringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        // Plain named continuations (`box?.a.b[key]`) before the computed read.
+        var keyStart = startIndex + 2;
+        while (keyStart < endExclusive)
+        {
+            var continuation = expressionProgram.GetOperation(keyStart);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            keyStart++;
+        }
+
+        // Locate the chain-short-circuit computed read after the key span.
+        var computedIndex = -1;
+        for (var candidate = keyStart + 1; candidate < endExclusive; candidate++)
+        {
+            var computedOp = expressionProgram.GetOperation(candidate);
+            if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+                computedOp.IsOptional ||
+                !computedOp.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            computedIndex = candidate;
+            break;
+        }
+
+        if (computedIndex < 0 ||
+            !IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: keyStart,
+                endExclusive: computedIndex,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(startIndex),
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        // The optional hop short-circuits the remaining chain to undefined when the base
+        // is nullish, so the boundary jump targets the instruction after the chain.
+        var boundaryJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        // Optional hop read plus the plain named continuations up to the key span.
+        for (var readIndex = startIndex + 1; readIndex < keyStart; readIndex++)
+        {
+            var read = expressionProgram.GetOperation(readIndex);
+            var propertyNameIndex = stringConstants.Count;
+            stringConstants.Add(read.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.GetNamedProperty,
+                propertyNameIndex));
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive: keyStart,
+                endExclusive: computedIndex,
+                out reason))
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            return false;
+        }
+
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+
+        // Trailing plain named continuation reads (`box?.prop[key].child`).
+        var continuationIndex = computedIndex + 1;
+        while (continuationIndex < endExclusive)
+        {
+            var continuation = expressionProgram.GetOperation(continuationIndex);
+            if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
+                continuation.IsOptional ||
+                !continuation.ShortCircuitOnNullishTarget ||
+                continuation.GetString(expressionStringConstants).IsPrivateName())
+            {
+                break;
+            }
+
+            var continuationNameIndex = stringConstants.Count;
+            stringConstants.Add(continuation.GetString(expressionStringConstants));
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, continuationNameIndex));
+            continuationIndex++;
+        }
+
+        var chainEnd = unified.Count;
+        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            chainEnd);
+
+        spanLength = continuationIndex - startIndex;
+        reason = string.Empty;
+        return true;
     }
 
     // Emits a baseline optional computed property-read operand span (`box?.[key]`):

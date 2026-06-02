@@ -6210,6 +6210,83 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_CallWithNestedBinaryObjectLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, a, b) {
+                return receiver({ total: a + b });
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Binary &&
+                           instruction.Operand == (int)BinaryOperator.Add);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithNestedBinaryArrayLiteralArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, a, b) {
+                return receiver([a + b]);
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Binary &&
+                           instruction.Operand == (int)BinaryOperator.Add);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ArrayPush);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_CallWithNestedComputedObjectBinaryValueArg_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function sendNested(receiver, key, a, b) {
+                return receiver({ [key]: a + b });
+            }
+            """,
+            "sendNested");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Binary &&
+                           instruction.Operand == (int)BinaryOperator.Add);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+        Assert.Contains(result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_CallWithNestedBinaryTemplateArrayLiteralArg_Accepts()
     {
         var plan = GetFunctionPlan("""

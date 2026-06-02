@@ -6213,7 +6213,7 @@ internal static class UnifiedBytecodeCompiler
 
                     operationIndex += templateSpanLen;
                 }
-                else if (TryAppendSimpleBinaryCallArgumentSpan(
+                else if (TryAppendSimpleBinaryOperandSpan(
                              expressionProgram,
                              operationIndex,
                              callIndex,
@@ -6244,7 +6244,7 @@ internal static class UnifiedBytecodeCompiler
                     return false;
                 }
             }
-            else if (TryAppendSimpleBinaryCallArgumentSpan(
+            else if (TryAppendSimpleBinaryOperandSpan(
                          expressionProgram,
                          operationIndex,
                          callIndex,
@@ -6304,7 +6304,7 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
-    private static bool TryAppendSimpleBinaryCallArgumentSpan(
+    private static bool TryAppendSimpleBinaryOperandSpan(
         ExpressionProgram expressionProgram,
         int startIndex,
         int endExclusive,
@@ -6336,7 +6336,7 @@ internal static class UnifiedBytecodeCompiler
         if (!IsSupportedBinaryOperator(binary.Operator))
         {
             spanLength = 0;
-            reason = "Call arguments only admit supported simple binary operators.";
+            reason = "Only supported simple binary operators are admitted in this boundary.";
             return false;
         }
 
@@ -6344,7 +6344,7 @@ internal static class UnifiedBytecodeCompiler
             !CanAppendSimpleOperandLoadWithDynamic(right, expressionProgram, activationSlots, allowsDynamicIdentifiers))
         {
             spanLength = 0;
-            reason = "Call binary arguments require simple activation-resolved or admitted dynamic operands.";
+            reason = "Simple binary spans require simple activation-resolved or admitted dynamic operands.";
             return false;
         }
 
@@ -6917,6 +6917,21 @@ internal static class UnifiedBytecodeCompiler
 
             spanLength = 0;
             return false;
+        }
+
+        if (TryAppendSimpleBinaryOperandSpan(
+                expressionProgram,
+                startIndex,
+                expressionProgram.OperationCount,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out spanLength,
+                out reason))
+        {
+            return true;
         }
 
         if (TryAppendSimpleOperandLoadWithDynamic(

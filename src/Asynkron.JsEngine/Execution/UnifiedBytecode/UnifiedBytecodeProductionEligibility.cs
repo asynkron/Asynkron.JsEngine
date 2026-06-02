@@ -4267,6 +4267,17 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (TryMeasureSimpleBinaryOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
         if (IsSimpleOperand(
                 operation,
                 identifierConstants,

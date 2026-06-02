@@ -770,9 +770,17 @@ internal static class UnifiedBytecodeProductionEligibility
         var isFirstBoundaryPropertyUpdateCandidate =
             TryIsFirstBoundaryPropertyUpdateCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         var isFirstBoundaryNamedCompoundPropertyWriteCandidate =
-            TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots);
+            TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers);
         var isFirstBoundaryNamedLogicalPropertyWriteCandidate =
-            TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots);
+            TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(
+                program,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers);
         var isPrivateNamedMutationCandidate =
             isFirstBoundaryPropertyWriteCandidate ||
             isFirstBoundaryPropertyUpdateCandidate ||
@@ -1302,11 +1310,19 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    if (TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
-                    if (TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                    if (TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1330,8 +1346,16 @@ internal static class UnifiedBytecodeProductionEligibility
                         TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
                         isFirstBoundaryNamedLogicalPropertyWriteCandidate ||
-                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
-                        TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(program, identifierConstants, activationSlots))
+                        TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -4277,7 +4301,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryNamedCompoundPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
         // The final target may be private; receiver-chain hops stay ordinary only.
@@ -4287,7 +4312,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4344,7 +4373,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
         if (rhsStart == rhsEnd)
         {
-            return IsSimpleOperand(program.GetOperation(rhsStart), identifierConstants, activationSlots);
+            return IsSimpleOperand(
+                program.GetOperation(rhsStart),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers);
         }
 
         // Multi-op RHS — try template literal span.
@@ -4357,14 +4390,19 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (program.OperationCount < 9)
         {
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4376,7 +4414,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 startInclusive: 1,
                 endExclusive: suffixStart,
                 identifierConstants,
-                activationSlots))
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4394,7 +4433,7 @@ internal static class UnifiedBytecodeProductionEligibility
                duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
                propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
                !propertyRead.ShortCircuitOnNullishTarget &&
-               IsSimpleOperand(rhs, identifierConstants, activationSlots) &&
+               IsSimpleOperand(rhs, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
                binary.Kind == ExpressionOpKind.Binary &&
                IsProductionBinaryOperator(binary.Operator) &&
                propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
@@ -4404,7 +4443,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty,
         // JumpIf*, Pop, rhs, SetNamedProperty, DuplicateTop, SwapTopTwo, Pop]
@@ -4414,7 +4454,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4465,7 +4509,7 @@ internal static class UnifiedBytecodeProductionEligibility
             propertyRead.IsOptional ||
             propertyRead.ShortCircuitOnNullishTarget ||
             jump.Target != duplicateIndex + 7 ||
-            !IsSimpleOperand(rhs, identifierConstants, activationSlots))
+            !IsSimpleOperand(rhs, identifierConstants, activationSlots, allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4477,7 +4521,8 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(
         ExpressionProgram program,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         // Shape: [base, key..., RequireObjectCoercible, ResolvePropertyKey, DuplicateTopTwo, GetComputedProperty,
         // JumpIf*, Pop, rhs..., SetComputedProperty, DuplicateTop, DuplicateTop, RotateTopThreeRight, Pop, Pop]
@@ -4486,7 +4531,11 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -4501,7 +4550,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     startInclusive: 1,
                     endExclusive: suffixStart,
                     identifierConstants,
-                    activationSlots))
+                    activationSlots,
+                    allowsDynamicIdentifiers))
             {
                 continue;
             }
@@ -4531,7 +4581,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     suffixStart + 6,
                     propertyWriteIndex,
                     identifierConstants,
-                    activationSlots) &&
+                    activationSlots,
+                    allowsDynamicIdentifiers) &&
                 propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
                 !propertyWrite.AllowNameInference &&
                 duplicateAssignedValue.Kind == ExpressionOpKind.DuplicateTop &&
@@ -4553,7 +4604,8 @@ internal static class UnifiedBytecodeProductionEligibility
         int startInclusive,
         int endExclusive,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
     {
         if (startInclusive >= endExclusive)
         {
@@ -4562,7 +4614,11 @@ internal static class UnifiedBytecodeProductionEligibility
 
         if (endExclusive - startInclusive == 1)
         {
-            return IsSimpleOperand(program.GetOperation(startInclusive), identifierConstants, activationSlots);
+            return IsSimpleOperand(
+                program.GetOperation(startInclusive),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers);
         }
 
         if (endExclusive - startInclusive != 3)
@@ -4573,8 +4629,8 @@ internal static class UnifiedBytecodeProductionEligibility
         var left = program.GetOperation(startInclusive);
         var right = program.GetOperation(startInclusive + 1);
         var binary = program.GetOperation(startInclusive + 2);
-        return IsSimpleOperand(left, identifierConstants, activationSlots) &&
-               IsSimpleOperand(right, identifierConstants, activationSlots) &&
+        return IsSimpleOperand(left, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
+               IsSimpleOperand(right, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
                binary.Kind == ExpressionOpKind.Binary &&
                IsProductionBinaryOperator(binary.Operator);
     }

@@ -126,10 +126,10 @@ statement interpretation.
 - Simple-return arrows can route with captured lexical `this` / `new.target`
   values and read-only captured environment reads, including named and computed
   property reads from those dynamic identifier bases. Simple-return named and
-  computed property writes, updates, and deletes to captured dynamic identifier
-  bases are also VM-owned. The production invocation bridge resolves those
-  captured values before entering the VM and avoids sloppy-call `this` coercion
-  for arrows.
+  computed property writes, compound/logical writes, updates, and deletes to
+  captured dynamic identifier bases are also VM-owned. The production invocation
+  bridge resolves those captured values before entering the VM and avoids
+  sloppy-call `this` coercion for arrows.
   Arrows that need a lexical-this environment or super binding still decline.
 - Simple base class constructors with public or private instance fields and
   simple derived constructors with public or private instance fields can route through
@@ -335,7 +335,7 @@ must still obey the no-mixed-execution rule.
 | `CallDependency` | Direct eval outside the one-argument non-spread eval-identifier boundary, out-of-boundary call-target preparation, and complex call arguments excluding admitted simple/binary template-literal substitutions, simple/binary computed object keys, and zero-argument activation-resolved identifier-call computed object keys | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests"` |
 | `DynamicLookupDependency` | Unresolved identifier loads/stores/update outside the admitted ordinary, with-backed, and direct-eval-backed dynamic-name paths; plans that need direct eval plus post-eval dynamic identifier reads now route when captured activation, with-chain, and arguments-object dependencies are absent | Existing sync IR / environment lookup route | Dynamic-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DirectEvalDeclaredVarRead_AcceptsOrdinaryDynamicNameProgram"` |
 | `PropertyReadBoundaryOutOfScope` | Named/computed property reads outside the admitted activation-resolved and read-only dynamic-identifier-base boundaries, including captured closure dynamic bases | Existing sync IR property route | Property read widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ComputedPropertyReadOutsideFirstBoundary_DeclinesWithBoundaryCode"` |
-| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
+| `PropertyWriteDependency` | Property writes and compound/logical property writes outside the admitted direct property-write shapes, supported computed expression-key mutation shapes, simple-return dynamic-base named/computed property writes and compound/logical writes, simple nested named receiver assignment shape, nested named compound-write shape, and nested named logical-write shape | Existing sync IR property-write route | Property write widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LogicalAndAssignment_UnsupportedShapes_DeclineWithExplicitCodes"` |
 | `PropertyUpdateDependency` | Property and identifier update expressions outside the admitted direct update, computed expression-key update, simple-return dynamic-base named/computed property update, and simple nested named receiver update boundary | Existing sync IR update route | Property update lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes"` |
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane, simple-return dynamic-base named/computed property delete lane, ordinary dynamic-key computed delete lane, and with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedComputedPropertyDeleteDynamicKey_AcceptsOrdinaryDynamicNameOpcode"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
@@ -358,7 +358,7 @@ not always have a `UnifiedBytecodeProductionDeclineCode`.
 | Pre-gate key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `pre-gate:IsClassConstructor` | Class constructor invokers outside the admitted simple base constructor route and explicit derived-constructor `super(...)` route with post-super `this` body reads/writes | Constructor route | Constructor boundary lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
-| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, call-target, unadmitted identifier assignment/update/delete, compound/logical assignment, nested function/class literal, or other unowned dependency. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads, and named/computed property reads, simple property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
+| `pre-gate:IsArrowFunction` | Arrow functions outside the admitted simple-return route whose lowered body proves no super, call-target, unadmitted identifier assignment/update/delete, nested function/class literal, or other unowned dependency. Captured lexical `this` / `new.target`, statically resolved flat-slot reads, ordinary environment identifier reads, and named/computed property reads, simple property writes, compound/logical property writes, property updates, or property deletes from those dynamic identifier bases are VM-owned; lexical-this environments remain a separate pre-gate. | Existing arrow invocation route | Arrow route lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
 | `pre-gate:IsAsyncLike` | Async and formerly-async ordinary invokers | Async route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:IsGenerator` | Generator functions before ordinary sync production routing | Generator route | Resumable async/generator lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_GeneratorActivation_DeclinesBeforePlanInspection"` |
 | `pre-gate:hasParameterExpressions` | Default/rest/destructured parameter expressions | Existing parameter environment route | Parameter semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionInvocationTests"` |
@@ -466,20 +466,20 @@ the final post-compile production subset check before VM entry.
   computed via `CoerceThisValueForNonStrict` in `TryInvokeProductionUnifiedBytecode`,
   so the VM's `LoadThis` opcode always receives the correctly coerced value.
 - Simple-return arrow functions whose lowered body has no super, call-target,
-  unadmitted identifier assignment/update/delete, compound/logical assignment,
-  nested function/class literal, or other unowned dependency may route.
+  unadmitted identifier assignment/update/delete, nested function/class literal,
+  or other unowned dependency may route.
   Captured lexical `this` / `new.target`, flat-slot reads, ordinary environment
   identifier reads, and named/computed property reads, simple property writes,
-  property updates, or property deletes from those dynamic identifier bases are
-  VM-owned.
+  compound/logical property writes, property updates, or property deletes from
+  those dynamic identifier bases are VM-owned.
   Dependency-bearing arrows still decline via the `IsArrowFunction`,
   captured-activation, or `_lexicalThisEnvironment is not null` pre-gates.
 - Simple-return ordinary function expressions that capture an outer activation
   may route when the body uses the same ordinary environment identifier,
-  named/computed property read, simple property write, property update, or
-  property delete subset. Captured identifier writes, identifier updates,
-  identifier deletes, calls, `arguments`, eval, with-backed closures,
-  super/private/home-object shapes, block-body mutations, and nested
+  named/computed property read, simple property write, compound/logical property
+  write, property update, or property delete subset. Captured identifier writes,
+  identifier updates, identifier deletes, calls, `arguments`, eval, with-backed
+  closures, super/private/home-object shapes, block-body mutations, and nested
   function/class literals remain outside this route.
 - There is no retained `this` decline in the production activation descriptor;
   future shapes that cannot thread `this` through the VM should introduce a

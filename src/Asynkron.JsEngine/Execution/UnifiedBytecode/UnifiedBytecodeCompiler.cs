@@ -3591,6 +3591,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryNamedCompoundPropertySet(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3607,6 +3608,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryNamedLogicalPropertySet(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3623,6 +3625,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryComputedCompoundPropertySet(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -3639,6 +3642,7 @@ internal static class UnifiedBytecodeCompiler
         if (TryAppendFirstBoundaryComputedLogicalPropertySet(
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
                 stringConstants,
@@ -6895,6 +6899,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryNamedCompoundPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -6977,11 +6982,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
+                stringConstants,
                 out reason))
         {
             return false;
@@ -7006,12 +7013,14 @@ internal static class UnifiedBytecodeCompiler
 
         if (rhsStart == rhsEnd)
         {
-            if (!TryAppendSimpleOperandLoad(
+            if (!TryAppendSimpleOperandLoadWithDynamic(
                     expressionProgram.GetOperation(rhsStart),
                     expressionProgram,
                     activationSlots,
+                    allowsDynamicIdentifiers,
                     unified,
                     literalConstants,
+                    stringConstants,
                     out reason))
             {
                 return false;
@@ -7049,6 +7058,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryComputedCompoundPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -7108,7 +7118,8 @@ internal static class UnifiedBytecodeCompiler
                 expressionProgram,
                 activationSlots,
                 startInclusive: 1,
-                endExclusive: suffixStart))
+                endExclusive: suffixStart,
+                allowsDynamicIdentifiers))
         {
             reason = "Unsupported computed property key span.";
             return false;
@@ -7123,11 +7134,13 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -7141,7 +7154,8 @@ internal static class UnifiedBytecodeCompiler
                 stagedStrings,
                 startInclusive: 1,
                 endExclusive: suffixStart,
-                out reason))
+                out reason,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -7150,12 +7164,14 @@ internal static class UnifiedBytecodeCompiler
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet));
 
-        if (!TryAppendSimpleOperandLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 rhs,
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -7176,6 +7192,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryNamedLogicalPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -7275,11 +7292,13 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -7309,12 +7328,14 @@ internal static class UnifiedBytecodeCompiler
         stagedUnified.Add(new UnifiedBytecodeInstruction(jumpOpCode, 0));
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Pop));
 
-        if (!TryAppendSimpleOperandLoad(
+        if (!TryAppendSimpleOperandLoadWithDynamic(
                 rhs,
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -7344,6 +7365,7 @@ internal static class UnifiedBytecodeCompiler
     private static bool TryAppendFirstBoundaryComputedLogicalPropertySet(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
@@ -7369,7 +7391,8 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram,
                     activationSlots,
                     startInclusive: 1,
-                    endExclusive: candidateSuffixStart))
+                    endExclusive: candidateSuffixStart,
+                    allowsDynamicIdentifiers))
             {
                 continue;
             }
@@ -7441,11 +7464,13 @@ internal static class UnifiedBytecodeCompiler
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
 
-        if (!TryAppendActivationValueLoad(
+        if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 stagedUnified,
+                stagedStrings,
                 out reason))
         {
             return false;
@@ -7459,7 +7484,8 @@ internal static class UnifiedBytecodeCompiler
                 stagedStrings,
                 startInclusive: 1,
                 endExclusive: suffixStart,
-                out reason))
+                out reason,
+                allowsDynamicIdentifiers))
         {
             return false;
         }
@@ -7483,6 +7509,8 @@ internal static class UnifiedBytecodeCompiler
                 activationSlots,
                 stagedUnified,
                 stagedLiterals,
+                stagedStrings,
+                allowsDynamicIdentifiers,
                 startInclusive: suffixStart + 6,
                 endExclusive: propertySetIndex,
                 out reason))
@@ -7518,6 +7546,8 @@ internal static class UnifiedBytecodeCompiler
         ActivationSlotShape activationSlots,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        bool allowsDynamicIdentifiers,
         int startInclusive,
         int endExclusive,
         out string reason)
@@ -7530,12 +7560,14 @@ internal static class UnifiedBytecodeCompiler
 
         if (endExclusive - startInclusive == 1)
         {
-            return TryAppendSimpleOperandLoad(
+            return TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(startInclusive),
                 expressionProgram,
                 activationSlots,
+                allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
+                stringConstants,
                 out reason);
         }
 
@@ -7555,8 +7587,24 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoad(left, expressionProgram, activationSlots, unified, literalConstants, out reason) ||
-            !TryAppendSimpleOperandLoad(right, expressionProgram, activationSlots, unified, literalConstants, out reason))
+        if (!TryAppendSimpleOperandLoadWithDynamic(
+                left,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason) ||
+            !TryAppendSimpleOperandLoadWithDynamic(
+                right,
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
         {
             return false;
         }

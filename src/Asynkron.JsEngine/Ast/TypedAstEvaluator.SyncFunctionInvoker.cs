@@ -3765,7 +3765,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
                 if (TryGetIdentifierDependency(operation, identifierConstants, out var identifier) &&
                     !ResolvesToOwnActivationOrFlatSlot(identifier, activationSlots) &&
-                    !CanUseArrowDynamicIdentifierRead(operation, identifier))
+                    !CanUseArrowDynamicIdentifierOperation(operation, identifier))
                 {
                     return false;
                 }
@@ -3817,11 +3817,19 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             ResolvesToOwnActivationSlot(identifier, activationSlots) ||
             identifier.FlatSlotId >= 0;
 
-        private static bool CanUseArrowDynamicIdentifierRead(
+        private static bool CanUseArrowDynamicIdentifierOperation(
             PackedExpressionOp operation,
             IdentifierOperand identifier) =>
             identifier.FlatSlotId < 0 &&
-            operation.Kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.TypeOfIdentifier;
+            !operation.IsArguments &&
+            operation.Kind is
+                ExpressionOpKind.LoadIdentifier or
+                ExpressionOpKind.StoreIdentifier or
+                ExpressionOpKind.ResolveIdentifierReference or
+                ExpressionOpKind.StoreResolvedIdentifier or
+                ExpressionOpKind.UpdateIdentifier or
+                ExpressionOpKind.TypeOfIdentifier or
+                ExpressionOpKind.DeleteIdentifier;
 
         private bool CanUseProductionUnifiedBytecodeBaseClassConstructorActivation(
             ExecutionPlan plan,

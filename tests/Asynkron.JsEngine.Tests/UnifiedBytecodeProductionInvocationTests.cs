@@ -934,6 +934,111 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task FinalRestParameter_WithImplicitArgumentsIndexRead_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(prefix, ...items) {
+                return arguments[0];
+            }
+
+            inspect(40, 1, 2);
+            """);
+
+        Assert.Equal(40d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FinalRestParameter_WithImplicitArgumentsUpdate_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(prefix, ...items) {
+                arguments++;
+                return typeof arguments + ":" + (arguments !== arguments);
+            }
+
+            inspect(40, 1, 2);
+            """);
+
+        Assert.Equal("number:true", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FinalRestParameter_WithImplicitArgumentsDelete_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(prefix, ...items) {
+                return (delete arguments) + ":" + typeof arguments;
+            }
+
+            inspect(40, 1, 2);
+            """);
+
+        Assert.Equal("false:object", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FinalRestParameter_WithImplicitArgumentsCall_UsesUnifiedBytecodeProductionFastPathAndThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(prefix, ...items) {
+                return arguments();
+            }
+
+            var caught = false;
+            try {
+                inspect(40, 1, 2);
+            } catch (error) {
+                caught = error instanceof TypeError;
+            }
+
+            caught;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task FinalRestParameter_WithImplicitArgumentsAssignment_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function inspect(prefix, ...items) {
+                arguments;
+                arguments = 7;
+                return arguments;
+            }
+
+            inspect(40, 1, 2);
+            """);
+
+        Assert.Equal(7d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=inspect argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task FinalRestArrowFunction_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

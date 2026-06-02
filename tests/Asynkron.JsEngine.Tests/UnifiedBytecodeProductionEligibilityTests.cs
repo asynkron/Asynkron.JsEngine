@@ -429,6 +429,65 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_FinalRestArgumentsIndexRead_AcceptsImplicitArgumentsObjectPropertyRead()
+    {
+        var plan = GetFunctionPlan("""
+            function inspect(prefix, ...items) {
+                return arguments[0];
+            }
+            """,
+            "inspect");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true,
+                AllowsImplicitArgumentsObjectPropertyReadOperands: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+    }
+
+    [Theory]
+    [InlineData(
+        "arguments++; return arguments;",
+        nameof(UnifiedBytecodeOpCode.UpdateDynamicIdentifier))]
+    [InlineData(
+        "return delete arguments;",
+        nameof(UnifiedBytecodeOpCode.DeleteDynamicIdentifier))]
+    [InlineData(
+        "return arguments();",
+        nameof(UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget))]
+    [InlineData(
+        "arguments; arguments = 7; return arguments;",
+        nameof(UnifiedBytecodeOpCode.StoreDynamicIdentifier))]
+    public void Evaluate_FinalRestArgumentsDynamicOperation_AcceptsOwnedOpcode(
+        string body,
+        string expectedOpCodeName)
+    {
+        var plan = GetFunctionPlan($$"""
+            function inspect(prefix, ...items) {
+                {{body}}
+            }
+            """,
+            "inspect");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode.ToString() == expectedOpCodeName);
+    }
+
+    [Fact]
     public void Evaluate_SimpleLiteralDefaultParameterPlan_Accepts()
     {
         var plan = GetFunctionPlan("""

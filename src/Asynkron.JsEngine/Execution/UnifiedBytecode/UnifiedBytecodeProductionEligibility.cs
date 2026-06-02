@@ -6386,11 +6386,34 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
+        // The collapsed receiver stays a single stack value so RequireObjectCoercible.Depth
+        // remains 1; the computed key span starts after the prefix.
+        var stringConstants = program.StringConstants.AsSpan();
+        var keyStart = 1;
         var suffixStart = program.OperationCount - 7;
-        if (suffixStart <= 1 ||
+        while (keyStart < suffixStart)
+        {
+            var receiverRead = program.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        if (keyStart >= suffixStart ||
             !IsSupportedComputedPropertyKeySpan(
                 program,
-                startInclusive: 1,
+                startInclusive: keyStart,
                 endExclusive: suffixStart,
                 identifierConstants,
                 activationSlots,
@@ -6519,14 +6542,37 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
+        // Walk an optional named receiver-prefix chain (e.g. box.child[key] &&= value).
+        // The collapsed receiver stays a single stack value so RequireObjectCoercible.Depth
+        // remains 1; the computed key span starts after the prefix.
+        var stringConstants = program.StringConstants.AsSpan();
+        var keyStart = 1;
         var propertyWriteIndex = program.OperationCount - 6;
+        while (keyStart < propertyWriteIndex)
+        {
+            var receiverRead = program.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            keyStart++;
+        }
+
         for (var rhsLength = 1; rhsLength <= 3; rhsLength += 2)
         {
             var suffixStart = propertyWriteIndex - 6 - rhsLength;
-            if (suffixStart <= 1 ||
+            if (suffixStart <= keyStart ||
                 !IsSupportedComputedPropertyKeySpan(
                     program,
-                    startInclusive: 1,
+                    startInclusive: keyStart,
                     endExclusive: suffixStart,
                     identifierConstants,
                     activationSlots,

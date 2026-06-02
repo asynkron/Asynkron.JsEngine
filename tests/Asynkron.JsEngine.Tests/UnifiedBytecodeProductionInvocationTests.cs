@@ -11427,4 +11427,58 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=andAssign",
                 StringComparison.Ordinal));
     }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedCompoundPropertyWrite_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function bump(box, key, value) {
+                box.child[key] += value;
+                return box.child[key];
+            }
+
+            var counter = 0;
+            var box = {
+                child: {
+                    get total() { counter++; return this._total ?? 0; },
+                    set total(v) { this._total = v; }
+                }
+            };
+            // Compound write must resolve the computed key once; record reads through getter.
+            var first = bump(box, "total", 10);
+            var second = bump(box, "total", 5);
+            [first, second].join(',');
+            """);
+
+        Assert.Equal("10,15", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=bump argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NestedNamedComputedLogicalPropertyWrite_ShortCircuits_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function orAssign(box, key, value) {
+                box.child[key] ||= value;
+                return box.child[key];
+            }
+
+            // First box already truthy: ||= must short-circuit and keep 7.
+            var present = orAssign({ child: { slot: 7 } }, "slot", 99);
+            // Second box falsy: ||= must assign 42.
+            var missing = orAssign({ child: { slot: 0 } }, "slot", 42);
+            [present, missing].join(',');
+            """);
+
+        Assert.Equal("7,42", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=orAssign argc=3",
+                StringComparison.Ordinal));
+    }
 }

@@ -424,6 +424,25 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_FoldedLiteralDefaultParameterPlan_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function pick(value = 40 + 2) {
+                return value;
+            }
+            """,
+            "pick");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.False(result.Program.ParameterSlotIndices.IsDefaultOrEmpty);
+    }
+
+    [Fact]
     public void Evaluate_ClassDeclarationInstruction_AcceptsDescriptorOpcode()
     {
         var plan = GetFunctionPlan("""

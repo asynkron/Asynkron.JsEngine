@@ -7237,6 +7237,55 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SimpleLiteralDefaultArrowFunction_MissingArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var choose = (value = 42) => value;
+            choose();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SimpleLiteralDefaultArrowFunction_ExplicitUndefined_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var choose = (value = 42) => value;
+            choose(undefined);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NonLiteralDefaultArrowFunction_DoesNotUseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var fallback = 42;
+            var choose = (value = fallback) => value;
+            choose();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                UnifiedBytecodeProductionFastPathLog,
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_LexicalThis_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

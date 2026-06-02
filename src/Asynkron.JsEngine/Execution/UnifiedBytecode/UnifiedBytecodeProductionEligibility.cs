@@ -75,6 +75,11 @@ internal static class UnifiedBytecodeProductionEligibility
 {
     internal static bool ContainsOnlyImplicitArgumentsObjectDynamicIdentifierDependency(ExecutionPlan plan)
     {
+        if (plan.ActivationSlots is not { } activationSlots)
+        {
+            return false;
+        }
+
         var foundArgumentsRead = false;
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
@@ -83,20 +88,36 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
+            var identifierConstants = program.IdentifierConstants.AsSpan();
             for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
             {
                 var operation = program.GetOperation(operationIndex);
-                if (!operation.IsArguments)
+                if (operation.Kind is
+                    ExpressionOpKind.ResolveIdentifierReference or
+                    ExpressionOpKind.StoreResolvedIdentifier or
+                    ExpressionOpKind.StoreIdentifier or
+                    ExpressionOpKind.DeleteIdentifier)
                 {
+                    if (IsImplicitArgumentsIdentifier(operation, identifierConstants, activationSlots))
+                    {
+                        return false;
+                    }
+
                     continue;
                 }
 
                 if (operation.Kind is not (
                     ExpressionOpKind.LoadIdentifier or
+                    ExpressionOpKind.LoadIdentifierCallTarget or
                     ExpressionOpKind.TypeOfIdentifier or
                     ExpressionOpKind.UpdateIdentifier))
                 {
-                    return false;
+                    continue;
+                }
+
+                if (!IsImplicitArgumentsIdentifier(operation, identifierConstants, activationSlots))
+                {
+                    continue;
                 }
 
                 foundArgumentsRead = true;
@@ -105,6 +126,20 @@ internal static class UnifiedBytecodeProductionEligibility
 
         return foundArgumentsRead;
     }
+
+    private static bool IsImplicitArgumentsIdentifier(
+        PackedExpressionOp operation,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots) =>
+        IsImplicitArgumentsIdentifier(
+            operation.GetIdentifier(identifierConstants),
+            activationSlots);
+
+    private static bool IsImplicitArgumentsIdentifier(
+        IdentifierOperand identifier,
+        ActivationSlotShape activationSlots) =>
+        ReferenceEquals(identifier.Name, Symbol.Arguments) &&
+        !TryResolveActivationSlot(identifier, activationSlots);
 
     internal static bool ContainsOrdinaryDynamicIdentifierDependency(ExecutionPlan plan)
     {
@@ -804,10 +839,15 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (operation.IsArguments)
                     {
-                        declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
-                        declineReason =
-                            "arguments call targets are not eligible for production unified bytecode routing.";
-                        return true;
+                        if (!allowsDynamicIdentifiers)
+                        {
+                            declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
+                            declineReason =
+                                "arguments call targets are not eligible for production unified bytecode routing.";
+                            return true;
+                        }
+
+                        break;
                     }
 
                     var callIdentifier = operation.GetIdentifier(identifierConstants);
@@ -917,7 +957,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadIdentifier:
                     var identifier = operation.GetIdentifier(identifierConstants);
                     var hasActivationSlot = TryResolveActivationSlot(identifier, activationSlots);
-                    if (operation.IsArguments && !hasActivationSlot)
+                    if (IsImplicitArgumentsIdentifier(identifier, activationSlots))
                     {
                         if (!allowsDynamicIdentifiers)
                         {
@@ -944,7 +984,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.ResolveIdentifierReference:
-                    if (operation.IsArguments)
+                    var referenceIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (IsImplicitArgumentsIdentifier(referenceIdentifier, activationSlots))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
                         declineReason =
@@ -952,7 +993,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    var referenceIdentifier = operation.GetIdentifier(identifierConstants);
                     if (TryResolveActivationSlot(referenceIdentifier, activationSlots))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
@@ -985,7 +1025,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.StoreResolvedIdentifier:
                 case ExpressionOpKind.StoreIdentifier:
-                    if (operation.IsArguments)
+                    var storeIdentifier = operation.GetIdentifier(identifierConstants);
+                    if (IsImplicitArgumentsIdentifier(storeIdentifier, activationSlots))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency;
                         declineReason =
@@ -993,7 +1034,6 @@ internal static class UnifiedBytecodeProductionEligibility
                         return true;
                     }
 
-                    var storeIdentifier = operation.GetIdentifier(identifierConstants);
                     if (TryResolveActivationSlot(storeIdentifier, activationSlots))
                     {
                         declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
@@ -1015,7 +1055,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.TypeOfIdentifier:
                     var typeOfIdentifier = operation.GetIdentifier(identifierConstants);
                     var hasTypeOfActivationSlot = TryResolveActivationSlot(typeOfIdentifier, activationSlots);
-                    if (operation.IsArguments && !hasTypeOfActivationSlot)
+                    if (IsImplicitArgumentsIdentifier(typeOfIdentifier, activationSlots))
                     {
                         break;
                     }
@@ -1527,12 +1567,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.TypeOfIdentifier:
                 case ExpressionOpKind.UpdateIdentifier:
                 case ExpressionOpKind.DeleteIdentifier:
-                    if (operation.IsArguments)
+                    var identifier = operation.GetIdentifier(identifierConstants);
+                    if (IsImplicitArgumentsIdentifier(identifier, activationSlots))
                     {
                         break;
                     }
 
-                    var identifier = operation.GetIdentifier(identifierConstants);
                     if (IsOrdinaryDynamicIdentifier(identifier, activationSlots))
                     {
                         return true;
@@ -2854,7 +2894,7 @@ internal static class UnifiedBytecodeProductionEligibility
             var firstIdentifier = firstOperation.GetIdentifier(identifierConstants);
             var hasActivationCallTargetSlot = TryResolveActivationSlot(firstIdentifier, activationSlots);
             return (hasActivationCallTargetSlot ||
-                    !firstOperation.IsArguments && allowsDynamicIdentifiers) &&
+                    allowsDynamicIdentifiers) &&
                    HasSimpleCallArguments(program, identifierConstants, activationSlots, argsStartIndex: 1, call);
         }
 

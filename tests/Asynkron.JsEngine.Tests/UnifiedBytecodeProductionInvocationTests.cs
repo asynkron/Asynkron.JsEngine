@@ -5942,6 +5942,53 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task CallImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPathAndThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function callArguments() {
+                return arguments();
+            }
+
+            var caught = false;
+            try {
+                callArguments(41);
+            } catch (error) {
+                caught = error instanceof TypeError;
+            }
+
+            caught;
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=callArguments argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AssignImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function assignArguments() {
+                arguments;
+                arguments = 1;
+                return arguments;
+            }
+
+            assignArguments(41);
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=assignArguments argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateFieldIn_UsesUnifiedBytecodeProductionFastPathAndChecksBrand()
     {
         await using var engine = CreateEngine();

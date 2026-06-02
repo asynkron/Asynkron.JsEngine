@@ -6843,6 +6843,81 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierCallExpression_WithCapturedArrayArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeInvoker(fn, value) {
+                return () => fn([value]);
+            }
+
+            function probe(values) {
+                "use strict";
+                return this === undefined ? values[0] : 0;
+            }
+
+            var invoke = makeInvoker(probe, 42);
+            invoke();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierCallExpression_WithCapturedObjectArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeInvoker(fn, value) {
+                return () => fn({ item: value });
+            }
+
+            function probe(box) {
+                "use strict";
+                return this === undefined ? box.item : 0;
+            }
+
+            var invoke = makeInvoker(probe, 42);
+            invoke();
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ArrowFunction_CapturedIdentifierCallExpression_WithCapturedTemplateArgument_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeInvoker(fn, value) {
+                return () => fn(`${value}`);
+            }
+
+            function probe(text) {
+                "use strict";
+                return this === undefined && text === "42";
+            }
+
+            var invoke = makeInvoker(probe, 42);
+            invoke();
+            """);
+
+        Assert.Equal(true, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=<anonymous>",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task ArrowFunction_CapturedOptionalIdentifierCallExpression_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -3936,7 +3936,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (TryMeasureSimpleDirectNamedCallOperandSpan(
+            if (TryMeasureSimpleDirectMemberCallOperandSpan(
                     program,
                     i,
                     identifierConstants,
@@ -4097,7 +4097,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (TryMeasureSimpleDirectNamedCallOperandSpan(
+            if (TryMeasureSimpleDirectMemberCallOperandSpan(
                     program,
                     i,
                     identifierConstants,
@@ -4211,7 +4211,7 @@ internal static class UnifiedBytecodeProductionEligibility
         out int spanLength,
         bool allowsDynamicIdentifiers = false)
     {
-        if (TryMeasureSimpleDirectNamedCallOperandSpan(
+        if (TryMeasureSimpleDirectMemberCallOperandSpan(
                 program,
                 startIndex,
                 identifierConstants,
@@ -4324,6 +4324,30 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
+    private static bool TryMeasureSimpleDirectMemberCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        return TryMeasureSimpleDirectNamedCallOperandSpan(
+                   program,
+                   startIndex,
+                   identifierConstants,
+                   activationSlots,
+                   out spanLength,
+                   allowsDynamicIdentifiers) ||
+               TryMeasureSimpleDirectComputedCallOperandSpan(
+                   program,
+                   startIndex,
+                   identifierConstants,
+                   activationSlots,
+                   out spanLength,
+                   allowsDynamicIdentifiers);
+    }
+
     private static bool TryMeasureSimpleDirectNamedCallOperandSpan(
         ExpressionProgram program,
         int startIndex,
@@ -4354,6 +4378,82 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var argCount = 0;
         var operationIndex = startIndex + 2;
+        while (operationIndex < program.OperationCount &&
+               IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
+        {
+            argCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argCount)
+        {
+            return false;
+        }
+
+        spanLength = operationIndex - startIndex + 1;
+        return true;
+    }
+
+    private static bool TryMeasureSimpleDirectComputedCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        spanLength = 0;
+        if (startIndex + 3 >= program.OperationCount)
+        {
+            return false;
+        }
+
+        if (!IsSimpleOperand(program.GetOperation(startIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var callTargetIndex = startIndex + 2;
+        while (callTargetIndex < program.OperationCount &&
+               program.GetOperation(callTargetIndex).Kind != ExpressionOpKind.LoadComputedCallTarget)
+        {
+            callTargetIndex++;
+        }
+
+        if (callTargetIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(callTargetIndex);
+        if (callTarget.IsOptional || callTarget.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        if (!IsSupportedComputedPropertyKeySpan(
+                program,
+                startInclusive: startIndex + 1,
+                endExclusive: callTargetIndex,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var argCount = 0;
+        var operationIndex = callTargetIndex + 1;
         while (operationIndex < program.OperationCount &&
                IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
         {

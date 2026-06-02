@@ -2643,6 +2643,105 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_NonSimpleSourceArraySpread_AcceptsDirectComputedCallSource()
+    {
+        var plan = GetFunctionPlan("""
+            function spreadNonSimple(source, take) {
+                return [...source["slice"](0, take)];
+            }
+            """,
+            "spreadNonSimple");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArraySpread);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectPropertyValue_AcceptsDirectComputedCallValue()
+    {
+        var plan = GetFunctionPlan("""
+            function objectValue(source, take) {
+                return { part: source["slice"](0, take) };
+            }
+            """,
+            "objectValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ObjectPropertyValue_WithDynamicDirectComputedCallValue_Accepts()
+    {
+        var plan = GetFunctionPlan("""
+            function objectValue() {
+                return { part: source[method](0, take) };
+            }
+            """,
+            "objectValue");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineObjectProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedObjectPropertyKey_AcceptsDirectComputedCallKey()
+    {
+        var plan = GetFunctionPlan("""
+            function objectKey(source) {
+                return { [source["join"]("")]: 42 };
+            }
+            """,
+            "objectKey");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareComputedCallTarget);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ResolvePropertyKey);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DefineComputedObjectProperty);
+    }
+
+    [Fact]
     public void Evaluate_ObjectPropertyValue_AcceptsDirectNamedCallValue()
     {
         var plan = GetFunctionPlan("""

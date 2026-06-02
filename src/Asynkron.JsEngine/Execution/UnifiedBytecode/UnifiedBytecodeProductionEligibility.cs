@@ -1494,7 +1494,8 @@ internal static class UnifiedBytecodeProductionEligibility
 
                     if (TryIsFirstBoundaryNestedNamedPropertyWriteCandidate(program, identifierConstants, activationSlots) ||
                         TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers) ||
-                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
+                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedComputedPropertyUpdateCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -1763,7 +1764,12 @@ internal static class UnifiedBytecodeProductionEligibility
                             identifierConstants,
                             activationSlots,
                             allowsDynamicIdentifiers) ||
-                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots))
+                        TryIsFirstBoundaryNestedNamedPropertyUpdateCandidate(program, identifierConstants, activationSlots) ||
+                        TryIsFirstBoundaryNestedNamedComputedPropertyUpdateCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
                     {
                         break;
                     }
@@ -7531,6 +7537,73 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return true;
+    }
+
+    // Nested named receiver-prefix computed property update
+    // (`box.child[key]++`, `++box.child[key]`, `box.child[key]--`, `--box.child[key]`):
+    // [activation-resolved base, GetNamedProperty+ (>=1 plain named hop), computed key span,
+    // UpdateComputedProperty]. Mirrors TryIsFirstBoundaryNestedNamedComputedPropertyWriteCandidate
+    // but ends in UpdateComputedProperty (no separate value/Set sequence). A computed receiver
+    // prefix (`box[k1].child[k2]++`) keeps keyStart at 1 and declines below.
+    private static bool TryIsFirstBoundaryNestedNamedComputedPropertyUpdateCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 4)
+        {
+            return false;
+        }
+
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind != ExpressionOpKind.UpdateComputedProperty ||
+            !TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        // Walk the named receiver-prefix chain (at least one plain named hop).
+        var stringConstants = program.StringConstants.AsSpan();
+        var keyStart = 1;
+        while (keyStart < program.OperationCount - 1)
+        {
+            var receiverRead = program.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                receiverRead.IsOptional ||
+                receiverRead.ShortCircuitOnNullishTarget)
+            {
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        // Require at least one named prefix hop; the prefix-free shape is the simple
+        // computed update handled by TryIsFirstBoundaryPropertyUpdateCandidate.
+        if (keyStart < 2)
+        {
+            return false;
+        }
+
+        var updateIndex = program.OperationCount - 1;
+        if (keyStart >= updateIndex)
+        {
+            return false;
+        }
+
+        return IsSupportedComputedPropertyKeySpan(
+            program,
+            startInclusive: keyStart,
+            endExclusive: updateIndex,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
     }
 
     /// <summary>

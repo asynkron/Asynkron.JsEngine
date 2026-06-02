@@ -3852,6 +3852,23 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryNestedNamedComputedPropertyUpdate(
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertyUpdate(
                 expressionProgram,
                 activationSlots,
@@ -11750,6 +11767,140 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.UpdateNamedProperty,
             EncodeUpdateOperand(propertyNameIndex, propertyUpdate)));
+        reason = string.Empty;
+        return true;
+    }
+
+    // Nested named receiver-prefix computed property update (`box.child[key]++`).
+    // The simple computed-update emitter below intercepts on a trailing UpdateComputedProperty
+    // but treats index 1 onward as the key span, so the named receiver prefix would be rejected
+    // ("Unsupported computed property key span"). This handler must run first and own the
+    // named-prefix shape. The full shape is validated before any staging is committed so a
+    // false path never leaves a partially emitted (overflowing) program.
+    private static bool TryAppendFirstBoundaryNestedNamedComputedPropertyUpdate(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        if (expressionProgram.OperationCount < 4)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var propertyUpdateIndex = expressionProgram.OperationCount - 1;
+        var propertyUpdate = expressionProgram.GetOperation(propertyUpdateIndex);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateComputedProperty)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        var stringTable = expressionProgram.StringConstants.AsSpan();
+        if (expressionProgram.GetOperation(1).Kind != ExpressionOpKind.GetNamedProperty)
+        {
+            // No named receiver prefix — let the simple computed-update emitter own it.
+            reason = string.Empty;
+            return false;
+        }
+
+        var keyStart = 1;
+        while (keyStart < propertyUpdateIndex)
+        {
+            var receiverRead = expressionProgram.GetOperation(keyStart);
+            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            {
+                break;
+            }
+
+            if (receiverRead.GetString(stringTable).IsPrivateName())
+            {
+                reason = "Private nested named property receiver reads are not supported.";
+                return false;
+            }
+
+            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            keyStart++;
+        }
+
+        if (keyStart < 2 || keyStart >= propertyUpdateIndex)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        // Validate the computed key span fully before emitting anything so a decline
+        // here cannot leave staged ops partially written.
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: keyStart,
+                endExclusive: propertyUpdateIndex,
+                allowsDynamicIdentifiers))
+        {
+            reason = "Unsupported computed property key span.";
+            return false;
+        }
+
+        var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        stagedUnified.AddRange(unified);
+
+        var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        stagedLiterals.AddRange(literalConstants);
+
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                out reason))
+        {
+            return false;
+        }
+
+        for (var operationIndex = 1; operationIndex < keyStart; operationIndex++)
+        {
+            var receiverRead = expressionProgram.GetOperation(operationIndex);
+            var receiverNameIndex = stagedStrings.Count;
+            stagedStrings.Add(receiverRead.GetString(stringTable));
+            stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                stagedLiterals,
+                stagedStrings,
+                startInclusive: keyStart,
+                endExclusive: propertyUpdateIndex,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        stagedUnified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.UpdateComputedProperty,
+            EncodeUpdateFlags(propertyUpdate)));
+        unified.Clear();
+        unified.AddRange(stagedUnified);
+        literalConstants.Clear();
+        literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
         reason = string.Empty;
         return true;
     }

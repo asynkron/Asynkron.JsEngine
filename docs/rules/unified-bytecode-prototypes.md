@@ -463,8 +463,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     computed member calls with shallow activation-resolved receiver chains may
     execute through the VM-owned
     `CallInvocationBoundary` when their arguments are simple literal/slot
-    operands or span-measured simple array/object literals (since gh2705,
-    ADR 0290), and computed member keys are also simple literal/slot operands.
+    operands, span-measured simple named/computed property reads, or
+    span-measured simple array/object literals (since gh2705, ADR 0290), and
+    computed member keys are also simple literal/slot operands.
     Issue #2676 / PR #2685 widened all admitted shapes to accept **spread
     arguments** (`f(...args)`, `obj.m(...args)`, mixed positional+spread
     `f(a, ...b, c)`): the `CallInvocationBoundary` operand is extended with a
@@ -571,6 +572,16 @@ all-or-nothing until a separate routing issue proves production readiness.
     for all optional call prepare opcodes; a fixed-offset formula will silently
     produce the wrong jump target when the actual argument span length differs
     from `ArgumentCount`.
+    The super/call argument property-read slices showed that property reads
+    inside invocation boundaries must be owned by the argument span walker, not
+    treated as standalone first-boundary property reads. When admitting a
+    property-read value position such as `fn(box.value)`, `fn(box["value"])`,
+    `obj.m(box.value)`, or `super(items.length)`, update both the selector span
+    walker and the compiler argument emitter so the read is consumed as one
+    logical argument before `CallInvocationBoundary` or
+    `SuperConstructInvocationBoundary`. The VM must still execute the existing
+    `GetNamedProperty`/`GetComputedProperty` opcodes directly; do not add a
+    callback to expression bytecode or the IR runner.
     Issue #2741 / PR #2745 extended span-measured arguments further to include
     **simple untagged template literals** (`` fn(`hello ${name}`) ``,
     `` fn(`static`) ``): `TryMeasureSimpleTemplateLiteralSpan` recognizes the

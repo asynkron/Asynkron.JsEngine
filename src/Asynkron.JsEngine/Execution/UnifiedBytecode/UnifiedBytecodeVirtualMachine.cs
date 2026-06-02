@@ -1263,7 +1263,18 @@ internal static class UnifiedBytecodeVirtualMachine
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
-                    SetPropertyValue(computedSetTarget, computedSetName, computedPropertyValue, context, isStrict);
+                    // Computed property assignment (`obj[key] = value`) is always an ordinary
+                    // property set. A string key that happens to start with '#' (e.g.
+                    // `obj["#x"]`) is an ordinary property, not a private member, so private
+                    // resolution must stay disabled — matching the IR runner's
+                    // ApplyProgramComputedPropertyAssignment (allowPrivate: false).
+                    SetPropertyValue(
+                        computedSetTarget,
+                        computedSetName,
+                        computedPropertyValue,
+                        context,
+                        isStrict,
+                        allowPrivate: false);
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -1417,13 +1428,16 @@ internal static class UnifiedBytecodeVirtualMachine
                         return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
                     }
 
+                    // Computed property update (`obj[key]++`) is an ordinary property update;
+                    // a '#'-prefixed string key is an ordinary property, not a private member.
                     ReplaceTopValue(UpdatePropertyValue(
                         computedUpdateTarget,
                         computedUpdateName,
                         DecodeIsIncrement(instruction.Operand),
                         DecodeIsPrefix(instruction.Operand),
                         context,
-                        isStrict));
+                        isStrict,
+                        allowPrivate: false));
                     if (context.ShouldStopEvaluation)
                     {
                         if (TryHandleCurrentContextThrow(slots))
@@ -6884,14 +6898,15 @@ internal static class UnifiedBytecodeVirtualMachine
         string propertyName,
         JsValue propertyValue,
         EvaluationContext context,
-        bool isStrict)
+        bool isStrict,
+        bool allowPrivate = true)
     {
         var handle = PropertyHandle.Resolve(
             target,
             propertyName,
             context,
             context.CurrentScope.IsStrict || isStrict,
-            allowPrivate: true);
+            allowPrivate: allowPrivate);
         handle.SetValue(propertyValue);
     }
 
@@ -7107,14 +7122,15 @@ internal static class UnifiedBytecodeVirtualMachine
         bool isIncrement,
         bool isPrefix,
         EvaluationContext context,
-        bool isStrict)
+        bool isStrict,
+        bool allowPrivate = true)
     {
         var handle = PropertyHandle.Resolve(
             target,
             propertyName,
             context,
             context.CurrentScope.IsStrict || isStrict,
-            allowPrivate: true);
+            allowPrivate: allowPrivate);
         var currentValue = handle.GetJsValue();
         if (context.ShouldStopEvaluation)
         {

@@ -3137,7 +3137,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_CallImplicitArgumentsObject_DeclinesWithArgumentsDependency()
+    public void Evaluate_CallImplicitArgumentsObject_AcceptsDynamicIdentifierCallTarget()
     {
         var plan = GetFunctionPlan("""
             function callArguments() {
@@ -3148,10 +3148,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         var result = UnifiedBytecodeProductionEligibility.Evaluate(
             plan,
-            new UnifiedBytecodeProductionActivationDescriptor());
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.ArgumentsObjectDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
+    }
+
+    [Fact]
+    public void Evaluate_AssignImplicitArgumentsObject_AcceptsActivationSlotWrite()
+    {
+        var plan = GetFunctionPlan("""
+            function assignArguments() {
+                arguments;
+                arguments = 1;
+                return arguments;
+            }
+            """,
+            "assignArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]

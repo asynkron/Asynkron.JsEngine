@@ -3938,13 +3938,13 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.ResolveIdentifierReference:
-                    if (operation.IsArguments)
+                    var referenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(referenceIdentifier, slotLayout))
                     {
                         reason = "arguments assignment references are not supported.";
                         return false;
                     }
 
-                    var referenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (TryResolveActivationSlot(referenceIdentifier, slotLayout, out _))
                     {
                         reason =
@@ -3979,6 +3979,12 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreResolvedIdentifier:
                     var storeReferenceIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(storeReferenceIdentifier, slotLayout))
+                    {
+                        reason = "arguments assignment references are not supported.";
+                        return false;
+                    }
+
                     if (TryResolveActivationSlot(storeReferenceIdentifier, slotLayout, out _))
                     {
                         reason =
@@ -4013,6 +4019,12 @@ internal static class UnifiedBytecodeCompiler
 
                 case ExpressionOpKind.StoreIdentifier:
                     var storeIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(storeIdentifier, slotLayout))
+                    {
+                        reason = "arguments assignment references are not supported.";
+                        return false;
+                    }
+
                     if (TryResolveActivationSlot(storeIdentifier, slotLayout, out _))
                     {
                         reason =
@@ -4078,12 +4090,6 @@ internal static class UnifiedBytecodeCompiler
                     var identifierCallTarget = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (!TryResolveActivationCallTargetSlot(identifierCallTarget, slotLayout, out var identifierCallTargetSlot))
                     {
-                        if (operation.IsArguments)
-                        {
-                            reason = "arguments call targets are outside the general expression loop boundary.";
-                            return false;
-                        }
-
                         if (!allowsDynamicIdentifiers &&
                             !CanUseMaterializedActivationDynamicLookup(identifierCallTarget, activationSlots))
                         {
@@ -4232,13 +4238,13 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.DeleteIdentifier:
-                    if (operation.IsArguments)
+                    var deleteIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (IsImplicitArgumentsIdentifier(deleteIdentifier, slotLayout))
                     {
                         reason = "arguments delete is not supported.";
                         return false;
                     }
 
-                    var deleteIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                     if (!allowsDynamicIdentifiers)
                     {
                         reason =
@@ -4911,12 +4917,6 @@ internal static class UnifiedBytecodeCompiler
 
         if (!TryResolveActivationCallTargetSlot(identifier, slotLayout, out var slotIndex))
         {
-            if (callTarget.IsArguments)
-            {
-                reason = "arguments call targets are outside the call-target preparation boundary.";
-                return false;
-            }
-
             if (!isDirectEval &&
                 !allowsDynamicIdentifiers &&
                 !CanUseMaterializedActivationDynamicLookup(identifier, activationSlots))
@@ -10174,6 +10174,12 @@ internal static class UnifiedBytecodeCompiler
         slotIndex = -1;
         return false;
     }
+
+    private static bool IsImplicitArgumentsIdentifier(
+        IdentifierOperand identifier,
+        UnifiedBytecodeSlotLayout slotLayout) =>
+        ReferenceEquals(identifier.Name, Symbol.Arguments) &&
+        !TryResolveActivationSlot(identifier, slotLayout, out _);
 
     private static bool TryResolveActivationSlot(
         IdentifierOperand identifier,

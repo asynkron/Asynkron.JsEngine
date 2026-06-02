@@ -3593,7 +3593,6 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
         private bool CanUseProductionUnifiedBytecodeFinalRestParameterPath()
         {
             return !IsClassConstructor &&
-                   !IsArrowFunction &&
                    !IsAsyncLike &&
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
@@ -3829,7 +3828,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    !_function.IsGenerator &&
                    !_function.IsDefaultDerivedConstructor &&
                    (!_hasParameterExpressions && _hasOnlySimpleIdentifierParameters ||
-                    CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath()) &&
+                    CanUseProductionUnifiedBytecodeSimpleLiteralDefaultParameterPath() ||
+                    CanUseProductionUnifiedBytecodeFinalRestParameterPath()) &&
                    !_usesArguments &&
                    !_needsArgumentsBinding &&
                    _allowIdentifierCache &&

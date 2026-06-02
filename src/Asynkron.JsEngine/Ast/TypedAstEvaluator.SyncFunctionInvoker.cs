@@ -3136,7 +3136,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 {
                     executionEnvironment = IsClassConstructor && _isDerivedClassConstructor
                         ? CreateSimpleDerivedClassConstructorEnvironment(arguments, vmNewTarget, plan)
-                        : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context);
+                        : CreateSimpleIrActivationEnvironment(arguments, vmThisValue, plan, context, vmNewTarget);
                 }
 
                 if (IsClassConstructor &&
@@ -3930,8 +3930,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
 
         private bool CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath(ExecutionPlan plan)
         {
-            return !_hasDirectEvalInBodyOrParameters &&
-                   !_hasClosureWithObject &&
+            return !_hasClosureWithObject &&
                    !_hasCapturedActivationInClosure &&
                    !_usesArguments &&
                    UnifiedBytecodeProductionEligibility.ContainsOrdinaryDynamicIdentifierDependency(plan);
@@ -4002,7 +4001,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             TArgs arguments,
             JsValue thisValue,
             ExecutionPlan plan,
-            EvaluationContext context)
+            EvaluationContext context,
+            JsValue newTarget = default)
             where TArgs : IReadOnlyList<JsValue>
         {
             var functionEnvironment = JsEnvironmentPool.Rent(_closure, true, _isStrict, _function.Source,
@@ -4032,6 +4032,15 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
             functionEnvironment._thisValue = boundThis;
             functionEnvironment._hasThisValue = true;
             functionEnvironment.DefineJsValue(Symbol.This, boundThis);
+            if (!IsArrowFunction)
+            {
+                var newTargetValue = newTarget.IsUndefined ? JsValue.Undefined : newTarget;
+                functionEnvironment.DefineJsValue(Symbol.NewTarget, newTargetValue, true, isLexicalBinding: true,
+                    blocksFunctionScopeOverride: true);
+                functionEnvironment.DefineJsValue(Symbol.ActiveFunction, _cachedJsValue, true,
+                    isLexicalBinding: true, blocksFunctionScopeOverride: true);
+            }
+
             functionEnvironment.SetThisInitializationStatus(true);
 
             IJsPropertyAccessor? prototypeForSuper = null;

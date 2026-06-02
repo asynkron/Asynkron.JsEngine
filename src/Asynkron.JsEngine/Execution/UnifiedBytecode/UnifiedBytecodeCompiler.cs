@@ -12873,6 +12873,25 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Validate the multi-op RHS shape before emitting anything. The emission pass below
+        // only knows how to lower an array/object/template-literal span; any other multi-op
+        // RHS (e.g. `typeof base.prop === literal`, where the op after the property chain is
+        // `TypeOf`) is not this shape. Rejecting here keeps the contract "validate the entire
+        // shape before emitting anything" — otherwise the base load + property reads would be
+        // emitted and then left stranded on a non-rolled-back `false` return, doubling them
+        // when the general loop re-emits the expression and overflowing MaxStackDepth.
+        if (rhsStart != rhsEnd)
+        {
+            var rhsKind = expressionProgram.GetOperation(rhsStart).Kind;
+            if (rhsKind is not (ExpressionOpKind.CreateArray
+                or ExpressionOpKind.CreateObject
+                or ExpressionOpKind.LoadLiteral))
+            {
+                reason = string.Empty;
+                return false;
+            }
+        }
+
         // Validate base (read-only, mirrors TryAppendActivationValueLoad without emitting).
         var baseOp = expressionProgram.GetOperation(0);
         if (baseOp.Kind != ExpressionOpKind.LoadThis && baseOp.Kind != ExpressionOpKind.LoadNewTarget)

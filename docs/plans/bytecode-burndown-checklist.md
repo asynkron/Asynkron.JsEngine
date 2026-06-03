@@ -56,9 +56,9 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 
 - [ ] **A1** Captured/dynamic activation: closure-captured locals / with-in-chain needing heap env — *CapturedOrDynamicActivation* — sync ◐ / res ☐ — `:418`
 - [ ] **A2** Unresolved non-with dynamic activation chain — *CapturedOrDynamicActivation* — ☐/☐ — `:418`
-- [ ] **A3** `arguments` whole-object dependency (escape/pass/return/mutate) — *ArgumentsObjectDependency* — ◐/☐ — `:427`
-- [ ] **A4** `arguments` as call target — *ArgumentsObjectDependency* — ☐/☐ — `:1172`
-- [ ] **A5** `arguments` store / assignment-reference — *ArgumentsObjectDependency* — ☐/☐ — `:1340`
+- [x] **A3** `arguments` whole-object dependency (escape/pass/return/mutate) — *ArgumentsObjectDependency* — ☑/☐ — `:427` ✅ (Codex)
+- [x] **A4** `arguments` as call target — *ArgumentsObjectDependency* — ☑/☐ — `:1172` ✅ (Codex)
+- [x] **A5** `arguments` store / assignment-reference — *ArgumentsObjectDependency* — ☑/☐ — `:1340` ✅ (Codex)
 - [ ] **A6** Arrow needing lexical-this / new.target environment (non-simple body) — *ArrowLexicalThisDependency* — ☐/n/a — `:455`
 - [ ] **A7** Class constructor activation outside admitted param shapes — *ClassConstructorActivation* — ◐/n/a — `:462`
 - [ ] **A8** Tail call returned from inside `finally` — *CallDependency* — ☐/n/a — `:498`
@@ -207,4 +207,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 5 / ~118 complete (P0.1, P0.5, B4, B5, C1). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._
+_Status: 9 / ~118 complete (P0.1, P0.5, A3, A4, A5, B4, B5, C1, C2). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._

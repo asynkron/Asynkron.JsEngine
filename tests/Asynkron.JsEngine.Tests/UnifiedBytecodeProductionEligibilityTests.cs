@@ -4957,6 +4957,50 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ReturnImplicitArgumentsObject_AcceptsDynamicIdentifierRead()
+    {
+        var plan = GetFunctionPlan("""
+            function returnArguments() {
+                return arguments;
+            }
+            """,
+            "returnArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+    }
+
+    [Fact]
+    public void Evaluate_PassImplicitArgumentsObject_AcceptsDynamicIdentifierRead()
+    {
+        var plan = GetFunctionPlan("""
+            function passArguments(reader, value) {
+                return reader(arguments);
+            }
+            """,
+            "passArguments");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadDynamicIdentifier);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
     public void Evaluate_LiteralDefaultArgumentsLength_AcceptsImplicitArgumentsObjectPropertyRead()
     {
         var plan = GetFunctionPlan("""

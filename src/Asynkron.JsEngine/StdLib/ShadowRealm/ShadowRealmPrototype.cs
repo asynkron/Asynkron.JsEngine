@@ -53,7 +53,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
                 innerEngine.GlobalEnvironment,
                 innerRealm,
                 executionKind: ExecutionKind.Eval);
-            result = ConvertResult(rawResult);
+            result = rawResult;
         }
         catch (ThrowSignal signal)
         {
@@ -108,8 +108,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
         {
             // Try to evaluate as a module in the shadow realm
             var moduleSource = $"import {{ {exportNameString} }} from '{specifierString}'; {exportNameString};";
-            var rawResult = innerEngine.EvaluateSync(moduleSource);
-            var result = ConvertResult(rawResult);
+            var result = innerEngine.EvaluateSyncJsValue(moduleSource);
 
             var wrappedValue = GetWrappedValue(callerRealm, result, innerEngine.RealmState, shadowRealm);
 
@@ -127,20 +126,6 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
             var error = CreateTypeError(ex.Message, realm: callerRealm);
             return CreateRejectedPromise(callerRealm, error);
         }
-    }
-
-    /// <summary>
-    /// Converts a raw evaluation result into a JsValue.
-    /// Handles null (JS null), JsValue, and other objects.
-    /// </summary>
-    private static JsValue ConvertResult(object? rawResult)
-    {
-        return rawResult switch
-        {
-            JsValue jsVal => jsVal,
-            null => JsValue.Null,
-            _ => JsValue.FromObjectUnsafe(rawResult)
-        };
     }
 
     private static JsShadowRealm ValidateShadowRealmObject(JsValue thisValue, RealmState realm)
@@ -344,7 +329,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
         // Per spec: SetFunctionLength — non-writable, non-enumerable, configurable
         wrappedFn.DefineProperty("length", new PropertyDescriptor
         {
-            Value = targetLength,
+            JsValue = JsValue.FromDouble(targetLength),
             Writable = false,
             Enumerable = false,
             Configurable = true
@@ -353,7 +338,7 @@ public sealed partial class ShadowRealmPrototype : JsPrototype
         // Per spec: SetFunctionName — always set, even if empty string
         wrappedFn.DefineProperty("name", new PropertyDescriptor
         {
-            Value = targetName,
+            JsValue = new JsValue(targetName),
             Writable = false,
             Enumerable = false,
             Configurable = true

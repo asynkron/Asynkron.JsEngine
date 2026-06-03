@@ -25,7 +25,7 @@ public sealed partial class ShadowRealmConstructor(IJsObjectLike prototype, Real
             // Store the internal shadow realm as a non-enumerable property
             jsObj.DefineProperty(ShadowRealmSlot, new PropertyDescriptor
             {
-                Value = shadowRealm,
+                JsValue = JsValue.FromObjectUnsafe(shadowRealm),
                 Writable = false,
                 Enumerable = false,
                 Configurable = false

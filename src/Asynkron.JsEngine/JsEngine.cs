@@ -880,6 +880,12 @@ public sealed class JsEngine : IAsyncDisposable, IDisposable
         return EvaluateSyncInternal(program, cancellationToken).ToObject();
     }
 
+    internal JsValue EvaluateSyncJsValue(string source, CancellationToken cancellationToken = default)
+    {
+        var program = ParseProgramOrThrowSyntaxError(source);
+        return EvaluateSyncInternal(program, cancellationToken);
+    }
+
     /// <summary>
     ///     Synchronously evaluates a pre-parsed program without using the event loop.
     /// </summary>

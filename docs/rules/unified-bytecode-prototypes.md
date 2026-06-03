@@ -142,6 +142,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      blockers. Dependency-bearing arrows, parameter expressions, non-simple
      parameters, private scopes, and dynamic lookup stay on existing routes until
      the VM and invocation bridge own those semantics directly.
+10d. When admitting async generators to production unified bytecode, keep the
+     route owned by `UnifiedBytecodeResumeState` and the existing async-generator
+     settlement contract. Simple-parameter direct-yield `async function*` bodies
+     may route through `UnifiedBytecodeVirtualMachine.ExecuteResumable` when
+     `EvaluateResumable` accepts the lowered plan, and `AsyncGeneratorInvoker`
+     must map `Yield`, `Completed`, `Throw`, and `PendingAwait` back through the
+     same promise settlement path used by the IR runner. Non-simple parameter
+     lists must stay on the IR runner until the VM owns their eager
+     parameter-initialization effects before iterator creation. Async-generator
+     `yield*` and `yield* await ...` must stay explicit pre-VM declines until
+     delegated async iterator settlement is VM-owned. Do not treat this first
+     direct-yield route as broad async-generator support or add VM fallback into
+     `ExecutionPlanRunner`, `ExpressionProgram`, or AST evaluation. WHY: issue
+     #3135 / PR #3142 added the first async-generator resumable route and kept
+     delegated async-generator `yield*` as an explicit decline so future
+     widening does not accidentally route unowned delegation semantics.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

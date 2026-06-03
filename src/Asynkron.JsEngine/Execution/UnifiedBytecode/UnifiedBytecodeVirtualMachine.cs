@@ -3433,6 +3433,55 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
+                {
+                    // Free variable READ (`yield outerVar`). Resolve by name against the live closure
+                    // environment captured on the resume state. The environment is a live reference (not
+                    // a snapshot), so after a resume this reads the CURRENT binding value: a variable a
+                    // closure captured and mutates across yields, or one outer code mutated while this
+                    // frame was suspended, is observed correctly, and an uninitialized binding throws a
+                    // ReferenceError (via GetDynamicIdentifierValue -> SetThrow).
+                    var resumableDynamicLoadEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                    PushResumableValue(GetDynamicIdentifierValue(
+                        program.StringConstants[instruction.Operand],
+                        resumableDynamicLoadEnvironment,
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget:
+                {
+                    // Free function CALL target (`yield helper(x)` where `helper` is module/script-level
+                    // or a captured outer binding). Resolve the callee by name against the live closure
+                    // environment, pushing the <thisValue, callee> pair the CallInvocationBoundary
+                    // consumes. Resolution is live, so the binding observed after a resume reflects any
+                    // reassignment/shadowing performed by outer code between yields.
+                    var resumableDynamicCallEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                    PrepareDynamicIdentifierCallTarget(
+                        program.StringConstants[instruction.Operand],
+                        resumableDynamicCallEnvironment,
+                        stack,
+                        ref stackPointer,
+                        context);
+                    SetResumableShortCircuitFlag(stackPointer - 1, false);
+                    SetResumableShortCircuitFlag(stackPointer - 2, false);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
                 case UnifiedBytecodeOpCode.StoreSlot:
                     if (slots[instruction.Operand].IsUninitialized)
                     {

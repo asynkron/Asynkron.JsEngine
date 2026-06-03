@@ -933,6 +933,35 @@ the final post-compile production subset check before VM entry.
   because the resumable compiler declines that shape at compile time, so the
   opcode never reaches the resumable path; `super`/construct optional boundaries
   remain declined as before.
+- Accepted resumable bodies may now resolve FREE/DYNAMIC IDENTIFIERS between
+  suspension points: a free variable READ (`yield outerVar`, lowered to
+  `LoadDynamicIdentifier`) and a free function CALL target (`yield helper(x)`
+  where `helper` is module/script-level or a captured outer binding, lowered to
+  `PrepareDynamicIdentifierCallTarget`). `EvaluateResumable` sets
+  `allowsDynamicIdentifiers = true` in `TryFindResumablePlanDecline`, compiles
+  with `allowsOrdinaryDynamicIdentifiers: true`, and the two opcodes are added to
+  the `TryFindUnsupportedResumableOpcode` allowlist (that allowlist is the gate —
+  free WRITES/updates `StoreDynamicIdentifier`/`ResolveDynamicIdentifierReference`/
+  `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`/`DeleteDynamicIdentifier`,
+  and `eval`/`with` stay off it and therefore decline). The `ExecuteResumable`
+  handlers resolve BY NAME against the LIVE closure environment threaded onto
+  `UnifiedBytecodeResumeState.CallingEnvironment` (the same field #3108 threads
+  for call dispatch), reusing the sync `GetDynamicIdentifierValue` /
+  `PrepareDynamicIdentifierCallTarget` helpers. Because the environment is a live
+  reference, a resumed step observes the CURRENT binding: a binding a sibling
+  closure mutates while the frame is suspended, a global reassigned between
+  yields, and a free callee rebound between yields all resolve to the new value,
+  and an uninitialized free binding still throws ReferenceError (proof:
+  `UnifiedBytecodeResumableDynamicIdentifierTests`). ARCHITECTURAL CARVE-OUT: a
+  `yield* <iterable>` whose iterable resolves through a free/dynamic identifier
+  (`yield* spyIterable`, `yield* makeIterator()`) is kept on the IR runner by a
+  targeted `TryFindResumablePlanDecline` guard
+  (`YieldStarIterableHasFreeIdentifierDependency`); the resumable `yield*`
+  delegation protocol was only validated against slot-resolved iterables, so
+  admitting a dynamic iterable would regress delegation semantics (8
+  `Generator_YieldStar*` tests regressed without the guard and re-green with it).
+  A binding captured from an *enclosing function* scope (resolves to that
+  activation's slot, `ScopeId>=0`) is a distinct tier that remains declined.
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

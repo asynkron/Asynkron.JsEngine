@@ -363,7 +363,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 activation.IsAsyncLike,
                 activation.IsGenerator,
                 out var program,
-                out var compileReason))
+                out var compileReason,
+                // Lower free/dynamic identifier reads and free call targets to the dynamic-environment
+                // opcodes (LoadDynamicIdentifier / PrepareDynamicIdentifierCallTarget). The post-compile
+                // opcode allowlist (TryFindUnsupportedResumableOpcode) is the gate: any dynamic write /
+                // reference opcode the compiler emits under this flag still declines there because it is
+                // not on the resumable allowlist.
+                allowsOrdinaryDynamicIdentifiers: true))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
@@ -776,10 +782,36 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = plan.Instructions[instructionIndex];
-            var allowsDynamicIdentifiers = activeWithDepths[instructionIndex] > 0;
+            // Ordinary free/dynamic identifier resolution (a free variable READ or a free function
+            // CALL target that escapes this activation's slots, e.g. `yield outerVar` /
+            // `yield helper(x)`) is admitted into the resumable route. Resolution runs against the
+            // live closure environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment
+            // (#3108), which is captured at construction and stable across yield/await suspension, so a
+            // resumed step observes the CURRENT value of a captured/outer binding (closure capture and
+            // outer mutation between yields both resolve correctly) and an uninitialized free binding
+            // still throws ReferenceError. Free dynamic *writes* (StoreDynamicIdentifier /
+            // ResolveDynamicIdentifierReference) and other dynamic-environment opcodes remain declined:
+            // the resumable opcode allowlist (TryFindUnsupportedResumableOpcode) only admits the dynamic
+            // read / call-target opcodes, so any write shape still routes to the interpreter.
+            const bool allowsDynamicIdentifiers = true;
             if (!IsSupportedResumableInstruction(instruction, out declineReason))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                return true;
+            }
+
+            // `yield* <iterable>` keeps its prior verified routing when the iterable resolves through a
+            // free/dynamic identifier (`yield* spyIterable`). The resumable YieldStar delegation protocol
+            // was only validated against slot-resolved iterables; admitting a dynamic-identifier iterable
+            // here would newly route those `yield*` bodies through the resumable VM and regress the
+            // delegation semantics (next/return/throw forwarding, iterator-result shape). Declining keeps
+            // them on the IR runner. Free reads/calls in non-`yield*` positions remain admitted.
+            if (instruction is YieldStarInstruction { IterableProgram: { } yieldStarIterable } &&
+                YieldStarIterableHasFreeIdentifierDependency(yieldStarIterable, activationSlots))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+                declineReason =
+                    "yield* over a free/dynamic-identifier iterable keeps its IR-runner routing and is not eligible for resumable unified bytecode routing.";
                 return true;
             }
 
@@ -916,6 +948,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.PrepareIdentifierCallTarget or
                 UnifiedBytecodeOpCode.PrepareNamedCallTarget or
                 UnifiedBytecodeOpCode.PrepareComputedCallTarget or
+                // Free/dynamic identifier resolution. A free variable READ (`yield outerVar`) lowers to
+                // LoadDynamicIdentifier and a free function CALL target (`yield helper(x)`) lowers to
+                // PrepareDynamicIdentifierCallTarget. Both resolve by name against the live closure
+                // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108), which
+                // is stable across suspension, so a resumed step reads the CURRENT value of the captured /
+                // outer binding. The dynamic *write* / reference / typeof / delete opcodes are
+                // intentionally omitted: those shapes have no resumable VM handler, so leaving them off
+                // this allowlist declines them back to the interpreter.
+                UnifiedBytecodeOpCode.LoadDynamicIdentifier or
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
                 UnifiedBytecodeOpCode.Yield or
                 UnifiedBytecodeOpCode.StoreResumeValue or
@@ -2063,6 +2105,38 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     break;
+            }
+        }
+
+        return false;
+    }
+
+    // Detects a free/dynamic identifier used anywhere inside a yield* iterable program, including a free
+    // CALL target (`yield* makeIterator()`). Broader than HasOrdinaryDynamicExpressionDependency, which
+    // intentionally omits LoadIdentifierCallTarget; here a free callee also disqualifies resumable
+    // routing so the yield* delegation keeps its verified IR-runner path.
+    private static bool YieldStarIterableHasFreeIdentifierDependency(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
+    {
+        if (HasOrdinaryDynamicExpressionDependency(program, activationSlots))
+        {
+            return true;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.LoadIdentifierCallTarget || operation.IsArguments)
+            {
+                continue;
+            }
+
+            var callIdentifier = operation.GetIdentifier(identifierConstants);
+            if (IsOrdinaryDynamicIdentifier(callIdentifier, activationSlots))
+            {
+                return true;
             }
         }
 
@@ -7925,7 +7999,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
             default:
                 program = default;
-            return false;
+                return false;
         }
     }
 

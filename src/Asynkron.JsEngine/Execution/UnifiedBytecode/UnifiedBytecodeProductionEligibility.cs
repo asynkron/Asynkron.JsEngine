@@ -704,7 +704,6 @@ internal static class UnifiedBytecodeProductionEligibility
         // `.return()`/`.throw()` must run a *suspending* finally, which it does not support — so decline
         // it. A suspension in the TRY BODY stays admitted: for-of lowers its yielding loop body into the
         // try body with a NON-suspending iterator-close finally, which the resumable VM handles correctly.
-        instructionName = string.Empty;
 
         var finallyBoundary = new HashSet<int> { enterTryIndex };
         if (enterTry.EndFinallyIndex >= 0)
@@ -1969,6 +1968,17 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A25/A26: deep delete chains with a computed hop before the terminal delete
+                    // (`delete box.a[k1][k2]`); the named read hop lands in this case.
+                    if (TryIsFirstBoundaryDeepPropertyDeleteChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryOptionalComputedPropertyDeleteCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -2121,6 +2131,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A25/A26: an intermediate computed read hop of a deep property delete chain
+                    // (`delete box[k1][k2]`, `delete box[k1].b`). The terminal delete op is validated
+                    // by the same whole-program walker invoked from the Delete* cases.
+                    if (TryIsFirstBoundaryDeepPropertyDeleteChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (isConstructInvocationCandidate)
                     {
                         break;
@@ -2264,6 +2286,17 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A25/A26: deep delete chain whose terminal named delete sits past a computed
+                    // read hop (`delete box[k1].b`).
+                    if (TryIsFirstBoundaryDeepPropertyDeleteChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     declineCode = UnifiedBytecodeProductionDeclineCode.DeleteDependency;
                     declineReason =
                         "Named property deletes are outside the first production boundary unless they use an activation-resolved non-private base/property chain.";
@@ -2286,6 +2319,17 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     if (TryIsFirstBoundaryComputedPropertyDeleteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
+                    // A25/A26: deep delete chain whose terminal computed delete sits past one or more
+                    // computed read hops (`delete box[k1][k2]`, `delete box.a[k1][k2]`).
+                    if (TryIsFirstBoundaryDeepPropertyDeleteChainCandidate(
                             program,
                             identifierConstants,
                             activationSlots,
@@ -3369,6 +3413,172 @@ internal static class UnifiedBytecodeProductionEligibility
                program.GetOperation(program.OperationCount - 1).Kind == ExpressionOpKind.DeleteComputedProperty;
     }
 
+    // A25/A26 widening: admits a DEEP, non-optional property delete chain off an activation-resolved
+    // (or admitted plain dynamic-identifier) base where intermediate hops may be ANY mix of plain named
+    // reads (`box.a.b`) and plain computed reads (`box[k1][k2]`), terminating in either a
+    // DeleteNamedProperty or DeleteComputedProperty. This mirrors the property-read/write deep-chain
+    // boundary widening for the delete family. The simpler single-hop and named-only shapes are still
+    // matched first by their dedicated candidates; this walker covers the cases those reject (a computed
+    // hop anywhere before the terminal delete, e.g. `delete box[k1][k2]`, `delete box.a[k1][k2]`,
+    // `delete box[k1].b`).
+    //
+    // The whole program is validated with a stack-depth machine BEFORE any operand is trusted (the
+    // emit-then-bail crash class). Optional/short-circuit hops and private names are rejected — those keep
+    // their own dedicated optional-delete candidates and IR-runner fallbacks. Only sync-route opcodes that
+    // already have production handlers are admitted; this stays entirely out of the resumable allowlist.
+    private static bool TryIsFirstBoundaryDeepPropertyDeleteChainCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 3)
+        {
+            return false;
+        }
+
+        var lastOp = program.GetOperation(program.OperationCount - 1);
+        if (lastOp.Kind is not (ExpressionOpKind.DeleteNamedProperty or ExpressionOpKind.DeleteComputedProperty))
+        {
+            return false;
+        }
+
+        if (!TryGetActivationOrPlainDynamicIdentifierReadValue(
+                program.GetOperation(0),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var stackDepth = 1;
+        var computedHopCount = 0;
+        var readHopCount = 0;
+        for (var index = 1; index < program.OperationCount; index++)
+        {
+            var operation = program.GetOperation(index);
+            var isLast = index == program.OperationCount - 1;
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(stringConstants).IsPrivateName() ||
+                        stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    readHopCount++;
+                    break;
+
+                case ExpressionOpKind.GetComputedProperty:
+                    if (operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    computedHopCount++;
+                    readHopCount++;
+                    break;
+
+                case ExpressionOpKind.RequireObjectCoercible:
+                    if (operation.Depth != 1 || stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.ResolvePropertyKey:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                    if (!IsSimpleComputedPropertyKey(
+                            operation,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                case ExpressionOpKind.UnaryMinus:
+                case ExpressionOpKind.UnaryLogicalNot:
+                case ExpressionOpKind.UnaryBitwiseNot:
+                case ExpressionOpKind.UnaryVoid:
+                case ExpressionOpKind.ToString:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                case ExpressionOpKind.DeleteNamedProperty:
+                    if (!isLast ||
+                        operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(stringConstants).IsPrivateName() ||
+                        stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    // delete consumes the receiver and pushes the boolean result (net 0).
+                    break;
+
+                case ExpressionOpKind.DeleteComputedProperty:
+                    if (!isLast ||
+                        operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    // delete consumes the receiver and the key, pushing the boolean result (net -1).
+                    stackDepth--;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        // Require at least one computed read hop before the terminal delete; pure named chains
+        // (`delete box.a.b.c`) are already covered by TryIsFirstBoundaryNamedPropertyDeleteCandidate,
+        // and the single-computed-key shapes by TryIsFirstBoundaryComputedPropertyDeleteCandidate.
+        // The terminal boolean must be the sole stack residue.
+        return stackDepth == 1 && computedHopCount >= 1 && readHopCount >= 1;
+    }
+
     // Admits delete a?.b[k]:
     // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), simple key, DeleteComputedProperty].
     // The compiler emits the nullish guard before the named hop so key evaluation is skipped when the base short-circuits.
@@ -3553,7 +3763,7 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Admits the simple a?.b shape: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)].
-    
+
     // Admits multi-hop optional named chains a?.b.c, a?.b?.c, and a.b?.c:
     // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
@@ -3625,7 +3835,7 @@ internal static class UnifiedBytecodeProductionEligibility
     // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
     // The optional guard on the first access is converted to JumpIfNullishReplaceUndefined in the compiler;
     // subsequent accesses are regular GetNamedProperty ops (throwing TypeError on null base, which is correct for a?.b.c).
-    
+
     // Admits the a?.b[k], a?.b[k].c, and a.b?.c[k] shapes:
     // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true),

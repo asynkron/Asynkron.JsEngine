@@ -11989,4 +11989,145 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 "unified-bytecode-production-fast-path func=write argc=3",
                 StringComparison.Ordinal));
     }
+
+    // ---- A25/A26: deep property delete chains (sync production route) ----
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepNamedPropertyDelete_UsesProductionFastPath_AndDeletesOnlyTarget()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box) {
+                return delete box.a.b.c;
+            }
+
+            var box = { a: { b: { c: 1, sibling: 2 } } };
+            var deleted = remove(box);
+            "" + deleted + "," + ("c" in box.a.b) + "," + box.a.b.sibling;
+            """);
+
+        // strict-free delete of a configurable property returns true; only `c` is removed.
+        Assert.Equal("true,false,2", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepComputedPropertyDelete_UsesProductionFastPath_AndDeletesOnlyTarget()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, k1, k2) {
+                return delete box[k1][k2];
+            }
+
+            var box = { a: { x: 1, y: 2 } };
+            var deleted = remove(box, "a", "x");
+            "" + deleted + "," + ("x" in box.a) + "," + box.a.y;
+            """);
+
+        Assert.Equal("true,false,2", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task NamedThenComputedThenComputedDelete_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, k1, k2) {
+                return delete box.a[k1][k2];
+            }
+
+            var box = { a: { b: { c: 1, d: 2 } } };
+            var deleted = remove(box, "b", "c");
+            "" + deleted + "," + ("c" in box.a.b) + "," + box.a.b.d;
+            """);
+
+        Assert.Equal("true,false,2", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task ComputedThenNamedDelete_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, k1) {
+                return delete box[k1].b;
+            }
+
+            var box = { a: { b: 1, keep: 2 } };
+            var deleted = remove(box, "a");
+            "" + deleted + "," + ("b" in box.a) + "," + box.a.keep;
+            """);
+
+        Assert.Equal("true,false,2", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepComputedDelete_NonConfigurableTarget_SloppyReturnsFalse_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, k1, k2) {
+                return delete box[k1][k2];
+            }
+
+            var leaf = {};
+            Object.defineProperty(leaf, "locked", { value: 7, configurable: false });
+            var box = { a: leaf };
+            var deleted = remove(box, "a", "locked");
+            "" + deleted + "," + box.a.locked;
+            """);
+
+        // Sloppy-mode delete of a non-configurable property returns false and leaves it intact.
+        Assert.Equal("false,7", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepComputedDelete_NonConfigurableTarget_StrictThrowsTypeError_UsesProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function remove(box, k1, k2) {
+                "use strict";
+                return delete box[k1][k2];
+            }
+
+            var leaf = {};
+            Object.defineProperty(leaf, "locked", { value: 7, configurable: false });
+            var box = { a: leaf };
+            var threw = "no";
+            try {
+                remove(box, "a", "locked");
+            } catch (e) {
+                threw = e instanceof TypeError ? "TypeError" : "other";
+            }
+            "" + threw + "," + box.a.locked;
+            """);
+
+        // Strict-mode delete of a non-configurable property throws a TypeError; target stays intact.
+        Assert.Equal("TypeError,7", result as string);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=remove argc=3",
+                StringComparison.Ordinal));
+    }
 }

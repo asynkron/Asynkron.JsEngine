@@ -707,11 +707,21 @@ internal static class UnifiedBytecodeProductionEligibility
         instructionName = string.Empty;
 
         var finallyBoundary = new HashSet<int> { enterTryIndex };
-        if (enterTry.EndFinallyIndex >= 0) finallyBoundary.Add(enterTry.EndFinallyIndex);
-        if (enterTry.LeaveTryIndex >= 0) finallyBoundary.Add(enterTry.LeaveTryIndex);
+        if (enterTry.EndFinallyIndex >= 0)
+        {
+            finallyBoundary.Add(enterTry.EndFinallyIndex);
+        }
+
+        if (enterTry.LeaveTryIndex >= 0)
+        {
+            finallyBoundary.Add(enterTry.LeaveTryIndex);
+        }
 
         var catchBoundary = new HashSet<int>(finallyBoundary);
-        if (enterTry.FinallyIndex >= 0) catchBoundary.Add(enterTry.FinallyIndex);
+        if (enterTry.FinallyIndex >= 0)
+        {
+            catchBoundary.Add(enterTry.FinallyIndex);
+        }
 
         if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName)
             || CleanupBlockHasSuspension(instructions, enterTry.HandlerIndex, catchBoundary, out instructionName))
@@ -738,14 +748,33 @@ internal static class UnifiedBytecodeProductionEligibility
         EnterTryInstruction enterTry)
     {
         var boundary = new HashSet<int>();
-        if (enterTry.HandlerIndex >= 0) boundary.Add(enterTry.HandlerIndex);
-        if (enterTry.FinallyIndex >= 0) boundary.Add(enterTry.FinallyIndex);
-        if (enterTry.EndFinallyIndex >= 0) boundary.Add(enterTry.EndFinallyIndex);
-        if (enterTry.LeaveTryIndex >= 0) boundary.Add(enterTry.LeaveTryIndex);
+        if (enterTry.HandlerIndex >= 0)
+        {
+            boundary.Add(enterTry.HandlerIndex);
+        }
+
+        if (enterTry.FinallyIndex >= 0)
+        {
+            boundary.Add(enterTry.FinallyIndex);
+        }
+
+        if (enterTry.EndFinallyIndex >= 0)
+        {
+            boundary.Add(enterTry.EndFinallyIndex);
+        }
+
+        if (enterTry.LeaveTryIndex >= 0)
+        {
+            boundary.Add(enterTry.LeaveTryIndex);
+        }
 
         var visited = new HashSet<int>();
         var pending = new Stack<int>();
-        if (enterTry.Next >= 0) pending.Push(enterTry.Next);
+        if (enterTry.Next >= 0)
+        {
+            pending.Push(enterTry.Next);
+        }
+
         while (pending.Count > 0)
         {
             var index = pending.Pop();
@@ -1234,7 +1263,35 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ObjectDestructuringInit or
                 UnifiedBytecodeOpCode.ObjectDestructuringProperty or
                 UnifiedBytecodeOpCode.ObjectDestructuringRest or
-                UnifiedBytecodeOpCode.ObjectDestructuringClose)
+                UnifiedBytecodeOpCode.ObjectDestructuringClose or
+                // OBJECT literals (`{a, b: v, [k]: v, m(){}, get x(){}, set x(v){}, ...spread}`) and ARRAY
+                // literals (`[a, , b, ...spread]`) inside a resumable body. Each literal is built bottom-up
+                // on the operand stack: a single Create{Object,Array} pushes a FRESH receiver, then the
+                // Define*/ArrayPush*/*Spread opcodes mutate that receiver in place, popping their argument(s)
+                // while leaving the receiver on the stack. A sub-expression can suspend (`{a: yield 1}`,
+                // `[yield 1]`); the partially-built receiver — plus any already-evaluated keys/values below
+                // the suspension point — sit on UnifiedBytecodeResumeState.OperandStack, the stable backing
+                // store restored on resume, exactly like the admitted property writes. Per ECMAScript a new
+                // object/array is materialized on every evaluation (Create* allocates anew each step, never
+                // caches), so re-entering a literal across a loop+yield yields a distinct instance. The
+                // resumable handlers reuse the sync VM's Define*/ApplyObjectLiteralSpread/EnumerateSpread
+                // helpers verbatim, so computed-key coercion, name inference, getter/setter ordering, own-
+                // enumerable spread copy, and array-hole semantics are identical. The opcodes that can throw
+                // (computed-key ToPropertyKey, a spread getter, an iterator step) surface the throw as the
+                // resumable Throw step; none of them carry an AwaitedProgram, so each runs to completion
+                // inside one resumable step with no resume-state restoration of its own.
+                UnifiedBytecodeOpCode.CreateObject or
+                UnifiedBytecodeOpCode.DefineObjectProperty or
+                UnifiedBytecodeOpCode.DefineComputedObjectProperty or
+                UnifiedBytecodeOpCode.DefineObjectMethod or
+                UnifiedBytecodeOpCode.DefineComputedObjectMethod or
+                UnifiedBytecodeOpCode.DefineObjectAccessor or
+                UnifiedBytecodeOpCode.DefineComputedObjectAccessor or
+                UnifiedBytecodeOpCode.ObjectSpread or
+                UnifiedBytecodeOpCode.CreateArray or
+                UnifiedBytecodeOpCode.ArrayPush or
+                UnifiedBytecodeOpCode.ArrayPushHole or
+                UnifiedBytecodeOpCode.ArraySpread)
             {
                 continue;
             }
@@ -2688,21 +2745,6 @@ internal static class UnifiedBytecodeProductionEligibility
         }
     }
 
-    private static bool TryGetActivationResolvedIdentifier(
-        PackedExpressionOp operation,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        if (operation.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadIdentifierCallTarget) ||
-            operation.IsArguments)
-        {
-            return false;
-        }
-
-        var identifier = operation.GetIdentifier(identifierConstants);
-        return TryResolveActivationSlot(identifier, activationSlots);
-    }
-
     private static bool TryGetActivationResolvedValue(
         PackedExpressionOp operation,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -3283,28 +3325,7 @@ internal static class UnifiedBytecodeProductionEligibility
     }
 
     // Admits the simple a?.b shape: [activation-resolved base, GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private)].
-    private static bool TryIsFirstBoundaryOptionalNamedPropertyReadCandidate(
-        ExpressionProgram program,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        if (program.OperationCount != 2)
-        {
-            return false;
-        }
-
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        var getNamedOp = program.GetOperation(1);
-        return getNamedOp.Kind == ExpressionOpKind.GetNamedProperty &&
-               getNamedOp.IsOptional &&
-               !getNamedOp.ShortCircuitOnNullishTarget &&
-               !getNamedOp.GetString(program.StringConstants.AsSpan()).IsPrivateName();
-    }
-
+    
     // Admits multi-hop optional named chains a?.b.c, a?.b?.c, and a.b?.c:
     // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  GetNamedProperty(IsOptional:true, !ShortCircuitOnNullishTarget, non-private),
@@ -3376,46 +3397,7 @@ internal static class UnifiedBytecodeProductionEligibility
     // [activation-resolved base, GetNamedProperty(IsOptional:true, !SC, non-private), GetNamedProperty(!IsOptional, SC:true, non-private)+]
     // The optional guard on the first access is converted to JumpIfNullishReplaceUndefined in the compiler;
     // subsequent accesses are regular GetNamedProperty ops (throwing TypeError on null base, which is correct for a?.b.c).
-    private static bool TryIsFirstBoundaryOptionalNamedPropertyReadChainCandidate(
-        ExpressionProgram program,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        if (program.OperationCount < 3)
-        {
-            return false;
-        }
-
-        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
-        {
-            return false;
-        }
-
-        var stringConstants = program.StringConstants.AsSpan();
-        var firstPropOp = program.GetOperation(1);
-        if (firstPropOp.Kind != ExpressionOpKind.GetNamedProperty ||
-            !firstPropOp.IsOptional ||
-            firstPropOp.ShortCircuitOnNullishTarget ||
-            firstPropOp.GetString(stringConstants).IsPrivateName())
-        {
-            return false;
-        }
-
-        for (var index = 2; index < program.OperationCount; index++)
-        {
-            var op = program.GetOperation(index);
-            if (op.Kind != ExpressionOpKind.GetNamedProperty ||
-                op.IsOptional ||
-                !op.ShortCircuitOnNullishTarget ||
-                op.GetString(stringConstants).IsPrivateName())
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
+    
     // Admits the a?.b[k], a?.b[k].c, and a.b?.c[k] shapes:
     // [activation-resolved base, GetNamedProperty(non-optional, non-private)*,
     //  GetNamedProperty(IsOptional:true, !SC, non-private), key..., GetComputedProperty(SC:true),
@@ -7137,15 +7119,6 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsOperationInComputedPropertyKeyPayload(
-        ExpressionProgram program,
-        int operationIndex)
-    {
-        return TryGetComputedPropertyKeyPayloadBounds(program, out var keyStart, out var keyEndExclusive) &&
-               operationIndex >= keyStart &&
-               operationIndex < keyEndExclusive;
-    }
-
     // Measures the op span for a simple untagged template literal starting at startIndex.
     // Admitted shape: LoadLiteral (seed), then any number of:
     //   text part:         LoadLiteral(string), Binary(Add)
@@ -7630,7 +7603,7 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var stringConstants = program.StringConstants.AsSpan();
+        _ = program.StringConstants.AsSpan();
         var lastOp = program.GetOperation(program.OperationCount - 1);
 
         // Named property write: [base, rhs..., SetNamedProperty]
@@ -8185,24 +8158,6 @@ internal static class UnifiedBytecodeProductionEligibility
         };
     }
 
-    private static bool IsSimpleComputedPropertyKeyOperand(
-        PackedExpressionOp operation,
-        ReadOnlySpan<IdentifierOperand> identifierConstants,
-        ActivationSlotShape activationSlots)
-    {
-        return operation.Kind switch
-        {
-            ExpressionOpKind.LoadLiteral => true,
-            ExpressionOpKind.LoadThis => true,
-            ExpressionOpKind.LoadNewTarget => true,
-            ExpressionOpKind.LoadIdentifier => TryGetActivationResolvedValue(
-                operation,
-                identifierConstants,
-                activationSlots),
-            _ => false
-        };
-    }
-
     private static bool IsPrivateNamedPropertyMutationOperation(
         PackedExpressionOp operation,
         ReadOnlySpan<string> stringConstants)
@@ -8301,46 +8256,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
             default:
                 program = default;
-                return false;
-        }
-    }
-
-    private static bool IsSupportedDeclarationBindingTarget(BindingTargetProgram target)
-    {
-        switch (target)
-        {
-            case IdentifierBindingTargetProgram:
-                return true;
-
-            case ArrayBindingTargetProgram arrayBinding:
-                foreach (var element in arrayBinding.Elements)
-                {
-                    if (element.DefaultProgram is not null ||
-                        element.Target is { } elementTarget &&
-                        !IsSupportedDeclarationBindingTarget(elementTarget))
-                    {
-                        return false;
-                    }
-                }
-
-                return arrayBinding.RestElement is null ||
-                       IsSupportedDeclarationBindingTarget(arrayBinding.RestElement);
-
-            case ObjectBindingTargetProgram objectBinding:
-                foreach (var property in objectBinding.Properties)
-                {
-                    if (property.DefaultProgram is not null ||
-                        property.NameProgram is not null ||
-                        !IsSupportedDeclarationBindingTarget(property.Target))
-                    {
-                        return false;
-                    }
-                }
-
-                return objectBinding.RestElement is null ||
-                       IsSupportedDeclarationBindingTarget(objectBinding.RestElement);
-
-            default:
                 return false;
         }
     }

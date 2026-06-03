@@ -1350,24 +1350,29 @@ flowchart TD
     CONTRACT["Expansion contract\nupdate accepted/declined property-family rows"]
     EVIDENCE["Evidence gate\ncanonical quality\nprofile only if performance language changes"]
     DOCS["Docs status\nproven-now only after proof lands"]
+    SLO["Separate SLO packet\ngh2935 / ProfileRunner matrix"]
 
     ROADMAP --> OWNER --> SELECTOR --> OPCODE --> PROOF --> CONTRACT --> EVIDENCE --> DOCS
     OPCODE -. preserves .-> PROOF
     EVIDENCE -. keeps separate .-> DOCS
+    SLO -. not implied by gh2934 .-> DOCS
 
     style ROADMAP fill:#555,color:#fff
     style OWNER fill:#336,color:#fff
     style OPCODE fill:#363,color:#fff
     style EVIDENCE fill:#653,color:#fff
     style DOCS fill:#333,color:#fff
+    style SLO fill:#653,color:#fff
 ```
 
 Packet boundaries:
 - **Primary owner:** Execution Engine, with compiler selector support. The Standard Library descriptor system is a consumed contract, not the owner of route admission.
 - **Currently proven adjacent surface:** ordinary named/computed property delete and nested named receiver computed delete are VM-owned; optional receiver chains for delete remain outside the proven route.
 - **Directional next:** optional computed delete chains such as `delete box?.items[key]` and `delete box?.items?.[key]`, preserving nullish short-circuit order before computed-key evaluation and strict/sloppy delete semantics after a non-nullish receiver is established.
+- **Receiving contract:** the selector may admit only shapes whose receiver nullish check, computed-key evaluation, and descriptor-aware delete can be represented by the existing execution-engine opcode contract. Unsupported key payloads or receiver forms must stay declined instead of falling through to a mixed AST/VM path.
 - **Required proof:** positive route tests for short-circuit and non-short-circuit paths; negative decline tests for private names, `super`, dynamic lookup, unowned computed-key payloads, and unsupported receiver shapes; expansion-contract update that lists both accepted and declined forms.
-- **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement unless a separate ProfileRunner matrix evidence packet is attached.
+- **Review artifact:** the packet should update the route/decline matrix next to the owning proof pack so reviewers can see which optional computed delete forms became accepted and which stayed declined without reading the whole property-family roadmap.
+- **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement. SLO movement belongs to gh2935 or another separate ProfileRunner matrix evidence packet.
 
 ## Proven-now vs directional-next
 

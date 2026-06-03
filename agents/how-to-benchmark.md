@@ -121,8 +121,7 @@ When an intentional change legitimately moves the allocation numbers, refresh
 the committed baseline and commit it:
 
 ```bash
-rtk ./tools/check-allocation-regression --update
-rtk git add tools/allocation-baseline.txt && rtk git commit
+rtk ./tools/check-allocation-regression --update && rtk git add tools/allocation-baseline.txt && rtk git commit
 ```
 
 `--update` re-measures the smoke set and rewrites `tools/allocation-baseline.txt`
@@ -170,8 +169,7 @@ profile only fails when its ratio increase exceeds the tolerance percentage.
 When an intentional change legitimately moves the ratio numbers:
 
 ```bash
-rtk ./tools/check-nodejs-regression --update
-rtk git add tools/nodejs-baseline.json && rtk git commit
+rtk ./tools/check-nodejs-regression --update && rtk git add tools/nodejs-baseline.json && rtk git commit
 ```
 
 `--update` measures both engines, computes ratios, and rewrites

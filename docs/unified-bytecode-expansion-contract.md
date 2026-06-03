@@ -353,6 +353,188 @@ statement interpretation.
 - `UnsupportedPlanShape`
 - `CallInvocationBoundary`
 
+### Compiler Decline Owner Leaves (current)
+
+`UnifiedBytecodeCompiler.TryCompile` is still wrapped as
+`UnsupportedPlanShape` by the production eligibility routes when compilation
+fails, but the burn-down owner is no longer one opaque umbrella. These leaves
+group the exact reason templates below by the surface that must own the future
+admission work. Dynamic residue remains separate in the burn-down checklist's
+Dynamic Residue section; direct-eval and Function-constructor residue are not
+counted as compiler-decline work here.
+
+| Leaf | Owner surface | Current fallback route | Sync / resumable applicability |
+|---|---|---|---|
+| `A51a` | Entrypoint, invalid target, loop-shaped topology, unsupported breakable/loop control | Existing execution-plan runner | both |
+| `A51b` | Activation-slot metadata, slot-layout, declaration / assignment / update storage targets | Existing execution-plan runner | both |
+| `A51c` | Catch binding, lexical dynamic declaration, active-with dynamic-name, TDZ-head binding storage | Existing environment-aware execution-plan runner | both |
+| `A51d` | Iterator, for-in, `yield*`, resume-target, and driver state slots | Existing iterator/generator/async IR drivers | both; `yield*`/resume-target are resumable-owned |
+| `A51e` | Array/object destructuring state slots and targets | Existing destructuring IR helpers | both |
+| `A51f` | General expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps | Expression-program / execution-plan runner | both |
+| `A51g` | Call-target preparation, direct-eval call boundary, member/super/private call-target, invocation-boundary shapes | Existing call/eval/super IR paths | both; dynamic residue remains D1/D4 |
+| `A51h` | Array/object/template literal, spread source, computed object key, and simple literal-span shapes | Existing expression-program literal/spread evaluation | both |
+| `A51i` | Computed/optional/private property-read and receiver-boundary shapes | Existing expression-program property evaluation | both |
+| `A51j` | Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span shapes | Existing expression-program mutation evaluation | both |
+| `A51k` | Simple binary/unary/control/conditional operand spans | Existing expression-program evaluation | both |
+| `A51l` | Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows | Existing execution-plan runner | both |
+| `A51m` | Measured property-read span rollback diagnostics | Existing property-read expression evaluation | both |
+| `B47a` | Resumable-only `yield*` state-slot and synthetic resume-target layout | Existing generator/async execution-plan route | resumable only |
+
+### Compiler Decline Reason Templates (current)
+
+This exact template list is drift-checked against non-empty `reason = ...`
+assignments in `UnifiedBytecodeCompiler.cs`. Updating, adding, or removing one
+of these templates requires updating this contract and the checklist owner leaf
+above in the same slice.
+
+- `Activation slot metadata is required.`
+- `Array literal RHS span does not match expected boundary.`
+- `Binding-target expressions are not available in this unified bytecode compilation context.`
+- `Call target preparation is only supported for activation-resolved identifier and direct member calls.`
+- `Complex computed keys and name-inferred computed properties are not admitted in simple object literals.`
+- `Complex value expressions are not admitted in simple computed object properties.`
+- `Computed compound property writes with name inference are not supported.`
+- `Computed logical property binary RHS uses an unsupported operator.`
+- `Computed logical property writes only admit simple or simple-binary RHS spans.`
+- `Computed logical property writes require an RHS expression.`
+- `Computed logical property writes with name inference are not supported.`
+- `Computed member call targets require receiver and key operands.`
+- `Computed object key call target requires an activation-resolved identifier slot.`
+- `Computed object keys only admit activation-resolved zero-argument identifier calls.`
+- `Computed property reads require RequireObjectCoercible(Depth: 1) in the first production boundary.`
+- `Computed property reads require ResolvePropertyKey in the first production boundary.`
+- `Computed property writes with name inference are not supported in the general expression loop.`
+- `Computed property writes with name inference are not supported.`
+- `Computed super call targets require exactly one computed key operand.`
+- `Declaration target '{declarationTargetSymbol.Name}' is not eligible for unified bytecode storage.`
+- `Direct eval call-target preparation requires an eval identifier target.`
+- `Dynamic identifier assignment references are not eligible outside an active with environment.`
+- `Expected ArrayPush or ArraySpread after array element operand.`
+- `Expected ArrayPush or ArraySpread after element.`
+- `Expected CreateArray at index {startIndex}.`
+- `Expected CreateObject at index {startIndex}.`
+- `Expected DefineComputedObjectProperty after key, ResolvePropertyKey, and value.`
+- `Expected DefineObjectProperty or value operand after first operand.`
+- `Expected value operand after ResolvePropertyKey.`
+- `Failed to emit measured named property read span.`
+- `Failed to emit measured optional named property read span.`
+- `Failed to emit measured optional named read chain span.`
+- `Identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Identifier '{storeIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Identifier '{storeIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
+- `Identifier assignment reference '{referenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
+- `Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
+- `Identifier call target '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Identifier call target '{identifierCallTarget.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `Instruction flow reached an invalid target index.`
+- `Iterator/for-in driver TDZ head binding '{binding.Name}' could not be resolved to a flat activation slot.`
+- `Lexical declaration target '{targetSymbol.Name}' requires dynamic identifier operations.`
+- `Literal spans only admit direct computed member calls with simple receiver, key, and arguments.`
+- `Literal spans only admit optional computed member calls with simple receiver, key, and arguments.`
+- `Literal spans only admit optional named member calls with simple receiver and arguments.`
+- `Logical argument count does not match call.ArgumentCount in the call-target preparation boundary.`
+- `Logical computed property writes require jump target at cleanup start.`
+- `Logical named property writes require jump target at cleanup start.`
+- `Loop-shaped unified bytecode plan detected at instruction {instructionIndex}.`
+- `Loop-shaped unified bytecode plan detected at instruction {targetIndex}.`
+- `Member call receiver is outside the direct named-chain boundary.`
+- `Mismatched named compound property read/write operands are not supported.`
+- `Mismatched named logical property read/write operands are not supported.`
+- `Named compound property writes with name inference are not supported.`
+- `Named logical property writes with name inference are not supported.`
+- `Named member call targets require a receiver expression.`
+- `Named super call targets must be the first operation in the invocation boundary.`
+- `Nested named computed property writes with name inference are not supported.`
+- `Nested named property writes with name inference are not supported.`
+- `Object literal RHS span does not match expected boundary.`
+- `Object methods, object accessors, private names, and name inference are not admitted in simple object literals.`
+- `Only direct identifier and member calls with explicit receiver records are supported.`
+- `Only one-argument non-spread direct eval is supported by the call-target preparation boundary.`
+- `Only optional and simple identifier catch bindings are eligible for unified bytecode compilation.`
+- `Only ordinary explicit-this calls are supported in the general expression loop.`
+- `Only supported simple binary operators are admitted in this boundary.`
+- `Optional computed compound property writes are not supported.`
+- `Optional computed logical property writes are not supported.`
+- `Optional computed property reads are not supported.`
+- `Optional identifier call targets require an activation-resolved identifier slot or admitted dynamic identifier operations.`
+- `Optional named compound property writes are not supported.`
+- `Optional named logical property writes are not supported.`
+- `Optional named property reads with short-circuit target are not supported in the general expression loop.`
+- `Optional receiver properties are outside the call-target preparation boundary.`
+- `Private named compound property receiver reads are not supported.`
+- `Private named logical property receiver reads are not supported.`
+- `Private named member call targets are outside the call-target preparation boundary.`
+- `Private named property deletes are not supported in the general expression loop.`
+- `Private named property reads are not supported.`
+- `Private named receiver properties are outside the call-target preparation boundary.`
+- `Private named super call targets are outside the call-target preparation boundary.`
+- `Private named super call targets are outside the general expression loop boundary.`
+- `Private names and name inference are not admitted in simple object literals.`
+- `Private nested named property receiver reads are not supported.`
+- `Private nested named property updates are not supported.`
+- `Private nested named property writes are not supported.`
+- `Property writes with name inference are not supported in the general expression loop.`
+- `Property writes with name inference are not supported.`
+- `Resume target '{resumeSymbol.Name}' is not in the activation slot layout.`
+- `Simple binary spans require simple activation-resolved or admitted dynamic operands.`
+- `Simple unary spans require a simple activation-resolved or admitted dynamic operand.`
+- `Spread sources only admit direct named member calls with simple arguments.`
+- `Template literal RHS span does not match expected boundary.`
+- `Template literal RHS span does not match expected nested property-write boundary.`
+- `Unsupported array destructuring state slot '{arrayDestructuringClose.IteratorSlot.Name}'.`
+- `Unsupported array destructuring state slot '{arrayDestructuringElement.IteratorSlot.Name}'.`
+- `Unsupported array destructuring state slot '{arrayDestructuringInit.IteratorSlot.Name}'.`
+- `Unsupported array destructuring state slot '{arrayDestructuringRest.IteratorSlot.Name}'.`
+- `Unsupported assignment target '{assignmentTargetSymbol.Name}'.`
+- `Unsupported breakable construct: only loop-style breakable wrappers are eligible for unified bytecode compilation.`
+- `Unsupported catch binding slot '{identifier.Name.Name}'.`
+- `Unsupported compound assignment target '{compoundTargetSymbol.Name}'.`
+- `Unsupported compound computed property binary operator '{binary.Operator}'.`
+- `Unsupported compound property binary operator '{binary.Operator}'.`
+- `Unsupported computed property key op '{operation.Kind}'.`
+- `Unsupported computed property key span.`
+- `Unsupported conditional alternate in simple literal span.`
+- `Unsupported conditional consequent in simple literal span.`
+- `Unsupported declaration target '{declaration.TargetSymbol?.Name}'.`
+- `Unsupported declaration target '{targetSymbol.Name}'.`
+- `Unsupported destructuring target '{targetSymbol.Name}'.`
+- `Unsupported direct eval argument op '{operation.Kind}'.`
+- `Unsupported driver state slot '{stateSymbol.Name}'.`
+- `Unsupported driver value slot '{valueSymbol.Name}'.`
+- `Unsupported entrypoint.`
+- `Unsupported expression op '{operation.Kind}'.`
+- `Unsupported for-in state slot '{awaitedForInInit.StateSlot.Name}'.`
+- `Unsupported for-in state slot '{forInInit.StateSlot.Name}'.`
+- `Unsupported identifier '{identifier.Name.Name}' at dynamic property-read boundary.`
+- `Unsupported instruction in unified bytecode plan: {instructions[instructionIndex].GetType().Name}.`
+- `Unsupported instruction in unified bytecode plan: {nameof(IncrementSlotInstruction)}.`
+- `Unsupported iterator close state slot '{iteratorClose.IteratorSlot.Name}'.`
+- `Unsupported iterator state slot '{awaitedIteratorInit.IteratorSlot.Name}'.`
+- `Unsupported iterator state slot '{iteratorInit.IteratorSlot.Name}'.`
+- `Unsupported logical assignment target '{logicalTargetSymbol.Name}'.`
+- `Unsupported logical control-expression operand in simple literal span.`
+- `Unsupported loop control flow at instruction {instructionIndex}.`
+- `Unsupported loop control flow at instruction {sourceInstructionIndex}.`
+- `Unsupported member call receiver op '{propertyRead.Kind}'.`
+- `Unsupported object destructuring state slot '{objectDestructuringClose.SourceSlot.Name}'.`
+- `Unsupported object destructuring state slot '{objectDestructuringInit.SourceSlot.Name}'.`
+- `Unsupported object destructuring state slot '{objectDestructuringProperty.SourceSlot.Name}'.`
+- `Unsupported object destructuring state slot '{objectDestructuringRest.SourceSlot.Name}'.`
+- `Unsupported property-read base op '{operation.Kind}'.`
+- `Unsupported simple operand op '{operation.Kind}'.`
+- `Unsupported typeof identifier '{identifier.Name.Name}'.`
+- `Update target '{updateIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `arguments assignment references are not supported.`
+- `arguments call targets are outside the optional identifier call-target preparation boundary.`
+- `arguments typeof is not supported.`
+- `delete identifier '{deleteIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `typeof identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `yield* requires a state slot for resumable unified bytecode routing.`
+- `yield* state slot '{yieldStar.StateSlotSymbol.Name}' is not in the activation slot layout.`
+
 ## Checked Production Decline Ledger
 
 This ledger is a drift-guarded baseline for widening work. It distinguishes

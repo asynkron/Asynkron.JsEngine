@@ -15,9 +15,9 @@ plus an adversarial grammar-completeness audit. Authoritative gate:
 > *after* the compiler lowers the AST, constructs that lowering erases (`switch`,
 > `do-while`, `debugger`, sequence expr, BigInt, `static {}`, super-in-field-init,
 > ordinary `new.target`, labeled non-loop break) have no named line — they are
-> folded into admitted primitives or the `UnsupportedPlanShape` umbrella. **Phase 0
-> below closes that gap and makes the count final.** Until Phase 0 is done, treat
-> the totals as a floor.
+> folded into admitted primitives or named compiler-decline leaves. **Phase 0
+> below closes the remaining coarse gaps and makes the count final.** Until Phase
+> 0 is done, treat the totals as a floor.
 
 **Definition of done** — all must hold simultaneously and be machine-checkable:
 1. No decline code fires for any non-dynamic shape (only the §Dynamic-Residue set).
@@ -43,14 +43,14 @@ non-awaited `with`, the `Function` call boundary itself.
 ## Phase 0 — Make the list provably finite (do first; closes the audit gaps)
 
 - [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
-- [ ] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promote each of the ~12 hidden `UnifiedBytecodeCompiler.TryCompile` reason strings to a named decline + checklist leaf.
+- [x] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promoted current `UnifiedBytecodeCompiler.TryCompile` reason templates into named owner leaves A51a-A51m plus B47a, with exact source-template drift coverage in `docs/unified-bytecode-expansion-contract.md`.
 - [ ] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum-but-not-admitted opcode as its own leaf.
 - [ ] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes (constructor, instance fields, static fields, static blocks, private fields, private methods, accessors, computed members, super-in-members) and **A35** into its 4 object-literal-member opcodes.
 - [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
 ---
 
-## Phase A — Synchronous admission surface (51 items, by decline code)
+## Phase A — Synchronous admission surface (64 items, by decline code / promoted compiler leaf)
 
 Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on other engine)
 
@@ -104,10 +104,23 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A48** Sync iterator driver: async iterator kind — *UnsupportedPlanShape* — ☐/☐ — `:2332`
 - [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204`
 - [ ] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — ☐/n/a — `:8243`
-- [ ] **A51** Compiler `TryCompile` failure umbrella *(→ P0.2)* — *UnsupportedPlanShape* — ☐/☐ — `:230`
+- [x] **A51** Compiler `TryCompile` failure umbrella *(decomposed by P0.2)* — *UnsupportedPlanShape* — see A51a-A51m and B47a below.
+- [ ] **A51a** Compiler entrypoint, invalid target, loop-shaped topology, and unsupported breakable/loop control — owner: statement/control-flow lowering; fallback route: existing execution-plan runner; sync/resumable: both.
+- [ ] **A51b** Activation-slot metadata, slot-layout, and unsupported declaration / assignment / update / storage targets — owner: slot-layout and flat-storage lowering; fallback route: existing execution-plan runner; sync/resumable: both.
+- [ ] **A51c** Catch binding, lexical dynamic declaration, active-with dynamic-name, and TDZ-head binding storage gaps — owner: scope/environment lowering; fallback route: existing environment-aware execution-plan runner; sync/resumable: both.
+- [ ] **A51d** Iterator, for-in, `yield*`, resume-target, and driver state-slot gaps — owner: iterator/resume-state lowering; fallback route: existing iterator/generator/async IR drivers; sync/resumable: both, with `yield*` and resume-target failures resumable-owned.
+- [ ] **A51e** Array/object destructuring state-slot and target gaps — owner: destructuring driver lowering; fallback route: existing destructuring IR helpers; sync/resumable: both.
+- [ ] **A51f** General expression-loop unsupported op, binding-target expression, dynamic identifier, `arguments`, and private-neighbor gaps — owner: expression-program lowering; fallback route: expression-program / execution-plan runner; sync/resumable: both.
+- [ ] **A51g** Call-target preparation, direct-eval boundary, member/super/private call-target, and invocation-boundary shape gaps — owner: call-boundary lowering; fallback route: existing call/eval/super IR paths; sync/resumable: both, excluding dynamic residue rows D1/D4.
+- [ ] **A51h** Array/object/template literal, spread source, computed object key, and simple literal-span shape gaps — owner: literal/span lowering; fallback route: existing expression-program literal/spread evaluation; sync/resumable: both.
+- [ ] **A51i** Computed/optional/private property-read and receiver-boundary shape gaps — owner: property-read lowering; fallback route: existing expression-program property evaluation; sync/resumable: both.
+- [ ] **A51j** Property write, compound/logical write, update, delete, name-inference, key-span, and RHS-span gaps — owner: property mutation lowering; fallback route: existing expression-program mutation evaluation; sync/resumable: both.
+- [ ] **A51k** Simple binary/unary/control/conditional operand span gaps — owner: expression-span lowering; fallback route: existing expression-program evaluation; sync/resumable: both.
+- [ ] **A51l** Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows — owner: statement diagnostics and control-flow reconstruction; fallback route: existing execution-plan runner; sync/resumable: both.
+- [ ] **A51m** Measured property-read span rollback diagnostics — owner: measured span helpers; fallback route: existing property-read expression evaluation; sync/resumable: both.
 - [ ] **A52** `debugger;` statement — no AST/lowering owner exists (surfaced by P0.1 grammar appendix); needs a parser/AST node + no-op-or-decline owner *(new leaf from P0.1)* — ☐/☐
 
-## Phase B — Resumable-VM parity + suspension machinery (47 items)
+## Phase B — Resumable-VM parity + suspension machinery (48 items)
 
 Gated by `TryFindUnsupportedResumableOpcode@895` (opcode allowlist) and
 `IsSupportedResumableInstruction@846` (instruction allowlist). Most are
@@ -161,7 +174,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☐/☐
 - [ ] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/☐
 - [ ] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/☐
-- [ ] **B47** Resumable compiler `TryCompile` wrap *(→ P0.2)* — n/a/☐
+- [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.
+- [ ] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — owner: resumable resume-state layout; fallback route: existing generator/async execution-plan route; sync/resumable: n/a/☐.
 
 ## Phase C — Top-level / script route (3 items)
 
@@ -180,7 +194,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 ## Phase E — Retire the fallback tiers (6 items)
 
 - [x] **E1** *(moved to P0.5 — dead `LabelControlFlow` deletion)*
-- [ ] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2)*
+- [x] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2; A51/B47 decomposed and drift-guarded)*
 - [ ] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)*
 - [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage)
 - [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity)
@@ -193,19 +207,19 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | Phase | Items | Notes |
 |---|---:|---|
 | 0 — Make list finite | 5 | grammar appendix + umbrella enumeration; converts floor → ceiling |
-| A — Sync admission | 51 | by decline code |
-| B — Resumable parity + suspension | 47 | bulk of the work; mostly allowlist extensions |
+| A — Sync admission | 64 | by decline code / promoted compiler leaf |
+| B — Resumable parity + suspension | 48 | bulk of the work; mostly allowlist extensions |
 | C — Script route | 3 | closes mostly via A/B |
 | D — Dynamic quarantine | 5 | build the residue boundary |
 | E — Retire tiers | 6 | E2/E3 = P0.2/P0.3 |
-| **Total** | **~117** | floor until Phase 0 done; will grow as B24/A35/umbrellas decompose |
+| **Total** | **~131** | floor until remaining Phase 0 decomposition is done; P0.2 promoted A51/B47 compiler leaves |
 
-**Status (96 concrete A+B+C shape items):** Sync `Execute` 28 admitted / 30 partial / 31 declined. Resumable `ExecuteResumable` 6 admitted / 16 partial / 66 declined. **Resumable is the bulk of the remaining work; async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (110 concrete A+B+C shape items):** Sync `Execute` 29 admitted / 30 partial / 43 declined. Resumable `ExecuteResumable` 6 admitted / 16 partial / 68 declined. **Resumable is the bulk of the remaining work; async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
-1. **`UnsupportedPlanShape` compiler umbrellas** (A51/B47/E2) hide ~12 distinct `TryCompile` reasons — true leaf count not yet enumerated (Phase 0 closes this).
-2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 47 as a lower bound for effort.
+1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
+2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 48 as a lower bound for effort.
 
 ---
 
-_Status: 27 / ~119 complete (latest: A20, A21 ternary/logical computed keys #3121). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 31 / ~131 complete (latest: P0.2/E2 compiler-decline inventory #3134). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

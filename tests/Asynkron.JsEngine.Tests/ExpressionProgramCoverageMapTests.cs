@@ -131,6 +131,8 @@ public sealed class ExpressionProgramCoverageMapTests
         Assert.Contains("### Eligibility Decline Rows", contractText, StringComparison.Ordinal);
         Assert.Contains("### Sync Production Pre-Gate Rows", contractText, StringComparison.Ordinal);
         Assert.Contains("### Prototype Opcode Guard Rows", contractText, StringComparison.Ordinal);
+        Assert.Contains("### Compiler Decline Owner Leaves (current)", contractText, StringComparison.Ordinal);
+        Assert.Contains("### Compiler Decline Reason Templates (current)", contractText, StringComparison.Ordinal);
         Assert.Contains("## Reserved Ownership Lanes (planned, not implemented)", contractText, StringComparison.Ordinal);
         Assert.Contains("## Proof Commands", contractText, StringComparison.Ordinal);
 
@@ -161,8 +163,12 @@ public sealed class ExpressionProgramCoverageMapTests
             documentedDeclineCodeNames,
             "Production decline family inventory");
 
+        var checkedLedgerText = ExtractSourceSection(
+            contractText,
+            "## Checked Production Decline Ledger",
+            "### Statement Diagnostics Supported Kinds (current)");
         var ledgerKeys = ContractLedgerRowPattern
-            .Matches(contractText)
+            .Matches(checkedLedgerText)
             .Select(match => match.Groups["key"].Value)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -170,6 +176,36 @@ public sealed class ExpressionProgramCoverageMapTests
             .Concat(ProductionPreGateLedgerKeys)
             .Concat(ProductionPrototypeGuardLedgerKeys);
         AssertSameSet(expectedLedgerKeys, ledgerKeys, "Production decline ledger keys");
+    }
+
+    [Fact]
+    public void UnifiedBytecodeCompiler_DeclineReasonTemplatesMatchExpansionContract()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var compilerPath = Path.Combine(
+            repositoryRoot.FullName,
+            "src",
+            "Asynkron.JsEngine",
+            "Execution",
+            "UnifiedBytecode",
+            "UnifiedBytecodeCompiler.cs");
+        var contractPath = Path.Combine(repositoryRoot.FullName, "docs", "unified-bytecode-expansion-contract.md");
+        Assert.True(File.Exists(compilerPath), $"Expected compiler source at '{compilerPath}'.");
+        Assert.True(File.Exists(contractPath), $"Expected contract doc at '{contractPath}'.");
+
+        var compilerText = File.ReadAllText(compilerPath);
+        var contractText = File.ReadAllText(contractPath);
+        var compilerReasonTemplates = ExtractCompilerReasonTemplates(compilerText);
+        var documentedReasonTemplates = ExtractBacktickedBulletItemsUnderHeading(
+            contractText,
+            "### Compiler Decline Reason Templates (current)",
+            allowSingleQuotes: true);
+
+        Assert.NotEmpty(compilerReasonTemplates);
+        AssertSameSet(
+            compilerReasonTemplates,
+            documentedReasonTemplates,
+            "Unified bytecode compiler decline reason template inventory");
     }
 
     [Fact]
@@ -527,7 +563,39 @@ public sealed class ExpressionProgramCoverageMapTests
             .ToArray();
     }
 
-    private static string[] ExtractBacktickedBulletItemsUnderHeading(string documentText, string heading)
+    private static string[] ExtractCompilerReasonTemplates(string sourceText)
+    {
+        return Regex.Matches(
+                sourceText,
+                @"\breason\s*=\s*(?<expression>.*?);",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Select(match => match.Groups["expression"].Value)
+            .Where(expression => !expression.Contains("string.Empty", StringComparison.Ordinal) ||
+                                 expression.Contains('?', StringComparison.Ordinal))
+            .SelectMany(ExtractStringLiteralTemplates)
+            .Where(template => template.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(template => template, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> ExtractStringLiteralTemplates(string expressionText)
+    {
+        return Regex.Matches(
+                expressionText,
+                @"\$?""(?<text>(?:\\.|[^""\\])*)""",
+                RegexOptions.Singleline | RegexOptions.CultureInvariant)
+            .Select(match => Regex.Replace(
+                match.Groups["text"].Value,
+                @"\s+",
+                " ",
+                RegexOptions.CultureInvariant).Trim());
+    }
+
+    private static string[] ExtractBacktickedBulletItemsUnderHeading(
+        string documentText,
+        string heading,
+        bool allowSingleQuotes = false)
     {
         var headingMatch = Regex.Match(
             documentText,
@@ -546,9 +614,10 @@ public sealed class ExpressionProgramCoverageMapTests
         var sectionLength = nextHeadingMatch.Success ? nextHeadingMatch.Index : documentText.Length - sectionStart;
         var sectionText = documentText.Substring(sectionStart, sectionLength);
 
+        var characterClass = allowSingleQuotes ? @"[A-Za-z0-9_:\- '.{},?()/\[\]+*<>=""\\|;#&!]+?" : @"[A-Za-z0-9_:-]+";
         return Regex.Matches(
                 sectionText,
-                "^- `(?<name>[A-Za-z0-9_:-]+)`",
+                $"^- `(?<name>{characterClass})`",
                 RegexOptions.Multiline | RegexOptions.CultureInvariant)
             .Select(match => match.Groups["name"].Value)
             .ToArray();

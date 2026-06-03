@@ -218,8 +218,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
-2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 47 as a lower bound for effort.
+2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 48 as a lower bound for effort.
 
 ---
 
-_Status: 27 / ~119 complete (latest: A20, A21 ternary/logical computed keys #3121). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 31 / ~131 complete (latest: P0.2/E2 compiler-decline inventory #3134). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

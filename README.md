@@ -48,7 +48,7 @@ See the `tests/` tree, especially `tests/Asynkron.JsEngine.Tests.Test262/current
 
 ## Running the Demo
 
-Console application demos are included in the `examples` folder:
+Example projects are included in the `examples` folder:
 
 ### Main Demo
 ```bash

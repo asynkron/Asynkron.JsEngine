@@ -3646,6 +3646,193 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                // ---- Property writes / updates / deletes inside a resumable body (B1) ----
+                // Mirrors the synchronous Execute handlers for the same opcodes, swapping the sync
+                // push/replace helpers for the resumable flag-aware ones (which clear the short-circuit
+                // flag on the produced operand, matching the sync VM discipline) and the sync driver
+                // cleanup throw path for the resumable `IsCompleted + Throw` completion. Strict mode is
+                // read from the resume state (UnifiedBytecodeResumeState.IsStrict), threaded from the
+                // generator/async invoker so a strict-mode write/delete fault throws correctly.
+
+                case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
+                    var resumableNamedCompoundTarget = stack[stackPointer - 1];
+                    PushResumableValue(GetNamedPropertyValue(
+                        resumableNamedCompoundTarget,
+                        program.StringConstants[instruction.Operand],
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet:
+                    var resumableComputedCompoundKey = stack[stackPointer - 1];
+                    var resumableComputedCompoundTarget = stack[stackPointer - 2];
+                    PushResumableValue(JsOps.TryGetPropertyValueJsValue(
+                            resumableComputedCompoundTarget,
+                            resumableComputedCompoundKey,
+                            out var resumableComputedCompoundValue,
+                            context)
+                        ? resumableComputedCompoundValue
+                        : JsValue.Undefined);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetNamedProperty:
+                    var resumableNamedSetValue = stack[--stackPointer];
+                    var resumableNamedSetTarget = stack[stackPointer - 1];
+                    SetPropertyValue(
+                        resumableNamedSetTarget,
+                        program.StringConstants[instruction.Operand],
+                        resumableNamedSetValue,
+                        context,
+                        state.IsStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    ReplaceResumableTop(resumableNamedSetValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedProperty:
+                    var resumableComputedSetValue = stack[--stackPointer];
+                    var resumableComputedSetKey = stack[--stackPointer];
+                    var resumableComputedSetTarget = stack[stackPointer - 1];
+                    var resumableComputedSetName =
+                        JsOps.GetRequiredPropertyName(resumableComputedSetKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    // Computed assignment (`obj[key] = value`) is always an ordinary property set;
+                    // a '#'-prefixed string key (`obj["#x"]`) is an ordinary property, not a private
+                    // member, so private resolution stays disabled (matches the sync handler).
+                    SetPropertyValue(
+                        resumableComputedSetTarget,
+                        resumableComputedSetName,
+                        resumableComputedSetValue,
+                        context,
+                        state.IsStrict,
+                        allowPrivate: false);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    ReplaceResumableTop(resumableComputedSetValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateNamedProperty:
+                    var resumableNamedUpdateTarget = stack[stackPointer - 1];
+                    ReplaceResumableTop(UpdatePropertyValue(
+                        resumableNamedUpdateTarget,
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                    var resumableComputedUpdateKey = stack[--stackPointer];
+                    var resumableComputedUpdateTarget = stack[stackPointer - 1];
+                    if (resumableComputedUpdateTarget.IsNullOrUndefined)
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    var resumableComputedUpdateName =
+                        JsOps.GetRequiredPropertyName(resumableComputedUpdateKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    // `obj[key]++` is an ordinary property update; a '#'-prefixed string key is an
+                    // ordinary property, not a private member (matches the sync handler).
+                    ReplaceResumableTop(UpdatePropertyValue(
+                        resumableComputedUpdateTarget,
+                        resumableComputedUpdateName,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context,
+                        state.IsStrict,
+                        allowPrivate: false));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteNamedProperty:
+                    ReplaceResumableTop(DeleteNamedProperty(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        state.IsStrict)
+                        ? JsValue.True
+                        : JsValue.False);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteComputedProperty:
+                    var resumableDeleteComputedKey = stack[--stackPointer];
+                    var resumableDeleteComputedTarget = stack[stackPointer - 1];
+                    ReplaceResumableTop(DeleteComputedProperty(
+                        resumableDeleteComputedTarget,
+                        resumableDeleteComputedKey,
+                        context,
+                        state.IsStrict)
+                        ? JsValue.True
+                        : JsValue.False);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.TypeOf:
                     stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
                     programCounter++;

@@ -263,12 +263,14 @@ internal sealed class UnifiedBytecodeResumeState
         UnifiedBytecodeProgram program,
         JsTypes.JsValue[] slots,
         JsTypes.JsValue thisValue = default,
-        JsEnvironment? callingEnvironment = null)
+        JsEnvironment? callingEnvironment = null,
+        bool isStrict = false)
     {
         Program = program;
         Slots = slots;
         ThisValue = thisValue;
         CallingEnvironment = callingEnvironment;
+        IsStrict = isStrict;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
         OperandStackShortCircuitFlags = program.RequiresShortCircuitStackFlags
             ? new ulong[(OperandStack.Length + 63) >> 6]
@@ -293,6 +295,16 @@ internal sealed class UnifiedBytecodeResumeState
     ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
     /// </summary>
     public JsTypes.JsValue ThisValue { get; }
+
+    /// <summary>
+    ///     The strict-mode flag for the resumable activation. Threaded onto the resume state at
+    ///     construction (mirroring the <c>isStrict</c> argument the synchronous
+    ///     <see cref="UnifiedBytecodeVirtualMachine.Execute" /> route threads) so property writes,
+    ///     updates and deletes inside a generator/async body observe the correct strict semantics
+    ///     (a failed <c>this.x = v</c> on a non-writable property throws in strict mode; <c>delete</c>
+    ///     of a non-configurable property throws in strict mode) across yield/await suspension.
+    /// </summary>
+    public bool IsStrict { get; }
     public JsTypes.JsValue[] OperandStack { get; }
 
     /// <summary>

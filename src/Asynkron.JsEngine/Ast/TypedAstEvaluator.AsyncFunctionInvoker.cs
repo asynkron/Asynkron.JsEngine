@@ -130,7 +130,12 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure);
+            // Strict-sensitive resumable opcodes (property writes / updates / deletes) read strictness
+            // from the resume state because the resumable VM pushes no scope frame. Use the function's
+            // LEXICAL strictness as the scope mode (mirroring the IR async runner), not the broader
+            // `this`-coercion expression above which over-reports strict for a sloppy async function in a
+            // strict-ish enclosing realm.
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isLexicallyStrict);
 
             _realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",

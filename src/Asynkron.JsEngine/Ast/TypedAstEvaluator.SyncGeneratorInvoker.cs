@@ -92,8 +92,21 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure);
-            var context = RealmState.CreateContext();
+            // The resumable VM never pushes a scope frame, so strict-sensitive opcodes (property
+            // writes / updates / deletes) read strictness from the resume state. Match the IR
+            // generator runner, which uses the function's LEXICAL strictness (_isLexicallyStrict)
+            // as the scope mode — NOT the broader `Body.IsStrict || closure.IsStrict || lexical`
+            // expression used for `this`-coercion, which over-reports strict for a sloppy generator
+            // declared in a strict-ish enclosing realm and would wrongly throw on a non-writable
+            // property write.
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, _isLexicallyStrict);
+            // The resumable VM does not push its own scope frame, so strict-sensitive opcodes consult
+            // context.CurrentScope.IsStrict (OR-ed with state.IsStrict by SetPropertyValue). CreateContext
+            // defaults to a STRICT scope; for a sloppy generator that would wrongly force strict property
+            // writes (a non-writable write throwing instead of silently no-op-ing). Push the generator's
+            // actual lexical scope mode so the resumable route matches the IR generator runner.
+            var context = RealmState.CreateContext(
+                mode: _isLexicallyStrict ? ScopeMode.Strict : ScopeMode.Sloppy);
 
             RealmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-generator-fast-path func={Function} argc={ArgumentCount}",

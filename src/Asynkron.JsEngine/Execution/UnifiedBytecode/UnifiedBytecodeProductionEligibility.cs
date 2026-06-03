@@ -383,7 +383,71 @@ internal static class UnifiedBytecodeProductionEligibility
                 declineReason);
         }
 
+        // A named property opcode whose key is a private name (`this.#x`, `obj.#m()`, `delete obj.#x`)
+        // resolves a private member, which requires the enclosing private-name scope to be active. The
+        // synchronous production route enters those scopes before Execute; the resumable invokers do NOT,
+        // so a private-name named opcode would throw "Invalid access of private member" mid-step. The
+        // private opcodes proper (PrivateFieldIn) are already off the allowlist, but the compiler lowers
+        // `this.#x = v` to an ordinary SetNamedProperty carrying the `#`-prefixed name, so guard that here
+        // and keep private-member generator/async bodies on the IR runner.
+        if (TryFindResumablePrivateNamedProperty(program, out declineReason))
+        {
+            return UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.PrivateFieldDependency,
+                declineReason);
+        }
+
         return UnifiedBytecodeProductionEligibilityResult.Accept(program);
+    }
+
+    /// <summary>
+    ///     Detects a named property opcode (read / optional read / compound-set read / write / update /
+    ///     delete / named call target) whose string-constant key is a private name (starts with
+    ///     <c>'#'</c>). Such an opcode resolves a private member and is only correct when the private-name
+    ///     scope is active, which the resumable execution path does not establish. Computed forms
+    ///     (<c>obj[k]</c>) never resolve private members (they use <c>allowPrivate: false</c>), so they are
+    ///     not scanned here.
+    /// </summary>
+    private static bool TryFindResumablePrivateNamedProperty(
+        UnifiedBytecodeProgram program,
+        out string declineReason)
+    {
+        var stringConstants = program.StringConstants;
+        foreach (var instruction in program.Instructions)
+        {
+            int stringIndex;
+            switch (instruction.OpCode)
+            {
+                case UnifiedBytecodeOpCode.GetNamedProperty:
+                case UnifiedBytecodeOpCode.GetNamedPropertyOptional:
+                case UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet:
+                case UnifiedBytecodeOpCode.SetNamedProperty:
+                case UnifiedBytecodeOpCode.DeleteNamedProperty:
+                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
+                case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:
+                    stringIndex = instruction.Operand;
+                    break;
+                case UnifiedBytecodeOpCode.UpdateNamedProperty:
+                    // UpdateNamedProperty packs increment/prefix flags into the low two bits.
+                    stringIndex = instruction.Operand >> 2;
+                    break;
+                default:
+                    continue;
+            }
+
+            if ((uint)stringIndex < (uint)stringConstants.Length &&
+                stringConstants[stringIndex] is { Length: > 0 } name &&
+                name[0] == '#')
+            {
+                declineReason =
+                    "Private-member property access inside a resumable body is not eligible for resumable " +
+                    "unified bytecode routing because the private-name scope is not established on the resume path.";
+                return true;
+            }
+        }
+
+        declineReason = string.Empty;
+        return false;
     }
 
     private static bool TryFindSharedActivationDecline(
@@ -907,6 +971,22 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or
                 UnifiedBytecodeOpCode.GetComputedProperty or
+                // Property writes / updates / deletes inside a resumable body (B1). The receiver and
+                // operands are already on the operand stack (or pushed by the compound-set read halves),
+                // so each opcode is a pure stack rewrite with no suspension machinery: the ExecuteResumable
+                // handlers mirror the synchronous VM, threading strict mode from
+                // UnifiedBytecodeResumeState.IsStrict. A '#'-prefixed string key on a computed form stays
+                // an ordinary property (allowPrivate:false) — true private-member mutation lowers to the
+                // private opcodes, which are NOT on this allowlist and still decline. Super-property and
+                // dynamic free-binding writes are likewise absent and remain declined.
+                UnifiedBytecodeOpCode.GetNamedPropertyForCompoundSet or
+                UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet or
+                UnifiedBytecodeOpCode.SetNamedProperty or
+                UnifiedBytecodeOpCode.SetComputedProperty or
+                UnifiedBytecodeOpCode.UpdateNamedProperty or
+                UnifiedBytecodeOpCode.UpdateComputedProperty or
+                UnifiedBytecodeOpCode.DeleteNamedProperty or
+                UnifiedBytecodeOpCode.DeleteComputedProperty or
                 // Optional chains / optional calls. Short-circuit is realized via jumps
                 // (JumpIfNullishReplaceUndefined) or the short-circuit-flag column persisted on the
                 // resume state (GetNamedPropertyOptional / JumpIfShortCircuited); both survive

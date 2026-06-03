@@ -142,8 +142,23 @@ statement interpretation.
   production bytecode. The resumable eligibility opcode allow-list is now
   audited against the `ExecuteResumable` switch, so opcodes already implemented
   by the resumable VM cannot remain stale declines. Broad async/generator
-  control flow, calls, dynamic lookup, arguments, awaited iterator sources, and
-  async-generator delegated yield shapes still decline.
+  control flow, arguments, awaited iterator sources, and async-generator
+  delegated yield shapes still decline.
+- Property MUTATION inside a resumable body is admitted (B1): named/computed
+  writes (`o.x = v`, `o[k] = v`), updates (`o.x++`, `o.x += n`, `o.x ||= n`)
+  and deletes (`delete o.x`, `delete o[k]`) route through `ExecuteResumable`'s
+  ported `SetNamedProperty`/`SetComputedProperty`/`UpdateNamedProperty`/
+  `UpdateComputedProperty`/compound-set-read/`DeleteNamedProperty`/
+  `DeleteComputedProperty` handlers. Strict mode is read from the new
+  `UnifiedBytecodeResumeState.IsStrict` field (the function's lexical
+  strictness, matching the IR runner) and the generator execution context is
+  created with the generator's actual scope mode, so strict-mode write/delete
+  faults throw and sloppy ones silently no-op. A named property opcode whose
+  key is a private name (`this.#x = v`) declines via
+  `TryFindResumablePrivateNamedProperty` (`PrivateFieldDependency`) because the
+  resume path establishes no private-name scope; super-property writes
+  (`super.x = v`) and free/dynamic-identifier writes still decline (their
+  opcodes are off the resumable allow-list).
 - Generator-lowered synthetic resume and driver targets
   (`__yield_lower_resume*`, internal `yield*` state slots) are now added to the
   unified slot layout when the original activation analysis did not include
@@ -368,11 +383,13 @@ predicates and proof tests.
 
 - Async-like ordinary functions, generator functions, awaited with-object plans,
   and resumable opcode shapes outside the `EvaluateResumable` subset. That subset
-  now covers value-tier reads, synchronous call dispatch, and optional
-  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`) between suspension
-  points; computed optional calls (`o?.[k]()`), property writes/updates,
-  dynamic-identifier `typeof`/`delete`, and `super`/construct boundaries inside
-  resumable bodies remain outside it.
+  now covers value-tier reads, synchronous call dispatch, optional
+  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
+  identifier reads/calls, and property writes/updates/deletes (`o.x = v`,
+  `o[k] = v`, `o.x++`, `o.x += n`, `delete o.x`) between suspension points;
+  computed optional calls (`o?.[k]()`), PRIVATE-member mutation (`this.#x = v`),
+  free/dynamic-identifier writes, dynamic-identifier `typeof`/`delete`, and
+  `super`/construct boundaries inside resumable bodies remain outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

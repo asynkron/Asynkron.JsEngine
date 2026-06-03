@@ -3611,6 +3611,29 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.TdzHeadInit:
+                    {
+                        // Establish the loop-head temporal dead zone before the for-in/iterator source is
+                        // evaluated: mark the flat head slots uninitialized so a read of `let x`/`const x`
+                        // inside the source throws ReferenceError (the resumable LoadSlot handler raises it).
+                        // The sync handler additionally records const-slot / slot-environment metadata, but
+                        // the resumable VM carries neither (UnifiedBytecodeResumeState has no constSlots /
+                        // slotEnvironments). Const enforcement is unnecessary here: lexical-slot writes and
+                        // updates decline to the interpreter at eligibility time (#3115/#3116), so no const
+                        // reassignment can reach this path. This case was admitted to the resumable allowlist
+                        // by the for-in driver work without a matching executor case, tripping the
+                        // AllowsEveryResumableVmOpcode drift guard; this handler restores the invariant.
+                        var tdzDescriptor = program.DriverDescriptors[instruction.Operand];
+                        var tdzHeadSlots = tdzDescriptor.TdzHeadSlots;
+                        for (var tdzIndex = 0; tdzIndex < tdzHeadSlots.Length; tdzIndex++)
+                        {
+                            slots[tdzHeadSlots[tdzIndex]] = JsValue.Uninitialized;
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.Binary:
                     var op = (BinaryOperator)instruction.Operand;
                     var right = stack[--stackPointer];

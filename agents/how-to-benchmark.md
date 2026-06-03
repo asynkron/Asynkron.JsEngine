@@ -122,7 +122,7 @@ the committed baseline and commit it:
 
 ```bash
 rtk ./tools/check-allocation-regression --update
-git add tools/allocation-baseline.txt && git commit
+rtk git add tools/allocation-baseline.txt && rtk git commit
 ```
 
 `--update` re-measures the smoke set and rewrites `tools/allocation-baseline.txt`
@@ -171,7 +171,7 @@ When an intentional change legitimately moves the ratio numbers:
 
 ```bash
 rtk ./tools/check-nodejs-regression --update
-git add tools/nodejs-baseline.json && git commit
+rtk git add tools/nodejs-baseline.json && rtk git commit
 ```
 
 `--update` measures both engines, computes ratios, and rewrites

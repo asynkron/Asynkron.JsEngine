@@ -116,7 +116,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [ ] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ◐
 - [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐
-- [ ] **B3** **async generator `async function*` — no EvaluateResumable call at all; whole body on tier-2 (largest single gap)** — n/a/☐ — `AsyncGeneratorInvoker.cs:45`
+- [x] **B3** **async generator `async function*` — first EvaluateResumable route modeled** — n/a/◐ ✅ #3135 (simple-parameter direct-yield bodies can route through `UnifiedBytecodeVirtualMachine.ExecuteResumable`; async-generator `yield*` / `yield* await ...` delegation remains an explicit pre-VM decline on the IR runner).
 - [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
 - [x] **B6** Property update `o.x++` / `o.x+=v` — ☑/☑ ✅ #3117
@@ -184,7 +184,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)*
 - [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage)
 - [ ] **E5** Remove `ExecutionPlanRunner` (tier-2 IR) from hot path (after A/B/C parity)
-- [ ] **E6** Delete `AsyncGeneratorInvoker` unconditional IR construction; route via EvaluateResumable (depends on B3)
+- [ ] **E6** Delete remaining `AsyncGeneratorInvoker` IR fallback after the async-generator route widens past the current #3135 direct-yield boundary.
 
 ---
 
@@ -200,7 +200,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | E — Retire tiers | 6 | E2/E3 = P0.2/P0.3 |
 | **Total** | **~117** | floor until Phase 0 done; will grow as B24/A35/umbrellas decompose |
 
-**Status (96 concrete A+B+C shape items):** Sync `Execute` 28 admitted / 30 partial / 31 declined. Resumable `ExecuteResumable` 5 admitted / 16 partial / 67 declined. **Resumable is the bulk of the remaining work; B3 (async generators) is the single largest gap.**
+**Status (96 concrete A+B+C shape items):** Sync `Execute` 28 admitted / 30 partial / 31 declined. Resumable `ExecuteResumable` 6 admitted / 16 partial / 66 declined. **Resumable is the bulk of the remaining work; async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **`UnsupportedPlanShape` compiler umbrellas** (A51/B47/E2) hide ~12 distinct `TryCompile` reasons — true leaf count not yet enumerated (Phase 0 closes this).

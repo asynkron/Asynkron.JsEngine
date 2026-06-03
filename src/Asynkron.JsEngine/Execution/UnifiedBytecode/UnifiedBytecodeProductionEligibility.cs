@@ -283,7 +283,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 "Activation slot metadata is required.");
         }
 
-        if (TryFindResumablePlanDecline(plan, activationSlots, out var declineCode, out var declineReason))
+        if (TryFindResumablePlanDecline(
+                plan,
+                activationSlots,
+                activation.IsAsyncLike && activation.IsGenerator,
+                out var declineCode,
+                out var declineReason))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(declineCode, declineReason);
         }
@@ -322,12 +327,10 @@ internal static class UnifiedBytecodeProductionEligibility
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
-        if (activation.IsAsyncLike && activation.IsGenerator)
+        if (!isResumable && activation.IsAsyncLike && activation.IsGenerator)
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction;
-            declineReason = isResumable
-                ? "Async-like generator activation is not eligible for resumable unified bytecode routing."
-                : "Async-like functions are not eligible for production unified bytecode routing.";
+            declineReason = "Async-like functions are not eligible for production unified bytecode routing.";
             return true;
         }
 
@@ -840,6 +843,7 @@ internal static class UnifiedBytecodeProductionEligibility
     private static bool TryFindResumablePlanDecline(
         ExecutionPlan plan,
         ActivationSlotShape activationSlots,
+        bool isAsyncGenerator,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
@@ -862,6 +866,14 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = plan.Instructions[instructionIndex];
+            if (isAsyncGenerator && instruction is YieldStarInstruction)
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    "Async-generator yield* delegation is not eligible for resumable unified bytecode routing; it stays on the async-generator IR runner until the VM owns delegated async iterator settlement.";
+                return true;
+            }
+
             // Ordinary free/dynamic identifier resolution (a free variable READ or a free function
             // CALL target that escapes this activation's slots, e.g. `yield outerVar` /
             // `yield helper(x)`) is admitted into the resumable route. Resolution runs against the

@@ -2,8 +2,10 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Asynkron.JsEngine.Execution;
+using Asynkron.JsEngine.Execution.UnifiedBytecode;
 using Asynkron.JsEngine.JsTypes;
 using Asynkron.JsEngine.Runtime;
+using Microsoft.Extensions.Logging;
 
 #pragma warning disable CS0618 // Obsolete AST evaluation methods are used intentionally here
 
@@ -42,19 +44,25 @@ public static partial class TypedAstEvaluator
         ImmutableArray<PrivateNameScope> capturedPrivateNameScopes,
         FunctionExecutionPlanSeed planSeed)
     {
-        private readonly ExecutionPlanRunner _inner = new(function, closure, arguments, thisValue, callable,
-            realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
-            capturedPrivateNameScopes,
-            planOverride: planSeed.Plan,
-            planFailureOverride: planSeed.Failure);
+        private ExecutionPlanRunner? _inner;
+        private UnifiedBytecodeResumeState? _unifiedState;
 
-        // Async generators currently execute through the shared
-        // ExecutionPlanRunner.ExecuteAsyncStep contract. Each .next/.return/.throw
-        // call drives one step and wraps the step result in a Promise. A dedicated
-        // async-generator IR executor can later replace this bridge without changing
-        // the external async-step contract used here.
+        // Each .next/.return/.throw call drives one async-generator step and wraps
+        // the step result in a Promise. Narrow admitted bodies are VM-owned through
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies keep the
+        // existing ExecutionPlanRunner.ExecuteAsyncStep bridge.
         public void Initialize()
         {
+            if (TryInitializeUnifiedBytecode())
+            {
+                return;
+            }
+
+            _inner = new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,
+                realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: planSeed.Plan,
+                planFailureOverride: planSeed.Failure);
             _inner.Initialize();
         }
 
@@ -113,6 +121,179 @@ public static partial class TypedAstEvaluator
             }
 
             return promiseCtor.Invoke(new SingleValueArgs(JsValue.FromObjectUnsafe(executor)), JsValue.Undefined);
+        }
+
+        private bool TryInitializeUnifiedBytecode()
+        {
+            // Non-simple parameter lists (destructuring patterns, defaults, rest) require eager
+            // FunctionDeclarationInstantiation effects before the async iterator object is produced.
+            // The resumable route copies arguments straight into positional slots, so it must decline
+            // those shapes and leave them on the runner path.
+            if (!function.HasOnlySimpleIdentifierParameters())
+            {
+                return false;
+            }
+
+            if (!TryGetExecutionPlan(out var plan))
+            {
+                return false;
+            }
+
+            var activation = new UnifiedBytecodeProductionActivationDescriptor(
+                IsAsyncLike: true,
+                IsGenerator: true,
+                HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(function) || closure.HasWithObjectInChain(),
+                HasArgumentsObjectDependency: !function.IsArrow && NeedsArgumentsBinding(function));
+            var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
+            if (!eligibility.IsEligible)
+            {
+                return false;
+            }
+
+            var program = eligibility.Program;
+            var slots = new JsValue[program.SlotCount];
+            Array.Fill(slots, JsValue.Undefined);
+            InitializeLexicalSlots(slots, program);
+            PopulateParameterSlots(arguments, slots, program);
+
+            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, realmState);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict);
+
+            realmState.Logger?.LogInformation(
+                "unified-bytecode-resumable-async-generator-fast-path func={Function} argc={ArgumentCount}",
+                function.Name?.Name ?? "<anonymous>",
+                arguments.Count);
+            return true;
+        }
+
+        private bool TryGetExecutionPlan(out ExecutionPlan plan)
+        {
+            if (planSeed.Plan is { } seededPlan)
+            {
+                plan = seededPlan;
+                return true;
+            }
+
+            var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+            if (cache.Plan is { } cachedPlan)
+            {
+                plan = cachedPlan;
+                return true;
+            }
+
+            plan = null!;
+            return false;
+        }
+
+        private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(
+            ExecutionPlanRunner.ResumeMode mode,
+            JsValue argument)
+        {
+            if (_unifiedState is { } unifiedState)
+            {
+                return ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState);
+            }
+
+            return _inner!.ExecuteAsyncStep(mode, argument);
+        }
+
+        private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(
+            UnifiedBytecodeResumeMode mode,
+            JsValue argument,
+            UnifiedBytecodeResumeState unifiedState)
+        {
+            var context = realmState.CreateContext();
+            try
+            {
+                var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(unifiedState, mode, argument, context);
+                return step.Kind switch
+                {
+                    UnifiedBytecodeStepKind.Yield => new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                        ExecutionPlanRunner.AsyncGeneratorStepKind.Yield,
+                        step.Value,
+                        false,
+                        JsValue.Undefined),
+                    UnifiedBytecodeStepKind.Completed => new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                        ExecutionPlanRunner.AsyncGeneratorStepKind.Completed,
+                        step.Value,
+                        true,
+                        JsValue.Undefined),
+                    UnifiedBytecodeStepKind.Throw => new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                        ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                        step.Value,
+                        true,
+                        JsValue.Undefined),
+                    UnifiedBytecodeStepKind.PendingAwait => new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                        ExecutionPlanRunner.AsyncGeneratorStepKind.Pending,
+                        JsValue.Undefined,
+                        false,
+                        step.PendingPromise),
+                    _ => throw new NotSupportedException(
+                        $"Unified bytecode async-generator step '{step.Kind}' is not supported.")
+                };
+            }
+            catch (ThrowSignal signal)
+            {
+                return new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                    ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                    signal.ThrownValue,
+                    true,
+                    JsValue.Undefined);
+            }
+            catch (Exception ex)
+            {
+                return new ExecutionPlanRunner.AsyncGeneratorStepResult(
+                    ExecutionPlanRunner.AsyncGeneratorStepKind.Throw,
+                    (JsValue)ex.Message,
+                    true,
+                    JsValue.Undefined);
+            }
+        }
+
+        private static UnifiedBytecodeResumeMode ToUnifiedResumeMode(ExecutionPlanRunner.ResumeMode mode) =>
+            mode switch
+            {
+                ExecutionPlanRunner.ResumeMode.Throw => UnifiedBytecodeResumeMode.Throw,
+                ExecutionPlanRunner.ResumeMode.Return => UnifiedBytecodeResumeMode.Return,
+                _ => UnifiedBytecodeResumeMode.Next
+            };
+
+        private static void InitializeLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
+        {
+            var lexicalSlotIndices = program.LexicalSlotIndices;
+            if (lexicalSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < lexicalSlotIndices.Length; i++)
+            {
+                slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+            }
+        }
+
+        private static void PopulateParameterSlots(
+            IReadOnlyList<JsValue> sourceArguments,
+            JsValue[] slots,
+            UnifiedBytecodeProgram program)
+        {
+            var parameterSlotIndices = program.ParameterSlotIndices;
+            if (parameterSlotIndices.IsDefaultOrEmpty)
+            {
+                return;
+            }
+
+            for (var i = 0; i < parameterSlotIndices.Length; i++)
+            {
+                var parameterSlotIndex = parameterSlotIndices[i];
+                if (parameterSlotIndex >= 0)
+                {
+                    slots[parameterSlotIndex] = i < sourceArguments.Count ? sourceArguments[i] : JsValue.Undefined;
+                }
+            }
         }
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)
@@ -238,7 +419,7 @@ public static partial class TypedAstEvaluator
 
                 try
                 {
-                    var resumed = executor._inner.ExecuteAsyncStep(mode, value);
+                    var resumed = executor.ExecuteStep(mode, value);
                     executor.ResolveFromStep(resumed, resolve, reject);
                 }
                 finally
@@ -326,7 +507,7 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    var step = executor._inner.ExecuteAsyncStep(mode, argument);
+                    var step = executor.ExecuteStep(mode, argument);
                     executor.ResolveFromStep(step, resolve, reject);
                     return JsValue.Undefined;
                 }

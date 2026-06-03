@@ -144,6 +144,14 @@ statement interpretation.
   by the resumable VM cannot remain stale declines. Broad async/generator
   control flow, calls, dynamic lookup, arguments, awaited iterator sources, and
   async-generator delegated yield shapes still decline.
+- Async generators have a narrow production route through
+  `AsyncGeneratorInvoker`: simple-parameter direct-yield `async function*`
+  bodies can initialize `UnifiedBytecodeResumeState` and settle
+  `Yield`/`Completed`/`Throw`/`PendingAwait` results from
+  `UnifiedBytecodeVirtualMachine.ExecuteResumable` without constructing the
+  `ExecutionPlanRunner`. Async-generator `yield*` and `yield* await ...`
+  delegation must remain explicit pre-VM declines until delegated async iterator
+  settlement is VM-owned.
 - Generator-lowered synthetic resume and driver targets
   (`__yield_lower_resume*`, internal `yield*` state slots) are now added to the
   unified slot layout when the original activation analysis did not include

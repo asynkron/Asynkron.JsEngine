@@ -903,6 +903,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
                 UnifiedBytecodeOpCode.LoadThis or
+                // Regex LITERAL (`/pat/flags`) inside a resumable body. A pure constant materialization:
+                // the opcode reads the interned pattern string and encoded flags byte from the program and
+                // builds a fresh RegExp object via RegExpHelper.CreateRegExpLiteral against the realm. It
+                // carries no AwaitedProgram and pushes exactly one freshly created object — nothing it
+                // produces sits on the operand stack across a suspension, so it always runs to completion
+                // inside a single resumable step and needs no resume-state restoration. The resumable
+                // handler is the literal twin of the sync VM's, so per-evaluation fresh-object semantics
+                // (each evaluation yields a distinct RegExp with its own lastIndex) are preserved.
+                UnifiedBytecodeOpCode.LoadRegexLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
                 // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). Reaches this allowlist only for
                 // the parameter / `var` targets the instruction-level lexical-slot const-safety guard

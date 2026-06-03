@@ -1012,6 +1012,26 @@ the final post-compile production subset check before VM entry.
   including postfix-vs-prefix value semantics, strict read-only/non-configurable
   throws, a computed-update-on-null `TypeError`, and async update/delete across an
   await).
+- Accepted resumable bodies may now materialize REGEX LITERALS between suspension
+  points: `/pat/flags`. The `LoadRegexLiteral` opcode is ported into the
+  `ExecuteResumable` switch and added to the `TryFindUnsupportedResumableOpcode`
+  allowlist. It is the literal twin of the sync handler: read the interned pattern
+  string (`program.StringConstants[DecodeRegexLiteralPatternOperand(operand)]`) and
+  the encoded flags byte (`DecodeRegexLiteralFlagsOperand(operand)`) from the program,
+  then build a FRESH `RegExp` object via `RegExpHelper.CreateRegExpLiteral(...,
+  context.RealmState)` and push it with `JsValue.FromObjectUnsafe`. This is the
+  cleanest class of resumable admission: a pure constant materialization with no
+  `AwaitedProgram` (the opcode cannot itself yield/await) and exactly one value pushed,
+  so it always runs to completion inside one resumable step and never touches the
+  operand stack across a suspension — no resume-state restoration is involved.
+  ECMAScript requires a distinct `RegExp` per evaluation, so the object is constructed
+  anew on every step (including each loop turn across yields) rather than cached,
+  exactly as the sync VM does, preserving per-evaluation `lastIndex` independence
+  (proof: `UnifiedBytecodeResumableRegexLiteralTests`, including the generator/async
+  admit gates, a source/flags round-trip with a functional match after a yield, the
+  fresh-object-per-evaluation identity guarantee in a loop, an all-flags
+  escape-bearing pattern round-trip, and an async body evaluating a regex literal on
+  the resumed step after an await).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

@@ -10,7 +10,7 @@ Current documentation is split between repository docs and the agent/operator pl
 
 ### Getting Started
 - Build and test commands are in [Building and Testing](#building-and-testing).
-- Console examples live under [`examples/`](examples/), including the basic demo, promise demo, npm package demo, and host demos.
+- Examples live under [`examples/`](examples/), including the basic console demo, promise and event queue demos, npm package and host demos, the S-expression transformation dump, and the Avalonia SVG browser/presentation sample.
 
 ### Architecture and Design
 - **[Current architecture deep dive](docs/architecture-current-deep-dive-2026-05-13.md)** - Current execution architecture, IR boundaries, and implementation notes.
@@ -84,6 +84,20 @@ rtk dotnet run --project examples/NodeHostDemo
 ```
 
 Runs the Node-shaped host sample that exposes a small `require(...)` module surface and can execute progressively larger CommonJS apps (including real npm frameworks) via the scripts documented in `examples/NodeHostDemo/README.md`.
+
+### S-Expression Transformation Demo
+```bash
+rtk dotnet run --project examples/SExpressionDemo
+```
+
+Dumps parser and transformation-stage S-expressions for a modern JavaScript sample, including typed constant folding and CPS transformation output.
+
+### Avalonia SVG Browser Demo
+```bash
+rtk dotnet run --project examples/AvaloniaSvgBrowserDemo
+```
+
+Runs the Avalonia desktop SVG browser and presentation sample. The project also includes presentation smoke modes used by repo-local checks.
 
 ---
 

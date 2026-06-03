@@ -92,7 +92,8 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict);
+            // A generator is never a constructor and never an arrow, so its own new.target is undefined.
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict, JsValue.Undefined);
             var context = RealmState.CreateContext();
 
             RealmState.Logger?.LogInformation(

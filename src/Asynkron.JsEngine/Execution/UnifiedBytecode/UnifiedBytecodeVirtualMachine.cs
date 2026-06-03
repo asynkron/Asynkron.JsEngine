@@ -3484,6 +3484,17 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadNewTarget:
+                    // `new.target` for the resumable activation is the per-activation value the invoker
+                    // captured on the resume state: `undefined` for an ordinary generator/async function
+                    // (never a constructor — its own binding shadows any enclosing constructor's new.target)
+                    // and the lexically-inherited value for an async arrow. Reading it directly (rather than
+                    // walking the closure chain, which leaked an enclosing constructor for a body nested
+                    // inside one) is correct for every admitted shape and stable across yield/await.
+                    stack[stackPointer++] = state.NewTargetValue;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadRegexLiteral:
                     // Regex LITERAL (`/pat/flags`) inside a resumable body. Literal twin of the sync VM's
                     // handler (UnifiedBytecodeOpCode.LoadRegexLiteral): read the interned pattern string and

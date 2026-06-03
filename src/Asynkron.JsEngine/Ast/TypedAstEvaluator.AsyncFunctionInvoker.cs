@@ -130,7 +130,14 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict);
+            // new.target: an ordinary async function is never a constructor, so its own new.target is
+            // undefined. An async ARROW has no new.target binding of its own and lexically inherits the
+            // enclosing function's new.target (resolved once here against the captured closure), so it
+            // survives suspension as a fixed value rather than via an unbounded chain walk at read time.
+            var newTarget = function.IsArrow && closure.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
+                ? inheritedNewTarget
+                : JsValue.Undefined;
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict, newTarget);
 
             _realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",

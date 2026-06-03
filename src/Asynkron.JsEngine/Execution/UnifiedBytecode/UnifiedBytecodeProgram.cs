@@ -265,13 +265,15 @@ internal sealed class UnifiedBytecodeResumeState
         JsTypes.JsValue[] slots,
         JsTypes.JsValue thisValue = default,
         JsEnvironment? callingEnvironment = null,
-        bool isStrict = false)
+        bool isStrict = false,
+        JsTypes.JsValue newTarget = default)
     {
         Program = program;
         Slots = slots;
         ThisValue = thisValue;
         CallingEnvironment = callingEnvironment;
         IsStrict = isStrict;
+        NewTargetValue = newTarget;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
         OperandStackShortCircuitFlags = program.RequiresShortCircuitStackFlags
             ? new ulong[(OperandStack.Length + 63) >> 6]
@@ -296,6 +298,16 @@ internal sealed class UnifiedBytecodeResumeState
     ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
     /// </summary>
     public JsTypes.JsValue ThisValue { get; }
+
+    /// <summary>
+    ///     The <c>new.target</c> binding for the resumable activation, captured at construction so it
+    ///     survives suspension. An ordinary generator/async function is never a constructor, so its own
+    ///     <c>new.target</c> is <c>undefined</c> (shadowing any enclosing constructor); an async ARROW
+    ///     lexically inherits the enclosing function's <c>new.target</c>. The invoker computes the correct
+    ///     value per function kind, so the resumable <c>LoadNewTarget</c> handler reads it directly rather
+    ///     than walking the closure chain (which would leak an enclosing constructor for ordinary bodies).
+    /// </summary>
+    public JsTypes.JsValue NewTargetValue { get; }
 
     /// <summary>
     ///     Whether the resumable activation's function body executes in strict mode. Captured at

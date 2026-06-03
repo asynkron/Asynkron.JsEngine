@@ -146,9 +146,14 @@ public sealed class UnifiedBytecodeResumableThisBindingTests(ITestOutputHelper o
         AssertGeneratorFastPath("gen", argc: 1);
     }
 
-    // AC-5 negative-fallback: new.target keeps declining the resumable route (LoadNewTarget gate intact).
+    // B19 admission: a generator reading `new.target` now ROUTES through the resumable fast path
+    // (LoadNewTarget added to the resumable opcode allowlist + an ExecuteResumable handler). A generator
+    // is never a constructor, so the resolved value is `undefined` — the handler reads it via a chain
+    // lookup of Symbol.NewTarget against the captured calling environment, which binds it to undefined.
+    // (Previously this shape declined to the interpreter; see UnifiedBytecodeResumableNewTargetTests for
+    // the full B19 proof pack.)
     [Fact(Timeout = 5000)]
-    public async Task GeneratorUsingNewTarget_DeclinesResumableUnifiedBytecodeFastPath()
+    public async Task GeneratorUsingNewTarget_RoutesResumableUnifiedBytecodeFastPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -160,7 +165,7 @@ public sealed class UnifiedBytecodeResumableThisBindingTests(ITestOutputHelper o
             """);
 
         Assert.Equal(Symbol.Undefined, result);
-        AssertNotGeneratorFastPath("gen");
+        AssertGeneratorFastPath("gen", argc: 0);
     }
 
     // AC-5 negative-fallback: arguments-object dependency keeps declining the resumable route.

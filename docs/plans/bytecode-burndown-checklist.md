@@ -46,7 +46,7 @@ non-awaited `with`, the `Function` call boundary itself.
 - [ ] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promote each of the ~12 hidden `UnifiedBytecodeCompiler.TryCompile` reason strings to a named decline + checklist leaf.
 - [ ] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum-but-not-admitted opcode as its own leaf.
 - [ ] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes (constructor, instance fields, static fields, static blocks, private fields, private methods, accessors, computed members, super-in-members) and **A35** into its 4 object-literal-member opcodes.
-- [ ] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
+- [x] **P0.5** Delete the dead `LabelControlFlow` enum member + stale contract-doc rows (zero emission sites; labeled loop break/continue already admitted on sync). *(= old E1.)*
 
 ---
 
@@ -177,7 +177,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ## Phase E — Retire the fallback tiers (6 items)
 
-- [ ] **E1** *(moved to P0.5 — dead `LabelControlFlow` deletion)*
+- [x] **E1** *(moved to P0.5 — dead `LabelControlFlow` deletion)*
 - [ ] **E2** Promote each wrapped `TryCompile` reason to a named decline *(= P0.2)*
 - [ ] **E3** Diff opcode enum vs admit-switch; name every gap *(= P0.3)*
 - [ ] **E4** Remove `ExpressionProgram` (tier-1) from hot path (after A/C admit its coverage)

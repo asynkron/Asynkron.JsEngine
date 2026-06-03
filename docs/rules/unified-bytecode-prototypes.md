@@ -375,8 +375,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     from ADR 0318; unsupported binding declarations and driver shapes still
     decline before VM execution. Label-dependent
     control flow is no longer an unsupported bucket: ADR 0285 / issue #2679
-    admitted it (see rule #36); only the narrow driver-crossing labeled-abrupt
-    residue still declines as `LabelControlFlow`. Keep the drift guard in
+    admitted it (see rule #36), and driver-crossing labeled-abrupt shapes are
+    owned by compiler-emitted cleanup topology rather than a label-specific
+    decline bucket. Keep the drift guard in
     `ExpressionProgramCoverageMapTests` covering required headings plus current
     `UnifiedBytecodeOpCode` and `UnifiedBytecodeProductionDeclineCode` names.
     Treat newly VM-executed literal-construction opcodes such as `CreateArray`,
@@ -648,9 +649,9 @@ all-or-nothing until a separate routing issue proves production readiness.
     backedges, for-style update continue targets, and do-while branch
     consequent backedges with selector eligibility and public route-log tests.
     Labeled breakable control flow is now admitted (ADR 0285 / issue #2679, rule
-    #36); `LabelControlFlow` no longer blanket-declines labels and now scopes
-    only the driver-crossing labeled-abrupt residue. Keep unsupported complex
-    loop/control-flow shapes as pre-VM declines.
+    #36), and no label-specific decline bucket remains. Keep unsupported complex
+    loop/control-flow shapes as pre-VM declines through the concrete
+    driver-state or plan-shape gate that matches the failing topology.
     After widening compile support, update prototype expectations that used to
     assert old decline behavior so `make quality` catches drift before merge.
     WHY: issue
@@ -867,13 +868,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     and pick the resume-state lifetime, not the per-step VM-parameter lifetime.
 
 37. When admitting label-dependent control flow to production unified bytecode,
-    treat labels as compiler-owned targets, not a source-syntax permission, and
-    bound the admission by the VM's single-level driver cleanup. There are two
-    blanket gates and both move together: remove the
-    `BreakableEnterInstruction { Label: not null }` → `LabelControlFlow` decline
-    in `UnifiedBytecodeProductionEligibility`, AND relax the compiler's
-    `IsSupportedBreakableEnter` (plus `HasLoopContinueTarget` for labeled
-    loop continue/break metadata) so labeled breakable enters accept. A labeled
+    treat labels as compiler-owned targets, not a source-syntax permission.
+    The old label-specific eligibility decline was removed together with the
+    compiler's labeled-breakable-enter gate (`IsSupportedBreakableEnter` plus
+    `HasLoopContinueTarget` for labeled loop continue/break metadata). A labeled
     construct routes whenever its *unlabeled* IR topology would route — the
     canonical-loop topology checks (condition-first backedge, for-style update
     continue, do-while consequent, single-pass driver loops) still gate which
@@ -883,15 +881,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     needs no new opcode. The correctness boundary is **driver cleanup**: the VM
     closes only the single driver whose descriptor `BreakTarget` equals the
     abrupt jump target (`CleanupDriverStatesForBreakTarget`). A labeled
-    `break`/`continue` that exits *several* nested iterator/for-in driver loops
-    at once would leak the intervening inner iterators. So keep the VM
-    fallback-free and single-level, and decline before VM execution the one
-    shape it cannot serve — a labeled abrupt that crosses an enclosing driver
-    loop it is not directly targeting — via per-driver structured body-region
-    analysis (`IsLabeledAbruptCrossingDriver`), still reusing the
-    `LabelControlFlow` decline code (now scoped to this residue, not all
-    labels). Do **not** substitute a program-counter ordering heuristic for
-    multi-driver cleanup: it was prototyped and empirically rejected here
+    `break`/`continue` that exits nested iterator/for-in driver loops must be
+    handled by compiler-owned cleanup topology, not a source label decline. Do
+    **not** substitute a program-counter ordering heuristic for multi-driver
+    cleanup: it was prototyped and empirically rejected here
     because the compiler's lazy target compilation does not guarantee an inner
     loop's exit PC precedes its enclosing loop's exit PC, so PC-ordering closed
     the wrong driver set (outer closed, inner leaked). Multi-driver labeled

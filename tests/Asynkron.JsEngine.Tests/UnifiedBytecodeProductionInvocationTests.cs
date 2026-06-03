@@ -9476,7 +9476,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             },
             {
                 // Labeled loops are now admitted (loop-control targets are compiler-owned, ADR 0253):
-                // the unused outer label no longer forces a LabelControlFlow decline.
+                // the unused outer label no longer forces a label-specific decline.
                 """
                 function labeled(n) {
                     outer: while (n > 0) {

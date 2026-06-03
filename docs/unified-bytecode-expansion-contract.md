@@ -341,7 +341,6 @@ statement interpretation.
 - `PrivateFieldDependency`
 - `ForInDriverStateDependency`
 - `DestructuringDependency`
-- `LabelControlFlow`
 - `UnsupportedPlanShape`
 - `CallInvocationBoundary`
 
@@ -408,8 +407,8 @@ predicates and proof tests.
 - Private-name operations outside admitted `#name in obj`, direct private
   reads/writes/updates, direct private compound/logical writes, and direct
   private named method calls.
-- Awaited for-in sources, async iterator drivers, unsupported for-in driver
-  state, and labeled break/continue crossing intervening driver loops.
+- Awaited for-in sources, async iterator drivers, and unsupported for-in driver
+  state.
 - Awaited destructuring binding values, unsupported destructuring driver shapes,
   and destructuring targets outside direct-slot or descriptor-backed lanes.
 - Missing slot metadata, unsupported instruction families, unsupported compiler
@@ -443,7 +442,6 @@ predicates and proof tests.
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
 | `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes; declaration defaults and computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
-| `LabelControlFlow` | Labeled break/continue that exits an intervening iterator/for-in driver loop not directly targeted by the abrupt jump | Existing IR loop-control route | Multi-driver labeled cleanup lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
@@ -479,7 +477,7 @@ the final post-compile production subset check before VM entry.
 | Prototype guard key | Owning source / current example | Current fallback route | Planned batch / lane | Proof command |
 |---|---|---|---|---|
 | `prototype-guard:Binary` | `Binary` opcodes currently admit the selector-owned production subset: arithmetic (`+`, `-`, `*`, `/`, `%`, `**`), equality/comparison (`==`, `!=`, `===`, `!==`, `<`, `<=`, `>`, `>=`), bitwise/shift (`&`, `|`, `^`, `<<`, `>>`, `>>>`), and relational/object tests (`in`, `instanceof`); binary operators outside that subset (for example `&&`, `\|\|`, `??`) decline as `UnsupportedPlanShape` | Existing expression route | Binary operator widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PropertyReadAdjacentFamilies_DeclineWithExplicitCodes"` |
-| `prototype-guard:Jump` | `Jump` and `JumpWithDriverCleanup` are admitted only for compiler-owned branch, loop, and driver cleanup shapes | Existing control-flow route if an unowned jump shape is introduced | Control-flow lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_DeclinesWithLabelControlFlow"` |
+| `prototype-guard:Jump` | `Jump` and `JumpWithDriverCleanup` are admitted only for compiler-owned branch, loop, and driver cleanup shapes | Existing control-flow route if an unowned jump shape is introduced | Control-flow lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_LabeledBreakCrossingDriverLoop_AcceptsWithDriverCleanupTopology"` |
 | `prototype-guard:JumpIfFalse` | `JumpIfFalse` and short-circuit conditional jump opcodes are admitted only for proven compiler-owned expression and statement control flow | Existing control-flow route if an unowned conditional shape is introduced | Control-flow lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ConditionalExpression_ThisPropertyConditionAndArms_Accepts"` |
 | `prototype-guard:DefaultUnsupportedOpcode` | Any future `UnifiedBytecodeOpCode` not explicitly listed in the switch declines as `UnsupportedPlanShape` until the selector, compiler, VM, and proof pack are updated together | Existing execution-plan route | Opcode ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 
@@ -597,12 +595,10 @@ the final post-compile production subset check before VM entry.
   through the same compiler-owned resolved-target path as the unlabeled case.
   Label resolution is not a source-syntax permission — a labeled construct
   routes whenever its unlabeled IR topology would route.
-- The one labeled shape still declined with `LabelControlFlow` is a labeled
-  `break`/`continue` that transfers control out of an enclosing iterator/for-in
-  driver loop it is not directly targeting (driver-crossing). The VM's
-  single-level driver cleanup only closes the driver whose break target equals
-  the abrupt jump target, so an intervening inner iterator would be leaked;
-  multi-driver labeled cleanup is the next loop-control widening frontier.
+- Driver-crossing labeled `break`/`continue` is owned by compiler-emitted
+  cleanup topology, not a separate label decline bucket. Future unsupported
+  loop-control shapes should use the concrete driver-state or plan-shape gate
+  that matches the failing topology.
 - Unsupported complex loop/control-flow shapes must decline before VM execution
   instead of falling back from inside `UnifiedBytecodeVirtualMachine`.
 - The pre-ADR 0253 break/continue-only decline taxonomy is retired:
@@ -1123,11 +1119,9 @@ support today.
    execution.
 7. Label-dependent control flow is now admitted (ADR 0285): labeled statements,
    labeled loops, labeled block `break`, and labeled `break`/`continue` route
-   through the compiler-owned resolved-target path. The remaining
-   `LabelControlFlow` decline is narrow — a labeled `break`/`continue` that
-   crosses (exits) an enclosing iterator/for-in driver loop it is not directly
-   targeting. Multi-driver labeled cleanup is the next loop-control widening
-   frontier.
+   through the compiler-owned resolved-target path. Driver-crossing label
+   shapes are covered by the compiler-emitted cleanup topology rather than a
+   standalone decline bucket.
 
 ## Proof Commands
 ```bash

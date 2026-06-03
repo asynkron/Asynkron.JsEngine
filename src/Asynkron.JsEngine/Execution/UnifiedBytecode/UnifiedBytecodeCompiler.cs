@@ -13325,6 +13325,74 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    // Emits a control-expression computed key span (`box[cond ? a : b]`, `box[a && b]`,
+    // `box[a ?? b]`) into <paramref name="unified"/> when the whole span is exactly one
+    // admitted control-expression operand span, leaving a single key value on the stack.
+    // Returns false (without partial output) when the span is not a whole control
+    // expression so the caller can fall back to the stack-machine key emission.
+    private static bool TryAppendControlExpressionComputedKeySpan(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        int startInclusive,
+        int endExclusive,
+        bool allowsDynamicIdentifiers)
+    {
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
+        if (TryAppendSimpleControlExpressionOperandSpan(
+                expressionProgram,
+                startInclusive,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants: null,
+                slotLayout: null,
+                out var spanLength,
+                out _) &&
+            startInclusive + spanLength == endExclusive)
+        {
+            return true;
+        }
+
+        // Roll back any partial control-expression output so the stack-machine path
+        // starts from a clean builder state.
+        unified.Count = unifiedCount;
+        literalConstants.Count = literalCount;
+        stringConstants.Count = stringCount;
+        return false;
+    }
+
+    // Validation-only probe: runs the control-expression key emitter against throwaway
+    // builders so eligibility can confirm a whole-span control-expression key without
+    // mutating live output.
+    private static bool TryProbeControlExpressionComputedKeySpan(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        int startInclusive,
+        int endExclusive,
+        bool allowsDynamicIdentifiers)
+    {
+        var probeUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        var probeLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        var probeStrings = ImmutableArray.CreateBuilder<string>();
+        return TryAppendControlExpressionComputedKeySpan(
+            expressionProgram,
+            activationSlots,
+            probeUnified,
+            probeLiterals,
+            probeStrings,
+            startInclusive,
+            endExclusive,
+            allowsDynamicIdentifiers);
+    }
+
     private static bool TryAppendComputedPropertyKeySpan(
         ExpressionProgram expressionProgram,
         ActivationSlotShape activationSlots,
@@ -13336,6 +13404,21 @@ internal static class UnifiedBytecodeCompiler
         out string reason,
         bool allowsDynamicIdentifiers = false)
     {
+        if (startInclusive < endExclusive &&
+            TryAppendControlExpressionComputedKeySpan(
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                stringConstants,
+                startInclusive,
+                endExclusive,
+                allowsDynamicIdentifiers))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
         for (var index = startInclusive; index < endExclusive; index++)
         {
             var operation = expressionProgram.GetOperation(index);
@@ -13424,6 +13507,27 @@ internal static class UnifiedBytecodeCompiler
         int endExclusive,
         bool allowsDynamicIdentifiers = false)
     {
+        if (startInclusive >= endExclusive)
+        {
+            return false;
+        }
+
+        // Control-expression computed keys (`box[cond ? a : b]`, `box[a && b]`,
+        // `box[a ?? b]`) lower to JumpIfConditionalFalse/Jump/Pop control flow that the
+        // stack-machine walker below cannot validate. Probe the dedicated control-flow
+        // emitter against throwaway builders to confirm the whole span is an admitted
+        // control expression; the live emission in TryAppendComputedPropertyKeySpan runs
+        // the same path. Only a whole-span match is admitted.
+        if (TryProbeControlExpressionComputedKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive,
+                endExclusive,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
         var stackDepth = 0;
         for (var index = startInclusive; index < endExclusive; index++)
         {

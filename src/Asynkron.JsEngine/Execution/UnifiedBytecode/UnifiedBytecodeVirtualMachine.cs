@@ -3402,6 +3402,42 @@ internal static class UnifiedBytecodeVirtualMachine
             SetResumableShortCircuitFlag(stackPointer - 1, wasShortCircuited);
         }
 
+        // Mirrors the sync Execute path's CopyShortCircuitFlag/SwapShortCircuitFlags/
+        // RotateShortCircuitFlagsRight so the stack-permuting opcodes keep the short-circuit flag
+        // column aligned with the operand stack. The null-guarded resumable accessors make these
+        // no-ops when no flag column is allocated. Keeping the invariant here (rather than relying on
+        // eligibility never admitting a JumpIfShortCircuited-bearing resumable program) means a future
+        // relaxation of the resumable gate cannot silently corrupt flag alignment across these opcodes.
+        void CopyResumableShortCircuitFlag(int source, int target)
+        {
+            SetResumableShortCircuitFlag(target, GetResumableShortCircuitFlag(source));
+        }
+
+        void SwapResumableShortCircuitFlags(int left, int right)
+        {
+            if (stackShortCircuitFlags is null)
+            {
+                return;
+            }
+
+            var leftValue = GetStackFlag(stackShortCircuitFlags, left);
+            SetStackFlag(stackShortCircuitFlags, left, GetStackFlag(stackShortCircuitFlags, right));
+            SetStackFlag(stackShortCircuitFlags, right, leftValue);
+        }
+
+        void RotateResumableShortCircuitFlagsRight(int first, int second, int third)
+        {
+            if (stackShortCircuitFlags is null)
+            {
+                return;
+            }
+
+            var thirdValue = GetStackFlag(stackShortCircuitFlags, third);
+            SetStackFlag(stackShortCircuitFlags, third, GetStackFlag(stackShortCircuitFlags, second));
+            SetStackFlag(stackShortCircuitFlags, second, GetStackFlag(stackShortCircuitFlags, first));
+            SetStackFlag(stackShortCircuitFlags, first, thirdValue);
+        }
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -3656,6 +3692,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.DuplicateTop:
                     stack[stackPointer] = stack[stackPointer - 1];
+                    CopyResumableShortCircuitFlag(stackPointer - 1, stackPointer);
                     stackPointer++;
                     programCounter++;
                     break;
@@ -3663,6 +3700,8 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.DuplicateTopTwo:
                     stack[stackPointer] = stack[stackPointer - 2];
                     stack[stackPointer + 1] = stack[stackPointer - 1];
+                    CopyResumableShortCircuitFlag(stackPointer - 2, stackPointer);
+                    CopyResumableShortCircuitFlag(stackPointer - 1, stackPointer + 1);
                     stackPointer += 2;
                     programCounter++;
                     break;
@@ -3671,6 +3710,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     var resumableTop = stack[stackPointer - 1];
                     stack[stackPointer - 1] = stack[stackPointer - 2];
                     stack[stackPointer - 2] = resumableTop;
+                    SwapResumableShortCircuitFlags(stackPointer - 1, stackPointer - 2);
                     programCounter++;
                     break;
 
@@ -3679,6 +3719,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     stack[stackPointer - 1] = stack[stackPointer - 2];
                     stack[stackPointer - 2] = stack[stackPointer - 3];
                     stack[stackPointer - 3] = resumableRotateTop;
+                    RotateResumableShortCircuitFlagsRight(stackPointer - 3, stackPointer - 2, stackPointer - 1);
                     programCounter++;
                     break;
 

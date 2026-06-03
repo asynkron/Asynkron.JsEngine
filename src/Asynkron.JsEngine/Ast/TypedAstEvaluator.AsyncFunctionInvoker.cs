@@ -130,7 +130,7 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, _realmState);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict);
 
             _realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",

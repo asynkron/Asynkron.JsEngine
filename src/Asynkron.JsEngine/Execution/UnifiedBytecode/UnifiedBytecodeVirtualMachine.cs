@@ -4305,6 +4305,218 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.ArrayDestructuringInit:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var sourceValue = stack[--stackPointer];
+                        if (!TryGetIteratorForArrayDestructuring(sourceValue, context, out var destructuringState))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        slots[descriptor.StateSlot] = JsValue.FromObjectUnsafe(destructuringState);
+                        destructuringState.ActiveDriverOrdinal = ++state.NextActiveDriverOrdinal;
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ArrayDestructuringElement:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (!TryReadArrayDestructuringNext(
+                                descriptor.StateSlot,
+                                slots,
+                                slotEnvironments: null,
+                                context,
+                                out var value))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = value;
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                value,
+                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                state.IsCompleted = true;
+                                return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                            }
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ArrayDestructuringRest:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (!TryReadArrayDestructuringRest(
+                                descriptor.StateSlot,
+                                slots,
+                                slotEnvironments: null,
+                                context,
+                                out var restValue))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = restValue;
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                restValue,
+                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                state.IsCompleted = true;
+                                return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                            }
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ArrayDestructuringClose:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        CloseArrayDestructuringState(
+                            descriptor.StateSlot,
+                            slots,
+                            slotEnvironments: null,
+                            context,
+                            preserveExistingThrow: false);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringInit:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var sourceValue = stack[--stackPointer];
+                        if (!TryGetSourceForObjectDestructuring(sourceValue, context, out var objectState))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        slots[descriptor.StateSlot] = JsValue.FromObjectUnsafe(objectState);
+                        objectState.ActiveDriverOrdinal = ++state.NextActiveDriverOrdinal;
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringProperty:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var propertyName = program.StringConstants[descriptor.NameConstantIndex];
+                        if (!TryReadObjectDestructuringProperty(
+                                descriptor.StateSlot,
+                                propertyName,
+                                slots,
+                                slotEnvironments: null,
+                                context,
+                                out var value))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = value;
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                value,
+                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                state.IsCompleted = true;
+                                return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                            }
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringRest:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (!TryReadObjectDestructuringRest(
+                                descriptor.StateSlot,
+                                slots,
+                                slotEnvironments: null,
+                                context,
+                                out var restValue))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = restValue;
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                restValue,
+                                RequireDynamicEnvironment(state.CallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                state.IsCompleted = true;
+                                return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                            }
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ObjectDestructuringClose:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        CloseObjectDestructuringState(
+                            descriptor.StateSlot,
+                            slots,
+                            slotEnvironments: null);
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.AwaitedReturn:
                     if (TryConsumePendingAwaitResume(state, out var awaitedReturn, out var awaitedReturnThrow))
                     {

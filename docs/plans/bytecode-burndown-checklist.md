@@ -148,8 +148,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B32** try/catch/finally across suspension — ☑/☐
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐
-- [ ] **B34** Array destructuring across suspension — ☑/☐
-- [ ] **B35** Object destructuring across suspension — ☑/☐
+- [x] **B34** Array destructuring across suspension — ☑/☑ ✅ (Codex)
+- [x] **B35** Object destructuring across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B36** Nested function/class declaration hoisting in resumable body — ☑/☐
 - [ ] **B37** Scaffolding opcodes (Tdz/EnsureHasName/ToString/ThrowReferenceError) in resumable — ☑/☐
 - [ ] **B38** `yield* freeIter` over free/dynamic iterable — n/a/☐

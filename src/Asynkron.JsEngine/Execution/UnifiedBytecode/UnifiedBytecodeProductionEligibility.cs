@@ -916,6 +916,14 @@ internal static class UnifiedBytecodeProductionEligibility
             case IteratorCloseInstruction:
             case ForInInitInstruction:
             case ForInMoveNextInstruction:
+            case ArrayDestructuringInitInstruction:
+            case ArrayDestructuringElementInstruction:
+            case ArrayDestructuringRestInstruction:
+            case ArrayDestructuringCloseInstruction:
+            case ObjectDestructuringInitInstruction:
+            case ObjectDestructuringPropertyInstruction:
+            case ObjectDestructuringRestInstruction:
+            case ObjectDestructuringCloseInstruction:
             case BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue }:
             case BreakableExitInstruction:
                 declineReason = string.Empty;
@@ -944,6 +952,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             case ForInInitInstruction { AwaitedProgram: { } awaitedObjectProgram }:
                 program = awaitedObjectProgram;
+                return true;
+            case ArrayDestructuringInitInstruction arrayDestructuringInit:
+                program = arrayDestructuringInit.SourceProgram;
+                return true;
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                program = objectDestructuringInit.SourceProgram;
                 return true;
             case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
                 program = awaitedReturnProgram;
@@ -1080,7 +1094,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.IteratorMoveNext or
                 UnifiedBytecodeOpCode.IteratorClose or
                 UnifiedBytecodeOpCode.ForInInit or
-                UnifiedBytecodeOpCode.ForInMoveNext)
+                UnifiedBytecodeOpCode.ForInMoveNext or
+                UnifiedBytecodeOpCode.ArrayDestructuringInit or
+                UnifiedBytecodeOpCode.ArrayDestructuringElement or
+                UnifiedBytecodeOpCode.ArrayDestructuringRest or
+                UnifiedBytecodeOpCode.ArrayDestructuringClose or
+                UnifiedBytecodeOpCode.ObjectDestructuringInit or
+                UnifiedBytecodeOpCode.ObjectDestructuringProperty or
+                UnifiedBytecodeOpCode.ObjectDestructuringRest or
+                UnifiedBytecodeOpCode.ObjectDestructuringClose)
             {
                 continue;
             }

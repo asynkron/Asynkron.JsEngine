@@ -837,7 +837,10 @@ the final post-compile production subset check before VM entry.
   `ArrayDestructuringInit`, `ArrayDestructuringElement`,
   `ArrayDestructuringRest`, and `ArrayDestructuringClose` when the source is
   lowered to expression bytecode and element/rest targets resolve to unified
-  flat slots. Normal and abrupt cleanup close the destructuring iterator from
+  flat slots. The same opcode family is admitted by the resumable VM, so
+  generator and async bodies can suspend before or after a lowered array
+  destructuring sequence while keeping the destructuring iterator state
+  VM-owned. Normal and abrupt cleanup close the destructuring iterator from
   VM-owned driver state.
 - Accepted object destructuring driver shapes include
   `ObjectDestructuringInit`, `ObjectDestructuringProperty`,
@@ -847,7 +850,9 @@ the final post-compile production subset check before VM entry.
   and rest target resolves to a unified flat slot. The VM coerces the source
   with `ToObject`, reads properties in source order (observable getter side
   effects preserved), and a trailing rest target collects the remaining own
-  enumerable keys minus the consumed ones. Abrupt completion (a non-coercible
+  enumerable keys minus the consumed ones. The same opcode family is admitted by
+  the resumable VM for generator and async bodies that suspend before or after
+  the lowered object destructuring sequence. Abrupt completion (a non-coercible
   source or a throwing getter) closes the VM-owned driver state.
 - Accepted expression-level assignment destructuring shapes that lower through
   `ApplyBindingTarget` are admitted through a descriptor-backed

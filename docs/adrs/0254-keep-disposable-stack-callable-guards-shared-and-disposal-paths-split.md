@@ -60,7 +60,7 @@ For future `DisposableStack` / `AsyncDisposableStack` maintenance:
 
 - Issue `autrun-diu4yqab0uq8-1e1088957e`
 - PR #2494
-- `.claude/rules/recurring-maintenance-child-runs.md`
+- `docs/rules/recurring-maintenance-child-runs.md`
 - `src/Asynkron.JsEngine/StdLib/DisposableStack/DisposableStackHelper.cs`
 - `src/Asynkron.JsEngine/StdLib/DisposableStack/DisposableStackPrototype.cs`
 - `src/Asynkron.JsEngine/StdLib/AsyncDisposableStack/AsyncDisposableStackPrototype.cs`

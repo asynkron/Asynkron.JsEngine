@@ -1340,7 +1340,18 @@ internal sealed class MiniNodeRuntime : IAsyncDisposable
         SetProperty(path, "basename", CreateHostFunction(args =>
         {
             var requestedPath = GetRequiredString(args, 0, "path.basename");
-            return Path.GetFileName(requestedPath);
+            var fileName = Path.GetFileName(requestedPath);
+            if (args.Count > 1)
+            {
+                var extension = ToHostString(args[1]);
+                if (extension.Length > 0 &&
+                    fileName.EndsWith(extension, StringComparison.Ordinal))
+                {
+                    fileName = fileName[..^extension.Length];
+                }
+            }
+
+            return fileName;
         }));
 
         SetProperty(path, "dirname", CreateHostFunction(args =>

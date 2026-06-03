@@ -348,6 +348,15 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     var rewrittenAwaitedProgram = assign.AwaitedProgram is { } assignAwaitedProgram
                         ? RewriteExpressionProgram(assignAwaitedProgram)
                         : (ExpressionProgram?)null;
+                    if (_isRestampingNestedFunction && assign.ScopeId >= 0 && assign.SlotIndex >= 0)
+                    {
+                        return assign with
+                        {
+                            ValueProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram
+                        };
+                    }
+
                     if (TryResolve(assign.TargetSymbol, out var assignmentResolution))
                     {
                         var assignmentFlatSlotId = GetOrCreateFlatSlotId(
@@ -391,6 +400,17 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     var rewrittenAwaitedProgram = logicalCompound.AwaitedProgram is { } logicalAwaitedProgram
                         ? RewriteExpressionProgram(logicalAwaitedProgram)
                         : (ExpressionProgram?)null;
+                    if (_isRestampingNestedFunction &&
+                        logicalCompound.ScopeId >= 0 &&
+                        logicalCompound.SlotIndex >= 0)
+                    {
+                        return logicalCompound with
+                        {
+                            RhsProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram
+                        };
+                    }
+
                     if (TryResolve(logicalCompound.TargetSymbol, out var logicalResolution))
                     {
                         var logicalFlatSlotId = GetOrCreateFlatSlotId(
@@ -424,6 +444,18 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                     var rhsFlatSlotId = rewrittenProgram is { } rewrittenRhsProgram
                         ? TryGetFlatSlotId(rewrittenRhsProgram)
                         : -1;
+
+                    if (_isRestampingNestedFunction &&
+                        compoundAssign.ScopeId >= 0 &&
+                        compoundAssign.SlotIndex >= 0)
+                    {
+                        return compoundAssign with
+                        {
+                            RhsProgram = rewrittenProgram,
+                            AwaitedProgram = rewrittenAwaitedProgram,
+                            RhsFlatSlotId = rhsFlatSlotId
+                        };
+                    }
 
                     if (TryResolve(compoundAssign.TargetSymbol, out var compoundResolution))
                     {
@@ -560,6 +592,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 };
 
             case ArrayDestructuringElementInstruction { TargetSymbol: not null } destructuringElement:
+                if (_isRestampingNestedFunction && destructuringElement.TargetSlotIndex >= 0)
+                {
+                    return destructuringElement;
+                }
+
                 if (TryResolve(destructuringElement.TargetSymbol, out var destructuringElementResolution))
                 {
                     return destructuringElement with
@@ -571,6 +608,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return destructuringElement;
 
             case ArrayDestructuringRestInstruction destructuringRest:
+                if (_isRestampingNestedFunction && destructuringRest.RestSlotIndex >= 0)
+                {
+                    return destructuringRest;
+                }
+
                 if (TryResolve(destructuringRest.RestSymbol, out var destructuringRestResolution))
                 {
                     return destructuringRest with
@@ -588,6 +630,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 };
 
             case ObjectDestructuringPropertyInstruction objectDestructuringProperty:
+                if (_isRestampingNestedFunction && objectDestructuringProperty.TargetSlotIndex >= 0)
+                {
+                    return objectDestructuringProperty;
+                }
+
                 if (TryResolve(objectDestructuringProperty.TargetSymbol, out var objectDestructuringPropertyResolution))
                 {
                     return objectDestructuringProperty with
@@ -599,6 +646,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 return objectDestructuringProperty;
 
             case ObjectDestructuringRestInstruction objectDestructuringRest:
+                if (_isRestampingNestedFunction && objectDestructuringRest.RestSlotIndex >= 0)
+                {
+                    return objectDestructuringRest;
+                }
+
                 if (TryResolve(objectDestructuringRest.RestSymbol, out var objectDestructuringRestResolution))
                 {
                     return objectDestructuringRest with
@@ -612,6 +664,11 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case IncrementSlotInstruction increment:
                 {
                     // Resolve the target symbol to get scope/slot/flatSlot metadata
+                    if (_isRestampingNestedFunction && increment.ScopeId >= 0 && increment.SlotIndex >= 0)
+                    {
+                        return increment;
+                    }
+
                     if (TryResolve(increment.TargetSymbol, out var incrementResolution))
                     {
                         var incrementFlatSlotId = GetOrCreateFlatSlotId(incrementResolution.scopeId, incrementResolution.slotIndex);

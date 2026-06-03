@@ -14955,6 +14955,20 @@ internal static class UnifiedBytecodeCompiler
         var activationSlots = slotLayout.ActivationSlots;
         if (identifier.FlatSlotId >= 0)
         {
+            if (identifier.ScopeId >= 0 &&
+                identifier.ScopeId != activationSlots.ScopeId)
+            {
+                if (identifier.SlotIndex >= 0 &&
+                    TryMapSlot(identifier.ScopeId, identifier.SlotIndex, slotLayout.FlatSlotMappings, out var scopedFlatSlot))
+                {
+                    slotIndex = scopedFlatSlot;
+                    return true;
+                }
+
+                slotIndex = -1;
+                return false;
+            }
+
             if (SlotNameMatches(slotLayout, identifier.FlatSlotId, identifier.Name))
             {
                 slotIndex = identifier.FlatSlotId;

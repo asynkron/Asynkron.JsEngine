@@ -192,6 +192,42 @@ public sealed class JsOpsTests(ITestOutputHelper output) : InternalTestBase(outp
     }
 
     [Fact]
+    public async Task NestedFunctionVar_DoesNotOverwriteOuterFunctionVarWithSameName()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function moduleWrapper() {
+                var path = {
+                    marker: 'outer'
+                };
+
+                function View() {
+                    this.path = this.lookup('list.hbs');
+                }
+
+                View.prototype.lookup = function lookup(name) {
+                    var path;
+                    var roots = [].concat('root');
+
+                    for (var i = 0; i < roots.length && !path; i++) {
+                        path = this.resolve(roots[i], name);
+                    }
+
+                    return path;
+                };
+
+                View.prototype.resolve = function resolve(root, name) {
+                    return root + '/' + name;
+                };
+
+                return new View().path + '|' + path.marker;
+            })();
+            """);
+
+        Assert.Equal("root/list.hbs|outer", result?.ToString());
+    }
+
+    [Fact]
     public async Task TypeOf_Number_ShouldReturnNumber()
     {
         await using var engine = CreateEngine();

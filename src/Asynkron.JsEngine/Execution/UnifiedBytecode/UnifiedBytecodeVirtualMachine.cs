@@ -5192,6 +5192,40 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.ConstructInvocationBoundary:
+                    {
+                        // Synchronous construct dispatch from inside the resumable frame (`new C(args)`).
+                        // The constructor value and its arguments sit on the operand stack
+                        // ([constructor, arg0 .. arg(n-1)]) — pushed by preceding ops in source order, each of
+                        // which can itself have suspended (`new C(yield 1)`, `new C(o.a)` between two yields) and
+                        // been restored from UnifiedBytecodeResumeState.OperandStack. ExecutePreparedConstruct
+                        // runs [[Construct]] to completion (using the constructor itself as new.target, the
+                        // `new C()` semantics) and replaces the constructor slot with the result, reusing the
+                        // sync VM handler verbatim so this-binding/prototype wiring and the non-constructor
+                        // TypeError are identical. slotEnvironments is null because eligible resumable programs
+                        // have no environment-backed slots. A thrown constructor (ThrowSignal) is translated to
+                        // the resumable Throw step exactly like the call boundary.
+                        stackPointer = ExecutePreparedConstruct(
+                            DecodeCallBoundaryArgumentCount(instruction.Operand),
+                            DecodeCallBoundarySpreadMask(program, instruction.Operand),
+                            stack,
+                            stackPointer,
+                            slots,
+                            slotEnvironments: null,
+                            context);
+                        // Clear the flag on the construct result slot, matching the sync VM. A construct result
+                        // must never inherit a stale short-circuit flag from a prior chain on the reused slot.
+                        SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 default:
                     throw new NotSupportedException(
                         $"Unified bytecode opcode '{instruction.OpCode}' is not supported by the resumable execution path.");

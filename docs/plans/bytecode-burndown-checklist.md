@@ -145,7 +145,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B28** `delete freeVar` — ☑/☐
 - [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐
 - [ ] **B30** `for-of` sync driver across suspension — ☑/☐
-- [ ] **B31** `for-in` driver across suspension — ☑/☐
+- [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B32** try/catch/finally across suspension — ☑/☐
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐
 - [ ] **B34** Array destructuring across suspension — ☑/☐
@@ -156,7 +156,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B39** async `yield* asyncIterable` — n/a/☐
 - [ ] **B40** `with(obj){}` in generator/async body (routing gap, not residue) — n/a/☐
 - [ ] **B41** `for await (x of asyncIter)` async-iterator driver (declines both routes) — ☐/☐
-- [ ] **B42** `for(k in await p)` awaited for-in source — ☐/☐
+- [x] **B42** `for(k in await p)` awaited for-in source — n/a/☑ ✅ (Codex)
 - [ ] **B43** Awaited with-object `with(await x){}` — ☐/☐
 - [ ] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☐/☐
 - [ ] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/☐

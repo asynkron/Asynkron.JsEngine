@@ -854,6 +854,10 @@ internal static class UnifiedBytecodeProductionEligibility
             case AwaitAndDiscardInstruction:
             case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
+            case ForInInitInstruction:
+            case ForInMoveNextInstruction:
+            case BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue }:
+            case BreakableExitInstruction:
                 declineReason = string.Empty;
                 return true;
             default:
@@ -874,6 +878,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             case AwaitAndDiscardInstruction awaitAndDiscard:
                 program = awaitAndDiscard.AwaitedProgram;
+                return true;
+            case ForInInitInstruction { AwaitedProgram: { } awaitedObjectProgram }:
+                program = awaitedObjectProgram;
                 return true;
             case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
                 program = awaitedReturnProgram;
@@ -976,8 +983,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Yield or
                 UnifiedBytecodeOpCode.StoreResumeValue or
                 UnifiedBytecodeOpCode.AwaitAndDiscard or
+                UnifiedBytecodeOpCode.AwaitValue or
                 UnifiedBytecodeOpCode.AwaitedReturn or
-                UnifiedBytecodeOpCode.YieldStar)
+                UnifiedBytecodeOpCode.YieldStar or
+                UnifiedBytecodeOpCode.TdzHeadInit or
+                UnifiedBytecodeOpCode.ForInInit or
+                UnifiedBytecodeOpCode.ForInMoveNext)
             {
                 continue;
             }
@@ -2374,9 +2385,10 @@ internal static class UnifiedBytecodeProductionEligibility
     // declining with its explicit reason even though sync TDZ heads are admitted.
     internal static bool IsSupportedForInInit(ForInInitInstruction instruction, out string reason)
     {
-        if (instruction.ObjectProgram is null || instruction.AwaitedProgram is not null)
+        if (instruction.ObjectProgram is null && instruction.AwaitedProgram is null ||
+            instruction.ObjectProgram is not null && instruction.AwaitedProgram is not null)
         {
-            reason = "for-in driver sources must be lowered to synchronous expression bytecode.";
+            reason = "for-in driver sources must be lowered to exactly one expression bytecode payload.";
             return false;
         }
 

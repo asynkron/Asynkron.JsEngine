@@ -4003,6 +4003,69 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.AwaitValue:
+                    if (TryConsumePendingAwaitResume(state, out var awaitedValue, out var awaitedValueThrow))
+                    {
+                        if (awaitedValueThrow)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(awaitedValue);
+                        }
+
+                        stack[stackPointer++] = awaitedValue;
+                        programCounter++;
+                        break;
+                    }
+
+                    var awaitValueCandidate = stack[--stackPointer];
+                    var awaitValuePendingPromise = state.PendingAwaitPromise;
+                    if (!AwaitScheduler.TryResolvePromiseOrYield(
+                            awaitValueCandidate,
+                            asyncStepMode: true,
+                            ref awaitValuePendingPromise,
+                            context,
+                            out var awaitValueResult))
+                    {
+                        state.PendingAwaitPromise = awaitValuePendingPromise;
+                        state.ProgramCounter = programCounter;
+                        state.StackPointer = stackPointer;
+                        state.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+                        state.ResumePayload = JsValue.Undefined;
+                        return UnifiedBytecodeStepResult.PendingAwait(state.PendingAwaitPromise);
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    stack[stackPointer++] = awaitValueResult;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ForInInit:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var objectValue = stack[--stackPointer];
+                        var forInState = ForInDriverStatePool.Rent();
+                        forInState.SourceObject = objectValue;
+                        CollectEnumerablePropertyKeys(objectValue, forInState.PropertyKeys);
+                        slots[descriptor.StateSlot] = forInState.AsJsValue;
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.ForInMoveNext:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        programCounter = MoveForInNext(
+                            descriptor,
+                            slots,
+                            slotEnvironments: null);
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.AwaitedReturn:
                     if (TryConsumePendingAwaitResume(state, out var awaitedReturn, out var awaitedReturnThrow))
                     {

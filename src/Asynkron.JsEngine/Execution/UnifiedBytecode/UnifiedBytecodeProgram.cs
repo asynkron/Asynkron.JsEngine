@@ -132,6 +132,7 @@ internal enum UnifiedBytecodeOpCode : byte
     Yield,
     StoreResumeValue,
     AwaitAndDiscard,
+    AwaitValue,
     AwaitedReturn,
     YieldStar,
     ApplyBindingTarget,

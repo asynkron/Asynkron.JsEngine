@@ -6435,7 +6435,22 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void IsSupportedForInInit_AwaitedSource_Declines()
+    public void IsSupportedForInInit_AwaitedSource_Accepts()
+    {
+        var instruction = new ForInInitInstruction(
+            Symbol.Synthetic("__forIn_state"),
+            StateSlotIndex: 0,
+            Symbol.Synthetic("__forIn_value"),
+            ValueSlotIndex: 1,
+            Next: -1,
+            ObjectProgram: null,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedForInInit(instruction, out var reason), reason);
+    }
+
+    [Fact]
+    public void IsSupportedForInInit_DualSourcePayload_Declines()
     {
         var instruction = new ForInInitInstruction(
             Symbol.Synthetic("__forIn_state"),
@@ -6447,7 +6462,62 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             AwaitedProgram: ExpressionProgram.Empty);
 
         Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedForInInit(instruction, out var reason));
-        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
+        Assert.Contains("exactly one expression bytecode payload", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AwaitedForInSource_AdmitsAwaitValueAndForInDriver()
+    {
+        var plan = GetFunctionPlan("""
+            async function collect(sourcePromise) {
+                var last = "";
+                for (var key in await sourcePromise) {
+                    last = key;
+                }
+
+                return last;
+            }
+            """,
+            "collect");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.AwaitValue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ForInDriverAcrossYield_AdmitsForInDriver()
+    {
+        var plan = GetFunctionPlan("""
+            function* keys(obj) {
+                for (var key in obj) {
+                    yield key;
+                }
+            }
+            """,
+            "keys");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Yield);
     }
 
     [Fact]

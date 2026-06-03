@@ -1729,6 +1729,73 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = forInInit.Next;
                         continue;
 
+                    case ForInInitInstruction
+                        {
+                            ObjectProgram: null,
+                            AwaitedProgram: { } awaitedObjectProgram
+                        } awaitedForInInit:
+                        if (!TryResolveDriverSlot(
+                                awaitedForInInit.StateSlot,
+                                awaitedForInInit.StateSlotIndex,
+                                slotLayout,
+                                out var awaitedForInStateSlot))
+                        {
+                            reason = $"Unsupported for-in state slot '{awaitedForInInit.StateSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryEmitTdzHeadInit(
+                                awaitedForInInit.TdzBindings,
+                                awaitedForInInit.TdzIsConst,
+                                awaitedForInInit.TdzScopeId,
+                                awaitedForInInit.TdzSlotIndices,
+                                slotLayout,
+                                unified,
+                                driverDescriptors,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedObjectProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ForInInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(awaitedForInStateSlot))));
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitedObjectProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                awaitedForInInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = awaitedForInInit.Next;
+                        continue;
+
                     case ForInMoveNextInstruction forInMoveNext:
                         return TryAppendDriverMoveNext(
                             instructionIndex,

@@ -314,6 +314,7 @@ statement interpretation.
 - `Yield`
 - `StoreResumeValue`
 - `AwaitAndDiscard`
+- `AwaitValue`
 - `AwaitedReturn`
 - `YieldStar`
 - `LoadClassLiteral`
@@ -446,7 +447,7 @@ predicates and proof tests.
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalChainNamedPrefixPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary"` |
 | `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, receiver/callee-optional named/computed member-call spans, and simple-control-expression spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
-| `ForInDriverStateDependency` | Unsupported for-in driver state such as awaited object source | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~IsSupportedForInInit_AwaitedSource_Declines"` |
+| `ForInDriverStateDependency` | Unsupported for-in driver state outside the lowered synchronous source and resumable awaited-source lanes | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_AwaitedForInSource_AdmitsAwaitValueAndForInDriver"` |
 | `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes; declaration defaults and computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
 | `UnsupportedPlanShape` | Missing activation slot metadata, unsupported instruction families, unsupported compiler shapes, unsupported resumable opcodes, and unknown production opcode defaults | Existing execution-plan route | Statement/control-flow ownership lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
 | `CallInvocationBoundary` | Plan-structural call invocation outside the currently executable call boundary, separate from descriptor-level `CallDependency` | Existing sync IR call route | Wider call invocation lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract_ListsRequiredHeadingsAndCurrentEnums"` |
@@ -1023,9 +1024,10 @@ support today.
 - `IteratorInitInstruction`, `IteratorMoveNextInstruction`, and
   `IteratorCloseInstruction` are eligible only for the synchronous lowered
   iterator-driver model described above.
-- `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible only for
-  the lowered for-in driver model described above. Unsupported for-in driver
-  shapes still decline with `ForInDriverStateDependency`.
+- `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible for the
+  lowered synchronous for-in driver model and the resumable awaited-source
+  `for (k in await p)` lane described above. Unsupported for-in driver shapes
+  still decline with `ForInDriverStateDependency`.
 - `ArrayDestructuringInitInstruction`,
   `ArrayDestructuringElementInstruction`,
   `ArrayDestructuringRestInstruction`, and
@@ -1129,8 +1131,9 @@ support today.
 4. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
    `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator
-   drivers and awaited iterator/for-in sources remain outside the admitted
-   boundary and must decline before VM execution.
+   drivers and awaited iterator sources remain outside the admitted boundary
+   and must decline before VM execution; resumable awaited for-in sources are
+   admitted for the `for (k in await p)` lane.
 5. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
    no defaults/nested patterns, optional identifier rest), and expression-level

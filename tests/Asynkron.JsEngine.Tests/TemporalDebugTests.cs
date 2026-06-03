@@ -1,5 +1,3 @@
-using Asynkron.JsEngine.JsTypes;
-
 namespace Asynkron.JsEngine.Tests;
 
 public class TemporalDebugTests

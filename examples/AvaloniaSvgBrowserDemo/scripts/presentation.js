@@ -1,7 +1,7 @@
 console.log("presentation.js is running inside JsEngine");
 
 const slides = [];
-slides[0] = "beyond-the-vibe-cover.svg";
+slides[0] = "devsum-first-page.svg";
 slides[1] = "speaker-roger-johansson.svg";
 slides[2] = "part-1-just-vibing.svg";
 slides[3] = "why-build-js-engine.svg";
@@ -49,6 +49,7 @@ slides[44] = "express-demo-stack.svg";
 slides[45] = "jsengine-presentation-reveal.svg";
 slides[46] = "how-far-did-we-push-it.svg";
 slides[47] = "faktorial-launch-button.svg";
+slides[48] = "devsum-last-page.svg";
 
 let current = presentation.current();
 let phase = "idle";

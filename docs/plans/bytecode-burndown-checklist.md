@@ -119,12 +119,12 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B3** **async generator `async function*` — no EvaluateResumable call at all; whole body on tier-2 (largest single gap)** — n/a/☐ — `AsyncGeneratorInvoker.cs:45`
 - [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
-- [ ] **B6** Property update `o.x++` / `o.x+=v` — ☑/☐
-- [ ] **B7** Computed property update `o[k]++` — ☑/☐
+- [x] **B6** Property update `o.x++` / `o.x+=v` — ☑/☑ ✅ #3117
+- [x] **B7** Computed property update `o[k]++` — ☑/☑ ✅ #3117
 - [x] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/◐ ✅ #3115 (var/param admitted; lexical `let`/`const` slot updates declined for const-safety — see B8a). Also fixed the latent const **plain-assignment** gap `const x=1; x=2` in #3116.
 - [ ] **B8a** *(follow-up, option a)* Thread a static const-slot bitmap from scope analysis → `ExecutionPlan`/`ActivationSlotShape` → `UnifiedBytecodeResumeState`, so the resumable VM can raise `TypeError: Assignment to constant variable` itself and restore `let`-write/`let`-update fast-path (currently `let`/`const` slot updates + assignments decline to the interpreter).
-- [ ] **B9** Property delete `delete o.x` — ☑/☐
-- [ ] **B10** Computed property delete `delete o[k]` — ☑/☐
+- [x] **B9** Property delete `delete o.x` — ☑/☑ ✅ #3117
+- [x] **B10** Computed property delete `delete o[k]` — ☑/☑ ✅ #3117
 - [ ] **B11** `new C(args)` construct — ☑/☐
 - [ ] **B12** super call/construct — ☑/☐ — _(in progress: workflow A1-super, resumable side)_
 - [ ] **B13** super property read `super.x` — ☑/☐ — _(workflow A1-super)_
@@ -208,4 +208,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 12 / ~119 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, B8, C1, C2). Plus correctness fix #3116 (const plain-assignment in resumable). New leaves: A52 (`debugger`, from P0.1), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 16 / ~119 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, B6, B7, B8, B9, B10, C1, C2). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

@@ -367,7 +367,12 @@ the next audit step is to generate this list from the selector/compiler
 predicates and proof tests.
 
 - Async-like ordinary functions, generator functions, awaited with-object plans,
-  and resumable opcode shapes outside the small `EvaluateResumable` subset.
+  and resumable opcode shapes outside the `EvaluateResumable` subset. That subset
+  now covers value-tier reads, synchronous call dispatch, and optional
+  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`) between suspension
+  points; computed optional calls (`o?.[k]()`), property writes/updates,
+  dynamic-identifier `typeof`/`delete`, and `super`/construct boundaries inside
+  resumable bodies remain outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.
@@ -893,11 +898,41 @@ the final post-compile production subset check before VM entry.
   resumable frame), a throwing callee surfaces as a thrown step (matching the
   resumable `Binary`/`GetNamedProperty` throw handling), and a generator that
   drives another generator's `.next()` keeps both frames independent (proof:
-  `UnifiedBytecodeResumableCallDispatchTests`). Optional calls (`o?.m()`), any
-  short-circuit-flag-setting opcode, direct eval, `super`/construct boundaries,
-  and `TypeOfDynamicIdentifier`/`DeleteDynamicIdentifier` stay declined because
-  the resumable state carries no `stackShortCircuitFlags` persistence and no
-  dynamic-environment write plumbing.
+  `UnifiedBytecodeResumableCallDispatchTests`). Direct eval, `super`/construct
+  boundaries, and `TypeOfDynamicIdentifier`/`DeleteDynamicIdentifier` stay
+  declined because the resumable state carries no dynamic-environment write
+  plumbing. (Optional chains and optional calls are now admitted — see the
+  optional-chain entry below.)
+- Accepted resumable bodies may now use OPTIONAL CHAINS (`o?.a`, `o?.[k]`) and
+  OPTIONAL CALLS (`o?.m()`, `f?.()`) between suspension points. The
+  `GetNamedPropertyOptional`, `JumpIfNullishReplaceUndefined`,
+  `JumpIfShortCircuited`, `PrepareIdentifierOptionalCallTarget`, and
+  `PrepareNamedOptionalCallTarget` opcodes are ported into the `ExecuteResumable`
+  switch and removed from `TryFindUnsupportedResumableOpcode`. The two prior
+  resumable slices deferred these with the SAME reason: the resumable state had
+  no equivalent of the sync VM's stack-parallel `stackShortCircuitFlags` array,
+  so a short-circuit flag set before a suspension could not survive the resume.
+  This slice adds `UnifiedBytecodeResumeState.OperandStackShortCircuitFlags`
+  (allocated only when `program.RequiresShortCircuitStackFlags`, matching the
+  sync `Execute` allocation), index-aligned with the operand stack. Because both
+  `OperandStack` and the flag column are stable backing arrays referenced by the
+  static loop — and a `yield`/`await` suspend only saves/restores `StackPointer`
+  — the live flag window stays aligned with the live operand window across
+  suspend AND resume. The resumable `GetNamedProperty`/`GetComputedProperty` and
+  the named/computed call-target prepares now honor the flag exactly as the sync
+  VM does, and `CallInvocationBoundary` clears it on the call-result slot so a
+  non-short-circuited result never inherits a stale flag. Most admitted shapes
+  short-circuit purely via the `JumpIfNullishReplaceUndefined` jump (their
+  programs do not set `RequiresShortCircuitStackFlags`, so no flag column is
+  allocated); the flag column is the correctness backstop for any flag-using
+  shape. Proofs (`UnifiedBytecodeResumableOptionalChainTests`) cover the
+  adversarial cases the contract demands: a nullish head whose short-circuit
+  STRADDLES a `yield`/`await`, and a non-nullish optional read after a resume
+  that must NOT inherit a prior chain's short-circuit. Computed optional calls
+  (`o?.[k]()`, lowered with `PrepareComputedOptionalCallTarget`) remain declined
+  because the resumable compiler declines that shape at compile time, so the
+  opcode never reaches the resumable path; `super`/construct optional boundaries
+  remain declined as before.
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is
@@ -998,9 +1033,14 @@ support today.
    now includes the NON-SUSPENDING value-computation tier (property reads
    `GetNamedProperty`/`GetComputedProperty`, `typeof`, and the unary operators),
    so generator/async bodies that interleave value-tier reads with
-   `yield`/`await` are admitted; optional/short-circuit reads, dynamic-identifier
-   `typeof`/`delete`, property writes/updates, and calls inside resumable bodies
-   remain unsupported follow-ups.
+   `yield`/`await` are admitted; the subset further includes synchronous call
+   dispatch and now OPTIONAL CHAINS / OPTIONAL CALLS (`o?.a`, `o?.[k]`, `o?.m()`,
+   `f?.()`) between suspension points, backed by an
+   `OperandStackShortCircuitFlags` column on `UnifiedBytecodeResumeState` that
+   persists short-circuit state across suspension. Dynamic-identifier
+   `typeof`/`delete`, property writes/updates, computed optional calls
+   (`o?.[k]()`), and `super`/construct boundaries inside resumable bodies remain
+   unsupported follow-ups.
 2. Wider call invocation remains a high-impact unsupported bucket. Synchronous
    spread calls are now admitted (gh2676). Optional calls are now admitted
    (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`, and

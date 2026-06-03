@@ -270,6 +270,9 @@ internal sealed class UnifiedBytecodeResumeState
         ThisValue = thisValue;
         CallingEnvironment = callingEnvironment;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
+        OperandStackShortCircuitFlags = program.RequiresShortCircuitStackFlags
+            ? new ulong[(OperandStack.Length + 63) >> 6]
+            : null;
     }
 
     public UnifiedBytecodeProgram Program { get; }
@@ -291,6 +294,22 @@ internal sealed class UnifiedBytecodeResumeState
     /// </summary>
     public JsTypes.JsValue ThisValue { get; }
     public JsTypes.JsValue[] OperandStack { get; }
+
+    /// <summary>
+    ///     Per-operand-slot short-circuit flags, index-aligned with <see cref="OperandStack" />. A set
+    ///     bit at index <c>i</c> means the value at operand slot <c>i</c> is the synthetic
+    ///     <c>undefined</c> produced by an optional-chain short-circuit, so downstream property reads /
+    ///     call-target preparations must propagate <c>undefined</c> rather than re-throwing on a nullish
+    ///     base. The sync VM keeps the equivalent array as a stack-parallel local
+    ///     (<see cref="UnifiedBytecodeVirtualMachine" />.<c>stackShortCircuitFlags</c>); the resumable VM
+    ///     stores it on the resume state so it survives <c>yield</c>/<c>await</c> suspension in lockstep
+    ///     with the operand stack (both are stable backing arrays referenced by the static loop, so a
+    ///     suspend/resume that saves/restores <see cref="StackPointer" /> leaves the flag column aligned).
+    ///     Allocated only when <see cref="UnifiedBytecodeProgram.RequiresShortCircuitStackFlags" /> — i.e.
+    ///     when the program contains a <c>JumpIfShortCircuited</c> opcode; otherwise <c>null</c> and every
+    ///     flag query reads as <c>false</c>.
+    /// </summary>
+    public ulong[]? OperandStackShortCircuitFlags { get; }
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }
     public bool IsCompleted { get; set; }

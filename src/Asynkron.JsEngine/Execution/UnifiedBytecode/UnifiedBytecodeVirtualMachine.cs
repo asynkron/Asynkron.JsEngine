@@ -3349,6 +3349,59 @@ internal static class UnifiedBytecodeVirtualMachine
         var stackPointer = state.StackPointer;
         var programCounter = state.ProgramCounter;
 
+        // Short-circuit flag column, index-aligned with the operand stack. Stored on the resume state
+        // (not a loop local) so it persists across yield/await suspension in lockstep with OperandStack:
+        // both arrays are stable backing stores referenced here, and a suspend only saves StackPointer,
+        // so the live flag window stays aligned with the live operand window across resume. Allocated
+        // only when program.RequiresShortCircuitStackFlags, matching the sync Execute path; when null
+        // every flag query is false and the optional opcodes fall back to pure jump-based short-circuit.
+        var stackShortCircuitFlags = state.OperandStackShortCircuitFlags;
+
+        bool GetResumableShortCircuitFlag(int index)
+        {
+            return stackShortCircuitFlags is not null &&
+                (uint)index < (uint)stack.Length &&
+                GetStackFlag(stackShortCircuitFlags, index);
+        }
+
+        void SetResumableShortCircuitFlag(int index, bool value)
+        {
+            if (stackShortCircuitFlags is not null && (uint)index < (uint)stack.Length)
+            {
+                SetStackFlag(stackShortCircuitFlags, index, value);
+            }
+        }
+
+        // Mirror of the sync VM push/replace discipline: every value landing on a slot clears that
+        // slot's flag unless the producing optional opcode explicitly carries short-circuit=true. This
+        // is what prevents a non-nullish read after a resume from inheriting a stale flag left in the
+        // flag column by an earlier optional chain that reused the same operand slot.
+        void PushResumableValue(JsValue value)
+        {
+            stack[stackPointer] = value;
+            SetResumableShortCircuitFlag(stackPointer, false);
+            stackPointer++;
+        }
+
+        void PushResumableValueWithFlag(JsValue value, bool wasShortCircuited)
+        {
+            stack[stackPointer] = value;
+            SetResumableShortCircuitFlag(stackPointer, wasShortCircuited);
+            stackPointer++;
+        }
+
+        void ReplaceResumableTop(JsValue value)
+        {
+            stack[stackPointer - 1] = value;
+            SetResumableShortCircuitFlag(stackPointer - 1, false);
+        }
+
+        void ReplaceResumableTopWithFlag(JsValue value, bool wasShortCircuited)
+        {
+            stack[stackPointer - 1] = value;
+            SetResumableShortCircuitFlag(stackPointer - 1, wasShortCircuited);
+        }
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -3412,10 +3465,21 @@ internal static class UnifiedBytecodeVirtualMachine
                     break;
 
                 case UnifiedBytecodeOpCode.GetNamedProperty:
-                    stack[stackPointer - 1] = GetNamedPropertyValue(
+                    // Honors the short-circuit flag so a flagged-undefined operand (set by a prior
+                    // optional hop) propagates undefined instead of re-reading a property off it. When
+                    // no flag column is allocated GetResumableShortCircuitFlag is always false and this
+                    // is the plain property read.
+                    if (GetResumableShortCircuitFlag(stackPointer - 1))
+                    {
+                        ReplaceResumableTopWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter++;
+                        break;
+                    }
+
+                    ReplaceResumableTop(GetNamedPropertyValue(
                         stack[stackPointer - 1],
                         program.StringConstants[instruction.Operand],
-                        context);
+                        context));
                     if (context.ShouldStopEvaluation)
                     {
                         state.IsCompleted = true;
@@ -3425,13 +3489,69 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.GetNamedPropertyOptional:
+                    // `o?.a` (head hop). A nullish base OR an already-short-circuited operand yields the
+                    // synthetic undefined and marks the result short-circuited so any trailing reads in
+                    // the same chain propagate undefined.
+                    if (GetResumableShortCircuitFlag(stackPointer - 1) || stack[stackPointer - 1].IsNullOrUndefined)
+                    {
+                        ReplaceResumableTopWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter++;
+                        break;
+                    }
+
+                    ReplaceResumableTop(GetNamedPropertyValue(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined:
+                    // Optional hop lowered to a jump: if the base is nullish (or already short-circuited)
+                    // replace it with undefined, flag it, and jump to the chain end so the remaining
+                    // reads/calls are skipped. Otherwise fall through to evaluate the chain normally.
+                    if (GetResumableShortCircuitFlag(stackPointer - 1) || stack[stackPointer - 1].IsNullOrUndefined)
+                    {
+                        ReplaceResumableTopWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter = instruction.Operand;
+                    }
+                    else
+                    {
+                        programCounter++;
+                    }
+
+                    break;
+
+                case UnifiedBytecodeOpCode.JumpIfShortCircuited:
+                    // Flag-based chain end for optional-call shapes that keep intermediate reads live
+                    // (RequiresShortCircuitStackFlags). Jumps past the call when the operand carries the
+                    // short-circuit flag, leaving the synthetic undefined in place.
+                    programCounter = GetResumableShortCircuitFlag(stackPointer - 1)
+                        ? instruction.Operand
+                        : programCounter + 1;
+                    break;
+
                 case UnifiedBytecodeOpCode.GetComputedProperty:
                     var resumableComputedKey = stack[--stackPointer];
                     var resumableComputedTarget = stack[stackPointer - 1];
-                    stack[stackPointer - 1] =
+                    if (GetResumableShortCircuitFlag(stackPointer - 1))
+                    {
+                        ReplaceResumableTopWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter++;
+                        break;
+                    }
+
+                    ReplaceResumableTop(
                         JsOps.TryGetPropertyValueJsValue(resumableComputedTarget, resumableComputedKey, out var resumableComputedValue, context)
                             ? resumableComputedValue
-                            : JsValue.Undefined;
+                            : JsValue.Undefined);
                     if (context.ShouldStopEvaluation)
                     {
                         state.IsCompleted = true;
@@ -3894,10 +4014,19 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     var resumableNamedReceiver = stack[stackPointer - 1];
-                    stack[stackPointer++] = GetNamedPropertyValue(
+                    if (GetResumableShortCircuitFlag(stackPointer - 1))
+                    {
+                        // Receiver is the synthetic short-circuit undefined (`(o?.a).m()` head was
+                        // nullish): push undefined as the callee, also flagged, so the boundary skips.
+                        PushResumableValueWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter++;
+                        break;
+                    }
+
+                    PushResumableValue(GetNamedPropertyValue(
                         resumableNamedReceiver,
                         program.StringConstants[resumableNamedCallTarget.NameConstantIndex],
-                        context);
+                        context));
                     if (context.ShouldStopEvaluation)
                     {
                         state.IsCompleted = true;
@@ -3920,14 +4049,118 @@ internal static class UnifiedBytecodeVirtualMachine
 
                     var resumableComputedCallKey = stack[--stackPointer];
                     var resumableComputedCallReceiver = stack[stackPointer - 1];
-                    stack[stackPointer++] = GetComputedCallTargetValue(
+                    if (GetResumableShortCircuitFlag(stackPointer - 1))
+                    {
+                        PushResumableValueWithFlag(JsValue.Undefined, wasShortCircuited: true);
+                        programCounter++;
+                        break;
+                    }
+
+                    PushResumableValue(GetComputedCallTargetValue(
                         resumableComputedCallReceiver,
                         resumableComputedCallKey,
-                        context);
+                        context));
                     if (context.ShouldStopEvaluation)
                     {
                         state.IsCompleted = true;
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget:
+                {
+                    // `f?.()`: load the callee from its activation slot. If nullish, short-circuit the
+                    // whole call to undefined by pushing undefined and jumping to the chain end; the
+                    // packed operand carries the call-target index (low 16 bits) and the jump target
+                    // (high bits), matching the sync VM's PrepareIdentifierOptionalCallTarget encoding.
+                    var optCallTargetIdx = instruction.Operand & 0xFFFF;
+                    var optJumpTarget = instruction.Operand >> 16;
+                    var optCallTarget = program.CallTargetConstants[optCallTargetIdx];
+                    if (optCallTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Optional identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    var optCallableValue = slots[optCallTarget.SlotIndex];
+                    if (optCallableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, optCallTarget.SlotIndex, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    if (optCallableValue.IsNullOrUndefined)
+                    {
+                        PushResumableValue(JsValue.Undefined);
+                        programCounter = optJumpTarget;
+                        break;
+                    }
+
+                    PushResumableValue(JsValue.Undefined);
+                    PushResumableValue(optCallableValue);
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget:
+                {
+                    // Mirrors the sync VM verbatim. Two encodings:
+                    //   IsOptionalReceiverCheck  -> `box?.read()`: check the receiver; nullish short-circuits.
+                    //   otherwise                -> `box.read?.()`: load the method; nullish method short-circuits.
+                    // The packed operand holds the call-target index (low 16) and chain-end jump target (high).
+                    // Short-circuit here is realized by the JUMP (not flag propagation): the replaced
+                    // undefined is the final call result, so ReplaceResumableTop clears the flag.
+                    var optNamedCallTargetIdx = instruction.Operand & 0xFFFF;
+                    var optNamedJumpTarget = instruction.Operand >> 16;
+                    var optNamedCallTarget = program.CallTargetConstants[optNamedCallTargetIdx];
+
+                    if (optNamedCallTarget.IsOptionalReceiverCheck)
+                    {
+                        // Case 1: box?.read() — check receiver; if nullish, short-circuit to undefined.
+                        var optReceiver = stack[stackPointer - 1];
+                        if (optReceiver.IsNullOrUndefined)
+                        {
+                            ReplaceResumableTop(JsValue.Undefined);
+                            programCounter = optNamedJumpTarget;
+                            break;
+                        }
+
+                        PushResumableValue(GetNamedPropertyValue(
+                            optReceiver,
+                            program.StringConstants[optNamedCallTarget.NameConstantIndex],
+                            context));
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+                    }
+                    else
+                    {
+                        // Case 2: box.read?.() — load method; if nullish, short-circuit to undefined.
+                        var calleeReceiver = stack[stackPointer - 1];
+                        var callee = GetNamedPropertyValue(
+                            calleeReceiver,
+                            program.StringConstants[optNamedCallTarget.NameConstantIndex],
+                            context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (callee.IsNullOrUndefined)
+                        {
+                            ReplaceResumableTop(JsValue.Undefined);
+                            programCounter = optNamedJumpTarget;
+                            break;
+                        }
+
+                        PushResumableValue(callee);
                     }
 
                     programCounter++;
@@ -3951,6 +4184,9 @@ internal static class UnifiedBytecodeVirtualMachine
                         slotEnvironments: null,
                         context,
                         state.CallingEnvironment);
+                    // Clear the flag on the call result slot, matching the sync VM. A non-short-circuited
+                    // call result must never inherit a stale short-circuit flag from a prior chain.
+                    SetResumableShortCircuitFlag(stackPointer - 1, false);
                     if (context.ShouldStopEvaluation)
                     {
                         state.IsCompleted = true;

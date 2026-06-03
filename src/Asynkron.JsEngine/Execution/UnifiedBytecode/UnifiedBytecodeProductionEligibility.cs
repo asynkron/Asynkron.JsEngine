@@ -873,6 +873,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.StoreSlot or
                 UnifiedBytecodeOpCode.InitializeSlot or
                 UnifiedBytecodeOpCode.Binary or
+                UnifiedBytecodeOpCode.GetNamedProperty or
+                UnifiedBytecodeOpCode.GetComputedProperty or
+                UnifiedBytecodeOpCode.TypeOf or
+                UnifiedBytecodeOpCode.TypeOfIdentifier or
+                UnifiedBytecodeOpCode.UnaryPlus or
+                UnifiedBytecodeOpCode.UnaryMinus or
+                UnifiedBytecodeOpCode.UnaryLogicalNot or
+                UnifiedBytecodeOpCode.UnaryBitwiseNot or
+                UnifiedBytecodeOpCode.UnaryVoid or
+                UnifiedBytecodeOpCode.RequireObjectCoercible or
+                UnifiedBytecodeOpCode.ResolvePropertyKey or
                 UnifiedBytecodeOpCode.Pop or
                 UnifiedBytecodeOpCode.DuplicateTop or
                 UnifiedBytecodeOpCode.DuplicateTopTwo or

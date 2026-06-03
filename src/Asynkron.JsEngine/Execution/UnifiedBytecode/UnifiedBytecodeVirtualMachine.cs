@@ -3411,6 +3411,124 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.GetNamedProperty:
+                    stack[stackPointer - 1] = GetNamedPropertyValue(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedProperty:
+                    var resumableComputedKey = stack[--stackPointer];
+                    var resumableComputedTarget = stack[stackPointer - 1];
+                    stack[stackPointer - 1] =
+                        JsOps.TryGetPropertyValueJsValue(resumableComputedTarget, resumableComputedKey, out var resumableComputedValue, context)
+                            ? resumableComputedValue
+                            : JsValue.Undefined;
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.TypeOf:
+                    stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.TypeOfIdentifier:
+                    var resumableTypeOfValue = slots[instruction.Operand];
+                    if (resumableTypeOfValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, instruction.Operand, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    stack[stackPointer++] = new JsValue(GetTypeofStringValue(resumableTypeOfValue));
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryPlus:
+                    var resumablePlusOperand = stack[stackPointer - 1];
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in resumablePlusOperand, context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryMinus:
+                    stack[stackPointer - 1] = TypedAstEvaluator.NegateValue(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryLogicalNot:
+                    stack[stackPointer - 1] = stack[stackPointer - 1].IsTruthy ? JsValue.False : JsValue.True;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryBitwiseNot:
+                    stack[stackPointer - 1] = TypedAstEvaluator.BitwiseNot(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UnaryVoid:
+                    stack[stackPointer - 1] = JsValue.Undefined;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.RequireObjectCoercible:
+                    var resumableCoercibleIndex = stackPointer - 1 - instruction.Operand;
+                    if (stack[resumableCoercibleIndex].IsNullOrUndefined)
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.ResolvePropertyKey:
+                    stack[stackPointer - 1] = ResolvePropertyKey(stack[stackPointer - 1], context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.Pop:
                     stackPointer--;
                     programCounter++;

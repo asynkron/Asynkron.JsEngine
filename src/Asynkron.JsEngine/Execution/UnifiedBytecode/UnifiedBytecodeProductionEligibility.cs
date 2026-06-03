@@ -907,6 +907,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or
                 UnifiedBytecodeOpCode.GetComputedProperty or
+                // Property WRITES (`o.x = v`, `o[k] = v`, `this.x = v`) inside a resumable body. The
+                // assignment value can suspend (`o.x = yield 1`); the base (and, for the computed form,
+                // the key) sit on the operand stack across the suspension and are restored on resume
+                // because UnifiedBytecodeResumeState.OperandStack is the stable backing store — the same
+                // mechanism the admitted property READS already rely on. The resumable handlers reuse the
+                // sync VM's SetPropertyValue helper (which ORs context.CurrentScope.IsStrict for strict
+                // semantics) and translate a thrown set (e.g. a strict write to a read-only property) into
+                // the resumable Throw step. Property UPDATES (`o.x++`), DELETES (`delete o.x`), and
+                // super-property writes stay omitted: those opcodes have no resumable handler yet, so
+                // leaving them off this allowlist declines them back to the interpreter.
+                UnifiedBytecodeOpCode.SetNamedProperty or
+                UnifiedBytecodeOpCode.SetComputedProperty or
                 // Optional chains / optional calls. Short-circuit is realized via jumps
                 // (JumpIfNullishReplaceUndefined) or the short-circuit-flag column persisted on the
                 // resume state (GetNamedPropertyOptional / JumpIfShortCircuited); both survive

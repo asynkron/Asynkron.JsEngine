@@ -368,11 +368,14 @@ predicates and proof tests.
 
 - Async-like ordinary functions, generator functions, awaited with-object plans,
   and resumable opcode shapes outside the `EvaluateResumable` subset. That subset
-  now covers value-tier reads, synchronous call dispatch, and optional
-  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`) between suspension
-  points; computed optional calls (`o?.[k]()`), property writes/updates,
-  dynamic-identifier `typeof`/`delete`, and `super`/construct boundaries inside
-  resumable bodies remain outside it.
+  now covers value-tier reads, synchronous call dispatch, optional
+  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
+  identifier reads and calls, and PROPERTY WRITES (`o.x = v`, `o[k] = v`,
+  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`) between suspension
+  points; computed optional calls (`o?.[k]()`), property UPDATES/DELETES
+  (`o.x++`, `delete o.x`), dynamic-identifier `typeof`/`delete`, free dynamic
+  writes, and `super`/construct boundaries inside resumable bodies remain
+  outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.
@@ -880,7 +883,8 @@ the final post-compile production subset check before VM entry.
   variants (`GetNamedPropertyOptional`, `GetComputedPropertyOptional`) stay
   declined because the resumable state has no `stackShortCircuitFlags` array to
   persist short-circuit flags across suspension; `TypeOfDynamicIdentifier`,
-  property writes/updates/deletes remain follow-ups.
+  property updates/deletes remain follow-ups (property writes are now admitted —
+  see the property-write entry below).
 - Accepted resumable bodies may now DISPATCH synchronous calls between suspension
   points: non-optional `f()`, `o.m()`, and `o[k]()`. The
   `PrepareIdentifierCallTarget`, `PrepareNamedCallTarget`,
@@ -962,6 +966,28 @@ the final post-compile production subset check before VM entry.
   `Generator_YieldStar*` tests regressed without the guard and re-green with it).
   A binding captured from an *enclosing function* scope (resolves to that
   activation's slot, `ScopeId>=0`) is a distinct tier that remains declined.
+- Accepted resumable bodies may now perform PROPERTY WRITES between suspension
+  points: `o.x = v`, `o[k] = v`, and `this.x = v`. The `SetNamedProperty` and
+  `SetComputedProperty` opcodes are ported into the `ExecuteResumable` switch and
+  added to the `TryFindUnsupportedResumableOpcode` allowlist. The assignment value
+  may itself suspend (`o.x = yield 1`); the base — and, for the computed form, the
+  key — sit on the stable `UnifiedBytecodeResumeState.OperandStack` across the
+  suspension and are restored on resume, the same mechanism the property READS
+  rely on. Strict-only behavior (a write to a non-writable property throwing a
+  `TypeError`, the sloppy form being silently ignored) is decided deep inside
+  `JsOps`/`PropertyHandle` from `context.CurrentScope.IsStrict`; because a
+  resumable step runs under the resume caller's scope rather than the body's, the
+  body's own strictness is threaded onto a new `UnifiedBytecodeResumeState.IsStrict`
+  (set in `SyncGeneratorInvoker`/`AsyncFunctionInvoker` from
+  `function.Body.IsStrict || closure.IsStrict || isLexicallyStrict`, the same value
+  the sync VM threads into `Execute`) and applied via a single `ScopeKind.Function`
+  scope frame pushed for the duration of each `ExecuteResumable` step (popped on
+  every exit, so the scope stack stays balanced across `yield`/`await`). Property
+  UPDATES (`o.x++`, `UpdateNamedProperty`/`UpdateComputedProperty`), DELETES
+  (`delete o.x`), super-property writes, and free dynamic writes stay off the
+  allowlist and therefore decline (proof: `UnifiedBytecodeResumablePropertyWriteTests`,
+  including the strict-throws / sloppy-ignored adversarial pair and a NEGATIVE pin
+  that `o.x++` still declines).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

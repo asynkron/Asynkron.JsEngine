@@ -92,7 +92,7 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure);
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict);
             var context = RealmState.CreateContext();
 
             RealmState.Logger?.LogInformation(

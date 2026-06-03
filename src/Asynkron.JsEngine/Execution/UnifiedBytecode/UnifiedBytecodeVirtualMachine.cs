@@ -3438,6 +3438,19 @@ internal static class UnifiedBytecodeVirtualMachine
             SetStackFlag(stackShortCircuitFlags, first, thirdValue);
         }
 
+        // Make the step run under a scope frame matching the resumable body's own strictness. The sync
+        // VM inherits strictness from the function invoker's scope; a resumable step instead runs under
+        // whatever context the resume call (iterator `.next()` / promise continuation) supplies, which is
+        // not the body's scope. Strictness-sensitive opcodes — notably the property-write opcodes, whose
+        // throw-on-non-writable decision is read from context.CurrentScope.IsStrict deep inside
+        // JsOps/PropertyHandle — must observe the body's strictness, so push it for the duration of the
+        // step. The scope is pushed and popped within this single synchronous traversal (a suspension
+        // returns out of ExecuteResumable entirely, after the using disposes), keeping the scope stack
+        // balanced across yield/await.
+        using var resumableBodyScope = context.PushScope(
+            ScopeKind.Function,
+            state.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy);
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -3643,6 +3656,66 @@ internal static class UnifiedBytecodeVirtualMachine
                         return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                     }
 
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetNamedProperty:
+                    // `o.x = v` / `this.x = v` inside a resumable body. Stack layout mirrors the sync
+                    // Execute path: [base, value] with value on top. The base survives a suspension in the
+                    // value (`o.x = yield 1`) because OperandStack is the resume state's stable backing
+                    // store. Strictness is the generator/async body's own (state.IsStrict, captured at
+                    // construction) — NOT the resume call's scope — so a strict write to a non-writable
+                    // property throws while a sloppy one is silently ignored. A thrown set translates to
+                    // the resumable Throw step.
+                    var resumableNamedSetValue = stack[--stackPointer];
+                    var resumableNamedSetTarget = stack[stackPointer - 1];
+                    SetPropertyValue(
+                        resumableNamedSetTarget,
+                        program.StringConstants[instruction.Operand],
+                        resumableNamedSetValue,
+                        context,
+                        state.IsStrict);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    // The assignment expression evaluates to the assigned value; replace the base operand
+                    // (now on top after the value pop) with it.
+                    ReplaceResumableTop(resumableNamedSetValue);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedProperty:
+                    // `o[k] = v` inside a resumable body. Stack layout [base, key, value]; pop value then
+                    // key, leaving base on top. Private resolution stays disabled so a string key starting
+                    // with '#' is treated as an ordinary property, matching the sync Execute path and the
+                    // IR runner.
+                    var resumableComputedSetValue = stack[--stackPointer];
+                    var resumableComputedSetKey = stack[--stackPointer];
+                    var resumableComputedSetTarget = stack[stackPointer - 1];
+                    var resumableComputedSetName = JsOps.GetRequiredPropertyName(resumableComputedSetKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    SetPropertyValue(
+                        resumableComputedSetTarget,
+                        resumableComputedSetName,
+                        resumableComputedSetValue,
+                        context,
+                        state.IsStrict,
+                        allowPrivate: false);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    ReplaceResumableTop(resumableComputedSetValue);
                     programCounter++;
                     break;
 

@@ -263,12 +263,14 @@ internal sealed class UnifiedBytecodeResumeState
         UnifiedBytecodeProgram program,
         JsTypes.JsValue[] slots,
         JsTypes.JsValue thisValue = default,
-        JsEnvironment? callingEnvironment = null)
+        JsEnvironment? callingEnvironment = null,
+        bool isStrict = false)
     {
         Program = program;
         Slots = slots;
         ThisValue = thisValue;
         CallingEnvironment = callingEnvironment;
+        IsStrict = isStrict;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
         OperandStackShortCircuitFlags = program.RequiresShortCircuitStackFlags
             ? new ulong[(OperandStack.Length + 63) >> 6]
@@ -293,6 +295,16 @@ internal sealed class UnifiedBytecodeResumeState
     ///     construction so it survives suspension/resume across <c>yield</c>/<c>await</c> boundaries.
     /// </summary>
     public JsTypes.JsValue ThisValue { get; }
+
+    /// <summary>
+    ///     Whether the resumable activation's function body executes in strict mode. Captured at
+    ///     construction (the function/closure/lexical strictness, the same value the sync VM threads into
+    ///     <see cref="UnifiedBytecodeVirtualMachine.Execute" />) so strict-only semantics — e.g. a write to
+    ///     a non-writable property throwing a <c>TypeError</c> — are decided by the generator/async body's
+    ///     own strictness, not by whatever scope the resume call happens to run under. The resumable VM has
+    ///     no <c>isStrict</c> parameter, so this property is how the property-write opcodes get it.
+    /// </summary>
+    public bool IsStrict { get; }
     public JsTypes.JsValue[] OperandStack { get; }
 
     /// <summary>

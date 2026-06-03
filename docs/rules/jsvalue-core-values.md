@@ -328,6 +328,17 @@ When working inside the core engine, keep JavaScript values represented as
     intentional host/generated-code bridge overloads such as `SetGlobal(string, object?)`
     that cannot be removed without changing code generation. Related ADR:
     `docs/adrs/0281-keep-jsengine-evaluation-pipeline-helpers-jsvalue-native.md`.
+
+    Issue `autrun-dizc350iezso-04008c2386` / PR #3133 applied the same rule to
+    ShadowRealm private result carriers: `ShadowRealm.prototype.evaluate` now
+    consumes `EvaluateProgramJsValue(...)` directly, `importValue` uses
+    `EvaluateSyncJsValue(...)`, and the obsolete `ConvertResult(object?)` bridge
+    is gone. ShadowRealm callable wrapping also copies `name` and `length`
+    through `PropertyDescriptor.JsValue`, not the compatibility `Value =`
+    setter. Future ShadowRealm carrier cleanup must prove both sides of that
+    boundary: a focused legacy-carrier search in
+    `src/Asynkron.JsEngine/StdLib/ShadowRealm` and a semantic wrapper test that
+    calls an evaluated function and checks copied function metadata descriptors.
 21. When a private module namespace or property-key enumeration helper feeds
     JavaScript reflection/object APIs, keep the key sequence typed as
     `JsValue`. Preserve both string keys and symbol keys at the owner boundary;

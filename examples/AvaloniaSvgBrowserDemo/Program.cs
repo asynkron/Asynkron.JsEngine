@@ -2092,21 +2092,36 @@ internal sealed class SlideScriptHost : IDisposable
 internal static class FaktorialQueueLauncher
 {
     private const int WebPort = 8787;
+    private const string WebUrl = "http://127.0.0.1:8787/";
 
     public static string StartAndOpen()
     {
-        return IsListeningOnWebPort()
-            ? "already-running"
-            : StartFaktorialWeb();
+        if (IsListeningOnWebPort())
+        {
+            OpenFaktorialWeb();
+            return "already-running";
+        }
+
+        var result = StartFaktorialWeb();
+        if (string.Equals(result, "faktorial-started", StringComparison.Ordinal))
+        {
+            WaitForFaktorialWeb();
+            OpenFaktorialWeb();
+        }
+
+        return result;
     }
 
     private static string StartFaktorialWeb()
     {
-        var startInfo = new ProcessStartInfo("faktorial")
+        var executable = ResolveFaktorialExecutable();
+        var startInfo = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            WorkingDirectory = ResolveRepositoryRoot()
         };
+        startInfo.ArgumentList.Add("-server");
         startInfo.ArgumentList.Add("-web");
         startInfo.ArgumentList.Add("127.0.0.1:8787");
 
@@ -2119,7 +2134,9 @@ internal static class FaktorialQueueLauncher
             }
 
             process.Dispose();
-            Console.WriteLine("Started: faktorial -web 127.0.0.1:8787");
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Started: {executable} -server -web 127.0.0.1:8787"));
             return "faktorial-started";
         }
         catch (Exception ex)
@@ -2128,6 +2145,78 @@ internal static class FaktorialQueueLauncher
                 CultureInfo.InvariantCulture,
                 $"Failed to start faktorial: {ex.Message}"));
             return "faktorial-start-failed";
+        }
+    }
+
+    private static string ResolveFaktorialExecutable()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var candidates = new[]
+        {
+            Path.Combine(home, "go", "bin", "faktorial"),
+            "/opt/homebrew/bin/faktorial",
+            "/usr/local/bin/faktorial"
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return "faktorial";
+    }
+
+    private static string ResolveRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (Directory.Exists(Path.Combine(directory.FullName, ".git")) ||
+                File.Exists(Path.Combine(directory.FullName, "Asynkron.JsEngine.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static void OpenFaktorialWeb()
+    {
+        try
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                Process.Start(new ProcessStartInfo("open", WebUrl) { UseShellExecute = false })?.Dispose();
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo(WebUrl) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"Failed to open Faktorial web UI: {ex.Message}"));
+        }
+    }
+
+    private static void WaitForFaktorialWeb()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(8);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (IsListeningOnWebPort())
+            {
+                return;
+            }
+
+            Thread.Sleep(200);
         }
     }
 

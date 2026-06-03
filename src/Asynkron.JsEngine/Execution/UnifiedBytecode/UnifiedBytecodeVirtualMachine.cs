@@ -3484,6 +3484,29 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadNewTarget:
+                    // `new.target` inside a resumable (generator / async / async-arrow) body. A
+                    // generator or async function is never a constructor — `[[Construct]]` is undefined
+                    // for it — so its own function environment binds Symbol.NewTarget to `undefined`, and
+                    // the IR-runner twin (the tier-2 LoadNewTarget handler) reads exactly that value off
+                    // the same environment chain. An async ARROW has no NewTarget binding of its
+                    // own and lexically inherits it from the enclosing function, which is reachable
+                    // through the closure chain captured on the resume state as CallingEnvironment. A
+                    // single chain lookup of Symbol.NewTarget against that environment therefore yields
+                    // the correct value for every admitted resumable shape: `undefined` for ordinary
+                    // generators/async functions and the inherited new.target for an async arrow nested
+                    // in a constructor invocation. The opcode pushes one value, carries no AwaitedProgram,
+                    // and cannot itself suspend, so it always runs to completion inside a single resumable
+                    // step with no resume-state restoration. CallingEnvironment is stable across
+                    // yield/await, so the value observed after a resume matches the value at body entry.
+                    stack[stackPointer++] =
+                        state.CallingEnvironment is { } resumableNewTargetEnvironment &&
+                        resumableNewTargetEnvironment.TryGetJsValue(Symbol.NewTarget, out var resumableNewTarget)
+                            ? resumableNewTarget
+                            : JsValue.Undefined;
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadRegexLiteral:
                     // Regex LITERAL (`/pat/flags`) inside a resumable body. Literal twin of the sync VM's
                     // handler (UnifiedBytecodeOpCode.LoadRegexLiteral): read the interned pattern string and

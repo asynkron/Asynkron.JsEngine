@@ -1089,6 +1089,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
                 UnifiedBytecodeOpCode.LoadThis or
+                // `new.target` (`LoadNewTarget`) inside a resumable (generator / async / async-arrow)
+                // body. A pure meta-property read: the resumable handler resolves Symbol.NewTarget via a
+                // single chain lookup against UnifiedBytecodeResumeState.CallingEnvironment (the closure
+                // captured at construction and stable across yield/await). A generator/async function is
+                // never a constructor, so its own function environment binds new.target to `undefined`;
+                // an async arrow inherits it lexically through the same closure chain. The opcode pushes
+                // exactly one value, carries no AwaitedProgram, and cannot itself suspend, so it always
+                // runs to completion inside one resumable step with no resume-state restoration — the
+                // literal twin of the sync VM's LoadNewTarget handler and the IR runner's
+                // ExpressionOpKind.LoadNewTarget.
+                UnifiedBytecodeOpCode.LoadNewTarget or
                 // Regex LITERAL (`/pat/flags`) inside a resumable body. A pure constant materialization:
                 // the opcode reads the interned pattern string and encoded flags byte from the program and
                 // builds a fresh RegExp object via RegExpHelper.CreateRegExpLiteral against the realm. It

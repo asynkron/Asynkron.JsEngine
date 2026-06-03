@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-01 (rev 7)
+Date: 2026-06-03 (rev 8)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,7 +11,7 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. This rev 7 applies that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. This rev 8 tightens that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary.
 
 1. **Delivery decomposition needs a live packet example.** The map below now explains how to route broad concerns, but maintainers still need one current roadmap packet that demonstrates the shape without implying new runtime behavior. Optional computed delete chains are the right example because the roadmap already isolates them under gh2934.
 
@@ -23,7 +23,7 @@ Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost
 
 5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The live packet should keep those non-goals attached to the implementation route.
 
-This revision therefore adds a roadmap packet for optional computed delete chains under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
+This revision therefore turns the optional computed delete packet into a sharper architecture handoff under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -1373,6 +1373,18 @@ Packet boundaries:
 - **Required proof:** positive route tests for short-circuit and non-short-circuit paths; negative decline tests for private names, `super`, dynamic lookup, unowned computed-key payloads, and unsupported receiver shapes; expansion-contract update that lists both accepted and declined forms.
 - **Review artifact:** the packet should update the route/decline matrix next to the owning proof pack so reviewers can see which optional computed delete forms became accepted and which stayed declined without reading the whole property-family roadmap.
 - **Non-goals:** no CommonJS/Node.js parity claim, no async seam closure, no full Tier 0 dominance claim, and no SLO status advancement. SLO movement belongs to gh2935 or another separate ProfileRunner matrix evidence packet.
+
+Acceptance/decline handoff for gh2934:
+
+| Shape | Packet status before implementation | Owner / proof obligation |
+|---|---|---|
+| `delete box?.items[key]` | Candidate accept | Execution Engine selector and VM prove nullish short-circuit before key evaluation, then descriptor-aware computed delete on the non-nullish receiver |
+| `delete box?.items?.[key]` | Candidate accept | Same owner; proof must show every optional hop shares the correct chain-end target and does not evaluate the computed key after a nullish hop |
+| `delete box.child?.[key]` where `box.child` is a proven named receiver chain | Candidate accept only if the receiver chain is already activation-resolved and non-dynamic | Compiler selector must reject mixed dynamic receiver lookup while still allowing the existing nested named receiver contract |
+| Optional computed delete with complex key payload requiring unowned calls, `eval`, or dynamic lookup | Decline | Keep as a pre-VM decline until the key payload has its own owner and proof pack |
+| Super property delete, private names, dynamic identifier delete, or proxy-sensitive scope lookup | Decline | Preserve current fallback/correctness lanes; do not route through the property-family packet |
+
+The matrix is intentionally pre-implementation. A future gh2934 delivery may move rows only after focused route tests, negative decline tests, expansion-contract updates, and canonical quality evidence land together.
 
 ## Proven-now vs directional-next
 

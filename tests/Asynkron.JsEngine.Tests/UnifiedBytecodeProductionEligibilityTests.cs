@@ -133,6 +133,86 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateScript_TopLevelObjectVarDestructuring_AcceptsWithDynamicTargets()
+    {
+        var plan = GetScriptPlan("""
+            var o = { a: 1, b: 2 };
+            var { a, b } = o;
+            a + b;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ObjectDestructuringProperty);
+        // The destructured var targets must store dynamically (no flat slot at script scope),
+        // so the property driver descriptors carry a dynamic target name index.
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.TargetSlot < 0 && descriptor.TargetNameConstantIndex >= 0);
+    }
+
+    [Fact]
+    public void EvaluateScript_TopLevelArrayVarDestructuring_AcceptsWithDynamicTargets()
+    {
+        var plan = GetScriptPlan("""
+            var arr = [1, 2];
+            var [ x, y ] = arr;
+            x + y;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringElement);
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.TargetSlot < 0 && descriptor.TargetNameConstantIndex >= 0);
+    }
+
+    [Fact]
+    public void EvaluateScript_TopLevelArrayVarRestDestructuring_AcceptsWithDynamicTargets()
+    {
+        var plan = GetScriptPlan("""
+            var arr = [1, 2, 3];
+            var [ head, ...tail ] = arr;
+            head + tail.length;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.ArrayDestructuringRest);
+    }
+
+    [Fact]
+    public void EvaluateScript_TopLevelConstDestructuring_DeclinesToAvoidLexicalTargetMishandling()
+    {
+        // const/let destructuring targets at script scope require lexical declaration and TDZ
+        // handling not modeled by the step-wise dynamic-store path; they must stay declined so
+        // the legacy script runner keeps spec-correct semantics.
+        var plan = GetScriptPlan("""
+            const o = { a: 1, b: 2 };
+            const { a, b } = o;
+            a + b;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("destructuring target", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_AsyncLikeActivation_DeclinesBeforePlanInspection()
     {
         var plan = GetFunctionPlan("""

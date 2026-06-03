@@ -281,6 +281,16 @@ internal static class UnifiedBytecodeCompiler
         bool allowsOrdinaryDynamicIdentifiers)
     {
         var activationSlots = AddSyntheticResumeSlots(plan.ActivationSlots!, plan.Instructions);
+        if (allowsOrdinaryDynamicIdentifiers)
+        {
+            // R7: at script scope the step-wise destructuring driver state symbols
+            // (__objDestr_src / __arrDestr_iter) are not part of the activation slot
+            // map, so they fail to resolve to a flat slot. The driver state is pure VM
+            // scratch (never a JS-visible binding), so allocate synthetic activation
+            // slots for it — mirroring AddSyntheticResumeSlots for generator state.
+            activationSlots = AddSyntheticDestructuringStateSlots(activationSlots, plan.Instructions);
+        }
+
         var flatSlotMappings = plan.FlatSlotMappings ??
                                ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>.Empty;
         flatSlotMappings = EnsureActivationSlotMappings(activationSlots, flatSlotMappings);
@@ -378,6 +388,90 @@ internal static class UnifiedBytecodeCompiler
     private static bool IsCompilerSyntheticResumableSlot(Symbol symbol) =>
         IsYieldStarSyntheticResult(symbol) ||
         symbol.Name.StartsWith("\u0001_yieldstar", StringComparison.Ordinal);
+
+    private static ActivationSlotShape AddSyntheticDestructuringStateSlots(
+        ActivationSlotShape activationSlots,
+        ImmutableArray<ExecutionInstruction> instructions)
+    {
+        ImmutableArray<Symbol>.Builder? missingSymbols = null;
+        HashSet<Symbol>? seenSymbols = null;
+        foreach (var instruction in instructions)
+        {
+            switch (instruction)
+            {
+                case ArrayDestructuringInitInstruction { IteratorSlot: { } arrayInitSlot }:
+                    AddIfMissing(arrayInitSlot);
+                    break;
+
+                case ArrayDestructuringElementInstruction { IteratorSlot: { } arrayElementSlot }:
+                    AddIfMissing(arrayElementSlot);
+                    break;
+
+                case ArrayDestructuringRestInstruction { IteratorSlot: { } arrayRestSlot }:
+                    AddIfMissing(arrayRestSlot);
+                    break;
+
+                case ArrayDestructuringCloseInstruction { IteratorSlot: { } arrayCloseSlot }:
+                    AddIfMissing(arrayCloseSlot);
+                    break;
+
+                case ObjectDestructuringInitInstruction { SourceSlot: { } objectInitSlot }:
+                    AddIfMissing(objectInitSlot);
+                    break;
+
+                case ObjectDestructuringPropertyInstruction { SourceSlot: { } objectPropertySlot }:
+                    AddIfMissing(objectPropertySlot);
+                    break;
+
+                case ObjectDestructuringRestInstruction { SourceSlot: { } objectRestSlot }:
+                    AddIfMissing(objectRestSlot);
+                    break;
+
+                case ObjectDestructuringCloseInstruction { SourceSlot: { } objectCloseSlot }:
+                    AddIfMissing(objectCloseSlot);
+                    break;
+            }
+        }
+
+        void AddIfMissing(Symbol symbol)
+        {
+            if (activationSlots.SlotMap.ContainsKey(symbol))
+            {
+                return;
+            }
+
+            seenSymbols ??= new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance);
+            if (!seenSymbols.Add(symbol))
+            {
+                return;
+            }
+
+            missingSymbols ??= ImmutableArray.CreateBuilder<Symbol>();
+            missingSymbols.Add(symbol);
+        }
+
+        if (missingSymbols is null || missingSymbols.Count == 0)
+        {
+            return activationSlots;
+        }
+
+        var slotMap = activationSlots.SlotMap.ToBuilder();
+        var slotNames = activationSlots.SlotNames.ToBuilder();
+        var nextSlotIndex = activationSlots.SlotCount;
+        foreach (var symbol in missingSymbols)
+        {
+            slotMap[symbol] = nextSlotIndex;
+            slotNames.Add((symbol, nextSlotIndex));
+            nextSlotIndex++;
+        }
+
+        return activationSlots with
+        {
+            SlotCount = nextSlotIndex,
+            SlotMap = slotMap.ToImmutable(),
+            SlotNames = slotNames.ToImmutable()
+        };
+    }
 
     private static ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> EnsureActivationSlotMappings(
         ActivationSlotShape activationSlots,
@@ -1730,15 +1824,19 @@ internal static class UnifiedBytecodeCompiler
                         }
 
                         var targetSlot = -1;
+                        var elementDynamicNameIndex = -1;
                         if (arrayDestructuringElement.TargetSymbol is { } targetSymbol &&
-                            !TryResolveDeclarationSlot(
+                            !TryResolveDestructuringTarget(
                                 targetSymbol,
                                 arrayDestructuringElement.VarKind,
+                                allowsDynamicIdentifiers,
                                 slotLayout,
                                 activeScopes,
-                                out targetSlot))
+                                stringConstants,
+                                out targetSlot,
+                                out elementDynamicNameIndex,
+                                out reason))
                         {
-                            reason = $"Unsupported array destructuring target '{targetSymbol.Name}'.";
                             return false;
                         }
 
@@ -1748,7 +1846,8 @@ internal static class UnifiedBytecodeCompiler
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(
                                     elementStateSlot,
-                                    TargetSlot: targetSlot))));
+                                    TargetSlot: targetSlot,
+                                    TargetNameConstantIndex: elementDynamicNameIndex))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 arrayDestructuringElement.Next,
@@ -1776,14 +1875,17 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        if (!TryResolveDeclarationSlot(
+                        if (!TryResolveDestructuringTarget(
                                 arrayDestructuringRest.RestSymbol,
                                 arrayDestructuringRest.VarKind,
+                                allowsDynamicIdentifiers,
                                 slotLayout,
                                 activeScopes,
-                                out var restTargetSlot))
+                                stringConstants,
+                                out var restTargetSlot,
+                                out var restDynamicNameIndex,
+                                out reason))
                         {
-                            reason = $"Unsupported array destructuring rest target '{arrayDestructuringRest.RestSymbol.Name}'.";
                             return false;
                         }
 
@@ -1793,7 +1895,8 @@ internal static class UnifiedBytecodeCompiler
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(
                                     restStateSlot,
-                                    TargetSlot: restTargetSlot))));
+                                    TargetSlot: restTargetSlot,
+                                    TargetNameConstantIndex: restDynamicNameIndex))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 arrayDestructuringRest.Next,
@@ -1903,15 +2006,17 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        if (!TryResolveDeclarationSlot(
+                        if (!TryResolveDestructuringTarget(
                                 objectDestructuringProperty.TargetSymbol,
                                 objectDestructuringProperty.VarKind,
+                                allowsDynamicIdentifiers,
                                 slotLayout,
                                 activeScopes,
-                                out var objectPropertyTargetSlot))
+                                stringConstants,
+                                out var objectPropertyTargetSlot,
+                                out var objectPropertyDynamicNameIndex,
+                                out reason))
                         {
-                            reason =
-                                $"Unsupported object destructuring target '{objectDestructuringProperty.TargetSymbol.Name}'.";
                             return false;
                         }
 
@@ -1925,7 +2030,8 @@ internal static class UnifiedBytecodeCompiler
                                 new UnifiedBytecodeDriverDescriptor(
                                     objectPropertyStateSlot,
                                     TargetSlot: objectPropertyTargetSlot,
-                                    NameConstantIndex: objectPropertyNameIndex))));
+                                    NameConstantIndex: objectPropertyNameIndex,
+                                    TargetNameConstantIndex: objectPropertyDynamicNameIndex))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 objectDestructuringProperty.Next,
@@ -1953,15 +2059,17 @@ internal static class UnifiedBytecodeCompiler
                             return false;
                         }
 
-                        if (!TryResolveDeclarationSlot(
+                        if (!TryResolveDestructuringTarget(
                                 objectDestructuringRest.RestSymbol,
                                 objectDestructuringRest.VarKind,
+                                allowsDynamicIdentifiers,
                                 slotLayout,
                                 activeScopes,
-                                out var objectRestTargetSlot))
+                                stringConstants,
+                                out var objectRestTargetSlot,
+                                out var objectRestDynamicNameIndex,
+                                out reason))
                         {
-                            reason =
-                                $"Unsupported object destructuring rest target '{objectDestructuringRest.RestSymbol.Name}'.";
                             return false;
                         }
 
@@ -1971,7 +2079,8 @@ internal static class UnifiedBytecodeCompiler
                                 driverDescriptors,
                                 new UnifiedBytecodeDriverDescriptor(
                                     objectRestStateSlot,
-                                    TargetSlot: objectRestTargetSlot))));
+                                    TargetSlot: objectRestTargetSlot,
+                                    TargetNameConstantIndex: objectRestDynamicNameIndex))));
                         if (TryAppendJumpToCompiledTarget(
                                 instructionIndex,
                                 objectDestructuringRest.Next,
@@ -14584,6 +14693,46 @@ internal static class UnifiedBytecodeCompiler
         }
 
         slotIndex = -1;
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves a step-wise destructuring target. Returns a flat activation slot when one
+    /// exists. Otherwise, at script scope (<paramref name="allowsDynamicIdentifiers"/>), a
+    /// <see cref="VariableKind.Var"/> target is hoisted into the materialized script
+    /// environment before the VM runs, so it is stored dynamically by name: the returned
+    /// <paramref name="dynamicNameIndex"/> indexes a string constant the VM stores through
+    /// <c>SetIdentifierJsValue</c>. Returns false (with a decline reason) for non-var dynamic
+    /// targets, which require lexical declaration/TDZ handling not modeled here.
+    /// </summary>
+    private static bool TryResolveDestructuringTarget(
+        Symbol targetSymbol,
+        VariableKind varKind,
+        bool allowsDynamicIdentifiers,
+        UnifiedBytecodeSlotLayout slotLayout,
+        Stack<UnifiedBytecodeScopeFrame> activeScopes,
+        ImmutableArray<string>.Builder stringConstants,
+        out int slotIndex,
+        out int dynamicNameIndex,
+        out string reason)
+    {
+        dynamicNameIndex = -1;
+        if (TryResolveDeclarationSlot(targetSymbol, varKind, slotLayout, activeScopes, out slotIndex))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
+        if (allowsDynamicIdentifiers && varKind == VariableKind.Var)
+        {
+            dynamicNameIndex = stringConstants.Count;
+            stringConstants.Add(targetSymbol.Name);
+            slotIndex = -1;
+            reason = string.Empty;
+            return true;
+        }
+
+        reason = $"Unsupported destructuring target '{targetSymbol.Name}'.";
         return false;
     }
 

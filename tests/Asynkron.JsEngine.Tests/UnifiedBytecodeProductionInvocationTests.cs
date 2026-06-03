@@ -42,6 +42,103 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelObjectVarDestructuring_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var o = { a: 1, b: 2 };
+            var { a, b } = o;
+            a + b;
+            """);
+
+        Assert.Equal(3d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelArrayVarDestructuring_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var arr = [10, 20, 30];
+            var [ x, y, z ] = arr;
+            x + y + z;
+            """);
+
+        Assert.Equal(60d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelArrayVarRestDestructuring_UsesUnifiedBytecodeProductionFastPathWithCorrectBindings()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var arr = [1, 2, 3, 4];
+            var [ head, ...tail ] = arr;
+            head + tail.length;
+            """);
+
+        Assert.Equal(4d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelObjectVarRestDestructuring_UsesUnifiedBytecodeProductionFastPathWithCorrectBindings()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var o = { a: 10, b: 20, c: 30 };
+            var { a, ...rest } = o;
+            a + rest.b + rest.c;
+            """);
+
+        Assert.Equal(60d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelArrayVarDestructuringHole_BindsUndefinedForElidedElement()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var arr = [1, 2, 3];
+            var [ , second ] = arr;
+            second;
+            """);
+
+        Assert.Equal(2d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task TopLevelObjectVarDestructuringNullSource_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
+            await engine.Evaluate("""
+                var x = null;
+                var { a } = x;
+                a;
+                """));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TopLevelSimpleArithmeticBuiltins_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

@@ -187,7 +187,8 @@ internal readonly record struct UnifiedBytecodeDriverDescriptor(
     ImmutableArray<int> TdzHeadSlots = default,
     bool TdzHeadIsConst = false,
     int NameConstantIndex = -1,
-    int MoveNextTarget = -1);
+    int MoveNextTarget = -1,
+    int TargetNameConstantIndex = -1);
 
 internal enum UnifiedBytecodeResumeMode : byte
 {

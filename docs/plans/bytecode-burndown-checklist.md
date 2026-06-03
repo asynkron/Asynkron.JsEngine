@@ -92,8 +92,8 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A36** Private-field define in object literal `{#x:v}` — *PrivateFieldDependency* — ☐/☐ — `:2042`
 - [ ] **A37** Private-named mutation outside admitted direct shapes — *PrivateFieldDependency* — ◐/◐ — `:1093`
 - [ ] **A38** for-in unsupported driver source (awaited / non-lowered) — *ForInDriverStateDependency* — ◐/☐ — `:524`
-- [ ] **A39** Array destructuring unsupported driver — *DestructuringDependency* — ◐/☐ — `:531`
-- [ ] **A40** Object destructuring unsupported driver — *DestructuringDependency* — ◐/☐ — `:544`
+- [x] **A39** Array destructuring unsupported driver — *DestructuringDependency* — ☑/☐ — `:531` ✅ (Codex)
+- [x] **A40** Object destructuring unsupported driver — *DestructuringDependency* — ☑/☐ — `:544` ✅ (Codex)
 - [ ] **A41** Slot-resolved identifier via dynamic-name reference op — *UnsupportedPlanShape* — ☐/☐ — `:1346`
 - [ ] **A42** `using` / `await using` declaration *(split → P0.4)* — *UnsupportedPlanShape* — ☐/☐ — `:571`
 - [ ] **A43** Descriptor-backed block-scoped function declaration (Annex B) — *UnsupportedPlanShape* — ☐/☐ — `:581`
@@ -207,4 +207,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 9 / ~118 complete (P0.1, P0.5, A3, A4, A5, B4, B5, C1, C2). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._
+_Status: 11 / ~118 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, C1, C2). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._

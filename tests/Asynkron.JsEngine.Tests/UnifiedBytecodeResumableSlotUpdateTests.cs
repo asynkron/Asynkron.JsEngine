@@ -276,6 +276,56 @@ public sealed class UnifiedBytecodeResumableSlotUpdateTests(ITestOutputHelper ou
             record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }
 
+    // GATE (isolates the fix): a generator that PLAIN-ASSIGNS a `const` slot (`x = 2`, no try/catch) must
+    // be DECLINED by EvaluateResumable. The already-admitted StoreSlot opcode carries no const metadata, so
+    // without the AssignmentSlotInstruction lexical-slot guard this program was wrongly eligible and `x = 2`
+    // silently succeeded on the resumable fast path (yielding `1|2`). This is the direct, non-vacuous proof:
+    // it is eligible without the guard and declined with it.
+    [Fact]
+    public void EvaluateResumable_ConstSlotAssignment_StaysDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                const x = 1;
+                yield x;
+                x = 2;
+                yield x;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+    }
+
+    // NEGATIVE end-to-end (mirrors ConstIncrementInGenerator, for plain assignment): a `const`
+    // reassignment in a generator keeps its interpreter route and throws TypeError; the resumable
+    // fast-path log must be ABSENT.
+    [Fact(Timeout = 5000)]
+    public async Task ConstAssignmentInGenerator_StaysOnInterpreterAndThrows()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                const x = 1;
+                yield x;
+                try { x = 2; } catch (e) { yield "THROW:" + e.constructor.name; return; }
+                yield "no-throw";
+            }
+
+            var it = g();
+            (it.next().value) + "|" + (it.next().value);
+            """);
+
+        Assert.Equal("1|THROW:TypeError", result);
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(

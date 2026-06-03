@@ -73,8 +73,8 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A17** Named property read past first boundary (`box.a.b.c.d`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1652`
 - [ ] **A18** Computed property read past first boundary (`box[a][b][c]`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1785`
 - [ ] **A19** Named/computed write past admitted (`box.a.b.c=v`, `a=b=v`) — *PropertyWriteDependency* — ◐/◐ — `:1812`
-- [ ] **A20** Ternary/branching computed-key write `box.child[c?a:b]=v` — *PropertyWriteDependency* — ☐/☐ — `:1777`
-- [ ] **A21** Compound/logical computed write w/ ternary key `box[c?a:b]+=v` — *PropertyWriteDependency* — ☐/☐ — `:1644`
+- [x] **A20** Ternary/branching computed-key write `box.child[c?a:b]=v` (+ update/delete) — *PropertyWriteDependency* — ☑/◐ ✅ #3121
+- [x] **A21** Compound/logical computed write w/ ternary key `box[c?a:b]+=v`, `a&&b`, `a??b` — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [ ] **A22** Identifier update on free name `freeName++` — *PropertyUpdateDependency* — ☐/☐ — `:1829`
 - [ ] **A23** Update w/ computed receiver prefix `box[k1].child[k2]++` — *PropertyUpdateDependency* — ◐/◐ — `:1850`
 - [ ] **A24** `delete freeName` — *DeleteDependency* — ☐/☐ — `:1861`
@@ -208,4 +208,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 25 / ~119 complete (incl. B22, B30, B31, B35 + the for-of-fix #3123, TdzHeadInit fix #3122, const-fix #3116). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 27 / ~119 complete (latest: A20, A21 ternary/logical computed keys #3121). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

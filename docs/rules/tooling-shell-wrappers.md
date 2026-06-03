@@ -96,8 +96,8 @@ throughput gate, all three surfaces must be updated together:
 1. Add the profile script to `tools/profile-scripts/`.
 2. Add a `"key:script_filename:iterations"` entry to `gate_entries` in
    `tools/check-nodejs-regression`.
-3. Regenerate the committed baseline: `./tools/check-nodejs-regression --update`
-   and commit `tools/nodejs-baseline.json`.
+3. Regenerate, stage, and commit the committed baseline with one pasteable
+   command: `rtk ./tools/check-nodejs-regression --update && rtk git add tools/nodejs-baseline.json && rtk git commit`.
 
 Omitting step 2 means the new profile is never measured or guarded even though
 it appears in the manifest; omitting step 3 means the gate has no baseline to
@@ -108,6 +108,12 @@ WHY: issue #2706 / PR #2715 review caught that `fib-iterative` was added to
 The two-line fix (add entry, run `--update`) was straightforward, but the review
 cycle would have been avoided by treating all three steps as a single atomic
 operation.
+
+Issue #3127 / PR #3130 later repaired benchmark playbook review feedback where
+Node.js baseline refresh instructions were split across separate update and git
+commands. Keep future baseline-refresh guidance as one explicit update, stage,
+and commit command so the regenerated baseline handoff is not interrupted
+halfway through.
 
 ## Performance SLO Gate Consistency
 

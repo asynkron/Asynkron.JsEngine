@@ -763,6 +763,28 @@ internal static class UnifiedBytecodeProductionEligibility
                 }
             }
 
+            // Plain slot assignment (`x = v`) to a lexical (`let`/`const`) slot keeps its interpreter route
+            // for the SAME reason as the slot-update guard above: the resumable VM
+            // (UnifiedBytecodeResumeState) carries no const-slot metadata, so it cannot raise the
+            // `TypeError: Assignment to constant variable` the sync VM enforces for a `const` reassignment.
+            // The already-admitted resumable StoreSlot opcode does not distinguish `const`, so without this
+            // guard `const x = 1; x = 2` inside a generator/async body silently succeeds (yields `1|2`).
+            // Declining every resolved lexical-slot assignment keeps the const-unsafe shapes on the
+            // interpreter while still admitting provably-non-const parameter/`var` assignments. (Unresolved
+            // free/dynamic stores already decline at the opcode level and are not affected here.)
+            if (instruction is AssignmentSlotInstruction
+                {
+                    TargetSymbol: { } assignTargetSymbol, FlatSlotId: var assignFlatSlotId, SlotIndex: var assignSlotIndex
+                }
+                && TryResolveActivationSymbolSlot(assignTargetSymbol, assignFlatSlotId, activationSlots)
+                && IsLexicalSlotUpdateTarget(assignSlotIndex, assignFlatSlotId, activationSlots))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    $"Assignment target '{assignTargetSymbol.Name}' is a lexical (let/const) slot; the resumable VM cannot enforce const-assignment semantics and the assignment is not eligible for resumable unified bytecode routing.";
+                return true;
+            }
+
             // `yield* <iterable>` keeps its prior verified routing when the iterable resolves through a
             // free/dynamic identifier (`yield* spyIterable`). The resumable YieldStar delegation protocol
             // was only validated against slot-resolved iterables; admitting a dynamic-identifier iterable

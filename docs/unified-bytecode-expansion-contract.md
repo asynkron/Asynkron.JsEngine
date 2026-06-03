@@ -370,13 +370,16 @@ predicates and proof tests.
   now covers value-tier reads, synchronous call dispatch, optional
   chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
   identifier reads and calls, PROPERTY WRITES (`o.x = v`, `o[k] = v`,
-  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), and SLOT UPDATES
+  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
   (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
-  targets by the `IsLexicalSlotUpdateTarget` const-safety guard) between
-  suspension points; computed optional calls (`o?.[k]()`), lexical-slot updates
-  (`let i; i++`, where the resume state has no const-slot metadata to enforce a
-  `const` reassignment `TypeError`), property UPDATES/DELETES (`o.x++`,
-  `delete o.x`), dynamic-identifier `typeof`/`delete`, free dynamic writes, and
+  targets by the `IsLexicalSlotUpdateTarget` const-safety guard), and PROPERTY
+  UPDATES/DELETES (`o.x++`, `o[k]--`, `delete o.x`, `delete o[k]` via
+  `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/
+  `DeleteComputedProperty`) between suspension points; computed optional calls
+  (`o?.[k]()`), lexical-slot updates (`let i; i++`, where the resume state has no
+  const-slot metadata to enforce a `const` reassignment `TypeError`),
+  dynamic-identifier `typeof`/`delete`, free dynamic writes/updates/deletes
+  (`freeGlobal++`, `delete freeGlobal`), super-property updates/deletes, and
   `super`/construct boundaries inside resumable bodies remain outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
@@ -981,12 +984,33 @@ the final post-compile production subset check before VM entry.
   `function.Body.IsStrict || closure.IsStrict || isLexicallyStrict`, the same value
   the sync VM threads into `Execute`) and applied via a single `ScopeKind.Function`
   scope frame pushed for the duration of each `ExecuteResumable` step (popped on
-  every exit, so the scope stack stays balanced across `yield`/`await`). Property
-  UPDATES (`o.x++`, `UpdateNamedProperty`/`UpdateComputedProperty`), DELETES
-  (`delete o.x`), super-property writes, and free dynamic writes stay off the
-  allowlist and therefore decline (proof: `UnifiedBytecodeResumablePropertyWriteTests`,
-  including the strict-throws / sloppy-ignored adversarial pair and a NEGATIVE pin
-  that `o.x++` still declines).
+  every exit, so the scope stack stays balanced across `yield`/`await`). Super-property
+  writes and free dynamic writes stay off the allowlist and therefore decline (proof:
+  `UnifiedBytecodeResumablePropertyWriteTests`, including the strict-throws /
+  sloppy-ignored adversarial pair and a NEGATIVE pin that a free dynamic update
+  `freeGlobal++` still declines).
+- Accepted resumable bodies may now perform PROPERTY UPDATES and DELETES between
+  suspension points: `o.x++`/`o[k]--` (prefix and postfix) and `delete o.x`/`delete o[k]`.
+  The `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/
+  `DeleteComputedProperty` opcodes are ported into the `ExecuteResumable` switch and
+  added to the `TryFindUnsupportedResumableOpcode` allowlist. Like the property
+  writes, these opcodes operate purely on the operand stack — the base (and, for the
+  computed form, the key) sit on the stable `UnifiedBytecodeResumeState.OperandStack`
+  across any suspension in a sibling sub-expression and are restored on resume — and
+  the opcodes themselves cannot suspend (no `AwaitedProgram`), so they always run to
+  completion inside one resumable step. The handlers reuse the sync VM's
+  `UpdatePropertyValue`/`DeleteNamedProperty`/`DeleteComputedProperty` helpers under
+  the body's own strictness (`state.IsStrict`, applied via the same per-step
+  `ScopeKind.Function` scope frame the property writes use), so a strict update of a
+  read-only property and a strict delete of a non-configurable property both throw and
+  translate to the resumable Throw step, while the sloppy forms are no-ops; the
+  computed update preserves the null/undefined-base `TypeError` guard before any read.
+  Super-property updates/deletes and free dynamic updates/deletes
+  (`UpdateDynamicIdentifier`, `DeleteDynamicIdentifier`) stay off the allowlist and
+  therefore decline (proof: `UnifiedBytecodeResumablePropertyUpdateDeleteTests`,
+  including postfix-vs-prefix value semantics, strict read-only/non-configurable
+  throws, a computed-update-on-null `TypeError`, and async update/delete across an
+  await).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

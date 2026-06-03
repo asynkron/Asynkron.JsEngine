@@ -3763,6 +3763,120 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateNamedProperty:
+                    // `o.x++` / `++o.x` (and the `--` forms) inside a resumable body. Stack layout mirrors
+                    // the sync Execute path: the base sits on top, and is replaced in place by the
+                    // expression result (old value for postfix, new value for prefix). An update opcode
+                    // cannot itself suspend (its operands are already materialized on the stack — there is
+                    // no AwaitedProgram), so it always runs to completion inside one resumable step and the
+                    // base never needs operand-stack restoration across a yield/await. Strictness is the
+                    // body's own (state.IsStrict) so a strict update of a read-only property throws while a
+                    // sloppy one is silently ignored, matching the sync path's UpdatePropertyValue. A thrown
+                    // update (e.g. a non-writable accessor target) translates to the resumable Throw step.
+                    var resumableNamedUpdateTarget = stack[stackPointer - 1];
+                    ReplaceResumableTop(UpdatePropertyValue(
+                        resumableNamedUpdateTarget,
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedProperty:
+                    // `o[k]++` inside a resumable body. Stack layout [base, key]; pop the key, leaving the
+                    // base on top to be replaced by the update result. A null/undefined base throws a
+                    // TypeError before any read, matching the sync path. The key is coerced to a property
+                    // name with private resolution disabled (a '#'-prefixed string key is an ordinary
+                    // property, not a private member). Like the named form, this opcode cannot suspend, so
+                    // no operand-stack restoration is involved.
+                    var resumableComputedUpdateKey = stack[--stackPointer];
+                    var resumableComputedUpdateTarget = stack[stackPointer - 1];
+                    if (resumableComputedUpdateTarget.IsNullOrUndefined)
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot read properties of null or undefined",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    var resumableComputedUpdateName =
+                        JsOps.GetRequiredPropertyName(resumableComputedUpdateKey, context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    ReplaceResumableTop(UpdatePropertyValue(
+                        resumableComputedUpdateTarget,
+                        resumableComputedUpdateName,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        context,
+                        state.IsStrict,
+                        allowPrivate: false));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteNamedProperty:
+                    // `delete o.x` inside a resumable body. The base sits on top and is replaced by the
+                    // boolean delete result. Private resolution is disabled (matching the sync path). A
+                    // delete cannot suspend, so the base never needs restoration across a yield/await. A
+                    // strict delete of a non-configurable property throws and translates to the resumable
+                    // Throw step.
+                    ReplaceResumableTop(DeleteNamedProperty(
+                        stack[stackPointer - 1],
+                        program.StringConstants[instruction.Operand],
+                        context,
+                        state.IsStrict)
+                        ? JsValue.True
+                        : JsValue.False);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.DeleteComputedProperty:
+                    // `delete o[k]` inside a resumable body. Stack layout [base, key]; pop the key, leaving
+                    // the base on top to be replaced by the boolean result. Strictness is the body's own.
+                    var resumableComputedDeleteKey = stack[--stackPointer];
+                    var resumableComputedDeleteTarget = stack[stackPointer - 1];
+                    ReplaceResumableTop(DeleteComputedProperty(
+                        resumableComputedDeleteTarget,
+                        resumableComputedDeleteKey,
+                        context,
+                        state.IsStrict)
+                        ? JsValue.True
+                        : JsValue.False);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.TypeOf:
                     stack[stackPointer - 1] = new JsValue(GetTypeofStringValue(stack[stackPointer - 1]));
                     programCounter++;

@@ -916,11 +916,25 @@ internal static class UnifiedBytecodeProductionEligibility
                 // mechanism the admitted property READS already rely on. The resumable handlers reuse the
                 // sync VM's SetPropertyValue helper (which ORs context.CurrentScope.IsStrict for strict
                 // semantics) and translate a thrown set (e.g. a strict write to a read-only property) into
-                // the resumable Throw step. Property UPDATES (`o.x++`), DELETES (`delete o.x`), and
-                // super-property writes stay omitted: those opcodes have no resumable handler yet, so
-                // leaving them off this allowlist declines them back to the interpreter.
+                // the resumable Throw step. Super-property writes stay omitted: those opcodes have no
+                // resumable handler yet, so leaving them off this allowlist declines them back to the
+                // interpreter.
                 UnifiedBytecodeOpCode.SetNamedProperty or
                 UnifiedBytecodeOpCode.SetComputedProperty or
+                // Property UPDATES (`o.x++`, `o[k]--`) and DELETES (`delete o.x`, `delete o[k]`) inside a
+                // resumable body. Like the property writes above, these opcodes operate purely on the
+                // operand stack — the base (and, for the computed form, the key) sit on
+                // UnifiedBytecodeResumeState.OperandStack across any suspension in a sibling sub-expression
+                // and are restored on resume. The opcodes themselves cannot suspend (no AwaitedProgram), so
+                // they always run to completion inside one resumable step. The resumable handlers reuse the
+                // sync VM's UpdatePropertyValue / DeleteNamedProperty / DeleteComputedProperty helpers,
+                // threading the body's own strictness (state.IsStrict) so a strict update/delete of a
+                // read-only / non-configurable property throws and translates to the resumable Throw step.
+                // Super-property updates/deletes stay omitted (no resumable super handler yet).
+                UnifiedBytecodeOpCode.UpdateNamedProperty or
+                UnifiedBytecodeOpCode.UpdateComputedProperty or
+                UnifiedBytecodeOpCode.DeleteNamedProperty or
+                UnifiedBytecodeOpCode.DeleteComputedProperty or
                 // Optional chains / optional calls. Short-circuit is realized via jumps
                 // (JumpIfNullishReplaceUndefined) or the short-circuit-flag column persisted on the
                 // resume state (GetNamedPropertyOptional / JumpIfShortCircuited); both survive

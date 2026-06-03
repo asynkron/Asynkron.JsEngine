@@ -84,16 +84,20 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
-    // NEGATIVE gate: a property UPDATE (`o.x++`) is NOT part of this slice and stays declined — its
-    // opcode has no resumable handler. This pins the admitted surface so a future change cannot silently
-    // route updates through an unverified path.
+    // NEGATIVE gate: a dynamic FREE-variable update (`freeGlobal++` on an undeclared name) is NOT part of
+    // the property-write/update/delete slice and stays declined — it lowers to UpdateDynamicIdentifier,
+    // which has no resumable handler and is absent from the resumable opcode allowlist. (The plain
+    // property UPDATE `o.x++` that this test originally pinned is now admitted by the resumable property
+    // update/delete slice; see UnifiedBytecodeResumablePropertyUpdateDeleteTests.) This pins the admitted
+    // surface so a future change cannot silently route dynamic-name mutation through an unverified path.
     [Fact]
-    public void EvaluateResumable_PropertyUpdate_StaysDeclined()
+    public void EvaluateResumable_DynamicFreeVariableUpdate_StaysDeclined()
     {
         var plan = GetFunctionPlan("""
-            function* g(o) {
-                o.x++;
-                yield o.x;
+            function* g() {
+                yield 1;
+                freeGlobal++;
+                yield 2;
             }
             """,
             "g");

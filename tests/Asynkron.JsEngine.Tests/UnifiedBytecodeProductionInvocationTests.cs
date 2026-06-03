@@ -1475,6 +1475,44 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task ReturnImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function returnArguments() {
+                return arguments;
+            }
+
+            returnArguments(41)[0];
+            """);
+
+        Assert.Equal(41d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=returnArguments argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PassImplicitArgumentsObject_UsesUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function passArguments(reader, value) {
+                return reader(arguments);
+            }
+
+            passArguments(function (args) { return args.length + ":" + args[1]; }, 41);
+            """);
+
+        Assert.Equal("2:41", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=passArguments argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task FinalRestParameter_WithImplicitArgumentsUpdate_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

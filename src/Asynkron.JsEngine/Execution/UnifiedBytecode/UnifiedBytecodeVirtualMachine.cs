@@ -3543,6 +3543,50 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateSlot:
+                {
+                    // `x++` / `x-- ` / `++x` / `--x` on a parameter or `var` slot. Eligibility
+                    // (TryFindResumablePlanDecline) only admits this opcode for non-lexical targets, so the
+                    // const-slot TypeError the sync VM raises (IsConstSlot) cannot apply here and is
+                    // intentionally absent — the resumable resume state has no const-slot metadata to check.
+                    // The numeric mutation is purely slot-local: read the slot, ToNumeric-coerce ++/--, write
+                    // it back, and push the prefix (new) or postfix (old) value. Nothing lands on the operand
+                    // stack across a suspension because an update expression cannot itself yield/await, so no
+                    // resume-state restoration is required.
+                    var resumableUpdateIndex = DecodeUpdateIndex(instruction.Operand);
+                    var resumableUpdateValue = slots[resumableUpdateIndex];
+                    if (resumableUpdateValue.IsUninitialized)
+                    {
+                        // Temporal dead zone: updating a lexical slot before its initializer ran throws a
+                        // ReferenceError, identical to the sync VM. (Parameter / `var` slots are never
+                        // uninitialized at an update site, so this guards the residual TDZ window only.)
+                        SetUninitializedSlotReferenceError(program, resumableUpdateIndex, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    GetUpdatedNumericValue(
+                        resumableUpdateValue,
+                        DecodeIsIncrement(instruction.Operand),
+                        context,
+                        out var resumableOldNumericValue,
+                        out var resumableNewSlotValue);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        // ToNumeric on a non-coercible operand (e.g. a Symbol, or a BigInt/Number mix)
+                        // throws; surface it as the resumable Throw step rather than mutating the slot.
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    slots[resumableUpdateIndex] = resumableNewSlotValue;
+                    PushResumableValue(DecodeIsPrefix(instruction.Operand)
+                        ? resumableNewSlotValue
+                        : resumableOldNumericValue);
+                    programCounter++;
+                    break;
+                }
+
                 case UnifiedBytecodeOpCode.InitializeSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
                     programCounter++;

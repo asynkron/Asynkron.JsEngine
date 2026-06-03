@@ -693,26 +693,135 @@ internal static class UnifiedBytecodeProductionEligibility
         EnterTryInstruction enterTry,
         out string instructionName)
     {
+        // The instruction stream is threaded by Next/branch-target pointers, NOT laid out in ascending
+        // index order — the catch/finally blocks routinely sit at LOWER indices than the EnterTry. The
+        // previous linear `enterTryIndex+1 .. endIndex` scan silently matched nothing whenever the finally
+        // index was below the EnterTry (`endIndex < enterTryIndex` bailed). A suspension (yield/await)
+        // inside the CATCH or FINALLY block cannot be driven by the resumable VM's cleanup path —
+        // `.return()`/`.throw()` must run a *suspending* finally, which it does not support — so decline
+        // it. A suspension in the TRY BODY stays admitted: for-of lowers its yielding loop body into the
+        // try body with a NON-suspending iterator-close finally, which the resumable VM handles correctly.
         instructionName = string.Empty;
-        var endIndex = enterTry.EndFinallyIndex >= 0
-            ? enterTry.EndFinallyIndex
-            : enterTry.LeaveTryIndex >= 0
-                ? enterTry.LeaveTryIndex
-                : enterTry.FinallyIndex >= 0
-                    ? enterTry.FinallyIndex
-                    : enterTry.Next;
-        if (endIndex < enterTryIndex)
+
+        var finallyBoundary = new HashSet<int> { enterTryIndex };
+        if (enterTry.EndFinallyIndex >= 0) finallyBoundary.Add(enterTry.EndFinallyIndex);
+        if (enterTry.LeaveTryIndex >= 0) finallyBoundary.Add(enterTry.LeaveTryIndex);
+
+        var catchBoundary = new HashSet<int>(finallyBoundary);
+        if (enterTry.FinallyIndex >= 0) catchBoundary.Add(enterTry.FinallyIndex);
+
+        if (CleanupBlockHasSuspension(instructions, enterTry.FinallyIndex, finallyBoundary, out instructionName)
+            || CleanupBlockHasSuspension(instructions, enterTry.HandlerIndex, catchBoundary, out instructionName))
+        {
+            return true;
+        }
+
+        // A try/finally nested INSIDE this try's body produces a chain of simultaneously-pending finally
+        // blocks on `.return()`/`.throw()`. The resumable VM's cleanup path runs only a single pending
+        // finally, so the inner+outer chaining (e.g. `try { try { yield } finally {} } finally {}`) is
+        // mishandled — decline it and keep it on the IR runner. The single-level for-of iterator-close
+        // finally is unaffected.
+        if (enterTry.FinallyIndex >= 0 && TryBodyContainsNestedFinally(instructions, enterTry))
+        {
+            instructionName = "nested try/finally cleanup chain";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryBodyContainsNestedFinally(
+        ImmutableArray<ExecutionInstruction> instructions,
+        EnterTryInstruction enterTry)
+    {
+        var boundary = new HashSet<int>();
+        if (enterTry.HandlerIndex >= 0) boundary.Add(enterTry.HandlerIndex);
+        if (enterTry.FinallyIndex >= 0) boundary.Add(enterTry.FinallyIndex);
+        if (enterTry.EndFinallyIndex >= 0) boundary.Add(enterTry.EndFinallyIndex);
+        if (enterTry.LeaveTryIndex >= 0) boundary.Add(enterTry.LeaveTryIndex);
+
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        if (enterTry.Next >= 0) pending.Push(enterTry.Next);
+        while (pending.Count > 0)
+        {
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
+            {
+                continue;
+            }
+
+            var instruction = instructions[index];
+            if (instruction is EnterTryInstruction nested && nested.FinallyIndex >= 0)
+            {
+                return true;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+                case EnterTryInstruction innerTry:
+                    pending.Push(innerTry.Next);
+                    pending.Push(innerTry.HandlerIndex);
+                    break;
+                default:
+                    pending.Push(instruction.Next);
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool CleanupBlockHasSuspension(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int start,
+        HashSet<int> boundary,
+        out string instructionName)
+    {
+        instructionName = string.Empty;
+        if (start < 0)
         {
             return false;
         }
 
-        endIndex = Math.Min(endIndex, instructions.Length - 1);
-        for (var index = enterTryIndex + 1; index <= endIndex; index++)
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        pending.Push(start);
+        while (pending.Count > 0)
         {
-            if (InstructionCanSuspendResumableExecution(instructions[index]))
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
             {
-                instructionName = instructions[index].GetType().Name;
+                continue;
+            }
+
+            var instruction = instructions[index];
+            if (InstructionCanSuspendResumableExecution(instruction))
+            {
+                instructionName = instruction.GetType().Name;
                 return true;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+                case EnterTryInstruction nested:
+                    // A nested try inside this cleanup block: a suspension in its body OR its own
+                    // catch/finally is still a suspension within the enclosing cleanup region.
+                    pending.Push(nested.Next);
+                    pending.Push(nested.HandlerIndex);
+                    pending.Push(nested.FinallyIndex);
+                    break;
+                default:
+                    pending.Push(instruction.Next);
+                    break;
             }
         }
 

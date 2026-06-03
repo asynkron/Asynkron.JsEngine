@@ -358,6 +358,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
     }
 
+    [Fact]
+    public void EvaluateResumable_NestedTryFinallyAroundYield_DeclinesPendingCleanupChain()
+    {
+        var plan = GetFunctionPlan("""
+            function* gen() {
+                try {
+                    try {
+                        yield 1;
+                    } finally {
+                    }
+                } finally {
+                }
+            }
+            """,
+            "gen");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("nested try/finally cleanup chain", result.Reason, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("&&", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitFalse)]
     [InlineData("||", (int)UnifiedBytecodeOpCode.JumpIfShortCircuitTrue)]

@@ -42,7 +42,7 @@ non-awaited `with`, the `Function` call boundary itself.
 
 ## Phase 0 — Make the list provably finite (do first; closes the audit gaps)
 
-- [ ] **P0.1** Grammar-coverage appendix: map every AST node type lowering consumes → the admitted primitive(s) it lowers into, with a test anchor. Must explicitly cover: `switch`/`case` (esp. with per-case `let`), `do-while`, `debugger`, sequence/comma expr, BigInt literal + arithmetic + `typeof`, labeled break out of a plain block, `new.target` in an ordinary function, `static {}` blocks, `super` in field initializers, class-body accessors/computed methods.
+- [x] **P0.1** Grammar-coverage appendix → `docs/plans/bytecode-grammar-coverage.md` ✅ (covers switch+`let`, do-while, sequence, BigInt literal/arithmetic/`typeof`, `static {}`, super-in-instance/static-fields, `new.target`, labeled-block break — each mapped to its lowering owner + test anchor). **Surfaced 1 real new leaf → A52 (`debugger;`).**
 - [ ] **P0.2** Enumerate the `UnsupportedPlanShape` compiler umbrellas (A51 / B47 / E2): promote each of the ~12 hidden `UnifiedBytecodeCompiler.TryCompile` reason strings to a named decline + checklist leaf.
 - [ ] **P0.3** Diff `UnifiedBytecodeOpCode` enum vs the sync admit-switch (E3) and the two resumable allowlists; name every enum-but-not-admitted opcode as its own leaf.
 - [ ] **P0.4** Decompose the coarse leaves: split **B24** (class expression) into per-member shapes (constructor, instance fields, static fields, static blocks, private fields, private methods, accessors, computed members, super-in-members) and **A35** into its 4 object-literal-member opcodes.
@@ -105,6 +105,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204`
 - [ ] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — ☐/n/a — `:8243`
 - [ ] **A51** Compiler `TryCompile` failure umbrella *(→ P0.2)* — *UnsupportedPlanShape* — ☐/☐ — `:230`
+- [ ] **A52** `debugger;` statement — no AST/lowering owner exists (surfaced by P0.1 grammar appendix); needs a parser/AST node + no-op-or-decline owner *(new leaf from P0.1)* — ☐/☐
 
 ## Phase B — Resumable-VM parity + suspension machinery (47 items)
 
@@ -116,8 +117,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ◐
 - [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐
 - [ ] **B3** **async generator `async function*` — no EvaluateResumable call at all; whole body on tier-2 (largest single gap)** — n/a/☐ — `AsyncGeneratorInvoker.cs:45`
-- [ ] **B4** Property write `o.x=v` in resumable — ☑/☐
-- [ ] **B5** Computed property write `o[k]=v` — ☑/☐
+- [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
+- [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
 - [ ] **B6** Property update `o.x++` / `o.x+=v` — ☑/☐
 - [ ] **B7** Computed property update `o[k]++` — ☑/☐
 - [ ] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/☐
@@ -163,7 +164,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ## Phase C — Top-level / script route (3 items)
 
-- [ ] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — *UnsupportedPlanShape* — ☐/n/a
+- [x] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — *UnsupportedPlanShape* — ☑/n/a ✅ (Codex)
 - [ ] **C2** Script with no `ScriptCompletionSlot` — ☐/n/a
 - [ ] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☐/n/a
 
@@ -206,4 +207,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 0 / ~117 complete. Updated as each item merges._
+_Status: 5 / ~118 complete (P0.1, P0.5, B4, B5, C1). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._

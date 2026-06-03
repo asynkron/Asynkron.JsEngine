@@ -1049,6 +1049,28 @@ the final post-compile production subset check before VM entry.
   fresh-object-per-evaluation identity guarantee in a loop, an all-flags
   escape-bearing pattern round-trip, and an async body evaluating a regex literal on
   the resumed step after an await).
+- Accepted resumable bodies may now read the `new.target` meta-property between
+  suspension points (burndown B19). The `LoadNewTarget` opcode is ported into the
+  `ExecuteResumable` switch and added to the `TryFindUnsupportedResumableOpcode`
+  allowlist. The resumable handler is the literal twin of the sync VM's and the
+  tier-2 IR runner's: a single chain lookup of `Symbol.NewTarget` against
+  `UnifiedBytecodeResumeState.CallingEnvironment` (the closure captured at
+  construction and stable across `yield`/`await`), falling back to
+  `JsValue.Undefined`. A generator or async function is never a constructor
+  (`new g()` throws), so its own function environment binds `new.target` to
+  `undefined` and the lookup returns exactly that; because the calling environment
+  is stable across suspension, the value observed after a resume matches the value
+  at body entry. `LoadNewTarget` carries no `AwaitedProgram`, cannot itself
+  yield/await, and pushes exactly one value, so it always runs to completion inside
+  one resumable step and never touches the operand stack across a suspension — no
+  resume-state restoration is involved. BOUNDARY: async ARROWS that lexically
+  inherit `this`/`new.target` are out of scope — they decline at the activation
+  gate (`ArrowLexicalThisDependency`) independent of this opcode and keep their
+  existing route (proof: `UnifiedBytecodeResumableNewTargetTests`, including the
+  generator/async admit gates, the boundary arrow-decline gate, an end-to-end
+  `undefined` read across a yield, a `typeof new.target` after a yield, an async
+  `new.target` after an await, and the non-regressing async-arrow lexical
+  inheritance on its existing route).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

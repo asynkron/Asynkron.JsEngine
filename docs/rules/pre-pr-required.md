@@ -69,9 +69,11 @@ allocation wins (PR #2661, commit `bd70ca63`, PR #2658).
   proportional regressions on large profiles.
 - **Refresh the baseline only via `--update`, never by hand.** When an
   intentional change legitimately moves the numbers, run
-  `./tools/check-allocation-regression --update && git add
-  tools/allocation-baseline.txt` and commit. The header is regenerated; do not
-  edit `tools/allocation-baseline.txt` directly.
+  `rtk ./tools/check-allocation-regression --update && rtk git add tools/allocation-baseline.txt && rtk git commit`.
+  The header is regenerated; do not edit `tools/allocation-baseline.txt`
+  directly. Keep baseline-refresh docs as one pasteable command that updates,
+  stages, and commits the refreshed baseline so agents do not stop after only
+  rewriting the file.
 - **Keep the gate's `smoke_profiles` in sync with `tools/compare-jint-profiles`.**
   Changing one list without the other silently stops guarding a profile.
 
@@ -79,6 +81,9 @@ WHY: issue #2668 / PR #2671 added this gate after PR #2661 / `bd70ca63` / #2658
 reduced evaluator hot-path allocations and nothing guarded those wins from
 silently regressing. ADR:
 `docs/adrs/0282-allocation-regression-gate-local-and-noise-tolerant.md`.
+Issue #3127 / PR #3130 later repaired review feedback where the benchmark
+playbook split baseline refresh into separate update and git commands, leaving
+the committed-baseline handoff less pasteable and easier to interrupt.
 
 ## Rules
 

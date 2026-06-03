@@ -529,6 +529,19 @@
 <g fill="rgb(85.099792%, 85.099792%, 85.099792%)" fill-opacity="1">
 <use xlink:href="#glyph-1-27" x="217.285665" y="280.007498"/>
 </g>
+<g id="ralph-loop-raw-code" font-family="Menlo, Consolas, 'SFMono-Regular', 'Courier New', monospace" font-size="17" font-weight="700" xml:space="preserve">
+<rect x="22" y="214" width="458.5" height="176" fill="rgb(0%, 0%, 0%)" fill-opacity="1"/>
+<text x="29.6" y="236.8">
+<tspan fill="rgb(0%, 68.998718%, 94.499207%)">foreach</tspan><tspan fill="rgb(65.098572%, 65.098572%, 65.098572%)"> bug </tspan><tspan fill="rgb(0%, 68.998718%, 94.499207%)">in</tspan><tspan fill="rgb(65.098572%, 65.098572%, 65.098572%)"> bugreports:</tspan>
+</text>
+<text x="69.1" y="258.4" fill="rgb(65.098572%, 65.098572%, 65.098572%)">prompt = "Fix this bug..." + bug.Desc</text>
+<text x="69.1" y="280.0" fill="rgb(65.098572%, 65.098572%, 65.098572%)">RunAgent(prompt);</text>
+<text x="69.1" y="301.6" fill="rgb(65.098572%, 65.098572%, 65.098572%)">pass = RunTest(bug.TestName)</text>
+<text x="69.1" y="323.2"><tspan fill="rgb(0%, 68.998718%, 94.499207%)">if</tspan><tspan fill="rgb(65.098572%, 65.098572%, 65.098572%)"> pass </tspan><tspan fill="rgb(0%, 68.998718%, 94.499207%)">then</tspan></text>
+<text x="108.6" y="344.8" fill="rgb(65.098572%, 65.098572%, 65.098572%)">GitCommitAndPush()</text>
+<text x="69.1" y="366.4" fill="rgb(0%, 68.998718%, 94.499207%)">else</text>
+<text x="108.6" y="388.0" fill="rgb(65.098572%, 65.098572%, 65.098572%)">GitRevert()</text>
+</g>
 <g clip-path="url(#clip-1)">
 <use xlink:href="#source-5" transform="matrix(0.421065, 0, 0, 0.421689, 480.11994, 100.152473)"/>
 </g>

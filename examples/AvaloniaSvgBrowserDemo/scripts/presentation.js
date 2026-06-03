@@ -49,7 +49,11 @@ slides[44] = "express-demo-stack.svg";
 slides[45] = "jsengine-presentation-reveal.svg";
 slides[46] = "how-far-did-we-push-it.svg";
 slides[47] = "faktorial-launch-button.svg";
-slides[48] = "devsum-last-page.svg";
+slides[48] = "demo-nothuman.svg";
+slides[49] = "demo-flatearth.svg";
+slides[50] = "demo-hillclimbing.svg";
+slides[51] = "demo-roleplay.svg";
+slides[52] = "devsum-last-page.svg";
 
 let current = presentation.current();
 let phase = "idle";

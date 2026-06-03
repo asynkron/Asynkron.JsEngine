@@ -25,7 +25,6 @@ internal enum UnifiedBytecodeProductionDeclineCode
     PrivateFieldDependency,
     ForInDriverStateDependency,
     DestructuringDependency,
-    LabelControlFlow,
     UnsupportedPlanShape,
     CallInvocationBoundary
 }

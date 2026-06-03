@@ -82,8 +82,8 @@ plans are otherwise production-bytecode eligible; their legacy simple-IR
 shortcuts now run only as fallbacks for non-eligible shapes.
 Break/continue-specific loop control is no longer an active decline bucket; admitted
 unlabeled and resolved labeled control flow routes through the compiler-owned jump
-target model, while unsupported driver-crossing labeled control flow remains covered
-by `LabelControlFlow`.
+target model. Unsupported driver topology should decline through the concrete
+driver-state or plan-shape gate that matches the failing shape.
 
 ## Proof Commands
 

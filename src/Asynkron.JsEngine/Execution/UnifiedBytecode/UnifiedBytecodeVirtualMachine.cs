@@ -3482,6 +3482,22 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                // Regex literal (`/pat/flags`) between suspension points. A pure value-producing opcode:
+                // it materializes a fresh RegExp object from the program's static pattern/flags constants
+                // and pushes it. It carries no sub-expression and cannot itself yield/await, so it always
+                // runs to completion inside one resumable step and needs no operand-stack restoration
+                // across a suspension. Mirrors the sync Execute handler exactly (same RegExpHelper factory
+                // and context.RealmState), so each evaluation creates a distinct RegExp instance with
+                // lastIndex = 0 per the spec, including a regex literal reached again after a resume.
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
+                    stack[stackPointer++] = JsValue.FromObjectUnsafe(
+                        RegExpHelper.CreateRegExpLiteral(
+                            program.StringConstants[DecodeRegexLiteralPatternOperand(instruction.Operand)],
+                            DecodeRegexLiteralFlagsOperand(instruction.Operand),
+                            context.RealmState));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 {
                     // Free variable READ (`yield outerVar`). Resolve by name against the live closure

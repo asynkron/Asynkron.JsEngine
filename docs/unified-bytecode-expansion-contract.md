@@ -1012,6 +1012,25 @@ the final post-compile production subset check before VM entry.
   including postfix-vs-prefix value semantics, strict read-only/non-configurable
   throws, a computed-update-on-null `TypeError`, and async update/delete across an
   await).
+- Accepted resumable bodies may now materialize REGEX LITERALS between suspension
+  points: `/pat/flags` (e.g. `yield /\d+/g;`). The `LoadRegexLiteral` opcode is
+  ported into the `ExecuteResumable` switch and added to the
+  `TryFindUnsupportedResumableOpcode` allowlist. It is a pure value-producer — it
+  builds a fresh RegExp object from the program's static pattern/flags constants
+  (`program.StringConstants[DecodeRegexLiteralPatternOperand(...)]`,
+  `DecodeRegexLiteralFlagsOperand(...)`) via the same `RegExpHelper.CreateRegExpLiteral`
+  factory + `context.RealmState` the sync VM uses, and pushes it. It carries no
+  `AwaitedProgram` and no sub-expression, so it cannot itself yield/await; it always
+  runs to completion inside one resumable step and never touches the operand stack
+  across a suspension, so no resume-state restoration is involved. Per spec each
+  evaluation creates a DISTINCT instance with `lastIndex = 0`, including a regex
+  literal re-reached after a resume (the freshness edge case). The other value-load
+  opcodes `LoadNewTarget`/`LoadImportMeta`/`LoadTemplateObject` stay off the allowlist
+  and therefore decline — they depend on `newTarget` / calling-environment /
+  template-object caching not threaded onto the resume state (proof:
+  `UnifiedBytecodeResumableRegexLiteralTests`, including a multi-yield value pack and
+  an adversarial across-resume freshness test that proves no instance is cached or
+  shared across resumes).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

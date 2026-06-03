@@ -369,12 +369,15 @@ predicates and proof tests.
   and resumable opcode shapes outside the `EvaluateResumable` subset. That subset
   now covers value-tier reads, synchronous call dispatch, optional
   chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
-  identifier reads and calls, and PROPERTY WRITES (`o.x = v`, `o[k] = v`,
-  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`) between suspension
-  points; computed optional calls (`o?.[k]()`), property UPDATES/DELETES
-  (`o.x++`, `delete o.x`), dynamic-identifier `typeof`/`delete`, free dynamic
-  writes, and `super`/construct boundaries inside resumable bodies remain
-  outside it.
+  identifier reads and calls, PROPERTY WRITES (`o.x = v`, `o[k] = v`,
+  `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), and SLOT UPDATES
+  (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
+  targets by the `IsLexicalSlotUpdateTarget` const-safety guard) between
+  suspension points; computed optional calls (`o?.[k]()`), lexical-slot updates
+  (`let i; i++`, where the resume state has no const-slot metadata to enforce a
+  `const` reassignment `TypeError`), property UPDATES/DELETES (`o.x++`,
+  `delete o.x`), dynamic-identifier `typeof`/`delete`, free dynamic writes, and
+  `super`/construct boundaries inside resumable bodies remain outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

@@ -8816,11 +8816,12 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_NestedNamedComputedPropertyWriteWithTernaryKey_DeclinesWithPropertyWriteDependency()
+    public void Evaluate_NestedNamedComputedPropertyWriteWithTernaryKey_AcceptsControlExpressionKeySpan()
     {
         // A ternary computed key (`box.child[cond ? a : b] = value`) introduces branch
-        // control flow into the key span, which IsSupportedComputedPropertyKeySpan does not
-        // model; it must still decline (binary/unary keys are admitted, ternary deferred).
+        // control flow into the key span. IsSupportedComputedPropertyKeySpan now admits a
+        // whole-span control expression by delegating to the dedicated control-flow key
+        // emitter, so this routes through production unified bytecode.
         var plan = GetFunctionPlan("""
             function write(box, cond, a, b, value) {
                 box.child[cond ? a : b] = value;
@@ -8832,8 +8833,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyWriteDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
     [Fact]

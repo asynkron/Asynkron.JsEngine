@@ -4925,6 +4925,31 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers = false)
     {
+        if (startInclusive >= endExclusive)
+        {
+            return false;
+        }
+
+        // Control-expression computed keys (`box[cond ? a : b]`, `box[a && b]`,
+        // `box[a ?? b]`) lower to JumpIfConditionalFalse/Jump/Pop control flow that the
+        // stack-machine walker below cannot validate. Accept the key span when the
+        // entire range is exactly one already-admitted control-expression operand span;
+        // the VM executes these branches through the same general expression loop used
+        // for control-expression operands elsewhere, leaving a single key value on the
+        // stack. Only a whole-span match is admitted so no interleaved/partial shapes
+        // slip through.
+        if (TryMeasureSimpleControlExpressionOperandSpan(
+                program,
+                startInclusive,
+                identifierConstants,
+                activationSlots,
+                out var controlExpressionSpanLength,
+                allowsDynamicIdentifiers) &&
+            startInclusive + controlExpressionSpanLength == endExclusive)
+        {
+            return true;
+        }
+
         var stackDepth = 0;
         for (var index = startInclusive; index < endExclusive; index++)
         {

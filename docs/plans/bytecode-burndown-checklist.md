@@ -136,7 +136,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B19** `new.target` (LoadNewTarget) — ☑/☐
 - [ ] **B20** `import.meta` — ☑/☐
 - [ ] **B21** Tagged-template / template object — ☑/☐
-- [ ] **B22** Regex literal — ☑/☐
+- [x] **B22** Regex literal — ☑/☑ ✅ #3118
 - [ ] **B23** Nested function literal — ☑/☐
 - [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
 - [ ] **B25** `typeof unresolvedFreeVar` — ☑/☐
@@ -144,7 +144,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B27** Dynamic free update `freeVar++` — ☑/☐
 - [ ] **B28** `delete freeVar` — ☑/☐
 - [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐
-- [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex)
+- [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex; #3123 hardened the guard: suspending/nested try-finally correctly declines, restoring 13 generator try/finally tests)
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B32** try/catch/finally across suspension — ☑/☐
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐
@@ -208,4 +208,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 16 / ~119 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, B6, B7, B8, B9, B10, C1, C2). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 25 / ~119 complete (incl. B22, B30, B31, B35 + the for-of-fix #3123, TdzHeadInit fix #3122, const-fix #3116). Plus correctness fix #3116. New leaves: A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

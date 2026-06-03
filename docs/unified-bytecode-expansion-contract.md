@@ -862,15 +862,31 @@ the final post-compile production subset check before VM entry.
   `.throw(value)` resume behavior is owned by the VM `YieldStar` opcode.
 - Accepted resumable async shapes include simple awaited discard and awaited
   return bodies that compile through `AwaitAndDiscard` and `AwaitedReturn`.
+- Accepted resumable bodies may now compute NON-SUSPENDING value-tier
+  operations between suspension points: property reads (`GetNamedProperty`,
+  `GetComputedProperty` with its `RequireObjectCoercible` + `ResolvePropertyKey`
+  prelude), `typeof` (`TypeOf`, `TypeOfIdentifier`), and the unary operators
+  `UnaryPlus`, `UnaryMinus`, `UnaryLogicalNot`, `UnaryBitwiseNot`, `UnaryVoid`.
+  These opcodes are ported into the `ExecuteResumable` switch against its local
+  state machine and removed from the `TryFindUnsupportedResumableOpcode`
+  unsupported set, so a generator/async whose body reads `o.a`/`o[k]` or applies
+  unary/`typeof` between `yield`/`await` is admitted by `EvaluateResumable`
+  (proof: `UnifiedBytecodeResumableValueTierTests`). Optional/short-circuit read
+  variants (`GetNamedPropertyOptional`, `GetComputedPropertyOptional`) stay
+  declined because the resumable state has no `stackShortCircuitFlags` array to
+  persist short-circuit flags across suspension; `TypeOfDynamicIdentifier`,
+  property writes/updates/deletes, and calls inside resumable bodies remain
+  follow-ups.
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is
   computed in the async and sync-generator invokers via
   `CoerceThisValueForNonStrict` and stored on `UnifiedBytecodeResumeState` at
   construction so it survives suspension/resume across `yield`/`await`. The
-  resumable `LoadThis` opcode pushes `state.ThisValue`. Property reads such as
-  `this.x` remain outside the resumable opcode set and decline independently of
-  the `this`-binding gate.
+  resumable `LoadThis` opcode pushes `state.ThisValue`. A `this.x` property read
+  now routes through the resumable value tier above (`LoadThis` then
+  `GetNamedProperty`); only optional/dynamic/write `this`-member forms remain
+  outside the resumable opcode set.
 - Captured/dynamic activation, arguments objects, `new.target`, calls,
   dynamic lookup, labels, iterator/destructuring drivers, unsupported
   expression payloads, and unmodeled statement families still decline before
@@ -955,8 +971,14 @@ support today.
    explicit derived `super(...)` path, default derived constructors, and captured
    activation outside the explicit with-backed
    dynamic-name lane. Resumable
-   unified bytecode exists, but `EvaluateResumable` admits only a small
-   instruction/opcode subset compared with ordinary sync production bytecode.
+   unified bytecode exists, but `EvaluateResumable` admits a smaller
+   instruction/opcode subset than ordinary sync production bytecode. That subset
+   now includes the NON-SUSPENDING value-computation tier (property reads
+   `GetNamedProperty`/`GetComputedProperty`, `typeof`, and the unary operators),
+   so generator/async bodies that interleave value-tier reads with
+   `yield`/`await` are admitted; optional/short-circuit reads, dynamic-identifier
+   `typeof`/`delete`, property writes/updates, and calls inside resumable bodies
+   remain unsupported follow-ups.
 2. Wider call invocation remains a high-impact unsupported bucket. Synchronous
    spread calls are now admitted (gh2676). Optional calls are now admitted
    (gh2689, ADR 0289): `box?.read(args)`, `box.read?.(args)`, and

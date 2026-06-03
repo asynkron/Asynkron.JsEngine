@@ -209,6 +209,79 @@ public sealed class UnifiedBytecodeResumableNewTargetTests(ITestOutputHelper out
             result.Code);
     }
 
+    // REGRESSION (leak fix): a generator declared INSIDE a constructor must read its OWN new.target
+    // (=== undefined), shadowing the enclosing constructor — even though it routes resumable. The handler
+    // previously walked the closure chain and leaked the enclosing constructor; new.target is now threaded
+    // per-activation onto the resume state (undefined for ordinary generators/async).
+    [Fact]
+    public async Task GeneratorNestedInFunctionConstructor_NewTargetIsUndefinedNotEnclosingCtor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var captured = "PENDING";
+            function Ctor() {
+                function* g() {
+                    yield 1;
+                    yield (new.target === undefined ? "undef" : "LEAK:ctor");
+                }
+                var it = g();
+                it.next();
+                captured = it.next().value;
+            }
+            new Ctor();
+            captured;
+            """);
+
+        Assert.Equal("undef", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact]
+    public async Task GeneratorNestedInClassConstructor_TypeofNewTargetIsUndefined()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var captured = "PENDING";
+            class C {
+                constructor() {
+                    function* g() {
+                        yield 0;
+                        yield typeof new.target;
+                    }
+                    var it = g();
+                    it.next();
+                    captured = it.next().value;
+                }
+            }
+            new C();
+            captured;
+            """);
+
+        Assert.Equal("undefined", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    // REGRESSION: an async function nested in a constructor likewise reads undefined, not the ctor.
+    [Fact(Timeout = 5000)]
+    public async Task AsyncNestedInFunctionConstructor_NewTargetIsUndefinedNotEnclosingCtor()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = "PENDING";
+            function Ctor() {
+                async function run(p) {
+                    await p;
+                    return new.target === undefined ? "undef" : "LEAK:ctor";
+                }
+                run(Promise.resolve(0)).then(value => asyncResult = value);
+            }
+            new Ctor();
+            asyncResult;
+            """);
+
+        Assert.Equal("undef", result);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(

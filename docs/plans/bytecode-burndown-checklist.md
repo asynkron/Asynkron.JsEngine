@@ -146,7 +146,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B16** Object literal `{a,b:v,...spread}` — ☑/☐ — _(workflow A3-objlit)_
 - [ ] **B17** Array literal `[a,,b,...spread]` — ☑/☐ — _(workflow A3-objlit)_
 - [ ] **B18** `#field in obj` — ☑/☐
-- [ ] **B19** `new.target` (LoadNewTarget) — ☑/☐
+- [x] **B19** `new.target` (LoadNewTarget) — ☑/☑ ✅ (Codex; leak fixed #3150 — per-activation new.target threaded onto the resume state: undefined for ordinary generators/async, inherited for async arrows)
 - [ ] **B20** `import.meta` — ☑/☐
 - [ ] **B21** Tagged-template / template object — ☑/☐
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118

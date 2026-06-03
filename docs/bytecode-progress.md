@@ -163,16 +163,45 @@ Use this meter instead:
 4. Live fallback usage: which real workloads still report zero
    `unified-bytecode-production-fast-path` hits.
 
-Current snapshot from local route-hit probes:
+Current reproducible snapshot from local route-hit probes:
+
+Baseline: `origin/main` at `aa93c7112` on 2026-06-03. Command shape:
+
+```bash
+profiles=(simplearithmetic fib forloop whileloop ir-arithmetic activation-noargs-lite activation-params-lite activation-arguments-lite activation-closures-lite activation-evalscope-lite objectcreation arrayops stringops propertyaccess classdef destructuring spread mapset json regex promise closures-lite recursion-lite forofiteration functioncalls functioncalls-lite)
+for p in "${profiles[@]}"; do
+  rtk ./tools/profile "$p" --route-hits
+done
+```
 
 | Workload | Route hits | Signal |
 |---|---:|---|
-| `forloop` | 20 | Green: ordinary sync loop/arithmetic VM route is active. |
-| `forofiteration` | 2000 | Green: admitted sync driver route is active. |
-| `propertyaccess` | 20 | Green: narrow top-level script completion plus property-read loop now enters the production VM. |
-| `simplearithmetic` | 10,000 | Green: slotless top-level lexicals plus dynamic-global `Math` member calls now enter the production VM. |
-| `functioncalls-lite` | 1,600,000 | Green: simple ordinary function calls now route through production bytecode instead of the simple binary IR shortcuts. |
-| `activation-noargs-lite` | 600,000 | Green: simple literal-return activation now routes through production bytecode instead of the public simple-return shortcut. |
+| `simplearithmetic` | 10,000 | Active top-level script arithmetic route. |
+| `fib` | 10 | Active production route on the wrapper/entry shape; recursion still limits the measured workload. |
+| `forloop` | 40 | Active ordinary sync loop/arithmetic route. |
+| `whileloop` | 20 | Active ordinary sync loop route. |
+| `ir-arithmetic` | 20 | Active var-binding arithmetic route. |
+| `activation-noargs-lite` | 600,000 | Active simple literal-return activation route. |
+| `activation-params-lite` | 500,000 | Active parameterized activation route. |
+| `activation-arguments-lite` | 0 | Zero-hit: arguments-object workload does not enter the production route. |
+| `activation-closures-lite` | 300 | Partial-hit: wrapper/eligible closure shapes route; the main closure workload still has captured-state blockers. |
+| `activation-evalscope-lite` | 64 | Partial-hit: entry/wrapper shapes route; eval-sensitive dynamic scope remains a blocker. |
+| `objectcreation` | 0 | Zero-hit: measured object-construction workload does not enter the production route. |
+| `arrayops` | 400,000 | Active array operation wrapper/iteration route. |
+| `stringops` | 0 | Zero-hit: string builtin workload does not enter the production route. |
+| `propertyaccess` | 20 | Active narrow top-level property-access script route. |
+| `classdef` | 160,000 | Active class-definition workload route. |
+| `destructuring` | 0 | Zero-hit: measured destructuring profile remains blocked by non-admitted script/block shapes. |
+| `spread` | 0 | Zero-hit: measured spread workload does not enter the production route. |
+| `mapset` | 0 | Zero-hit: Map/Set builtin workload does not enter the production route. |
+| `json` | 0 | Zero-hit: JSON builtin workload does not enter the production route. |
+| `regex` | 0 | Zero-hit: RegExp builtin workload does not enter the production route. |
+| `promise` | 60 | Active promise wrapper/eligible route; async/microtask semantics remain separate. |
+| `closures-lite` | 8,400 | Active closure workload route for eligible shapes. |
+| `recursion-lite` | 0 | Zero-hit: recursive workload does not enter the production route. |
+| `forofiteration` | 2,000 | Active admitted sync iterator-driver route. |
+| `functioncalls` | 8,000,000 | Active ordinary function-call route. |
+| `functioncalls-lite` | 1,600,000 | Active ordinary function-call route. |
 
 Zero route hits do not necessarily mean the syntax family has no bytecode
 support. They mean the measured workload shape did not enter the production

@@ -10486,6 +10486,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before any emission so a later validation failure
+        // rolls back and never leaks half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -10495,6 +10502,9 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -10527,6 +10537,9 @@ internal static class UnifiedBytecodeCompiler
                     stringConstants,
                     out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -10536,6 +10549,9 @@ internal static class UnifiedBytecodeCompiler
             if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
             {
                 reason = string.Empty;
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
 
@@ -10543,12 +10559,18 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram, rhsStart, activationSlots,
                     unified, literalConstants, out var spanLen, out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
 
             if (rhsStart + spanLen - 1 != rhsEnd)
             {
                 reason = "Template literal RHS span does not match expected boundary.";
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -11237,6 +11259,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -11247,6 +11276,9 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -11262,6 +11294,9 @@ internal static class UnifiedBytecodeCompiler
                     stringConstants,
                     out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -11271,12 +11306,18 @@ internal static class UnifiedBytecodeCompiler
                     expressionProgram, rhsStart, activationSlots,
                     unified, literalConstants, out var spanLen, out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
 
             if (rhsStart + spanLen - 1 != rhsEnd)
             {
                 reason = "Template literal RHS span does not match expected boundary.";
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -11592,6 +11633,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -11599,6 +11647,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -11621,6 +11672,9 @@ internal static class UnifiedBytecodeCompiler
                     literalConstants,
                     out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -11630,18 +11684,27 @@ internal static class UnifiedBytecodeCompiler
             if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
             {
                 reason = string.Empty;
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
 
             if (!TryAppendSimpleTemplateLiteralSpan(
                     expressionProgram, rhsStart, activationSlots, unified, literalConstants, out var spanLen, out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
 
             if (rhsStart + spanLen - 1 != rhsEnd)
             {
                 reason = "Template literal RHS span does not match expected nested property-write boundary.";
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -12159,6 +12222,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -12166,6 +12236,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12186,6 +12259,9 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive: expressionProgram.OperationCount - 1,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12250,6 +12326,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -12257,6 +12340,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12277,6 +12363,9 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive: deleteIndex,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12345,6 +12434,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -12352,6 +12448,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12376,6 +12475,9 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive: deleteIndex,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12718,8 +12820,18 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(baseLoad, expressionProgram, activationSlots, unified, out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12748,6 +12860,9 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive: computedIndex,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12863,6 +12978,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later failure rolls back
+        // instead of leaking half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -12870,6 +12992,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -12894,6 +13019,9 @@ internal static class UnifiedBytecodeCompiler
                 endExclusive: computedIndex,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -13286,7 +13414,14 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
-        // Emission pass — only reached when all validation passes.
+        // Emission pass — only reached when all validation passes. Capture builder
+        // lengths so any lowering helper that still returns false mid-emission rolls
+        // back instead of leaving half-written operand loads the general loop would
+        // re-emit (doubling them past MaxStackDepth).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -13294,6 +13429,9 @@ internal static class UnifiedBytecodeCompiler
                 unified,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -13316,6 +13454,9 @@ internal static class UnifiedBytecodeCompiler
                     literalConstants,
                     out reason))
             {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -13332,6 +13473,9 @@ internal static class UnifiedBytecodeCompiler
                     rhsStart + arraySpanLen - 1 != rhsEnd)
                 {
                     reason = reason.Length == 0 ? "Array literal RHS span does not match expected boundary." : reason;
+                    RollBackUnifiedBuilder(unified, unifiedCount);
+                    RollBackUnifiedBuilder(literalConstants, literalCount);
+                    RollBackUnifiedBuilder(stringConstants, stringCount);
                     return false;
                 }
             }
@@ -13344,6 +13488,9 @@ internal static class UnifiedBytecodeCompiler
                     rhsStart + objSpanLen - 1 != rhsEnd)
                 {
                     reason = reason.Length == 0 ? "Object literal RHS span does not match expected boundary." : reason;
+                    RollBackUnifiedBuilder(unified, unifiedCount);
+                    RollBackUnifiedBuilder(literalConstants, literalCount);
+                    RollBackUnifiedBuilder(stringConstants, stringCount);
                     return false;
                 }
             }
@@ -13355,12 +13502,18 @@ internal static class UnifiedBytecodeCompiler
                     rhsStart + templateSpanLen - 1 != rhsEnd)
                 {
                     reason = reason.Length == 0 ? "Template literal RHS span does not match expected boundary." : reason;
+                    RollBackUnifiedBuilder(unified, unifiedCount);
+                    RollBackUnifiedBuilder(literalConstants, literalCount);
+                    RollBackUnifiedBuilder(stringConstants, stringCount);
                     return false;
                 }
             }
             else
             {
                 reason = string.Empty;
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
                 return false;
             }
         }
@@ -13435,9 +13588,19 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later operand-load failure
+        // rolls back instead of leaking half-written loads the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         var baseOp = expressionProgram.GetOperation(0);
         if (!TryAppendActivationValueLoad(baseOp, expressionProgram, activationSlots, unified, out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -13468,6 +13631,9 @@ internal static class UnifiedBytecodeCompiler
                 literalConstants,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -13520,6 +13686,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        // Capture builder lengths before emission so a later key-load failure rolls
+        // back instead of leaking a half-written base load the general loop would
+        // re-emit (doubling them past MaxStackDepth -> VM stack overflow).
+        var unifiedCount = unified.Count;
+        var literalCount = literalConstants.Count;
+        var stringCount = stringConstants.Count;
+
         if (!TryAppendActivationOrImplicitArgumentsObjectReadValueLoad(
                 expressionProgram.GetOperation(0),
                 expressionProgram,
@@ -13529,6 +13702,9 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 
@@ -13542,6 +13718,9 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
             return false;
         }
 

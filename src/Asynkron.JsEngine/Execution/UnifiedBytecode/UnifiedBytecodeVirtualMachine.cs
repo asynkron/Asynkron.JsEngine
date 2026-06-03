@@ -3453,6 +3453,19 @@ internal static class UnifiedBytecodeVirtualMachine
             ScopeKind.Function,
             state.IsStrict ? ScopeMode.Strict : ScopeMode.Sloppy);
 
+        // Re-enter the private-name scopes lexically active where this resumable body was DEFINED (the
+        // class brand scope plus any enclosing captured scopes), captured once on the resume state by the
+        // invoker. The sync VM gets these for free because the regular function-invocation path enters
+        // them around the body, but each resumable step runs on a fresh per-step context, so without this
+        // the PrivateFieldIn handler (and any future private-name opcode) could not map `#name` to its
+        // mangled key via context.ResolvePrivateNameKey and would wrongly report the field absent. The
+        // scopes are read-only and identical on every resume; they are pushed and popped within this single
+        // synchronous traversal (a suspension returns out of ExecuteResumable entirely, after the using
+        // disposes), keeping the private-name scope stack balanced across yield/await.
+        using var resumablePrivateNameScopes = state.PrivateNameScopes.IsDefaultOrEmpty
+            ? null
+            : context.EnterPrivateNameScopes(state.PrivateNameScopes);
+
         while ((uint)programCounter < (uint)instructions.Length)
         {
             var instruction = instructions[programCounter];
@@ -3989,6 +4002,36 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.UnaryVoid:
                     stack[stackPointer - 1] = JsValue.Undefined;
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.PrivateFieldIn:
+                    // `#field in obj` (PrivateFieldIn) inside a resumable body. A pure boolean brand check:
+                    // the operand (the object being tested) sits on top of the operand stack — pushed by a
+                    // preceding admitted value load — and any suspension in that sub-expression (`#x in (yield o)`)
+                    // is restored through UnifiedBytecodeResumeState.OperandStack, the stable backing store, just
+                    // like every other admitted unary. The opcode itself carries no AwaitedProgram and cannot
+                    // suspend, so it always runs to completion inside one resumable step. The private-name key is
+                    // resolved against context.ResolvePrivateNameKey / context.RealmState (stable across
+                    // yield/await), so this is the literal twin of the sync VM's PrivateFieldIn handler: a
+                    // non-object operand throws the same TypeError (surfaced as the resumable Throw step) and a
+                    // matching field/brand returns true.
+                    if (stack[stackPointer - 1] is not { Kind: JsValueKind.Object, ObjectValue: JsObject resumablePrivateFieldTarget })
+                    {
+                        context.SetThrow(StandardLibrary.CreateTypeError(
+                            "Cannot use 'in' operator to search for a private field in a non-object",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    stack[stackPointer - 1] = HasPrivateField(
+                            resumablePrivateFieldTarget,
+                            program.StringConstants[instruction.Operand],
+                            context)
+                        ? JsValue.True
+                        : JsValue.False;
                     programCounter++;
                     break;
 

@@ -1238,6 +1238,43 @@ the final post-compile production subset check before VM entry.
   fresh-object-per-evaluation identity guarantee in a loop, an all-flags
   escape-bearing pattern round-trip, and an async body evaluating a regex literal on
   the resumed step after an await).
+- Accepted resumable bodies may now evaluate a PRIVATE-FIELD-IN test (`#x in obj`)
+  between suspension points (burndown B18). Two changes are required and BOTH ship
+  together. First, the `PrivateFieldIn` opcode is ported into the `ExecuteResumable`
+  switch and added to the `TryFindUnsupportedResumableOpcode` allowlist; the handler is
+  the literal twin of the sync VM's: it reads the object operand off the top of the
+  stack, and if it is not a `JsValueKind.Object` throws the same `TypeError` ("Cannot
+  use 'in' operator to search for a private field in a non-object") as the resumable
+  Throw step (`state.IsCompleted = true; return UnifiedBytecodeStepResult.Throw(context.FlowValue)`);
+  otherwise it replaces the top with `JsValue.True`/`JsValue.False` from the shared
+  `HasPrivateField` helper, which resolves the private name via
+  `context.ResolvePrivateNameKey` / `context.RealmState` and checks both an own private
+  field and a matching private brand. Second — and this is the load-bearing part — the
+  body's lexically-active private-name scopes (the class brand scope plus any enclosing
+  captured scopes) are threaded onto `UnifiedBytecodeResumeState.PrivateNameScopes`
+  (built by `UnifiedBytecodeResumeState.CombinePrivateNameScopes`, enclosing scopes
+  first and the own class scope innermost, matching `SyncFunctionInvoker`) and
+  re-entered onto the live per-step context at the top of `ExecuteResumable` via
+  `context.EnterPrivateNameScopes`. The sync VM gets these scopes for free because the
+  regular function-invocation path enters them around the body, but each resumable step
+  runs on a FRESH per-step context, so without re-entry `ResolvePrivateNameKey` returns
+  null and `HasPrivateField` wrongly reports the field absent. All three resumable
+  invokers (sync generator, async function, async generator) populate the scopes, so the
+  opcode is correct for every resumable kind. The scopes are a read-only lexical fact of
+  the frame, identical on every resume, pushed and popped within the single synchronous
+  step traversal so the private-name scope stack stays balanced across yield/await.
+  `PrivateFieldIn` carries no `AwaitedProgram`, cannot itself yield/await, and pushes
+  exactly one value, so it always runs to completion inside one resumable step. The
+  object operand can come from a suspending sub-expression (`#x in (yield o)`); it sits
+  on `UnifiedBytecodeResumeState.OperandStack` (the stable backing store) and is
+  restored on resume, exactly like every other admitted unary. BOUNDARY: the private
+  NAME read/write/update opcodes (`receiver.#value`, `receiver.#value = v`,
+  `receiver.#value++`) are a separate slice and keep their existing route; this slice
+  admits only the `in`-test opcode (proof: the eligibility admit gate, an end-to-end
+  generator method that observes `#value in holder` true (via brand) and `#value in {}`
+  false across a yield, the adversarial generator that throws a catchable `TypeError`
+  when the `in`-test is resumed against a primitive, and an async method that observes
+  the same true/false split across an `await`).
 - Accepted resumable bodies may now read the `new.target` meta-property between
   suspension points (burndown B19). The `LoadNewTarget` opcode is ported into the
   `ExecuteResumable` switch and added to the `TryFindUnsupportedResumableOpcode`

@@ -137,7 +137,14 @@ public static partial class TypedAstEvaluator
             var newTarget = function.IsArrow && closure.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
                 ? inheritedNewTarget
                 : JsValue.Undefined;
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict, newTarget);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict, newTarget)
+            {
+                // Thread the private-name scopes lexically active where this async body was defined so the
+                // resumable VM can re-enter them on each per-step continuation and resolve `#name in obj`.
+                PrivateNameScopes = UnifiedBytecodeResumeState.CombinePrivateNameScopes(
+                    capturedPrivateNameScopes,
+                    privateNameScope),
+            };
 
             _realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-fast-path func={Function} argc={ArgumentCount}",

@@ -3484,6 +3484,23 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
+                    // Regex LITERAL (`/pat/flags`) inside a resumable body. Literal twin of the sync VM's
+                    // handler (UnifiedBytecodeOpCode.LoadRegexLiteral): read the interned pattern string and
+                    // encoded flags byte from the program and build a FRESH RegExp object via
+                    // RegExpHelper.CreateRegExpLiteral against the realm. ECMAScript requires a distinct
+                    // RegExp per evaluation, so the object is constructed anew on every step (including each
+                    // turn of a loop across yields) rather than cached. Nothing lands on the operand stack
+                    // across a suspension — the opcode cannot itself yield/await and pushes exactly one value
+                    // — so no resume-state restoration is involved.
+                    stack[stackPointer++] = JsValue.FromObjectUnsafe(
+                        RegExpHelper.CreateRegExpLiteral(
+                            program.StringConstants[DecodeRegexLiteralPatternOperand(instruction.Operand)],
+                            DecodeRegexLiteralFlagsOperand(instruction.Operand),
+                            context.RealmState));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 {
                     // Free variable READ (`yield outerVar`). Resolve by name against the live closure

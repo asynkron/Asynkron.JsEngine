@@ -182,6 +182,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      needed to distinguish generic manifest profile rows from actual
      `unified-bytecode-production-fast-path` execution. Related ADR:
      `docs/adrs/0320-keep-unified-bytecode-route-hit-evidence-explicit.md`.
+11b. When adding, removing, or editing a non-empty
+     `UnifiedBytecodeCompiler.TryCompile` `reason = ...` assignment, update the
+     `Compiler Decline Reason Templates (current)` inventory in
+     `docs/unified-bytecode-expansion-contract.md` and the matching checklist
+     owner leaf in `docs/plans/bytecode-burndown-checklist.md` in the same
+     delivery. Keep failed compiler attempts wrapped as
+     `UnsupportedPlanShape` unless the slice intentionally changes the
+     route-facing production decline contract; compiler diagnostic strings are
+     burn-down owner evidence, not automatic enum members. Preserve dynamic
+     residue separately from compiler-owned non-dynamic route gaps. WHY: issue
+     #3134 / PR #3138 decomposed the stale A51/B47/E2 compiler umbrella into
+     A51a-A51m plus B47a and added a source gate over compiler reason
+     templates. Review also found stale checklist counters after the first
+     update, so future edits must update the contract, owner leaves, and counts
+     together. Related ADR:
+     `docs/adrs/0322-keep-unified-bytecode-compiler-decline-inventory-source-guarded.md`.
 12. When defining property-read production eligibility, keep candidate
     recognition separate from VM acceptance until the same slice adds compiler
     opcodes, VM semantics, route-priority proof, and negative no-route tests.

@@ -121,7 +121,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
 - [ ] **B6** Property update `o.x++` / `o.x+=v` — ☑/☐
 - [ ] **B7** Computed property update `o[k]++` — ☑/☐
-- [ ] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/☐
+- [x] **B8** Slot update `x++` / `x+=v` (UpdateSlot) — ☑/◐ ✅ #3115 (var/param admitted; lexical `let`/`const` slot updates declined for const-safety — see B8a). Also fixed the latent const **plain-assignment** gap `const x=1; x=2` in #3116.
+- [ ] **B8a** *(follow-up, option a)* Thread a static const-slot bitmap from scope analysis → `ExecutionPlan`/`ActivationSlotShape` → `UnifiedBytecodeResumeState`, so the resumable VM can raise `TypeError: Assignment to constant variable` itself and restore `let`-write/`let`-update fast-path (currently `let`/`const` slot updates + assignments decline to the interpreter).
 - [ ] **B9** Property delete `delete o.x` — ☑/☐
 - [ ] **B10** Computed property delete `delete o[k]` — ☑/☐
 - [ ] **B11** `new C(args)` construct — ☑/☐
@@ -207,4 +208,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 11 / ~118 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, C1, C2). +1 new leaf A52 (`debugger`) surfaced by P0.1. Updated as each item merges._
+_Status: 12 / ~119 complete (P0.1, P0.5, A3, A4, A5, A39, A40, B4, B5, B8, C1, C2). Plus correctness fix #3116 (const plain-assignment in resumable). New leaves: A52 (`debugger`, from P0.1), B8a (const-bitmap follow-up). Updated as each item merges._

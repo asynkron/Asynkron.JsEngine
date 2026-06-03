@@ -171,25 +171,41 @@ public static partial class TypedAstEvaluator
             IJsCallable reject)
         {
             var context = _realmState.CreateContext();
-            var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(_unifiedState!, mode, argument, context);
-            switch (step.Kind)
+            try
             {
-                case UnifiedBytecodeStepKind.Completed:
-                    AsyncInvokeWithOneArg(resolve, step.Value);
-                    break;
-                case UnifiedBytecodeStepKind.Throw:
-                    AsyncInvokeWithOneArg(reject, step.Value);
-                    break;
-                case UnifiedBytecodeStepKind.PendingAwait:
-                    HandlePendingPromise(step.PendingPromise, resolve, reject);
-                    break;
-                case UnifiedBytecodeStepKind.Yield:
-                    DriveUnifiedBytecodeToCompletion(
-                        UnifiedBytecodeResumeMode.Next,
-                        step.Value,
-                        resolve,
-                        reject);
-                    break;
+                var step = UnifiedBytecodeVirtualMachine.ExecuteResumable(_unifiedState!, mode, argument, context);
+                switch (step.Kind)
+                {
+                    case UnifiedBytecodeStepKind.Completed:
+                        AsyncInvokeWithOneArg(resolve, step.Value);
+                        break;
+                    case UnifiedBytecodeStepKind.Throw:
+                        AsyncInvokeWithOneArg(reject, step.Value);
+                        break;
+                    case UnifiedBytecodeStepKind.PendingAwait:
+                        HandlePendingPromise(step.PendingPromise, resolve, reject);
+                        break;
+                    case UnifiedBytecodeStepKind.Yield:
+                        DriveUnifiedBytecodeToCompletion(
+                            UnifiedBytecodeResumeMode.Next,
+                            step.Value,
+                            resolve,
+                            reject);
+                        break;
+                }
+            }
+            catch (ThrowSignal signal)
+            {
+                // An opcode whose error surfaces as a ThrowSignal CLR exception (e.g. a strict-mode
+                // write to a non-writable property) rather than via the resumable Throw step must still
+                // reject the async function's promise. The first-step executor and the IR DriveToCompletion
+                // path both catch this; the bytecode resume drive must too, otherwise a post-await throw is
+                // swallowed and the promise hangs permanently pending.
+                AsyncInvokeWithOneArg(reject, signal.ThrownValue);
+            }
+            catch (Exception ex)
+            {
+                AsyncInvokeWithOneArg(reject, (JsValue)ex.Message);
             }
         }
 

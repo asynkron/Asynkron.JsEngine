@@ -258,6 +258,34 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
         AssertAsyncFastPath("run", argc: 1);
     }
 
+    // Regression: a strict-mode write to a non-writable property AFTER an await must REJECT the
+    // promise with TypeError, not leave it permanently pending. The strict write surfaces as a
+    // ThrowSignal CLR exception (not a resumable Throw step), so the bytecode async-resume drive
+    // (DriveUnifiedBytecodeToCompletion) must catch it and reject — the synchronous generator path
+    // works only incidentally because .next() runs inside JS try/catch on the call stack.
+    [Fact(Timeout = 5000)]
+    public async Task AsyncStrictWriteToReadOnlyAfterAwait_RejectsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = "PENDING";
+            async function run(o) {
+                "use strict";
+                await o.gate;
+                o.ro = 2;             // strict write to a non-writable property after the await
+                return "RESOLVED";
+            }
+
+            var target = { gate: Promise.resolve(0) };
+            Object.defineProperty(target, "ro", { value: 9, writable: false });
+            run(target).then(value => asyncResult = value, err => asyncResult = err.constructor.name);
+            asyncResult;
+            """);
+
+        Assert.Equal("TypeError", result);
+        AssertAsyncFastPath("run", argc: 1);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(

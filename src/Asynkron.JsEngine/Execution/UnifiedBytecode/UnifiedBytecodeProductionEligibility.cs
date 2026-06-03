@@ -897,6 +897,14 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Return or
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or
+                // Synchronous call dispatch (non-optional `f()`, `o.m()`, `o[k]()`). The optional
+                // call-target opcodes and super/construct boundaries remain unsupported below because
+                // they require short-circuit-flag persistence / dynamic-environment plumbing the
+                // resumable state does not carry.
+                UnifiedBytecodeOpCode.PrepareIdentifierCallTarget or
+                UnifiedBytecodeOpCode.PrepareNamedCallTarget or
+                UnifiedBytecodeOpCode.PrepareComputedCallTarget or
+                UnifiedBytecodeOpCode.CallInvocationBoundary or
                 UnifiedBytecodeOpCode.Yield or
                 UnifiedBytecodeOpCode.StoreResumeValue or
                 UnifiedBytecodeOpCode.AwaitAndDiscard or

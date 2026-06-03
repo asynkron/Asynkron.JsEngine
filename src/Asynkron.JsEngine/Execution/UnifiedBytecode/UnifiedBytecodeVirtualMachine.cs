@@ -3854,6 +3854,113 @@ internal static class UnifiedBytecodeVirtualMachine
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Throw(throwValue);
 
+                case UnifiedBytecodeOpCode.PrepareIdentifierCallTarget:
+                {
+                    // Plain `f()`: load the callee from its activation slot, pushing the
+                    // <undefined this, callee> receiver/callee pair the invocation boundary expects.
+                    // Eligible resumable programs have no captured/dynamic activation, so the callee
+                    // always resolves through a slot — no calling environment is consulted here.
+                    var resumableCallTarget = program.CallTargetConstants[instruction.Operand];
+                    if (resumableCallTarget.Kind != UnifiedBytecodeCallTargetKind.Identifier)
+                    {
+                        throw new InvalidOperationException(
+                            "Identifier call-target preparation requires an identifier call target constant.");
+                    }
+
+                    var resumableCallableValue = slots[resumableCallTarget.SlotIndex];
+                    if (resumableCallableValue.IsUninitialized)
+                    {
+                        SetUninitializedSlotReferenceError(program, resumableCallTarget.SlotIndex, context);
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    stack[stackPointer++] = JsValue.Undefined;
+                    stack[stackPointer++] = resumableCallableValue;
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareNamedCallTarget:
+                {
+                    // `o.m()`: receiver already on the stack; read the named method and push it as the
+                    // callee, leaving the receiver in place as the call boundary's `this`.
+                    var resumableNamedCallTarget = program.CallTargetConstants[instruction.Operand];
+                    if (resumableNamedCallTarget.Kind != UnifiedBytecodeCallTargetKind.NamedMember ||
+                        (uint)resumableNamedCallTarget.NameConstantIndex >= (uint)program.StringConstants.Length)
+                    {
+                        throw new InvalidOperationException(
+                            "Named member call-target preparation requires a named member call target constant.");
+                    }
+
+                    var resumableNamedReceiver = stack[stackPointer - 1];
+                    stack[stackPointer++] = GetNamedPropertyValue(
+                        resumableNamedReceiver,
+                        program.StringConstants[resumableNamedCallTarget.NameConstantIndex],
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.PrepareComputedCallTarget:
+                {
+                    // `o[k]()`: pop the key, keep the receiver as `this`, push the resolved method.
+                    var resumableComputedCallTarget = program.CallTargetConstants[instruction.Operand];
+                    if (resumableComputedCallTarget.Kind != UnifiedBytecodeCallTargetKind.ComputedMember)
+                    {
+                        throw new InvalidOperationException(
+                            "Computed member call-target preparation requires a computed member call target constant.");
+                    }
+
+                    var resumableComputedCallKey = stack[--stackPointer];
+                    var resumableComputedCallReceiver = stack[stackPointer - 1];
+                    stack[stackPointer++] = GetComputedCallTargetValue(
+                        resumableComputedCallReceiver,
+                        resumableComputedCallKey,
+                        context);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
+                case UnifiedBytecodeOpCode.CallInvocationBoundary:
+                {
+                    // Synchronous call dispatch from inside the resumable frame. ExecutePreparedCall
+                    // runs the callee to completion (its own suspension, if any, is a separate resumable
+                    // frame) and returns a value. slotEnvironments is null because eligible resumable
+                    // programs have no environment-backed slots; the calling environment is threaded for
+                    // caller-context-sensitive callees (e.g. environment-aware host functions).
+                    stackPointer = ExecutePreparedCall(
+                        DecodeCallBoundaryArgumentCount(instruction.Operand),
+                        DecodeCallBoundarySpreadMask(program, instruction.Operand),
+                        DecodeCallBoundaryIsDirectEval(instruction.Operand),
+                        stack,
+                        stackPointer,
+                        slots,
+                        slotEnvironments: null,
+                        context,
+                        state.CallingEnvironment);
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+                }
+
                 default:
                     throw new NotSupportedException(
                         $"Unified bytecode opcode '{instruction.OpCode}' is not supported by the resumable execution path.");

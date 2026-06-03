@@ -2587,6 +2587,122 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
     }
 
+    // A25/A26: deep delete chains with a computed read hop before the terminal delete.
+
+    [Fact]
+    public void Evaluate_DeepComputedThenComputedDeleteCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, k1, k2) {
+                return delete box[k1][k2];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_NamedThenComputedThenComputedDeleteCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, k1, k2) {
+                return delete box.a[k1][k2];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteComputedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedThenNamedDeleteCandidate_AcceptsOwnedPropertyOpcodes()
+    {
+        var plan = GetFunctionPlan("""
+            function remove(box, k1) {
+                return delete box[k1].b;
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.DeleteNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_DeepDeleteChainWithPrivateNamedHop_Declines()
+    {
+        // A private-name hop in the chain must keep its IR-runner path (PrivateFieldDependency),
+        // never the deep-delete production route.
+        var plan = GetClassMethodPlan("""
+            class Holder {
+                #child = { x: 1, y: 2 };
+                remove(k) {
+                    return delete this.#child[k].x;
+                }
+            }
+            """,
+            "Holder",
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        // A private-name hop must NOT reach the deep-delete production route; it stays declined
+        // (the exact decline code is incidental — the read boundary rejects the private hop first).
+        Assert.False(result.IsEligible);
+        Assert.NotEqual(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
+    public void Evaluate_DeepOptionalComputedDeleteChain_DeclinesAsOptionalChain()
+    {
+        // Optional hops in the deep chain are NOT admitted by the deep-delete walker; they stay on
+        // the dedicated optional-delete candidates / IR runner.
+        var plan = GetFunctionPlan("""
+            function remove(box, k1, k2) {
+                return delete box?.[k1][k2];
+            }
+            """,
+            "remove");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+    }
+
     [Theory]
     [InlineData(
         """
@@ -10262,4 +10378,5 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             """,
             "logicalAndOptionalWrite"));
     }
+
 }

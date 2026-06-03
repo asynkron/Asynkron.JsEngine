@@ -746,7 +746,26 @@ the final post-compile production subset check before VM entry.
   reads before the optional jump-to-chain-end boundary. Nested named receiver
   chains ending in a simple
   computed delete (`delete box.child[key]`, `delete box.child[left + right]`)
-  are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`; optional
+  are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`. A25/A26
+  widening (sync route only): DEEP delete chains with a plain COMPUTED read hop
+  anywhere before the terminal delete — `delete box[k1][k2]`,
+  `delete box.a[k1][k2]`, and `delete box[k1].b` — are now admitted by the
+  whole-program walker `TryIsFirstBoundaryDeepPropertyDeleteChainCandidate`. It
+  validates the entire program with a single stack-discipline pass (mirroring the
+  property-read/write deep-chain walkers) over an activation-resolved (or
+  admitted plain dynamic-identifier) base, any mix of plain named reads
+  (`GetNamedProperty`) and plain computed reads
+  (`key…, RequireObjectCoercible(Depth: 1), ResolvePropertyKey,
+  GetComputedProperty`), and a terminal `DeleteNamedProperty` /
+  `DeleteComputedProperty`; it requires at least one computed read hop (the
+  pure-named deep chain `delete box.a.b.c` is already covered by
+  `TryIsFirstBoundaryNamedPropertyDeleteCandidate`). Any optional/short-circuit
+  hop or private name in the chain declines, keeping those on their dedicated
+  candidates / IR runner. The walker is wired into the `GetNamedProperty`,
+  `GetComputedProperty`, `DeleteNamedProperty`, and `DeleteComputedProperty`
+  per-op cases after the existing candidates, so it fires only for shapes those
+  reject. All admitted opcodes already have sync VM handlers; the resumable
+  allowlist (`TryFindUnsupportedResumableOpcode`) is untouched. Optional
   named deletes (`delete box?.value`, `delete box.child?.value`) and optional
   computed delete chains (`delete box?.[key]`, `delete box?.child[key]`,
   `delete box.child?.[key]`, and `delete box?.child?.[key]`) are admitted for

@@ -3482,6 +3482,24 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadRegexLiteral:
+                    // Regex literal (`/ab+c/gi`) inside a resumable (generator/async) body. A pure leaf
+                    // push: it allocates a fresh RegExp from the program's interned pattern/flags constants
+                    // and pushes it. The opcode carries no AwaitedProgram and reads nothing off the operand
+                    // stack, so it always runs to completion inside one resumable step and never participates
+                    // in suspension/resume state restoration. Mirrors the sync VM handler exactly; a new
+                    // object is created per evaluation, matching JS regex-literal semantics. (LoadTemplateObject
+                    // is intentionally NOT admitted alongside this: that opcode is only emitted as part of a
+                    // tagged-template CALL, and the call boundary is itself declined on the resumable route, so
+                    // the opcode is unreachable and unverifiable here — see knownLimitations.)
+                    PushResumableValue(JsValue.FromObjectUnsafe(
+                        RegExpHelper.CreateRegExpLiteral(
+                            program.StringConstants[DecodeRegexLiteralPatternOperand(instruction.Operand)],
+                            DecodeRegexLiteralFlagsOperand(instruction.Operand),
+                            context.RealmState)));
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadDynamicIdentifier:
                 {
                     // Free variable READ (`yield outerVar`). Resolve by name against the live closure

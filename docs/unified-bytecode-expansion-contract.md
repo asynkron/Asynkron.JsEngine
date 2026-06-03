@@ -1012,6 +1012,27 @@ the final post-compile production subset check before VM entry.
   including postfix-vs-prefix value semantics, strict read-only/non-configurable
   throws, a computed-update-on-null `TypeError`, and async update/delete across an
   await).
+- Accepted resumable bodies may now construct a REGEX LITERAL between suspension
+  points: `/ab+c/gi`. The `LoadRegexLiteral` opcode is ported into the
+  `ExecuteResumable` switch and added to the `TryFindUnsupportedResumableOpcode`
+  allowlist. It is a PURE LEAF push — it allocates a FRESH RegExp from the
+  program's interned pattern/flags string constants (reusing the sync VM's
+  `RegExpHelper.CreateRegExpLiteral`) and pushes it via `PushResumableValue`. It
+  carries no `AwaitedProgram` and reads nothing off the operand stack, so it runs
+  to completion inside one resumable step and never participates in
+  suspension/resume operand-stack restoration; a distinct object is allocated per
+  evaluation, so a `/x/g` yielded on successive loop iterations does not leak
+  `lastIndex` between them (proof: `UnifiedBytecodeResumableLiteralLoadTests`,
+  including a generator that matches across a `yield`, the per-iteration
+  fresh-object pin, and an async build-after-await case). Deliberately left
+  declined: `LoadTemplateObject` (the tagged-template strings object) — it is
+  emitted ONLY inside a tagged-template CALL, whose call boundary the resumable
+  route still declines on `CallDependency`, so the opcode is unreachable on this
+  path; and `LoadNewTarget`/`LoadImportMeta` — the resumable loop carries no
+  `newTarget` value and the `import.meta` binding plumbing is a separate concern.
+  NEGATIVE pins (`EvaluateResumable_TaggedTemplateInGenerator_StaysDeclined`,
+  `EvaluateResumable_NewTargetInGenerator_StaysDeclined`) lock that this slice did
+  not accidentally admit those neighbors.
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

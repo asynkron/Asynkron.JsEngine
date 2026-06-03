@@ -903,6 +903,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.LoadSlot or
                 UnifiedBytecodeOpCode.LoadLiteral or
                 UnifiedBytecodeOpCode.LoadThis or
+                // Regex literal (`/ab+c/g`) inside a resumable (generator/async) body — a pure leaf push
+                // that allocates a fresh RegExp from the program's interned pattern/flags constants. It
+                // carries no AwaitedProgram and reads nothing off the operand stack, so it always runs to
+                // completion inside one resumable step and never participates in suspension/resume
+                // operand-stack restoration. The resumable handler reuses the sync VM's
+                // RegExpHelper.CreateRegExpLiteral verbatim. (LoadTemplateObject is NOT admitted here: it is
+                // emitted only inside a tagged-template CALL, whose call boundary the resumable route still
+                // declines, so the opcode is unreachable on this path.)
+                UnifiedBytecodeOpCode.LoadRegexLiteral or
                 UnifiedBytecodeOpCode.StoreSlot or
                 // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`). Reaches this allowlist only for
                 // the parameter / `var` targets the instruction-level lexical-slot const-safety guard

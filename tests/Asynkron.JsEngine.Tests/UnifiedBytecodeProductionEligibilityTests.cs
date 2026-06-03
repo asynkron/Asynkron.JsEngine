@@ -457,10 +457,10 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void EvaluateResumable_AsyncLikeGeneratorActivation_DeclinesBeforeExecution()
+    public void EvaluateResumable_AsyncLikeGeneratorActivation_SimpleYieldAccepts()
     {
         var plan = GetFunctionPlan("""
-            function* gen() {
+            async function* gen() {
                 yield 1;
             }
             """,
@@ -470,9 +470,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
-        Assert.Contains("Async-like", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
     }
 
     [Fact]
@@ -491,8 +493,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
-        Assert.Contains("Async-like generator", result.Reason, StringComparison.Ordinal);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("Async-generator yield* delegation", result.Reason, StringComparison.Ordinal);
         Assert.Empty(result.Program.Instructions);
     }
 
@@ -512,8 +514,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
         Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.AsyncLikeFunction, result.Code);
-        Assert.Contains("Async-like generator", result.Reason, StringComparison.Ordinal);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("Async-generator yield* delegation", result.Reason, StringComparison.Ordinal);
         Assert.Empty(result.Program.Instructions);
     }
 

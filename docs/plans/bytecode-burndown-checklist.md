@@ -70,16 +70,16 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A14** Free dynamic identifier STORE `freeVar = x` (both routes) — *DynamicLookupDependency* — ☐/☐ — `:1359`
 - [ ] **A15** `typeof freeName` dynamic lookup — *DynamicLookupDependency* — ☐/☐ — `:1417`
 - [ ] **A16** Computed-property delete key `delete box[freeName]` — *DynamicLookupDependency* — ☐/◐ — `:1632`
-- [ ] **A17** Named property read past first boundary (`box.a.b.c.d`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1652`
-- [ ] **A18** Computed property read past first boundary (`box[a][b][c]`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1785`
+- [x] **A17** Named property read past first boundary (`box.a.b.c.d`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1652` ✅ #3154
+- [x] **A18** Computed property read past first boundary (`box[a][b][c]`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1785` ✅ #3154
 - [ ] **A19** Named/computed write past admitted (`box.a.b.c=v`, `a=b=v`) — *PropertyWriteDependency* — ◐/◐ — `:1812`
 - [x] **A20** Ternary/branching computed-key write `box.child[c?a:b]=v` (+ update/delete) — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [x] **A21** Compound/logical computed write w/ ternary key `box[c?a:b]+=v`, `a&&b`, `a??b` — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [ ] **A22** Identifier update on free name `freeName++` — *PropertyUpdateDependency* — ☐/☐ — `:1829`
 - [ ] **A23** Update w/ computed receiver prefix `box[k1].child[k2]++` — *PropertyUpdateDependency* — ◐/◐ — `:1850`
 - [ ] **A24** `delete freeName` — *DeleteDependency* — ☐/☐ — `:1861`
-- [ ] **A25** Named property delete past admitted (`delete box.a.b.c`) — *DeleteDependency* — ◐/◐ — `:1888`
-- [ ] **A26** Computed property delete past admitted (`delete box[k1][k2]`) — *DeleteDependency* — ◐/◐ — `:1918`
+- [x] **A25** Named property delete past admitted (`delete box.a.b.c`) — *DeleteDependency* — ◐/◐ — `:1888` ✅ #3155
+- [x] **A26** Computed property delete past admitted (`delete box[k1][k2]`) — *DeleteDependency* — ◐/◐ — `:1918` ✅ #3155
 - [ ] **A27** `super.m()` / `super[k]()` call-target prep outside first boundary — *SuperPropertyDependency* — ◐/☐ — `:1302` — _(in progress: workflow A1-super)_
 - [ ] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464`
 - [ ] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689`
@@ -138,14 +138,14 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B8a** *(follow-up, option a)* Thread a static const-slot bitmap from scope analysis → `ExecutionPlan`/`ActivationSlotShape` → `UnifiedBytecodeResumeState`, so the resumable VM can raise `TypeError: Assignment to constant variable` itself and restore `let`-write/`let`-update fast-path (currently `let`/`const` slot updates + assignments decline to the interpreter).
 - [x] **B9** Property delete `delete o.x` — ☑/☑ ✅ #3117
 - [x] **B10** Computed property delete `delete o[k]` — ☑/☑ ✅ #3117
-- [ ] **B11** `new C(args)` construct — ☑/☐
+- [x] **B11** `new C(args)` construct — ☑/☐ ✅ #3152
 - [ ] **B12** super call/construct — ☑/☐ — _(in progress: workflow A1-super, resumable side)_
 - [ ] **B13** super property read `super.x` — ☑/☐ — _(workflow A1-super)_
 - [ ] **B14** super property write/update — ☑/☐ — _(workflow A1-super)_
 - [ ] **B15** Optional member/computed call `o?.m()` / `o?.[k]()` — ☑/☐
-- [ ] **B16** Object literal `{a,b:v,...spread}` — ☑/☐ — _(workflow A3-objlit)_
-- [ ] **B17** Array literal `[a,,b,...spread]` — ☑/☐ — _(workflow A3-objlit)_
-- [ ] **B18** `#field in obj` — ☑/☐
+- [x] **B16** Object literal `{a,b:v,...spread}` — ☑/☑ ✅ #3151
+- [x] **B17** Array literal `[a,,b,...spread]` — ☑/☑ ✅ #3151
+- [x] **B18** `#field in obj` — ☑/☑ ✅ #3153
 - [x] **B19** `new.target` (LoadNewTarget) — ☑/☑ ✅ (Codex; leak fixed #3150 — per-activation new.target threaded onto the resume state: undefined for ordinary generators/async, inherited for async arrows)
 - [ ] **B20** `import.meta` — ☑/☐
 - [ ] **B21** Tagged-template / template object — ☑/☐
@@ -222,4 +222,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 31 / ~131 complete (latest: P0.2/E2 compiler-decline inventory #3134). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 41 / ~131 complete (latest burn-down sweep: B16,B17,B11,B18,A17,A18,A25,A26 via #3151-#3155). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

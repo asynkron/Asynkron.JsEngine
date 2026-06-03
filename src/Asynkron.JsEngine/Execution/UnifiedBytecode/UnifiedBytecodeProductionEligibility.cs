@@ -875,6 +875,18 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or
                 UnifiedBytecodeOpCode.GetComputedProperty or
+                // Optional chains / optional calls. Short-circuit is realized via jumps
+                // (JumpIfNullishReplaceUndefined) or the short-circuit-flag column persisted on the
+                // resume state (GetNamedPropertyOptional / JumpIfShortCircuited); both survive
+                // yield/await suspension because the flag column is stored on UnifiedBytecodeResumeState
+                // in lockstep with the operand stack. PrepareComputedOptionalCallTarget is intentionally
+                // omitted: the resumable compiler declines computed optional calls (`o?.[k]()`), so the
+                // opcode never reaches this path and admitting it would route a shape we cannot execute.
+                UnifiedBytecodeOpCode.GetNamedPropertyOptional or
+                UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined or
+                UnifiedBytecodeOpCode.JumpIfShortCircuited or
+                UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget or
+                UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget or
                 UnifiedBytecodeOpCode.TypeOf or
                 UnifiedBytecodeOpCode.TypeOfIdentifier or
                 UnifiedBytecodeOpCode.UnaryPlus or

@@ -1253,6 +1253,50 @@ the final post-compile production subset check before VM entry.
   `undefined` read across a yield, a `typeof new.target` after a yield, an async
   `new.target` after an await, and the non-regressing async-arrow lexical
   inheritance on its existing route).
+- Accepted resumable bodies may now materialize OBJECT and ARRAY LITERALS between
+  suspension points (burndown B16/B17): `{a, b: v, [k]: v, ...spread}` and
+  `[a, , b, ...spread]`. Twelve opcodes are ported into the `ExecuteResumable`
+  switch and added to the `TryFindUnsupportedResumableOpcode` allowlist —
+  `CreateObject`, `DefineObjectProperty`, `DefineComputedObjectProperty`,
+  `DefineObjectMethod`, `DefineComputedObjectMethod`, `DefineObjectAccessor`,
+  `DefineComputedObjectAccessor`, `ObjectSpread`, `CreateArray`, `ArrayPush`,
+  `ArrayPushHole`, and `ArraySpread`. Each literal is built bottom-up on the operand
+  stack: a single `Create{Object,Array}` pushes a FRESH receiver (a new `JsObject`
+  wired to `context.RealmState.ObjectPrototype`, or `new JsArray(context.RealmState)`)
+  via the flag-aware `PushResumableValue` helper, then the Define*/ArrayPush*/*Spread
+  opcodes mutate it in place, popping their argument(s) while leaving the receiver on
+  the stack. A sub-expression can suspend (`{a: yield 1}`, `yield [yield 1]`); the
+  partially-built receiver plus any already-evaluated keys/values below the suspension
+  sit on `UnifiedBytecodeResumeState.OperandStack` (the stable backing store) and are
+  restored on resume, the same mechanism the admitted property writes rely on. The
+  handlers reuse the sync VM's `DefineObjectLiteralProperty`,
+  `DefineComputedObjectLiteralProperty`, `DefineObjectLiteralMethod`,
+  `DefineObjectLiteralAccessor`, and `ApplyObjectLiteralSpread`, plus
+  `TypedAstEvaluator.EnumerateSpread`, verbatim, so computed-key `ToPropertyKey`
+  coercion, name inference, own-enumerable spread copy with getter order, and
+  array-hole semantics are identical; the opcodes that can throw (computed-key
+  coercion, a spread getter, a non-iterable array spread) surface the throw as the
+  resumable Throw step (`state.IsCompleted = true; return
+  UnifiedBytecodeStepResult.Throw(context.FlowValue)`). ECMAScript requires a fresh
+  object/array per evaluation, so `Create*` allocates anew on every step (including
+  each loop turn across yields) rather than caching. BOUNDARY: object METHODS
+  (`{ m(){} }`) and GET/SET accessors (`{ get x(){} }`) still decline — the
+  method/accessor VALUE is a function literal that lowers to `LoadFunctionLiteral`,
+  which has no resumable handler and stays off the allowlist; admitting nested
+  function literals is a separate foundation. The `Define{Computed}ObjectMethod`/
+  `Define{Computed}ObjectAccessor` opcodes are nonetheless added now (kept 1:1 with
+  the `ExecuteResumable` switch so the drift guard holds) so those shapes flip to
+  eligible without further VM work once `LoadFunctionLiteral` is admitted. Separately,
+  a `var x = <literal>` whose literal contains no suspension still declines at the
+  resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`
+  / template-literal span), independent of this opcode work (proof:
+  `UnifiedBytecodeResumableLiteralTests`, including the object/computed/spread/array
+  admit gates, the method/accessor decline boundary gate, end-to-end object/array
+  builds across a yield, computed-key + shorthand, an object spread with observed
+  getter order and a skipped non-enumerable, array holes + spread, fresh-instance
+  identity per loop turn for both object and array, a computed-key coercion throw, a
+  non-iterable array-spread throw, and async object/array literals materialized after
+  an await).
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is

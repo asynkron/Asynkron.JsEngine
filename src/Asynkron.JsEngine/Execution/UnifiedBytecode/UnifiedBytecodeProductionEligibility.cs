@@ -1244,6 +1244,25 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                 UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
+                // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
+                // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are
+                // lowered onto the operand stack by preceding ops in source order (a regular value load —
+                // LoadSlot / LoadDynamicIdentifier / GetNamedProperty for `new ns.C()` — already allowlisted;
+                // `new` carries NO dedicated Prepare*ConstructTarget opcode, so nothing extra needs admitting).
+                // The boundary opcode reads `[constructor, arg0 .. arg(n-1)]` off the stack and invokes
+                // [[Construct]] via ExecutePreparedConstruct with the constructor itself as new.target (per
+                // `new C()` semantics), reusing the sync VM handler verbatim so this-binding, prototype wiring,
+                // and the non-constructor TypeError are identical. An argument can suspend (`new C(yield 1)`,
+                // `new C(o.a)` between two yields); the partially-pushed constructor and already-evaluated
+                // arguments sit on UnifiedBytecodeResumeState.OperandStack, the stable backing store restored on
+                // resume — exactly like the admitted call boundary. The opcode carries no AwaitedProgram and
+                // cannot itself suspend, so it always runs to completion inside one resumable step; a thrown
+                // constructor surfaces as the resumable Throw step (the sync handler translates ThrowSignal,
+                // and the async case relies on the #3114 ThrowSignal rejection). Spread-onto-construct routes
+                // through the same handler's spread branch. Super-construct stays declined: its dedicated
+                // SuperConstructInvocationBoundary opcode needs the dynamic super-environment plumbing the
+                // resume state does not carry, so leaving it off this allowlist keeps it on the interpreter.
+                UnifiedBytecodeOpCode.ConstructInvocationBoundary or
                 UnifiedBytecodeOpCode.Yield or
                 UnifiedBytecodeOpCode.StoreResumeValue or
                 UnifiedBytecodeOpCode.AwaitAndDiscard or

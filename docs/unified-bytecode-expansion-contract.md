@@ -558,7 +558,12 @@ predicates and proof tests.
 
 - Async-like ordinary functions, generator functions, awaited with-object plans,
   and resumable opcode shapes outside the `EvaluateResumable` subset. That subset
-  now covers value-tier reads, synchronous call dispatch, optional
+  now covers value-tier reads, synchronous call dispatch, synchronous CONSTRUCT
+  dispatch (`new C(args)` via `ConstructInvocationBoundary`, reusing the sync
+  `ExecutePreparedConstruct` helper with the constructor itself as `new.target`;
+  no dedicated `Prepare*ConstructTarget` opcode exists, so the constructor and its
+  arguments are pushed by ordinary value-loading ops and survive suspension on the
+  operand stack like the call boundary, B11), optional
   chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
   identifier reads and calls, PROPERTY WRITES (`o.x = v`, `o[k] = v`,
   `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
@@ -571,7 +576,9 @@ predicates and proof tests.
   const-slot metadata to enforce a `const` reassignment `TypeError`),
   dynamic-identifier `typeof`/`delete`, free dynamic writes/updates/deletes
   (`freeGlobal++`, `delete freeGlobal`), super-property updates/deletes, and
-  `super`/construct boundaries inside resumable bodies remain outside it.
+  `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
+  needs the dynamic super-environment plumbing the resume state does not carry)
+  inside resumable bodies remain outside it.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

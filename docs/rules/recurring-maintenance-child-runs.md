@@ -31,23 +31,18 @@ maintenance pass, keep the run small, repo-local, and directly reviewable.
   alone when review gates evaluate the issue-update handoff.
 - Do not add or modify recurrence infrastructure in the child run; Faktorial
   owns the recurrence schedule.
-- Treat issue context markers such as `Part of automation template`,
-  `trigger=automation recurrence`, or `trigger=persistent recurrence` as
-  classification for one runnable bounded child delivery, not as a request to
-  design persistent setup or scheduler behavior in this repository.
-- Treat named compaction markers such as `local:adr-rule-compaction` as the
-  bounded semantic-home classification signal for this rule. Use the overlap
-  check and evidence shape below; do not turn the marker into new recurrence
-  infrastructure.
-- Treat recurrence-normalization wording in issue handoffs as the same bounded
-  child-run classification signal: normalize the evidence shape for this run,
-  but do not convert that wording into persistent setup, scheduler, or
-  repository-infrastructure work.
+- Treat issue and handoff markers such as `Part of automation template`,
+  `trigger=automation recurrence`, `trigger=persistent recurrence`,
+  `local:adr-rule-compaction`, or recurrence-normalization wording as
+  classification for one runnable bounded child delivery. Normalize the
+  evidence shape against this owned rule, but do not turn those markers into
+  persistent setup, scheduler behavior, recurrence infrastructure, or duplicate
+  repository policy.
 - When refined acceptance criteria or review feedback names a specific
-  recurrence marker literal, update both the top-level classification boundary
-  and the durable `## Why` traceability with that literal, then prove it with a
-  targeted `rtk rg` check. Issue #2221 / PR #2230 showed that missing a named
-  marker can send an otherwise-correct bounded rule update back to build.
+  recurrence or compaction marker literal, keep that literal in this
+  classification boundary and the durable `## Why` traceability, then prove it
+  with a targeted `rtk rg` check. Issue #2221 / PR #2230 showed that missing a
+  named marker can send an otherwise-correct bounded rule update back to build.
 - For docs-only maintenance, avoid full builds, Test262, package installs, or
   broad audits unless the edit directly depends on them.
 - When a docs-only recurring child adds Mermaid diagrams, validate only the
@@ -995,24 +990,17 @@ delivery.
 
 Issue #1971 / PR #1976 clarified a persistent ADR/rule compaction child whose
 issue context included automation markers such as `Part of automation template`,
-`trigger=automation recurrence`, and `trigger=persistent recurrence`. Those
-markers classify a single runnable bounded child delivery; they are not a
-request to design persistent setup, scheduler behavior, or recurrence
-infrastructure inside this repository. The same boundary applies when issue
-criteria names `local:adr-rule-compaction`: treat it as a bounded semantic-home
-classification marker for this owned rule, not as a prompt to add scheduler or
-recurrence setup. Future agents should keep that distinction in the existing
-recurring-child rule instead of creating another ADR or one-off rule for the
-same classification boundary.
-
-Issue #2221 / PR #2230 continued that boundary for recurrence-normalization
-phrasing in persistent ADR/rule compaction handoffs: normalize the
-recurring-child evidence contract in the existing owned rule, but do not treat
-that phrase as a request for new persistent setup or scheduler infrastructure.
-The first build pass missed the literal `trigger=persistent recurrence` marker,
-so review sent the change back; future agents should carry named recurrence
-markers through both the boundary rule and this durable lesson before claiming
-the slice complete.
+`trigger=automation recurrence`, `trigger=persistent recurrence`, and later
+`local:adr-rule-compaction`. Issue #2221 / PR #2230 continued the same boundary
+for recurrence-normalization wording in persistent ADR/rule compaction handoffs.
+The durable lesson is one rule, not several: those markers classify a single
+runnable bounded child delivery that should normalize the recurring-child
+evidence contract in this existing semantic home. They are not prompts to add
+persistent setup, scheduler behavior, recurrence infrastructure, or another ADR
+for the same classification boundary. Because the first #2221 build pass missed
+the literal `trigger=persistent recurrence` marker, future agents should carry
+named recurrence or compaction markers through both the top-level boundary and
+this traceability note before claiming the slice complete.
 
 Issue `autrun-dit4i2lxx7hk-821f1277ce` / PR #2259 consolidated four
 `PerfDebugging` for-loop smoke tests into one parameterized theory. The narrow

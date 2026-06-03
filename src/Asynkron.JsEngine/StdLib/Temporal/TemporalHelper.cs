@@ -13568,6 +13568,14 @@ public static class TemporalHelper
 
     private static (int year, int month, int day) ParseDatePart(string dateStr, string originalStr, RealmState realm)
     {
+        var (year, month, day) = ParseDatePartComponents(dateStr, originalStr, realm);
+        RejectISODate(year, month, day, realm);
+        return (year, month, day);
+    }
+
+    private static (int year, int month, int day) ParseDatePartComponents(string dateStr, string originalStr,
+        RealmState realm)
+    {
         int year, month, day;
         var startIdx = 0;
         if (dateStr.Length > 0 && (dateStr[0] == '+' || dateStr[0] == '-'))
@@ -13649,7 +13657,6 @@ public static class TemporalHelper
             }
         }
 
-        RejectISODate(year, month, day, realm);
         return (year, month, day);
     }
 
@@ -13661,85 +13668,8 @@ public static class TemporalHelper
     private static (int year, int month, int day) ParseDatePartNoRangeCheck(string dateStr, string originalStr,
         RealmState realm)
     {
-        // Parse the same way as ParseDatePart but validate only month and day
-        int year, month, day;
-        var startIdx = 0;
-        if (dateStr.Length > 0 && (dateStr[0] == '+' || dateStr[0] == '-'))
-            startIdx = 1;
+        var (year, month, day) = ParseDatePartComponents(dateStr, originalStr, realm);
 
-        if (startIdx == 1)
-        {
-            var sign = dateStr[0] == '-' ? -1 : 1;
-            var datePart = dateStr[1..];
-
-            if (datePart.Length == 10 && AllDigits(datePart, 0, 10))
-            {
-                if (!int.TryParse(datePart.AsSpan(0, 6), System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
-                    !int.TryParse(datePart.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
-                    !int.TryParse(datePart.AsSpan(8, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
-                {
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                }
-
-                year = sign * yearAbs;
-                if (sign == -1 && yearAbs == 0)
-                    throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
-            }
-            else
-            {
-                var lastDash = datePart.LastIndexOf('-');
-                if (lastDash <= 0)
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                var secondLastDash = datePart.LastIndexOf('-', lastDash - 1);
-                if (secondLastDash <= 0)
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                var yearStr = datePart[..secondLastDash];
-                if (yearStr.Length != 6)
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                if (!int.TryParse(yearStr, System.Globalization.CultureInfo.InvariantCulture, out var yearAbs) ||
-                    !int.TryParse(datePart[(secondLastDash + 1)..lastDash], System.Globalization.CultureInfo.InvariantCulture, out month) ||
-                    !int.TryParse(datePart[(lastDash + 1)..], System.Globalization.CultureInfo.InvariantCulture, out day))
-                {
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                }
-
-                if (datePart[(secondLastDash + 1)..lastDash].Length != 2 || datePart[(lastDash + 1)..].Length != 2)
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                year = sign * yearAbs;
-                if (sign == -1 && yearAbs == 0)
-                    throw StandardLibrary.ThrowRangeError("Negative zero year is not allowed", realm: realm);
-            }
-        }
-        else
-        {
-            if (dateStr.Contains('-'))
-            {
-                var dashParts = dateStr.Split('-');
-                if (dashParts.Length != 3 || dashParts[0].Length != 4 || dashParts[1].Length != 2 || dashParts[2].Length != 2)
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                if (!int.TryParse(dashParts[0], System.Globalization.CultureInfo.InvariantCulture, out year) ||
-                    !int.TryParse(dashParts[1], System.Globalization.CultureInfo.InvariantCulture, out month) ||
-                    !int.TryParse(dashParts[2], System.Globalization.CultureInfo.InvariantCulture, out day))
-                {
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                }
-            }
-            else if (dateStr.Length == 8 && AllDigits(dateStr, 0, 8))
-            {
-                if (!int.TryParse(dateStr.AsSpan(0, 4), System.Globalization.CultureInfo.InvariantCulture, out year) ||
-                    !int.TryParse(dateStr.AsSpan(4, 2), System.Globalization.CultureInfo.InvariantCulture, out month) ||
-                    !int.TryParse(dateStr.AsSpan(6, 2), System.Globalization.CultureInfo.InvariantCulture, out day))
-                {
-                    throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-                }
-            }
-            else
-            {
-                throw StandardLibrary.ThrowRangeError($"Invalid date string: {originalStr}", realm: realm);
-            }
-        }
-
-        // Only validate month and day, NOT year range
         if (month is < 1 or > 12)
             throw StandardLibrary.ThrowRangeError("Month value is out of range (1-12)", realm: realm);
         var daysInMonth = DateTime.DaysInMonth(year is >= 1 and <= 9999 ? year : 2000, month);

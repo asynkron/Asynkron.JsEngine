@@ -687,6 +687,47 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    private static bool TryFindTryFinallyRegionResumableSuspension(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int enterTryIndex,
+        EnterTryInstruction enterTry,
+        out string instructionName)
+    {
+        instructionName = string.Empty;
+        var endIndex = enterTry.EndFinallyIndex >= 0
+            ? enterTry.EndFinallyIndex
+            : enterTry.LeaveTryIndex >= 0
+                ? enterTry.LeaveTryIndex
+                : enterTry.FinallyIndex >= 0
+                    ? enterTry.FinallyIndex
+                    : enterTry.Next;
+        if (endIndex < enterTryIndex)
+        {
+            return false;
+        }
+
+        endIndex = Math.Min(endIndex, instructions.Length - 1);
+        for (var index = enterTryIndex + 1; index <= endIndex; index++)
+        {
+            if (InstructionCanSuspendResumableExecution(instructions[index]))
+            {
+                instructionName = instructions[index].GetType().Name;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool InstructionCanSuspendResumableExecution(ExecutionInstruction instruction) =>
+        instruction switch
+        {
+            YieldInstruction => true,
+            YieldStarInstruction => true,
+            ReturnInstruction { AwaitedProgram: not null } => true,
+            _ => false
+        };
+
     private static bool TryFindResumablePlanDecline(
         ExecutionPlan plan,
         ActivationSlotShape activationSlots,
@@ -800,6 +841,19 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
+            if (instruction is EnterTryInstruction enterTry &&
+                TryFindTryFinallyRegionResumableSuspension(
+                    plan.Instructions,
+                    instructionIndex,
+                    enterTry,
+                    out var suspendingInstructionName))
+            {
+                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                declineReason =
+                    $"Try/finally regions that contain yield or await are not eligible for resumable unified bytecode routing ({suspendingInstructionName}).";
+                return true;
+            }
+
             if (!allowsDynamicIdentifiers &&
                 TryFindInstructionDynamicIdentifierDecline(
                     instruction,
@@ -854,6 +908,12 @@ internal static class UnifiedBytecodeProductionEligibility
             case AwaitAndDiscardInstruction:
             case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
+            case EnterTryInstruction:
+            case LeaveTryInstruction:
+            case EndFinallyInstruction:
+            case IteratorInitInstruction:
+            case IteratorMoveNextInstruction:
+            case IteratorCloseInstruction:
             case ForInInitInstruction:
             case ForInMoveNextInstruction:
             case BreakableEnterInstruction { ConstructKind: BreakableKind.ResetsCompletionValue }:
@@ -878,6 +938,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             case AwaitAndDiscardInstruction awaitAndDiscard:
                 program = awaitAndDiscard.AwaitedProgram;
+                return true;
+            case IteratorInitInstruction { AwaitedProgram: { } awaitedIterableProgram }:
+                program = awaitedIterableProgram;
                 return true;
             case ForInInitInstruction { AwaitedProgram: { } awaitedObjectProgram }:
                 program = awaitedObjectProgram;
@@ -973,6 +1036,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.JumpIfShortCircuitFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitTrue or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish or
+                UnifiedBytecodeOpCode.EnterTry or
+                UnifiedBytecodeOpCode.LeaveTry or
+                UnifiedBytecodeOpCode.EndFinally or
                 UnifiedBytecodeOpCode.Return or
                 UnifiedBytecodeOpCode.ReturnUndefined or
                 UnifiedBytecodeOpCode.Throw or
@@ -1001,6 +1067,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.AwaitedReturn or
                 UnifiedBytecodeOpCode.YieldStar or
                 UnifiedBytecodeOpCode.TdzHeadInit or
+                UnifiedBytecodeOpCode.IteratorInit or
+                UnifiedBytecodeOpCode.IteratorMoveNext or
+                UnifiedBytecodeOpCode.IteratorClose or
                 UnifiedBytecodeOpCode.ForInInit or
                 UnifiedBytecodeOpCode.ForInMoveNext)
             {
@@ -2379,18 +2448,18 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        if (instruction.IterableProgram is null || instruction.AwaitedProgram is not null)
+        if (instruction.IterableProgram is null && instruction.AwaitedProgram is null ||
+            instruction.IterableProgram is not null && instruction.AwaitedProgram is not null)
         {
-            reason = "Iterator driver sources must be lowered to synchronous expression bytecode.";
+            reason = "Iterator driver sources must be lowered to exactly one expression bytecode payload.";
             return false;
         }
 
         // Slice A (#2678): sync iterator drivers that own a TDZ head environment
-        // (for example `for (const x of ...)`) are now admitted. The production
-        // compiler resolves the head bindings to flat slots and the VM marks them
-        // uninitialized (with const-ness) so the temporal dead zone is enforced on
-        // the production path. Async-kind and awaited-source drivers above remain
-        // declined pending later slices.
+        // (for example `for (const x of ...)`) are now admitted. Awaited sync-kind
+        // sources in async functions are admitted through the resumable VM by
+        // compiling the source expression followed by AwaitValue and IteratorInit.
+        // Async-kind drivers remain declined pending later slices.
         reason = string.Empty;
         return true;
     }

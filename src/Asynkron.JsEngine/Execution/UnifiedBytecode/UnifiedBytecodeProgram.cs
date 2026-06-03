@@ -325,6 +325,9 @@ internal sealed class UnifiedBytecodeResumeState
     public ulong[]? OperandStackShortCircuitFlags { get; }
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }
+    public int NextActiveDriverOrdinal;
+    public Stack<int>? ResumableTryDescriptorIndices;
+    public Stack<int>? ResumableTryResumeTargets;
     public bool IsCompleted { get; set; }
     public UnifiedBytecodeResumePayloadKind ResumePayloadKind { get; set; }
     public JsTypes.JsValue ResumePayload { get; set; } = JsTypes.JsValue.Undefined;

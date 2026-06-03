@@ -6401,9 +6401,9 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     // ── AC-5 negative fallback proof (#2678): unsupported async-driver sub-shapes ──
-    // The TDZ-head admit must not leak the async-iterator kind or awaited driver
-    // sources (Slices B/C). These exercise the decline arms directly because async
-    // drivers live inside async functions, which decline before plan inspection.
+    // The TDZ-head admit must not leak the async-iterator kind. Async drivers live inside
+    // async functions, which decline before plan inspection, so this exercises the decline
+    // arm directly.
 
     [Fact]
     public void IsSupportedIteratorInit_AsyncKind_Declines()
@@ -6420,7 +6420,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void IsSupportedIteratorInit_AwaitedSource_Declines()
+    public void IsSupportedIteratorInit_DualSourcePayload_Declines()
     {
         var instruction = new IteratorInitInstruction(
             IteratorDriverKind.Sync,
@@ -6431,7 +6431,21 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             AwaitedProgram: ExpressionProgram.Empty);
 
         Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
-        Assert.Contains("synchronous expression bytecode", reason, StringComparison.Ordinal);
+        Assert.Contains("exactly one expression bytecode payload", reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsSupportedIteratorInit_AwaitedSource_Accepts()
+    {
+        var instruction = new IteratorInitInstruction(
+            IteratorDriverKind.Sync,
+            Symbol.Synthetic("__iter_state"),
+            IteratorSlotIndex: 0,
+            Next: -1,
+            IterableProgram: null,
+            AwaitedProgram: ExpressionProgram.Empty);
+
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
     }
 
     [Fact]
@@ -6495,6 +6509,37 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_AwaitedForOfSource_AdmitsAwaitValueAndIteratorDriver()
+    {
+        var plan = GetFunctionPlan("""
+            async function collect(sourcePromise) {
+                var last = 0;
+                for (var value of await sourcePromise) {
+                    last = value;
+                }
+
+                return last;
+            }
+            """,
+            "collect");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.AwaitValue);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorClose);
+    }
+
+    [Fact]
     public void EvaluateResumable_ForInDriverAcrossYield_AdmitsForInDriver()
     {
         var plan = GetFunctionPlan("""
@@ -6516,6 +6561,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.ForInInit);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.ForInMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.Yield);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ForOfDriverAcrossYield_AdmitsIteratorDriver()
+    {
+        var plan = GetFunctionPlan("""
+            function* values(items) {
+                for (var value of items) {
+                    yield value;
+                }
+            }
+            """,
+            "values");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorClose);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.Yield);
     }

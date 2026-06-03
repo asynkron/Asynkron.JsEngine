@@ -1600,6 +1600,76 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = iteratorInit.Next;
                         continue;
 
+                    case IteratorInitInstruction
+                        {
+                            IteratorKind: IteratorDriverKind.Sync,
+                            IterableProgram: null,
+                            AwaitedProgram: { } awaitedIterableProgram
+                        } awaitedIteratorInit:
+                        if (!TryResolveDriverSlot(
+                                awaitedIteratorInit.IteratorSlot,
+                                awaitedIteratorInit.IteratorSlotIndex,
+                                slotLayout,
+                                out var awaitedIteratorStateSlot))
+                        {
+                            reason = $"Unsupported iterator state slot '{awaitedIteratorInit.IteratorSlot.Name}'.";
+                            return false;
+                        }
+
+                        if (!TryEmitTdzHeadInit(
+                                awaitedIteratorInit.TdzBindings,
+                                awaitedIteratorInit.TdzIsConst,
+                                awaitedIteratorInit.TdzScopeId,
+                                awaitedIteratorInit.TdzSlotIndices,
+                                slotLayout,
+                                unified,
+                                driverDescriptors,
+                                out reason))
+                        {
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedIterableProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.IteratorInit,
+                            AddDriverDescriptor(
+                                driverDescriptors,
+                                new UnifiedBytecodeDriverDescriptor(
+                                    awaitedIteratorStateSlot,
+                                    IteratorKind: awaitedIteratorInit.IteratorKind))));
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitedIterableProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                awaitedIteratorInit.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = awaitedIteratorInit.Next;
+                        continue;
+
                     case IteratorMoveNextInstruction iteratorMoveNext:
                         return TryAppendDriverMoveNext(
                             instructionIndex,

@@ -818,10 +818,12 @@ the final post-compile production subset check before VM entry.
   VM closes active driver states whose descriptor break target matches the jump
   target. `continue` remains a plain same-loop `Jump`.
 - Accepted sync iterator driver shapes include `IteratorInit`,
-  `IteratorMoveNext`, and `IteratorClose` when the iterable source is lowered
-  to synchronous expression bytecode, the iterator kind is `Sync`, and no
-  awaited source program is required. Slice A (#2678) also admits a TDZ head
-  environment (`for (const x of …)` / `for (let x of …)`): the compiler emits a
+  `IteratorMoveNext`, and `IteratorClose` when the iterator kind is `Sync` and
+  the iterable source is lowered to exactly one expression bytecode payload.
+  That includes resumable async `for (x of await p)` sources, which compile the
+  awaited source payload followed by `AwaitValue` and `IteratorInit`. Slice A
+  (#2678) also admits a TDZ head environment (`for (const x of …)` /
+  `for (let x of …)`): the compiler emits a
   `TdzHeadInit` instruction that resolves the head bindings to flat slots, and
   the VM marks them `JsValue.Uninitialized` before the source is evaluated so a
   read of the head binding inside the source throws a `ReferenceError`.
@@ -1046,8 +1048,10 @@ support today.
 
 ## Iterator/Destructuring Model Boundary
 - `IteratorInitInstruction`, `IteratorMoveNextInstruction`, and
-  `IteratorCloseInstruction` are eligible only for the synchronous lowered
-  iterator-driver model described above.
+  `IteratorCloseInstruction` are eligible for the synchronous lowered
+  iterator-driver model described above, including the resumable awaited-source
+  `for (x of await p)` lane. Async iterator drivers still remain outside the
+  admitted boundary.
 - `ForInInitInstruction` and `ForInMoveNextInstruction` are eligible for the
   lowered synchronous for-in driver model and the resumable awaited-source
   `for (k in await p)` lane described above. Unsupported for-in driver shapes
@@ -1154,10 +1158,10 @@ support today.
    not production declines.
 4. Driver-state widening is next. Sync-driver TDZ head environments
    (`for (const x of …)` / `for (let k in …)`) are now admitted via the
-   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Async iterator
-   drivers and awaited iterator sources remain outside the admitted boundary
-   and must decline before VM execution; resumable awaited for-in sources are
-   admitted for the `for (k in await p)` lane.
+   `TdzHeadInit` instruction (Slice A, #2678; see ADR 0288). Resumable awaited
+   for-of and for-in sources are admitted for the `for (x of await p)` and
+   `for (k in await p)` lanes; async iterator drivers remain outside the
+   admitted boundary and must decline before VM execution.
 5. Destructuring widening is still model-first. Simple array and object
    destructuring driver shapes are admitted (static keys, identifier targets,
    no defaults/nested patterns, optional identifier rest), and expression-level

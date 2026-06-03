@@ -100,8 +100,8 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A44** PushEnvironment for iterating / non-flat-slot lexical block (per-iter `let`) — *UnsupportedPlanShape* — ◐/☐ — `:599`
 - [ ] **A45** with-depth analysis failure (unbalanced Enter/Leave, irreducible flow) — *UnsupportedPlanShape* — ☐/☐ — `:482`
 - [ ] **A46** Non-production binary operator (`**`, BigInt-mixed, …) *(decompose)* — *UnsupportedPlanShape* — ◐/◐ — `:2061`
-- [ ] **A47** for-of unsupported iterator-init source — *UnsupportedPlanShape* — ◐/n/a — `:517`
-- [ ] **A48** Sync iterator driver: async kind / awaited source — *UnsupportedPlanShape* — ☐/☐ — `:2332`
+- [x] **A47** for-of unsupported iterator-init source — *UnsupportedPlanShape* — ☑/☑ — `:517` ✅ (Codex)
+- [ ] **A48** Sync iterator driver: async iterator kind — *UnsupportedPlanShape* — ☐/☐ — `:2332`
 - [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204`
 - [ ] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — ☐/n/a — `:8243`
 - [ ] **A51** Compiler `TryCompile` failure umbrella *(→ P0.2)* — *UnsupportedPlanShape* — ☐/☐ — `:230`
@@ -144,7 +144,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B27** Dynamic free update `freeVar++` — ☑/☐
 - [ ] **B28** `delete freeVar` — ☑/☐
 - [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐
-- [ ] **B30** `for-of` sync driver across suspension — ☑/☐
+- [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex)
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B32** try/catch/finally across suspension — ☑/☐
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐

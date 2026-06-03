@@ -3348,6 +3348,8 @@ internal static class UnifiedBytecodeVirtualMachine
         var slots = state.Slots;
         var stackPointer = state.StackPointer;
         var programCounter = state.ProgramCounter;
+        var resumableTryDescriptorIndices = state.ResumableTryDescriptorIndices;
+        var resumableTryResumeTargets = state.ResumableTryResumeTargets;
 
         // Short-circuit flag column, index-aligned with the operand stack. Stored on the resume state
         // (not a loop local) so it persists across yield/await suspension in lockstep with OperandStack:
@@ -4031,6 +4033,62 @@ internal static class UnifiedBytecodeVirtualMachine
                         : programCounter + 1;
                     break;
 
+                case UnifiedBytecodeOpCode.EnterTry:
+                    resumableTryDescriptorIndices ??= state.ResumableTryDescriptorIndices = new Stack<int>();
+                    resumableTryResumeTargets ??= state.ResumableTryResumeTargets = new Stack<int>();
+                    resumableTryDescriptorIndices.Push(instruction.Operand);
+                    resumableTryResumeTargets.Push(-1);
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.LeaveTry:
+                    if (resumableTryDescriptorIndices is { Count: > 0 } &&
+                        resumableTryResumeTargets is { Count: > 0 })
+                    {
+                        var descriptor = program.TryDescriptors[resumableTryDescriptorIndices.Peek()];
+                        if (descriptor.LeaveTryTarget == programCounter &&
+                            descriptor.FinallyTarget >= 0 &&
+                            resumableTryResumeTargets.Peek() < 0)
+                        {
+                            resumableTryResumeTargets.Pop();
+                            resumableTryResumeTargets.Push(instruction.Operand);
+                            programCounter = descriptor.FinallyTarget;
+                        }
+                        else if (descriptor.LeaveTryTarget == programCounter)
+                        {
+                            resumableTryDescriptorIndices.Pop();
+                            resumableTryResumeTargets.Pop();
+                            programCounter = instruction.Operand;
+                        }
+                        else
+                        {
+                            programCounter = instruction.Operand;
+                        }
+                    }
+                    else
+                    {
+                        programCounter = instruction.Operand;
+                    }
+
+                    break;
+
+                case UnifiedBytecodeOpCode.EndFinally:
+                    if (resumableTryDescriptorIndices is null ||
+                        resumableTryDescriptorIndices.Count == 0 ||
+                        resumableTryResumeTargets is null ||
+                        resumableTryResumeTargets.Count == 0)
+                    {
+                        programCounter = instruction.Operand;
+                        break;
+                    }
+
+                    resumableTryDescriptorIndices.Pop();
+                    var resumeTarget = resumableTryResumeTargets.Pop();
+                    programCounter = resumeTarget >= 0
+                        ? resumeTarget
+                        : instruction.Operand;
+                    break;
+
                 case UnifiedBytecodeOpCode.Yield:
                     var yieldedValue = stackPointer > 0 ? stack[--stackPointer] : JsValue.Undefined;
                     state.ProgramCounter = programCounter + 1;
@@ -4158,12 +4216,62 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.IteratorInit:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        var iterableValue = stack[--stackPointer];
+                        var iteratorState = CreateIteratorDriverState(iterableValue, descriptor.IteratorKind, context);
+                        slots[descriptor.StateSlot] = iteratorState.AsJsValue;
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.IteratorMoveNext:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (!TryMoveIteratorNext(
+                                descriptor,
+                                slots,
+                                slotEnvironments: null,
+                                state.CallingEnvironment,
+                                context,
+                                ref state.NextActiveDriverOrdinal,
+                                out var nextProgramCounter))
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter = nextProgramCounter;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.IteratorClose:
+                    {
+                        var descriptor = program.DriverDescriptors[instruction.Operand];
+                        CloseIteratorDriverState(
+                            descriptor.StateSlot,
+                            slots,
+                            slotEnvironments: null,
+                            context,
+                            preserveExistingThrow: context.IsThrow);
+                        if (context.IsThrow)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.ForInInit:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
                         var objectValue = stack[--stackPointer];
                         var forInState = ForInDriverStatePool.Rent();
                         forInState.SourceObject = objectValue;
+                        forInState.ActiveDriverOrdinal = ++state.NextActiveDriverOrdinal;
                         CollectEnumerablePropertyKeys(objectValue, forInState.PropertyKeys);
                         slots[descriptor.StateSlot] = forInState.AsJsValue;
                         programCounter++;

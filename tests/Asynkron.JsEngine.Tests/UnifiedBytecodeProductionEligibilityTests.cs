@@ -133,6 +133,26 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateScript_TopLevelDeclarationOnly_AcceptsWithScriptCompletionSlot()
+    {
+        var plan = GetScriptPlan("""
+            let x = 1;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.True(result.Program.ScriptCompletionSlot >= 0);
+        Assert.Equal(
+            new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Return),
+            result.Program.Instructions[^1]);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.LoadSlot &&
+            instruction.Operand == result.Program.ScriptCompletionSlot);
+    }
+
+    [Fact]
     public void EvaluateScript_BlockScopedTypeOfAfterForLet_AcceptsDynamicTypeOf()
     {
         var plan = GetScriptPlan("""

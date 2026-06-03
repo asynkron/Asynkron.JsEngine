@@ -4470,6 +4470,20 @@ internal static class UnifiedBytecodeCompiler
                     break;
 
                 case ExpressionOpKind.TypeOfIdentifier:
+                    var typeOfIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (ShouldUseDynamicTypeOfIdentifierForScriptBlockLexical(
+                            typeOfIdentifier,
+                            slotLayout,
+                            allowsDynamicIdentifiers))
+                    {
+                        var typeOfBlockLexicalNameIndex = stringConstants.Count;
+                        stringConstants.Add(typeOfIdentifier.Name.Name ?? string.Empty);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.TypeOfDynamicIdentifier,
+                            typeOfBlockLexicalNameIndex));
+                        break;
+                    }
+
                     if (!TryResolveTypeOfIdentifierSlot(operation, expressionProgram, slotLayout, out var typeOfSlot, out reason))
                     {
                         if (operation.IsArguments)
@@ -4485,7 +4499,6 @@ internal static class UnifiedBytecodeCompiler
                             }
                         }
 
-                        var typeOfIdentifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
                         if (!allowsDynamicIdentifiers)
                         {
                             reason =
@@ -6339,6 +6352,15 @@ internal static class UnifiedBytecodeCompiler
         return true;
     }
 
+    private static bool ShouldUseDynamicTypeOfIdentifierForScriptBlockLexical(
+        IdentifierOperand identifier,
+        UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers) =>
+        allowsDynamicIdentifiers &&
+        slotLayout.ScriptCompletionSlot >= 0 &&
+        identifier.ScopeId >= 0 &&
+        identifier.ScopeId != slotLayout.ActivationSlots.ScopeId;
+
     private static bool TryAppendCallArguments(
         ExpressionProgram expressionProgram,
         UnifiedBytecodeSlotLayout slotLayout,
@@ -7912,6 +7934,22 @@ internal static class UnifiedBytecodeCompiler
         out string reason)
     {
         var identifier = operation.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+        if (slotLayout is not null &&
+            ShouldUseDynamicTypeOfIdentifierForScriptBlockLexical(
+                identifier,
+                slotLayout,
+                allowsDynamicIdentifiers))
+        {
+            var blockLexicalNameIndex = stringConstants.Count;
+            stringConstants.Add(identifier.Name.Name ?? string.Empty);
+            unified.Add(new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.TypeOfDynamicIdentifier,
+                blockLexicalNameIndex));
+            spanLength = 1;
+            reason = string.Empty;
+            return true;
+        }
+
         if (slotLayout is not null
                 ? TryResolveActivationSlot(identifier, slotLayout, out var slotIndex)
                 : TryResolveActivationSlot(identifier, activationSlots, out slotIndex))

@@ -133,6 +133,50 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateScript_BlockScopedTypeOfAfterForLet_AcceptsDynamicTypeOf()
+    {
+        var plan = GetScriptPlan("""
+            for (let i = 0; i < 1; i++) {
+            }
+
+            typeof i;
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfIdentifier);
+    }
+
+    [Fact]
+    public void EvaluateScript_BlockScopedTypeOfCallArgument_AcceptsDynamicTypeOfOperand()
+    {
+        var plan = GetScriptPlan("""
+            function id(value) {
+                return value;
+            }
+
+            for (let i = 0; i < 1; i++) {
+            }
+
+            id(typeof i);
+            """);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateScript(plan);
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfDynamicIdentifier);
+        Assert.DoesNotContain(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.TypeOfIdentifier);
+    }
+
+    [Fact]
     public void EvaluateScript_TopLevelObjectVarDestructuring_AcceptsWithDynamicTargets()
     {
         var plan = GetScriptPlan("""

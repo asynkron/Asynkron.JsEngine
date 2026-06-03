@@ -160,7 +160,15 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, realmState);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict);
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict)
+            {
+                // Thread the private-name scopes lexically active where this async-generator body was
+                // defined so the resumable VM can re-enter them on each per-step context and resolve
+                // `#name in obj` correctly across yield/await.
+                PrivateNameScopes = UnifiedBytecodeResumeState.CombinePrivateNameScopes(
+                    capturedPrivateNameScopes,
+                    privateNameScope),
+            };
 
             realmState.Logger?.LogInformation(
                 "unified-bytecode-resumable-async-generator-fast-path func={Function} argc={ArgumentCount}",

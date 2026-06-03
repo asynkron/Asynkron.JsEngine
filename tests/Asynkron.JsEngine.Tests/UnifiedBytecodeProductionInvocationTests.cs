@@ -7656,6 +7656,106 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task PrivateFieldIn_AcrossAwaitInAsyncMethod_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        // The same `#field in obj` opcode must also resolve correctly in an ASYNC method body that
+        // suspends on `await`, since the resumable allowlist admits it for every resumable kind. This
+        // pins that the private-name scopes are threaded onto the async resume state too (not just the
+        // sync-generator one), so `#value in holder` is true and `#value in {}` is false after the await.
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            class Holder {
+                #value = 1;
+                async probe(receiver) {
+                    await 0;
+                    return (#value in receiver) + ":" + (#value in {});
+                }
+            }
+            var holder = new Holder();
+            holder.probe(holder).then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal("true:false", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-async-fast-path func=<anonymous> argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateFieldIn_AcrossYieldInGeneratorMethod_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 1;
+
+                *probe(receiver) {
+                    var resumed = yield "ready";
+                    return (#value in receiver) + ":" + (#value in resumed);
+                }
+            }
+
+            var holder = new Holder();
+            var iterator = holder.probe(holder);
+            var first = iterator.next();
+            var second = iterator.next({});
+            [first.value, first.done, second.value, second.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("ready", steps.Items[0].AsString());
+        Assert.False(steps.Items[1].AsBoolean());
+        // `#value in holder` is true (holder owns the brand); `#value in {}` is false (plain object).
+        Assert.Equal("true:false", steps.Items[2].AsString());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=<anonymous> argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task PrivateFieldIn_NonObjectAcrossYieldInGeneratorMethod_ThrowsViaResumableFastPath()
+    {
+        await using var engine = CreateEngine();
+        // Keep the generator body itself simple (a bare `#value in resumed` after a yield) so it stays
+        // resumable-eligible and routes through the resumable VM; the `in`-test against a primitive must
+        // throw a TypeError on the resumed step. The try/catch lives in the OUTER (non-generator) caller
+        // so the catch binding never disturbs the generator body's eligibility.
+        var result = await engine.Evaluate("""
+            class Holder {
+                #value = 1;
+
+                *probe() {
+                    var resumed = yield "ready";
+                    return #value in resumed;
+                }
+            }
+
+            var iterator = new Holder().probe();
+            iterator.next();
+            var outcome;
+            try {
+                // Resume with a primitive — `#value in 5` must throw a TypeError per ECMAScript.
+                iterator.next(5);
+                outcome = "no-throw";
+            } catch (e) {
+                outcome = "threw:" + (e instanceof TypeError);
+            }
+            outcome;
+            """);
+
+        Assert.Equal("threw:true", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=<anonymous> argc=0",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task PrivateNamedPropertyRead_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

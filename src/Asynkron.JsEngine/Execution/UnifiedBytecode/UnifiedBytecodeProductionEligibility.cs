@@ -1208,6 +1208,16 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.UnaryLogicalNot or
                 UnifiedBytecodeOpCode.UnaryBitwiseNot or
                 UnifiedBytecodeOpCode.UnaryVoid or
+                // `#field in obj` (PrivateFieldIn) inside a resumable body. A pure boolean brand check: the
+                // object operand sits on top of UnifiedBytecodeResumeState.OperandStack (pushed by a preceding
+                // admitted value load) and is restored across any suspension in that sub-expression (`#x in
+                // (yield o)`), exactly like the other admitted unaries. The opcode carries no AwaitedProgram and
+                // cannot itself suspend, so it always runs to completion inside one resumable step. The private
+                // name is resolved against context.ResolvePrivateNameKey / context.RealmState (stable across
+                // yield/await), so the resumable handler is the literal twin of the sync VM's PrivateFieldIn —
+                // a non-object operand throws the same TypeError (surfaced as the resumable Throw step), a
+                // matching field/brand returns true, otherwise false.
+                UnifiedBytecodeOpCode.PrivateFieldIn or
                 UnifiedBytecodeOpCode.RequireObjectCoercible or
                 UnifiedBytecodeOpCode.ResolvePropertyKey or
                 UnifiedBytecodeOpCode.Pop or

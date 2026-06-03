@@ -335,6 +335,52 @@ internal sealed class UnifiedBytecodeResumeState
     ///     flag query reads as <c>false</c>.
     /// </summary>
     public ulong[]? OperandStackShortCircuitFlags { get; }
+
+    /// <summary>
+    ///     The private-name scopes (the class brand scope plus any enclosing captured scopes) that were
+    ///     lexically active where the resumable function was DEFINED. Captured at construction from the
+    ///     invoker so they survive <c>yield</c>/<c>await</c> suspension, and re-entered onto the live
+    ///     <see cref="EvaluationContext" /> at the top of every <see cref="UnifiedBytecodeVirtualMachine.ExecuteResumable" />
+    ///     step. The sync VM gets this for free because the regular function-invocation path enters the
+    ///     scopes around the body, but each resumable step runs on a fresh per-step context, so the
+    ///     <c>PrivateFieldIn</c> handler (and any future private-name opcode) would otherwise be unable to
+    ///     resolve <c>#name</c> -> its mangled key and would wrongly report the field absent. The scopes are
+    ///     a read-only lexical fact of the frame, identical on every resume, so storing them once is
+    ///     sufficient. Defaults to empty for resumable bodies that reference no private names.
+    /// </summary>
+    public ImmutableArray<PrivateNameScope> PrivateNameScopes { get; set; } =
+        ImmutableArray<PrivateNameScope>.Empty;
+
+    /// <summary>
+    ///     Combines the captured (enclosing) private-name scopes with the body's own class brand scope
+    ///     (if any) into the order the sync function-invocation path enters them: enclosing scopes first,
+    ///     then the own scope innermost. Used by every resumable invoker to populate
+    ///     <see cref="PrivateNameScopes" />. Returns empty when the body references no private names.
+    /// </summary>
+    public static ImmutableArray<PrivateNameScope> CombinePrivateNameScopes(
+        ImmutableArray<PrivateNameScope> capturedScopes,
+        PrivateNameScope? ownScope)
+    {
+        var hasCaptured = !capturedScopes.IsDefaultOrEmpty;
+        if (!hasCaptured && ownScope is null)
+        {
+            return ImmutableArray<PrivateNameScope>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<PrivateNameScope>();
+        if (hasCaptured)
+        {
+            builder.AddRange(capturedScopes);
+        }
+
+        if (ownScope is { } scope)
+        {
+            builder.Add(scope);
+        }
+
+        return builder.ToImmutable();
+    }
+
     public int ProgramCounter { get; set; }
     public int StackPointer { get; set; }
     public int NextActiveDriverOrdinal;

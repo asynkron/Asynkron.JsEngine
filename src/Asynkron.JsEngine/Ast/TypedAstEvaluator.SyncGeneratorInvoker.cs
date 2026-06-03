@@ -93,7 +93,14 @@ public static partial class TypedAstEvaluator
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
             // A generator is never a constructor and never an arrow, so its own new.target is undefined.
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict, JsValue.Undefined);
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict, JsValue.Undefined)
+            {
+                // Thread the private-name scopes lexically active where this generator method was defined
+                // (captured enclosing scopes plus the class's own brand scope, innermost last) onto the
+                // resume state so the resumable VM can re-enter them on each per-step context and resolve
+                // `#name in obj` correctly. Empty for generators that close over no private names.
+                PrivateNameScopes = UnifiedBytecodeResumeState.CombinePrivateNameScopes(_capturedPrivateNameScopes, PrivateNameScope),
+            };
             var context = RealmState.CreateContext();
 
             RealmState.Logger?.LogInformation(

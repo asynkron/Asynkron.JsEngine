@@ -875,8 +875,29 @@ the final post-compile production subset check before VM entry.
   variants (`GetNamedPropertyOptional`, `GetComputedPropertyOptional`) stay
   declined because the resumable state has no `stackShortCircuitFlags` array to
   persist short-circuit flags across suspension; `TypeOfDynamicIdentifier`,
-  property writes/updates/deletes, and calls inside resumable bodies remain
-  follow-ups.
+  property writes/updates/deletes remain follow-ups.
+- Accepted resumable bodies may now DISPATCH synchronous calls between suspension
+  points: non-optional `f()`, `o.m()`, and `o[k]()`. The
+  `PrepareIdentifierCallTarget`, `PrepareNamedCallTarget`,
+  `PrepareComputedCallTarget`, and `CallInvocationBoundary` opcodes are ported
+  into the `ExecuteResumable` switch and removed from
+  `TryFindUnsupportedResumableOpcode`. The dispatch calls the SAME
+  `ExecutePreparedCall` helper the sync production route uses. The enclosing
+  lexical environment (the generator/async closure) is threaded once onto
+  `UnifiedBytecodeResumeState.CallingEnvironment` at construction so it survives
+  suspension and feeds caller-context-sensitive callees; `slotEnvironments` is
+  passed as `null` because resumable-eligible programs decline captured/dynamic
+  activation and therefore have no environment-backed slots. A called function
+  may itself be a generator/async, throw, or recurse: from the resumable frame
+  the call is synchronous (the callee's own suspension is its own separate
+  resumable frame), a throwing callee surfaces as a thrown step (matching the
+  resumable `Binary`/`GetNamedProperty` throw handling), and a generator that
+  drives another generator's `.next()` keeps both frames independent (proof:
+  `UnifiedBytecodeResumableCallDispatchTests`). Optional calls (`o?.m()`), any
+  short-circuit-flag-setting opcode, direct eval, `super`/construct boundaries,
+  and `TypeOfDynamicIdentifier`/`DeleteDynamicIdentifier` stay declined because
+  the resumable state carries no `stackShortCircuitFlags` persistence and no
+  dynamic-environment write plumbing.
 - `this`-dependent async and generator programs are admitted (resumable-route
   counterpart to the ordinary sync `this` support; see Production This-Binding
   Boundary above and ADR 0283). The strict/sloppy-coerced `boundThis` is
@@ -887,10 +908,11 @@ the final post-compile production subset check before VM entry.
   now routes through the resumable value tier above (`LoadThis` then
   `GetNamedProperty`); only optional/dynamic/write `this`-member forms remain
   outside the resumable opcode set.
-- Captured/dynamic activation, arguments objects, `new.target`, calls,
-  dynamic lookup, labels, iterator/destructuring drivers, unsupported
-  expression payloads, and unmodeled statement families still decline before
-  VM execution.
+- Captured/dynamic activation, arguments objects, `new.target`, optional and
+  super/construct call boundaries, dynamic lookup, labels,
+  iterator/destructuring drivers, unsupported expression payloads, and unmodeled
+  statement families still decline before VM execution. (Non-optional synchronous
+  call dispatch is now admitted — see the call-dispatch entry above.)
 - Async-generator `yield*`, awaited delegated sources, and unsupported
   delegated expression payloads remain outside production resumable routing
   until their promise/async-iterator settlement semantics are modeled by the VM.

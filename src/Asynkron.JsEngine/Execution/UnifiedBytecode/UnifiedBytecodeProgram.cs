@@ -262,16 +262,28 @@ internal sealed class UnifiedBytecodeResumeState
     public UnifiedBytecodeResumeState(
         UnifiedBytecodeProgram program,
         JsTypes.JsValue[] slots,
-        JsTypes.JsValue thisValue = default)
+        JsTypes.JsValue thisValue = default,
+        JsEnvironment? callingEnvironment = null)
     {
         Program = program;
         Slots = slots;
         ThisValue = thisValue;
+        CallingEnvironment = callingEnvironment;
         OperandStack = new JsTypes.JsValue[Math.Max(program.MaxStackDepth, 2)];
     }
 
     public UnifiedBytecodeProgram Program { get; }
     public JsTypes.JsValue[] Slots { get; }
+
+    /// <summary>
+    ///     The enclosing lexical environment of the resumable activation (the generator/async
+    ///     function's closure). Captured at construction so it survives suspension/resume and can be
+    ///     threaded into synchronous call dispatch (<see cref="UnifiedBytecodeVirtualMachine.ExecutePreparedCall" />)
+    ///     as the caller environment a callee inherits caller-context-sensitive behaviour from. The
+    ///     environment is stable for the whole frame, so storing it once is sufficient even when a call
+    ///     sits between two suspension points.
+    /// </summary>
+    public JsEnvironment? CallingEnvironment { get; }
 
     /// <summary>
     ///     The strict/sloppy-coerced <c>this</c> binding for the resumable activation. Captured at

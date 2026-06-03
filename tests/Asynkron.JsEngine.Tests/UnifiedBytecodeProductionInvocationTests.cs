@@ -157,6 +157,21 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task TopLevelDeclarationOnly_UsesUnifiedBytecodeProductionFastPathWithUndefinedCompletion()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let x = 1;
+            """);
+
+        Assert.Equal(Symbol.Undefined, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path script",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TopLevelBlockScopedTypeOfAfterForLet_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

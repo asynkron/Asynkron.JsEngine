@@ -2596,6 +2596,10 @@ public static partial class TypedAstEvaluator
                 thisValue,
                 JsValue.Undefined,
                 executionEnvironment.IsStrict);
+            if (result.IsUnit)
+            {
+                result = JsValue.Undefined;
+            }
 
             // The VM records an unhandled top-level throw in the context rather than
             // raising it, returning JsValue.Undefined as the completion value. The IR

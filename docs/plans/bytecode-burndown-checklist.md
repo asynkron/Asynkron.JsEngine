@@ -163,8 +163,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ## Phase C — Top-level / script route (3 items)
 
-- [ ] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — *UnsupportedPlanShape* — ☐/n/a
-- [ ] **C2** Script with no `ScriptCompletionSlot` — ☐/n/a
+- [x] **C1** Script `typeof <ident>` reading block-scoped lexical (stale flat-slot liveness): `for(let i){}; typeof i` — ☑/n/a
+- [x] **C2** Script with no `ScriptCompletionSlot` — ☑/n/a
 - [ ] **C3** Script inheriting any per-shape decline (union gate; closes via A/B) — *UnsupportedPlanShape* — ☐/n/a
 
 ## Phase D — Dynamic quarantine gates (5 items)

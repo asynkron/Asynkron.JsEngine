@@ -68,5 +68,5 @@ output.
 
 ## Related
 
-- `.claude/rules/recurring-maintenance-child-runs.md`
+- `docs/rules/recurring-maintenance-child-runs.md`
 - `tests/Asynkron.JsEngine.Tests/TypedArrayResizableTests.cs`

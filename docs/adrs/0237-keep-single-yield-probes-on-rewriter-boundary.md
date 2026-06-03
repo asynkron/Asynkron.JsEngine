@@ -66,7 +66,7 @@ coverage can drift independently.
 
 ## Related
 
-- `.claude/rules/recurring-maintenance-child-runs.md`
+- `docs/rules/recurring-maintenance-child-runs.md`
 - `src/Asynkron.JsEngine/Ast/ShapeAnalyzer/AstShapeAnalyzer.cs`
 - `src/Asynkron.JsEngine/Ast/ShapeAnalyzer/ShapeCounter.cs`
 - `src/Asynkron.JsEngine/Ast/ShapeAnalyzer/SingleYieldRewriter.cs`

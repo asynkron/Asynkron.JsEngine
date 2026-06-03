@@ -56,12 +56,12 @@ For future Set.prototype set-algebra work:
 - The full traversal path remains observably distinct from early exit because
   it does not call iterator `return()` after ordinary exhaustion.
 - The general recurring-code-reduction policy remains in
-  `.claude/rules/recurring-maintenance-child-runs.md`; this ADR records the
+  `docs/rules/recurring-maintenance-child-runs.md`; this ADR records the
   Set-specific semantic owner.
 
 ## Related
 
 - Issue `autrun-disva4a5rnxs-787e8d6f1e`
 - PR #2210
-- `.claude/rules/recurring-maintenance-child-runs.md`
+- `docs/rules/recurring-maintenance-child-runs.md`
 - `src/Asynkron.JsEngine/StdLib/MapSet/SetPrototype.cs`

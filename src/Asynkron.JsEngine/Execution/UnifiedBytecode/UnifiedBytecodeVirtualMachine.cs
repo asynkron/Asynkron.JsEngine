@@ -2423,6 +2423,24 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots[descriptor.TargetSlot] = value;
                             SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, value);
                         }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                value,
+                                RequireDynamicEnvironment(currentCallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (TryHandleCurrentContextThrow(slots))
+                                {
+                                    break;
+                                }
+
+                                return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                            }
+                        }
 
                         programCounter++;
                         break;
@@ -2446,8 +2464,30 @@ internal static class UnifiedBytecodeVirtualMachine
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
-                        slots[descriptor.TargetSlot] = restValue;
-                        SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, restValue);
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = restValue;
+                            SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, restValue);
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                restValue,
+                                RequireDynamicEnvironment(currentCallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (TryHandleCurrentContextThrow(slots))
+                                {
+                                    break;
+                                }
+
+                                return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                            }
+                        }
+
                         programCounter++;
                         break;
                     }
@@ -2516,6 +2556,24 @@ internal static class UnifiedBytecodeVirtualMachine
                             slots[descriptor.TargetSlot] = value;
                             SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, value);
                         }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                value,
+                                RequireDynamicEnvironment(currentCallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (TryHandleCurrentContextThrow(slots))
+                                {
+                                    break;
+                                }
+
+                                return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                            }
+                        }
 
                         programCounter++;
                         break;
@@ -2539,8 +2597,30 @@ internal static class UnifiedBytecodeVirtualMachine
                             return StopWithDriverCleanup(slots, slotEnvironments, context, true);
                         }
 
-                        slots[descriptor.TargetSlot] = restValue;
-                        SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, restValue);
+                        if (descriptor.TargetSlot >= 0)
+                        {
+                            slots[descriptor.TargetSlot] = restValue;
+                            SyncSlotEnvironment(slotEnvironments, descriptor.TargetSlot, restValue);
+                        }
+                        else if (descriptor.TargetNameConstantIndex >= 0)
+                        {
+                            StoreDynamicIdentifierValue(
+                                program.StringConstants[descriptor.TargetNameConstantIndex],
+                                false,
+                                restValue,
+                                RequireDynamicEnvironment(currentCallingEnvironment),
+                                context);
+                            if (context.ShouldStopEvaluation)
+                            {
+                                if (TryHandleCurrentContextThrow(slots))
+                                {
+                                    break;
+                                }
+
+                                return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                            }
+                        }
+
                         programCounter++;
                         break;
                     }

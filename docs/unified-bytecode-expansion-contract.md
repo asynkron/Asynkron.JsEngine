@@ -902,18 +902,30 @@ support today.
 - `ArrayDestructuringInitInstruction`,
   `ArrayDestructuringElementInstruction`,
   `ArrayDestructuringRestInstruction`, and
-  `ArrayDestructuringCloseInstruction` are eligible only for the lowered
-  direct-slot array destructuring model described above. Unsupported
-  destructuring shapes still decline with `DestructuringDependency`.
+  `ArrayDestructuringCloseInstruction` are eligible for the lowered
+  array destructuring model described above. Targets resolve to a flat
+  activation slot when one exists; at **script scope** the step-wise driver
+  **state** symbol (`__arrDestr_iter`) is given a synthetic scratch activation
+  slot by `AddSyntheticDestructuringStateSlots`, and a `VariableKind.Var`
+  **target** that has no flat slot is stored dynamically by name through the
+  driver descriptor's `TargetNameConstantIndex` (the `var` target is already
+  hoisted into the materialized script environment before the VM runs).
+  Non-`var` (`let`/`const`) script-scope targets, and all other unsupported
+  destructuring shapes, still decline with `DestructuringDependency` or
+  `UnsupportedPlanShape`.
 - `ObjectDestructuringInitInstruction`,
   `ObjectDestructuringPropertyInstruction`,
   `ObjectDestructuringRestInstruction`, and
   `ObjectDestructuringCloseInstruction` are eligible only for the lowered
   direct-slot object destructuring model described above (static keys,
   identifier targets, no defaults, no nested patterns, optional identifier
-  rest). Static nested binding declarations with identifier/rest targets are
-  admitted through `ApplyDeclarationBindingTarget`. Computed/dynamic-name keys,
-  defaults, assignment targets, awaited binding values, and `using` declarations
+  rest). At **script scope** the driver **state** symbol (`__objDestr_src`) is
+  given a synthetic scratch activation slot, and `VariableKind.Var` **targets**
+  with no flat slot store dynamically by name through the descriptor's
+  `TargetNameConstantIndex`. Static nested binding declarations with
+  identifier/rest targets are admitted through `ApplyDeclarationBindingTarget`.
+  Computed/dynamic-name keys, defaults, assignment targets, non-`var` script
+  targets, awaited binding values, and `using` declarations
   still decline with `DestructuringDependency` or `UnsupportedPlanShape`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.

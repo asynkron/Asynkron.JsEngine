@@ -6945,23 +6945,16 @@ internal static class UnifiedBytecodeProductionEligibility
                     identifierConstants,
                     activationSlots,
                     out var elementSpanLength,
-                    allowsDynamicIdentifiers))
+                    allowsDynamicIdentifiers) &&
+                i + elementSpanLength < program.OperationCount &&
+                program.GetOperation(i + elementSpanLength).Kind
+                    is ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread)
             {
-                var pushIndex = i + elementSpanLength;
-                if (pushIndex >= program.OperationCount)
-                {
-                    spanLength = 0;
-                    return false;
-                }
-
-                var pushOp = program.GetOperation(pushIndex);
-                if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
-                {
-                    spanLength = 0;
-                    return false;
-                }
-
-                i = pushIndex + 1;
+                // A35: the value span may now greedily match a bare-identifier-call prefix (`g()`); if
+                // the terminator is NOT a push/spread (e.g. `[...g().items]`, where the call is a SPREAD
+                // SOURCE base followed by a property read), fall through to the spread-source branch below
+                // rather than declining the whole array literal.
+                i += elementSpanLength + 1;
                 continue;
             }
 
@@ -7208,6 +7201,25 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
+            // A35: a SHORTHAND METHOD or ACCESSOR member — `{m(){}}`, `{get a(){}}`, `{set a(v){}}`,
+            // and the computed forms `{[k](){}}`, `{get [k](){}}`. These already route when terminal
+            // (the per-op switch admits the Define*Method/Define*Accessor opcodes), but the literal-span
+            // measurer must also recognize them so a LATER member — most importantly a trailing
+            // object-spread `{m(){}, ...o}` — stays INSIDE the admitted span. The function value is a
+            // LoadFunctionLiteral payload (no side effects at definition time); evaluation order across
+            // members is preserved because the span is measured purely structurally, left-to-right.
+            if (TryMeasureSimpleObjectLiteralMethodOrAccessorMemberSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var methodMemberSpanLength,
+                    allowsDynamicIdentifiers))
+            {
+                i += methodMemberSpanLength;
+                continue;
+            }
+
             if (!TryMeasureSimpleLiteralValueOperandSpan(
                     program,
                     i,
@@ -7300,6 +7312,73 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
+    // A35: measures ONE object-literal shorthand-method / accessor member starting at startIndex.
+    //   Static method:    LoadFunctionLiteral, DefineObjectMethod                 (2 ops)
+    //   Static accessor:  LoadFunctionLiteral, DefineObjectAccessor               (2 ops)
+    //   Computed method:  <key span>, ResolvePropertyKey, LoadFunctionLiteral, DefineComputedObjectMethod
+    //   Computed accessor:<key span>, ResolvePropertyKey, LoadFunctionLiteral, DefineComputedObjectAccessor
+    // The method/accessor function is a LoadFunctionLiteral payload (definition is side-effect-free);
+    // only the computed-key subexpression can carry side effects and it is measured as an already-admitted
+    // value/key span that evaluates before ResolvePropertyKey — left-to-right order is preserved.
+    private static bool TryMeasureSimpleObjectLiteralMethodOrAccessorMemberSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        spanLength = 0;
+
+        // Static form: LoadFunctionLiteral immediately followed by a static method/accessor define.
+        if (program.GetOperation(startIndex).Kind == ExpressionOpKind.LoadFunctionLiteral)
+        {
+            if (startIndex + 1 >= program.OperationCount)
+            {
+                return false;
+            }
+
+            var staticDefine = program.GetOperation(startIndex + 1).Kind;
+            if (staticDefine is ExpressionOpKind.DefineObjectMethod or ExpressionOpKind.DefineObjectAccessor)
+            {
+                spanLength = 2;
+                return true;
+            }
+
+            return false;
+        }
+
+        // Computed form: <key span>, ResolvePropertyKey, LoadFunctionLiteral, DefineComputed{Method,Accessor}.
+        if (!TryMeasureSimpleLiteralValueOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out var keySpanLength,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        var resolveIndex = startIndex + keySpanLength;
+        if (resolveIndex + 2 >= program.OperationCount ||
+            program.GetOperation(resolveIndex).Kind != ExpressionOpKind.ResolvePropertyKey ||
+            program.GetOperation(resolveIndex + 1).Kind != ExpressionOpKind.LoadFunctionLiteral)
+        {
+            return false;
+        }
+
+        var computedDefine = program.GetOperation(resolveIndex + 2).Kind;
+        if (computedDefine is ExpressionOpKind.DefineComputedObjectMethod
+                            or ExpressionOpKind.DefineComputedObjectAccessor)
+        {
+            spanLength = keySpanLength + 3;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool TryMeasureSimpleLiteralValueOperandSpan(
         ExpressionProgram program,
         int startIndex,
@@ -7328,6 +7407,18 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowControlExpressions)
     {
         if (TryMeasureSimpleMemberCallOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out spanLength,
+                allowsDynamicIdentifiers))
+        {
+            return true;
+        }
+
+        // A35: a bare-identifier call value (`{x: g()}`) — the member-call value form already routed.
+        if (TryMeasureSimpleDirectIdentifierCallOperandSpan(
                 program,
                 startIndex,
                 identifierConstants,
@@ -8277,6 +8368,71 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         spanLength = 2;
+        return true;
+    }
+
+    // A35: a bare-identifier call used as an object-literal VALUE — `{x: g()}`, `{a: g(arg)}`.
+    // Mirrors TryMeasureSimpleDirectNamedCallOperandSpan but for a LoadIdentifierCallTarget callee
+    // (the member-call value form `{a: o.m()}` already routed via the member-call span). The callee
+    // identifier must resolve to an activation slot (never `arguments`/`eval`); each argument is a
+    // single simple operand, so the call's arguments evaluate left-to-right after the callee — spec
+    // PropertyDefinitionEvaluation order is preserved (the value subexpression runs to completion
+    // before the property is defined). Spread arguments are excluded (SpreadMaskConstantIndex).
+    private static bool TryMeasureSimpleDirectIdentifierCallOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        spanLength = 0;
+        if (startIndex + 1 >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var callTarget = program.GetOperation(startIndex);
+        if (callTarget.Kind != ExpressionOpKind.LoadIdentifierCallTarget ||
+            callTarget.IsArguments ||
+            callTarget.IsOptional ||
+            callTarget.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        var identifier = callTarget.GetIdentifier(identifierConstants);
+        if (identifier.Name.Name == "eval" ||
+            !TryResolveActivationSlot(identifier, activationSlots))
+        {
+            return false;
+        }
+
+        var argCount = 0;
+        var operationIndex = startIndex + 1;
+        while (operationIndex < program.OperationCount &&
+               IsSimpleOperand(program.GetOperation(operationIndex), identifierConstants, activationSlots, allowsDynamicIdentifiers))
+        {
+            argCount++;
+            operationIndex++;
+        }
+
+        if (operationIndex >= program.OperationCount)
+        {
+            return false;
+        }
+
+        var call = program.GetOperation(operationIndex);
+        if (call.Kind != ExpressionOpKind.Call ||
+            !call.HasExplicitThis ||
+            call.IsDirectEval ||
+            call.SpreadMaskConstantIndex >= 0 ||
+            call.ArgumentCount != argCount)
+        {
+            return false;
+        }
+
+        spanLength = operationIndex - startIndex + 1;
         return true;
     }
 

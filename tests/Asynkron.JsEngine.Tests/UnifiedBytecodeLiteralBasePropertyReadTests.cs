@@ -173,8 +173,13 @@ public sealed class UnifiedBytecodeLiteralBasePropertyReadTests(ITestOutputHelpe
         Assert.False(result.IsEligible);
     }
 
+    // A35: an accessor- or method-only object literal used as a property-read base is now ADMITTED.
+    // The literal-span measurer recognizes the Define{Object,Computed}Method/Accessor opcodes (which the
+    // per-op switch and the VM already supported), so the surrounding pure read chain off such a base is
+    // eligible. (Previously these terminated the span and declined.) The accessor read fires the getter;
+    // the method read yields the function value — both execute on the production VM.
     [Fact]
-    public void Evaluate_AccessorInLiteralBase_Declines()
+    public void Evaluate_AccessorInLiteralBase_IsEligible()
     {
         var result = Evaluate("""
             function read() {
@@ -182,11 +187,12 @@ public sealed class UnifiedBytecodeLiteralBasePropertyReadTests(ITestOutputHelpe
             }
             """, "read");
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     [Fact]
-    public void Evaluate_MethodInLiteralBase_Declines()
+    public void Evaluate_MethodInLiteralBase_IsEligible()
     {
         var result = Evaluate("""
             function read() {
@@ -194,7 +200,8 @@ public sealed class UnifiedBytecodeLiteralBasePropertyReadTests(ITestOutputHelpe
             }
             """, "read");
 
-        Assert.False(result.IsEligible);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
     }
 
     // ---------------------------------------------------------------------

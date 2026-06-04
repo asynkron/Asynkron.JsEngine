@@ -900,6 +900,157 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        // A USER `try { yield } finally { ... }` whose try body suspends and whose finally is NOT the
+        // synthetic for-of iterator-close region. When such a generator is CLOSED early (a for-of `break` /
+        // `throw` over it, or an explicit `.return()`/`.throw()` while it is suspended at the protected
+        // yield), the spec requires the finally to run during the abrupt completion. The resumable VM's
+        // cleanup path does not drive a user finally on early close, so the finally is skipped — decline and
+        // keep these on the IR runner. The for-of-lowered iterator-close finally is detected by the
+        // IteratorCloseInstruction in its region (a synthetic, non-suspending cleanup the resumable VM
+        // handles correctly) and stays admitted. (Without this guard, admitting a free/captured update inside
+        // the finally — e.g. `finally { n++; }` — would newly route the generator and silently drop the
+        // finally on close.)
+        if (enterTry.FinallyIndex >= 0 &&
+            // An EMPTY finally (`finally {}`, FinallyIndex == EndFinallyIndex) has no observable body, so
+            // whether the resumable VM drives it on early close is unobservable — leave it for the
+            // nested-chain guard above (it owns the `try { try { yield } finally {} } finally {}` shape and
+            // its specific decline reason). Only a NON-empty user finally with a real side effect needs this
+            // guard.
+            enterTry.FinallyIndex != enterTry.EndFinallyIndex &&
+            !FinallyRegionIsSyntheticIteratorClose(instructions, enterTry) &&
+            TryBodyContainsSuspension(instructions, enterTry))
+        {
+            instructionName = "user try/finally protecting a yield/await (finally is skipped on early close)";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryBodyContainsSuspension(
+        ImmutableArray<ExecutionInstruction> instructions,
+        EnterTryInstruction enterTry)
+    {
+        var boundary = new HashSet<int>();
+        if (enterTry.HandlerIndex >= 0)
+        {
+            boundary.Add(enterTry.HandlerIndex);
+        }
+
+        if (enterTry.FinallyIndex >= 0)
+        {
+            boundary.Add(enterTry.FinallyIndex);
+        }
+
+        if (enterTry.EndFinallyIndex >= 0)
+        {
+            boundary.Add(enterTry.EndFinallyIndex);
+        }
+
+        if (enterTry.LeaveTryIndex >= 0)
+        {
+            boundary.Add(enterTry.LeaveTryIndex);
+        }
+
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        if (enterTry.Next >= 0)
+        {
+            pending.Push(enterTry.Next);
+        }
+
+        while (pending.Count > 0)
+        {
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
+            {
+                continue;
+            }
+
+            var instruction = instructions[index];
+            if (InstructionCanSuspendResumableExecution(instruction))
+            {
+                return true;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+                case EnterTryInstruction nested:
+                    pending.Push(nested.Next);
+                    pending.Push(nested.HandlerIndex);
+                    pending.Push(nested.FinallyIndex);
+                    break;
+                default:
+                    pending.Push(instruction.Next);
+                    break;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FinallyRegionIsSyntheticIteratorClose(
+        ImmutableArray<ExecutionInstruction> instructions,
+        EnterTryInstruction enterTry)
+    {
+        if (enterTry.FinallyIndex < 0)
+        {
+            return false;
+        }
+
+        var boundary = new HashSet<int> { enterTry.FinallyIndex };
+        if (enterTry.EndFinallyIndex >= 0)
+        {
+            boundary.Add(enterTry.EndFinallyIndex);
+        }
+
+        if (enterTry.LeaveTryIndex >= 0)
+        {
+            boundary.Add(enterTry.LeaveTryIndex);
+        }
+
+        // Walk the finally region (from its first instruction up to EndFinally). The for-of-lowered cleanup
+        // finally is the synthetic GetMethod("return")/IteratorClose sequence, identified by the
+        // IteratorCloseInstruction it contains; any finally that does NOT contain one is a user-authored
+        // finally body whose abrupt-completion execution the resumable VM does not drive on early close.
+        var visited = new HashSet<int>();
+        var pending = new Stack<int>();
+        pending.Push(enterTry.FinallyIndex);
+        while (pending.Count > 0)
+        {
+            var index = pending.Pop();
+            if ((uint)index >= (uint)instructions.Length || (index != enterTry.FinallyIndex && boundary.Contains(index)) || !visited.Add(index))
+            {
+                continue;
+            }
+
+            var instruction = instructions[index];
+            if (instruction is IteratorCloseInstruction)
+            {
+                return true;
+            }
+
+            switch (instruction)
+            {
+                case BranchInstruction branch:
+                    pending.Push(branch.ConsequentIndex);
+                    pending.Push(branch.AlternateIndex);
+                    break;
+                case EnterTryInstruction nested:
+                    pending.Push(nested.Next);
+                    pending.Push(nested.HandlerIndex);
+                    pending.Push(nested.FinallyIndex);
+                    break;
+                default:
+                    pending.Push(instruction.Next);
+                    break;
+            }
+        }
+
         return false;
     }
 
@@ -1099,13 +1250,23 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 if (!TryResolveActivationSymbolSlot(updateTargetSymbol, updateFlatSlotId, activationSlots))
                 {
-                    declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                    declineReason =
-                        $"Update target '{updateTargetSymbol.Name}' requires dynamic lookup and is not eligible for resumable unified bytecode routing.";
-                    return true;
+                    // Captured / free update target (`n++` where `n` is an enclosing-function local or a
+                    // module/script-level binding that escapes this activation's slots). The instruction
+                    // lowers to UpdateDynamicIdentifier, which resolves the name against the live closure
+                    // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108) —
+                    // captured at construction and stable across yield/await, so the update aliases the SAME
+                    // enclosing heap slot before and after each suspension. const-safety is enforced by the
+                    // environment itself (ResolveIdentifierAssignmentReference -> reference.SetValue throws the
+                    // `TypeError: Assignment to constant variable` for a captured `const`), so unlike the
+                    // resolved-slot path below this needs no const-slot metadata. The resumable opcode allowlist
+                    // (TryFindUnsupportedResumableOpcode) admits UpdateDynamicIdentifier, and the
+                    // ExecuteResumable switch carries its handler; both stay 1:1. Do NOT decline here — the
+                    // captured-write tier is admitted (mirrors the sync captured-closure route, commit
+                    // 1c0b30675).
+                    declineCode = UnifiedBytecodeProductionDeclineCode.None;
+                    declineReason = string.Empty;
                 }
-
-                if (IsLexicalSlotUpdateTarget(updateSlotIndex, updateFlatSlotId, activationSlots))
+                else if (IsLexicalSlotUpdateTarget(updateSlotIndex, updateFlatSlotId, activationSlots))
                 {
                     declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                     declineReason =
@@ -1440,6 +1601,31 @@ internal static class UnifiedBytecodeProductionEligibility
                 // this allowlist declines them back to the interpreter.
                 UnifiedBytecodeOpCode.LoadDynamicIdentifier or
                 UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget or
+                // Free/dynamic identifier UPDATE (`n++`, `n--`, `++n`, `--n`) where `n` is an
+                // enclosing-function local or module/script-level binding that escapes this activation's
+                // slots. Resolves the name against the live closure environment threaded onto
+                // UnifiedBytecodeResumeState.CallingEnvironment (#3108) — captured at construction and stable
+                // across yield/await — so the update mutates the SAME enclosing heap slot the admitted
+                // captured READ (LoadDynamicIdentifier) observes; the binding aliases across every suspension.
+                // The opcode is ATOMIC: it reads, ++/--, and writes back inside one resumable step (an update
+                // expression cannot itself yield/await — its operand is the resolved binding, not a
+                // sub-expression), so it never leaves a half-resolved reference on the operand stack across a
+                // suspension. const-safety is enforced by the environment itself
+                // (ResolveIdentifierAssignmentReference -> reference.SetValue throws the
+                // `TypeError: Assignment to constant variable` for a captured `const`), not by absent
+                // const-slot metadata, so admitting it is sound where the resolved-lexical-SLOT update stays
+                // declined. The ExecuteResumable switch carries the UpdateDynamicIdentifier handler (kept 1:1
+                // with this allowlist).
+                //
+                // The captured/free plain and compound STORE (`n = v`, `n += v`) is NOT admitted: it lowers
+                // to the three-opcode ResolveDynamicIdentifierReference -> <RHS> ->
+                // StoreDynamicIdentifierReference sequence whose resolved AssignmentReference lives in a
+                // transient VM-local array, NOT on UnifiedBytecodeResumeState. The RHS can suspend
+                // (`n = yield`), and the resume state does not thread the pending reference across the
+                // suspension, so admitting it would corrupt the store target on resume. It stays declined on
+                // the IR runner (ResolveDynamicIdentifierReference is absent from this allowlist). The
+                // remaining dynamic reference / single-shot store / delete opcodes likewise stay omitted.
+                UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
                 // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
                 // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are

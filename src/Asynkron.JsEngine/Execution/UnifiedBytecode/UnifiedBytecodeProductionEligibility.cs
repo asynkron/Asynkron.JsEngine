@@ -1260,6 +1260,27 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: { } }:
             case SimpleVariableDeclarationInstruction { AwaitedProgram: null, InitializerProgram: null }:
+            // `var x = await p` / `let y = await p` (B1): bind an AWAITED value into a flat slot and read it
+            // back across the suspension. The instruction carries an AwaitedProgram (the operand of the
+            // `await`) and InitializerProgram is null. The compiler lowers it as `<awaited ops>` ->
+            // AwaitValue -> InitializeSlot, mirroring the already-admitted awaited IteratorInit / ForInInit
+            // (`<awaited ops>` -> AwaitValue -> consuming op). AwaitValue suspends the body and, on resume,
+            // pushes the settled value onto UnifiedBytecodeResumeState.OperandStack (the stable backing store
+            // restored across suspension); InitializeSlot then pops it into the declaration's flat slot. The
+            // store happens AFTER the suspension completes, so a later LoadSlot reads the correct value, and a
+            // rejected promise surfaces as the resumable Throw step from AwaitValue. No new opcode and no
+            // allowlist change: AwaitValue and InitializeSlot are both already admitted.
+            case SimpleVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
+            // `let [a,b] = await p` / `const {x} = await p` (B44): bind an AWAITED value into a destructuring
+            // binding target and read the bindings back across the suspension. Same lowering family as B1:
+            // `<awaited ops>` -> AwaitValue -> ApplyDeclarationBindingTarget. AwaitValue suspends and pushes
+            // the settled source value on resume; ApplyDeclarationBindingTarget pops it and runs the
+            // (synchronous, non-suspending) destructuring against the calling environment, writing each
+            // binding to its slot. The destructuring itself cannot suspend, so it always completes inside one
+            // resumed step; a non-iterable / non-coercible source surfaces as the resumable Throw step. The
+            // ApplyDeclarationBindingTarget opcode is admitted in the resumable allowlist (kept 1:1 with the
+            // ExecuteResumable handler).
+            case BindingVariableDeclarationInstruction { AwaitedProgram: not null, InitializerProgram: null }:
             case AssignmentSlotInstruction { AwaitedProgram: null, ValueProgram: { } }:
             // Slot increment / decrement (`x++`, `x--`, `++x`, `--x`) over a parameter or `var`-declared
             // slot. The instruction carries no AwaitedProgram (a prefix/postfix update on a slot cannot
@@ -1334,6 +1355,18 @@ internal static class UnifiedBytecodeProductionEligibility
             case ReturnInstruction { AwaitedProgram: { } awaitedReturnProgram }:
                 program = awaitedReturnProgram;
                 return true;
+            // B1: `var x = await p` — validate the awaited operand sub-program (the expression the `await`
+            // operates on). The slot store itself adds nothing to the expression walk; the awaited program
+            // is the only sub-program that can carry a declined shape.
+            case SimpleVariableDeclarationInstruction { AwaitedProgram: { } awaitedDeclarationProgram }:
+                program = awaitedDeclarationProgram;
+                return true;
+            // B44: `let [a,b] = await p` — validate the awaited operand sub-program. The destructuring
+            // binding target is applied by ApplyDeclarationBindingTarget (admitted in the resumable
+            // allowlist) and is not an ExpressionProgram, so only the awaited operand is walked here.
+            case BindingVariableDeclarationInstruction { AwaitedProgram: { } awaitedBindingProgram }:
+                program = awaitedBindingProgram;
+                return true;
             case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram }:
                 program = iterableProgram;
                 return true;
@@ -1382,6 +1415,20 @@ internal static class UnifiedBytecodeProductionEligibility
                 // yield/await), so no resume-state restoration is involved.
                 UnifiedBytecodeOpCode.UpdateSlot or
                 UnifiedBytecodeOpCode.InitializeSlot or
+                // Declaration binding-target application for `let [a,b] = await p` / `const {x} = await p`
+                // (B44). Reached only after an AwaitValue has settled the source onto the operand stack:
+                // ApplyDeclarationBindingTarget pops that one value and runs the synchronous destructuring of
+                // the lowered binding-target program against the resume state's CallingEnvironment, writing
+                // each declared binding into its flat slot (synced via SyncEnvironmentToUnifiedSlots). The
+                // opcode carries no AwaitedProgram and cannot itself suspend (destructuring of an in-hand
+                // value is synchronous), so it always runs to completion inside one resumed step and needs no
+                // operand-stack restoration; a non-iterable / non-coercible source or a throwing element
+                // getter surfaces as the resumable Throw step. The ExecuteResumable switch carries the matching
+                // handler (kept 1:1 with this allowlist). This opcode is admitted ONLY because the awaited
+                // BindingVariableDeclarationInstruction is the only resumable shape that emits it; a plain
+                // (non-awaited) destructuring inside a resumable body lowers to the ArrayDestructuring* /
+                // ObjectDestructuring* opcode family instead.
+                UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget or
                 UnifiedBytecodeOpCode.Binary or
                 UnifiedBytecodeOpCode.GetNamedProperty or
                 UnifiedBytecodeOpCode.GetComputedProperty or

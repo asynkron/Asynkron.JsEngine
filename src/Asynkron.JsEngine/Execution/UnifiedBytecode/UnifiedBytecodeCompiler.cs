@@ -1011,6 +1011,129 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = declaration.Next;
                         continue;
 
+                    // `var x = await p` / `let y = await p` (B1). Mirrors the awaited IteratorInit / ForInInit
+                    // lowering: evaluate the awaited operand, AwaitValue (suspends; pushes the settled value on
+                    // resume), then InitializeSlot pops it into the declaration's flat slot. The store happens
+                    // after the suspension completes so a later LoadSlot reads the correct value.
+                    case SimpleVariableDeclarationInstruction
+                        {
+                            InitializerProgram: null,
+                            AwaitedProgram: { } awaitedDeclarationInitializer,
+                            TargetSymbol: { } awaitedDeclarationTargetSymbol
+                        } awaitedDeclaration:
+                        if (!TryResolveDeclarationSlot(
+                                awaitedDeclarationTargetSymbol,
+                                awaitedDeclaration.VarKind,
+                                slotLayout,
+                                activeScopes,
+                                out var awaitedDeclarationSlot))
+                        {
+                            reason =
+                                $"Awaited declaration target '{awaitedDeclarationTargetSymbol.Name}' is not eligible for unified bytecode storage.";
+                            return false;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedDeclarationInitializer,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        if (awaitedDeclaration.AllowNameInference)
+                        {
+                            var awaitedNameInferenceIndex = stringConstants.Count;
+                            stringConstants.Add(awaitedDeclarationTargetSymbol.Name);
+                            unified.Add(new UnifiedBytecodeInstruction(
+                                UnifiedBytecodeOpCode.EnsureHasName,
+                                awaitedNameInferenceIndex));
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.InitializeSlot,
+                            awaitedDeclarationSlot));
+                        maxStackDepth = Math.Max(
+                            maxStackDepth,
+                            GetCompiledExpressionMaxStackDepth(awaitedDeclarationInitializer));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                awaitedDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = awaitedDeclaration.Next;
+                        continue;
+
+                    // `let [a,b] = await p` / `const {x} = await p` (B44). Same await lowering family: evaluate
+                    // the awaited operand, AwaitValue (suspends; pushes the settled source on resume), then
+                    // ApplyDeclarationBindingTarget pops it and runs the synchronous destructuring of the
+                    // lowered binding-target program, writing each binding into its slot.
+                    case BindingVariableDeclarationInstruction
+                        {
+                            InitializerProgram: null,
+                            AwaitedProgram: { } awaitedBindingInitializer
+                        } awaitedBindingDeclaration:
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedBindingInitializer,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        var awaitedBindingTargetIndex = bindingTargetConstants.Count;
+                        bindingTargetConstants.Add(awaitedBindingDeclaration.TargetProgram);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
+                            EncodeDeclarationBindingTargetOperand(
+                                awaitedBindingTargetIndex,
+                                awaitedBindingDeclaration.VarKind,
+                                hasInitializer: true)));
+                        maxStackDepth = Math.Max(
+                            maxStackDepth,
+                            GetCompiledExpressionMaxStackDepth(awaitedBindingInitializer));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                awaitedBindingDeclaration.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = awaitedBindingDeclaration.Next;
+                        continue;
+
                     case BindingVariableDeclarationInstruction
                         {
                             AwaitedProgram: null

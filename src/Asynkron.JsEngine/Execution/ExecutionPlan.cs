@@ -60,6 +60,48 @@ internal sealed record ExecutionPlan(
     public bool HasOnlyRootFlatSlotMappings { get; } =
         ComputeHasOnlyRootFlatSlotMappings(RootScopeId, FlatSlotMappings);
 
+    /// <summary>
+    ///     True when no captured/dynamic identifier name (a free name the production VM resolves
+    ///     through the live environment chain) collides with a lexical binding declared in a
+    ///     non-root (nested) scope of this function.
+    /// </summary>
+    /// <remarks>
+    ///     Narrows the blunt <see cref="HasOnlyRootFlatSlotMappings" /> guard for the captured-closure
+    ///     (A1) and arrow (A6) production-VM admissions from "no nested scope at all" to
+    ///     "no name collision between a captured name and a nested-scope binding".
+    ///
+    ///     Soundness (see docs/plans/nested-scope-capture-resolution-design.md §1.3 / §6): the only
+    ///     way a captured enclosing name takes a flat inner slot is the unscoped fallback in
+    ///     SlotAssignmentRewriter.TryResolve, which fires ONLY when a nested scope declares the same
+    ///     name. A captured name disjoint from every nested-scope binding cannot hit that path, so the
+    ///     flat-slot production VM matches the IR runner.
+    ///
+    ///     nestedBoundNames := union of lexical binding names over every non-root scope id in
+    ///     <see cref="ScopeLexicalBindings" /> (authoritative per-scope let/const/per-iteration set).
+    ///     Compared by textual name (Symbol names are interned, so reference- and name-equality coincide).
+    ///
+    ///     A read of a nestedBoundName collides (declines) if EITHER detector fires (union; over-decline
+    ///     is safe, under-decline is the only unsound direction):
+    ///     - (1) the identifier OPERATION (read from the program's operation stream, NOT the raw constant
+    ///       pool which also carries unresolved pre-resolution placeholders) resolves to NEITHER a flat
+    ///       slot (FlatSlotId &gt;= 0) NOR a slot in one of this plan's own scopes — i.e. it points at an
+    ///       ENCLOSING scope (or is unresolved) and lowers to a dynamic op walking the env chain.
+    ///     - (2) the read is STAMPED to one of this plan's own nested scopes S, but a forward MUST-active
+    ///       scope dataflow (intersected at CFG joins) shows S is NOT guaranteed active where the read
+    ///       occurs. This is the direct symptom of SlotAssignmentRewriter's unscoped fallback
+    ///       mis-stamping a captured enclosing read to a shadowing nested local's slot (design §1.3): the
+    ///       regression shapes collapse BOTH reads of the shadowed name to the nested flat slot, so the
+    ///       enclosing read is no longer "dynamic" (detector (1) misses it) — but it is read where its
+    ///       stamped scope is not in scope, which detector (2) catches. A genuine nested local is only
+    ///       ever read while its own scope is active, so it never trips detector (2).
+    /// </remarks>
+    public bool HasNoCapturedNameShadowedByNestedScope { get; } =
+        ComputeHasNoCapturedNameShadowedByNestedScope(
+            RootScopeId,
+            Instructions,
+            ScopeLexicalBindings,
+            FlatSlotMappings);
+
     public bool CanUseRawSyncReturn { get; } = ComputeCanUseRawSyncReturn(Instructions);
 
     public ExpressionProgram? SimpleReturnProgram { get; } = ComputeSimpleReturnProgram(Instructions, EntryPoint);
@@ -123,6 +165,486 @@ internal sealed record ExecutionPlan(
         }
 
         return true;
+    }
+
+    private static bool ComputeHasNoCapturedNameShadowedByNestedScope(
+        int rootScopeId,
+        ImmutableArray<ExecutionInstruction> instructions,
+        ImmutableDictionary<int, ImmutableHashSet<Symbol>>? scopeLexicalBindings,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
+    {
+        // No non-root lexical scope ⇒ no shadow site ⇒ no hazard. This subsumes the trivial
+        // HasOnlyRootFlatSlotMappings==true case (and any plan that simply has no nested scopes).
+        if (scopeLexicalBindings is null || scopeLexicalBindings.Count == 0)
+        {
+            return true;
+        }
+
+        // nestedBoundNames: every lexical binding name declared in a NON-root scope.
+        HashSet<string>? nestedBoundNames = null;
+        foreach (var (scopeId, names) in scopeLexicalBindings)
+        {
+            if (scopeId == rootScopeId)
+            {
+                continue;
+            }
+
+            foreach (var name in names)
+            {
+                (nestedBoundNames ??= new HashSet<string>(StringComparer.Ordinal)).Add(name.Name);
+            }
+        }
+
+        if (nestedBoundNames is null || nestedBoundNames.Count == 0)
+        {
+            // Only the root scope owns lexical bindings ⇒ no nested shadow site.
+            return true;
+        }
+
+        if (instructions.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        // ownScopeIds: every scope id THIS plan owns (root + every nested scope it declares slots in).
+        // An identifier resolving to one of these scopes reads a local slot; an identifier resolving to
+        // any OTHER scope id (an enclosing scope) — or staying unresolved — is captured/dynamic.
+        var ownScopeIds = new HashSet<int> { rootScopeId };
+        foreach (var scopeId in scopeLexicalBindings.Keys)
+        {
+            ownScopeIds.Add(scopeId);
+        }
+
+        if (flatSlotMappings is not null)
+        {
+            foreach (var scopeId in flatSlotMappings.Keys)
+            {
+                ownScopeIds.Add(scopeId);
+            }
+        }
+
+        // Per-instruction MUST-active nested scope set: the nested scope ids guaranteed to be on the
+        // active scope chain on EVERY control-flow path that reaches the instruction, plus the universe of
+        // all nested scope ids that ever push an environment. Used to detect the mis-stamp hazard below.
+        var (nestedScopeUniverse, mustActiveScopes) =
+            ComputeMustActiveNestedScopes(instructions, rootScopeId);
+
+        // Two collision detectors, unioned (decline if EITHER fires; over-decline is safe):
+        //
+        // (1) Captured-via-enclosing read of a nested-bound name. An identifier OPERATION resolving to an
+        //     enclosing scope (or unresolved) whose name is also a nested binding is the classic dynamic
+        //     shadow — the unscoped TryResolve fallback can mis-stamp it.
+        //
+        // (2) Mis-stamped captured read: a read STAMPED to a nested scope S (the very symptom from
+        //     SlotAssignmentRewriter's unscoped fallback — design §1.3) that occurs at an instruction
+        //     where S is NOT guaranteed active. A genuine nested local is only read while its scope is
+        //     active; a captured enclosing read that got the nested slot is read outside it. The
+        //     regression shapes (NestedFunctionScopeRegressionTests) collapse BOTH reads of the shadowed
+        //     name to the nested flat slot, so detector (1) alone misses them — detector (2) catches the
+        //     outer read because its scope is not active there.
+        for (var i = 0; i < instructions.Length; i++)
+        {
+            var instruction = instructions[i];
+            var activeHere = new NestedScopeActivity(nestedScopeUniverse, mustActiveScopes[i]);
+
+            if (InstructionHasShadowedCapture(
+                    instruction,
+                    nestedBoundNames,
+                    ownScopeIds,
+                    activeHere))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     Bundles the universe of all tracked nested scope ids (every scope id that pushes an environment)
+    ///     with the subset that is guaranteed active at a particular instruction.
+    /// </summary>
+    private readonly struct NestedScopeActivity(ImmutableHashSet<int> universe, ImmutableHashSet<int> active)
+    {
+        public bool IsTrackedNestedScope(int scopeId) => universe.Contains(scopeId);
+
+        public bool IsActive(int scopeId) => active.Contains(scopeId);
+    }
+
+    /// <summary>
+    ///     Forward MUST dataflow: returns, per instruction index, the set of nested scope ids that are on
+    ///     the active scope chain on EVERY path reaching that instruction, plus the universe of all nested
+    ///     scope ids that push an environment. A scope is pushed by a
+    ///     <see cref="PushEnvironmentInstruction" /> / <see cref="EnterCatchInstruction" /> and popped by
+    ///     the matching <see cref="PopEnvironmentInstruction" /> (break/continue pop to a target scope).
+    ///     Intersecting at control-flow joins makes it sound for the "read stamped to a scope that is not
+    ///     guaranteed in scope" hazard check.
+    /// </summary>
+    private static (ImmutableHashSet<int> Universe, ImmutableHashSet<int>[] ActiveIn) ComputeMustActiveNestedScopes(
+        ImmutableArray<ExecutionInstruction> instructions,
+        int rootScopeId)
+    {
+        var length = instructions.Length;
+        var activeIn = new ImmutableHashSet<int>?[length];
+        var empty = ImmutableHashSet<int>.Empty;
+
+        var universeBuilder = ImmutableHashSet.CreateBuilder<int>();
+        foreach (var instruction in instructions)
+        {
+            switch (instruction)
+            {
+                case PushEnvironmentInstruction push when push.ScopeId != rootScopeId && push.ScopeId >= 0:
+                    universeBuilder.Add(push.ScopeId);
+                    break;
+                case EnterCatchInstruction enterCatch when enterCatch.ScopeId != rootScopeId && enterCatch.ScopeId >= 0:
+                    universeBuilder.Add(enterCatch.ScopeId);
+                    break;
+            }
+        }
+
+        var universe = universeBuilder.ToImmutable();
+
+        var worklist = new Queue<int>();
+        var queued = new bool[length];
+
+        // Seed every instruction with no predecessors as a CFG entry (active-in = empty). Practically the
+        // plan entry plus any unreferenced handler heads; seeding all roots keeps the analysis total.
+        var hasPredecessor = new bool[length];
+        for (var i = 0; i < length; i++)
+        {
+            foreach (var successor in instructions[i].GetSuccessors())
+            {
+                if ((uint)successor < (uint)length)
+                {
+                    hasPredecessor[successor] = true;
+                }
+            }
+        }
+
+        for (var i = 0; i < length; i++)
+        {
+            if (!hasPredecessor[i])
+            {
+                activeIn[i] = empty;
+                worklist.Enqueue(i);
+                queued[i] = true;
+            }
+        }
+
+        while (worklist.Count > 0)
+        {
+            var index = worklist.Dequeue();
+            queued[index] = false;
+
+            var inSet = activeIn[index] ?? empty;
+            var outSet = ApplyScopeEffect(instructions[index], inSet, rootScopeId);
+
+            foreach (var successor in instructions[index].GetSuccessors())
+            {
+                if ((uint)successor >= (uint)length)
+                {
+                    continue;
+                }
+
+                var existing = activeIn[successor];
+                var merged = existing is null ? outSet : existing.Intersect(outSet);
+                if (existing is not null && merged.Count == existing.Count && merged.SetEquals(existing))
+                {
+                    continue;
+                }
+
+                activeIn[successor] = merged;
+                if (!queued[successor])
+                {
+                    worklist.Enqueue(successor);
+                    queued[successor] = true;
+                }
+            }
+        }
+
+        var result = new ImmutableHashSet<int>[length];
+        for (var i = 0; i < length; i++)
+        {
+            result[i] = activeIn[i] ?? empty;
+        }
+
+        return (universe, result);
+    }
+
+    private static ImmutableHashSet<int> ApplyScopeEffect(
+        ExecutionInstruction instruction,
+        ImmutableHashSet<int> active,
+        int rootScopeId)
+    {
+        switch (instruction)
+        {
+            case PushEnvironmentInstruction push when push.ScopeId != rootScopeId && push.ScopeId >= 0:
+                return active.Add(push.ScopeId);
+
+            case EnterCatchInstruction enterCatch when enterCatch.ScopeId != rootScopeId && enterCatch.ScopeId >= 0:
+                return active.Add(enterCatch.ScopeId);
+
+            case PopEnvironmentInstruction pop when pop.ScopeId >= 0:
+                return active.Remove(pop.ScopeId);
+
+            case BreakInstruction { TargetScopeId: >= 0 } breakInstruction:
+                return PopToTargetScope(active, breakInstruction.TargetScopeId);
+
+            case ContinueInstruction { TargetScopeId: >= 0 } continueInstruction:
+                return PopToTargetScope(active, continueInstruction.TargetScopeId);
+
+            default:
+                return active;
+        }
+    }
+
+    private static ImmutableHashSet<int> PopToTargetScope(ImmutableHashSet<int> active, int targetScopeId)
+    {
+        // break/continue unwind to the target scope: drop any active scope that is not the target. The
+        // target itself stays if present (the loop/block being continued). This is a conservative
+        // approximation sufficient for the must-active membership test.
+        if (active.IsEmpty)
+        {
+            return active;
+        }
+
+        var result = active;
+        foreach (var scopeId in active)
+        {
+            if (scopeId != targetScopeId)
+            {
+                result = result.Remove(scopeId);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool InstructionHasShadowedCapture(
+        ExecutionInstruction instruction,
+        HashSet<string> nestedBoundNames,
+        HashSet<int> ownScopeIds,
+        NestedScopeActivity activeNestedScopes)
+    {
+        switch (instruction)
+        {
+            case ThrowInstruction throwInstruction:
+                return Program(throwInstruction.ThrowProgram) || Program(throwInstruction.AwaitedProgram);
+            case EvaluateAndDiscardInstruction evaluate:
+                return Program(evaluate.ExpressionProgram);
+            case AwaitAndDiscardInstruction awaitDiscard:
+                return Program(awaitDiscard.AwaitedProgram);
+            case AssignmentSlotInstruction assign:
+                return Program(assign.ValueProgram) || Program(assign.AwaitedProgram);
+            case LogicalCompoundAssignmentSlotInstruction logical:
+                return Program(logical.RhsProgram) || Program(logical.AwaitedProgram);
+            case CompoundAssignmentSlotInstruction compound:
+                return Program(compound.RhsProgram) || Program(compound.AwaitedProgram);
+            case SimpleVariableDeclarationInstruction simpleDecl:
+                return Program(simpleDecl.InitializerProgram) || Program(simpleDecl.AwaitedProgram);
+            case BindingVariableDeclarationInstruction bindingDecl:
+                return Binding(bindingDecl.TargetProgram) ||
+                       Program(bindingDecl.InitializerProgram) ||
+                       Program(bindingDecl.AwaitedProgram);
+            case YieldInstruction yield:
+                return Program(yield.YieldProgram) || Program(yield.AwaitedProgram);
+            case YieldStarInstruction yieldStar:
+                return Program(yieldStar.IterableProgram) || Program(yieldStar.AwaitedProgram);
+            case EnterCatchInstruction { CatchBindingProgram: { } catchBinding }:
+                return Binding(catchBinding);
+            case IteratorInitInstruction iteratorInit:
+                return Program(iteratorInit.IterableProgram) || Program(iteratorInit.AwaitedProgram);
+            case ForInInitInstruction forInInit:
+                return Program(forInInit.ObjectProgram) || Program(forInInit.AwaitedProgram);
+            case BranchInstruction branch:
+                return Program(branch.ConditionProgram);
+            case ReturnInstruction ret:
+                return Program(ret.ReturnProgram) || Program(ret.AwaitedProgram);
+            case EnterWithInstruction enterWith:
+                return Program(enterWith.ObjectProgram) || Program(enterWith.AwaitedProgram);
+            case ArrayDestructuringInitInstruction arrayDestructuringInit:
+                return Program(arrayDestructuringInit.SourceProgram);
+            case ObjectDestructuringInitInstruction objectDestructuringInit:
+                return Program(objectDestructuringInit.SourceProgram);
+            default:
+                return false;
+        }
+
+        bool Program(ExpressionProgram? program) =>
+            program is { } value &&
+            ExpressionProgramHasShadowedCapture(value, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+        bool Binding(BindingTargetProgram program) =>
+            BindingTargetProgramHasShadowedCapture(program, nestedBoundNames, ownScopeIds, activeNestedScopes);
+    }
+
+    private static bool ExpressionProgramHasShadowedCapture(
+        ExpressionProgram program,
+        HashSet<string> nestedBoundNames,
+        HashSet<int> ownScopeIds,
+        NestedScopeActivity activeNestedScopes)
+    {
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var i = 0; i < program.OperationCount; i++)
+        {
+            var operation = program.GetOperation(i);
+            if (!IsIdentifierBearingOp(operation.Kind))
+            {
+                continue;
+            }
+
+            var identifier = operation.GetIdentifier(identifierConstants);
+            if (!nestedBoundNames.Contains(identifier.Name.Name))
+            {
+                continue;
+            }
+
+            // Detector (1): a captured (enclosing / unresolved) read whose name shadows a nested binding.
+            if (IsCapturedIdentifier(identifier, ownScopeIds))
+            {
+                return true;
+            }
+
+            // Detector (2): a read STAMPED to a nested scope S that is NOT guaranteed active here. A
+            // genuine nested local is only read while its scope is active; a captured read mis-stamped to
+            // the nested slot (SlotAssignmentRewriter's unscoped fallback) is read outside that scope.
+            if (IsNestedSlotReadOutsideScope(identifier, activeNestedScopes))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    ///     An identifier OPERATION reads through the live environment chain (is captured/dynamic) iff it
+    ///     resolves to NEITHER a flat slot (FlatSlotId &gt;= 0) NOR a slot in one of THIS plan's own
+    ///     scopes (root or any nested scope it owns). An operand pointing at an enclosing scope id (or
+    ///     left fully unresolved) is the captured/free case the shadow hazard miscompiles.
+    /// </summary>
+    private static bool IsCapturedIdentifier(IdentifierOperand identifier, HashSet<int> ownScopeIds)
+    {
+        if (identifier.FlatSlotId >= 0)
+        {
+            return false;
+        }
+
+        if (identifier.ScopeId >= 0 &&
+            identifier.SlotIndex >= 0 &&
+            ownScopeIds.Contains(identifier.ScopeId))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     True when <paramref name="identifier" /> is stamped to one of this plan's OWN nested scopes
+    ///     (any scope tracked in <paramref name="activeNestedScopes" />'s universe, i.e. a non-root scope
+    ///     that pushes an environment) but that scope is NOT guaranteed active where the read occurs — the
+    ///     symptom of a captured enclosing read mis-stamped to a shadowing nested local's slot. Root-scope
+    ///     and enclosing reads are excluded: they are never tracked as nested active scopes, and a nested
+    ///     scope id is recognised only because it appears as a push target in the active-set universe.
+    /// </summary>
+    private static bool IsNestedSlotReadOutsideScope(
+        IdentifierOperand identifier,
+        NestedScopeActivity activeNestedScopes)
+    {
+        var scopeId = identifier.ScopeId;
+        if (scopeId < 0 || !activeNestedScopes.IsTrackedNestedScope(scopeId))
+        {
+            // Root, enclosing, or unresolved: handled by detector (1); not a tracked nested-slot read.
+            return false;
+        }
+
+        // A read stamped to a nested OWN scope is safe only while that scope is guaranteed active.
+        return !activeNestedScopes.IsActive(scopeId);
+    }
+
+    private static bool IsIdentifierBearingOp(ExpressionOpKind kind) =>
+        kind is
+            ExpressionOpKind.LoadIdentifier or
+            ExpressionOpKind.LoadIdentifierCallTarget or
+            ExpressionOpKind.ResolveIdentifierReference or
+            ExpressionOpKind.StoreResolvedIdentifier or
+            ExpressionOpKind.StoreIdentifier or
+            ExpressionOpKind.UpdateIdentifier or
+            ExpressionOpKind.TypeOfIdentifier or
+            ExpressionOpKind.DeleteIdentifier;
+
+    private static bool BindingTargetProgramHasShadowedCapture(
+        BindingTargetProgram program,
+        HashSet<string> nestedBoundNames,
+        HashSet<int> ownScopeIds,
+        NestedScopeActivity activeNestedScopes)
+    {
+        switch (program)
+        {
+            case ArrayBindingTargetProgram arrayBinding:
+                foreach (var element in arrayBinding.Elements)
+                {
+                    if (element.Target is not null &&
+                        BindingTargetProgramHasShadowedCapture(element.Target, nestedBoundNames, ownScopeIds, activeNestedScopes))
+                    {
+                        return true;
+                    }
+
+                    if (element.DefaultProgram is { } defaultProgram &&
+                        ExpressionProgramHasShadowedCapture(defaultProgram, nestedBoundNames, ownScopeIds, activeNestedScopes))
+                    {
+                        return true;
+                    }
+                }
+
+                return arrayBinding.RestElement is { } arrayRest &&
+                       BindingTargetProgramHasShadowedCapture(arrayRest, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+            case ObjectBindingTargetProgram objectBinding:
+                foreach (var property in objectBinding.Properties)
+                {
+                    if (BindingTargetProgramHasShadowedCapture(property.Target, nestedBoundNames, ownScopeIds, activeNestedScopes))
+                    {
+                        return true;
+                    }
+
+                    if (property.DefaultProgram is { } objDefault &&
+                        ExpressionProgramHasShadowedCapture(objDefault, nestedBoundNames, ownScopeIds, activeNestedScopes))
+                    {
+                        return true;
+                    }
+
+                    if (property.NameProgram is { } nameProgram &&
+                        ExpressionProgramHasShadowedCapture(nameProgram, nestedBoundNames, ownScopeIds, activeNestedScopes))
+                    {
+                        return true;
+                    }
+                }
+
+                return objectBinding.RestElement is { } objectRest &&
+                       BindingTargetProgramHasShadowedCapture(objectRest, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+            case NamedPropertyAssignmentBindingTargetProgram namedAssignment:
+                return ExpressionProgramHasShadowedCapture(namedAssignment.TargetProgram, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+            case ComputedPropertyAssignmentBindingTargetProgram computedAssignment:
+                return ExpressionProgramHasShadowedCapture(computedAssignment.TargetProgram, nestedBoundNames, ownScopeIds, activeNestedScopes) ||
+                       ExpressionProgramHasShadowedCapture(computedAssignment.PropertyProgram, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+            case ComputedSuperPropertyAssignmentBindingTargetProgram computedSuperAssignment:
+                return ExpressionProgramHasShadowedCapture(computedSuperAssignment.PropertyProgram, nestedBoundNames, ownScopeIds, activeNestedScopes);
+
+            default:
+                // IdentifierBindingTargetProgram / NamedSuperPropertyAssignmentBindingTargetProgram:
+                // no embedded expression program that could carry a captured read.
+                return false;
+        }
     }
 
     private static bool ComputeCanUseRawSyncReturn(ImmutableArray<ExecutionInstruction> instructions)

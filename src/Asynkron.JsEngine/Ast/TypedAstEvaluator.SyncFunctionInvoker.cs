@@ -3900,15 +3900,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    // _lexicalThisEnvironment / _lexicalNewTarget before VM entry), so it continues to flow
                    // for multi-statement bodies unchanged.
                    CanUseSimpleIrActivationPlanShape(plan) &&
-                   // Stage 0 admits FLAT arrow bodies only — same nested-lexical-scope hazard as the
-                   // captured-closure lift. A nested `if`/loop block declaring its own `let`/`const` can
-                   // SHADOW a captured enclosing name; the compiler then allocates a flat inner slot for
-                   // that name, and a read in the arrow's outer scope wrongly resolves to the
-                   // (uninitialized) local slot instead of the captured dynamic op — miscompiling to
-                   // undefined/NaN (NestedFunctionScopeRegressionTests). HasOnlyRootFlatSlotMappings is
-                   // true exactly when the body has no non-root scope mappings, so this excludes the
-                   // shadowing hazard. Nested-scope arrows remain a later burn-down slice.
-                   plan.HasOnlyRootFlatSlotMappings;
+                   // Option A (collision-only guard): admit nested-scope arrows whose captured names do
+                   // NOT collide with any nested-scope lexical binding. The miscompile hazard is the
+                   // SHADOW case — a nested `if`/loop block declaring its own `let`/`const` whose name
+                   // equals a captured enclosing name read in the arrow's outer scope; the unscoped
+                   // SlotAssignmentRewriter.TryResolve fallback then stamps that captured read to the
+                   // (uninitialized) nested local's flat slot, miscompiling to undefined/NaN
+                   // (NestedFunctionScopeRegressionTests). A non-colliding nested scope cannot hit that
+                   // path, so HasNoCapturedNameShadowedByNestedScope (which strictly subsumes
+                   // HasOnlyRootFlatSlotMappings) admits the common non-colliding case while still
+                   // declining the colliding shapes. See
+                   // docs/plans/nested-scope-capture-resolution-design.md (Option A).
+                   plan.HasNoCapturedNameShadowedByNestedScope;
         }
 
         private bool CanUseProductionUnifiedBytecodeCapturedClosureActivation(
@@ -3945,16 +3948,18 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    // gates required a single return-expression body and blocked every multi-statement
                    // closure (e.g. `function inc(){ n++; return n; }`).
                    CanUseSimpleIrActivationPlanShape(plan) &&
-                   // Stage 0 admits FLAT captured-closure bodies only. A nested lexical scope inside the
-                   // closure (an `if`/loop block declaring its own `let`/`const`) can SHADOW a captured
-                   // enclosing name; the compiler then allocates a flat inner slot for that name, and a
-                   // read in the closure's outer scope wrongly resolves to the (uninitialized) local slot
-                   // instead of the captured dynamic op — miscompiling to undefined/NaN
-                   // (NestedFunctionScopeRegressionTests). HasOnlyRootFlatSlotMappings is true exactly when
-                   // the closure has no non-root scope mappings, so this excludes the shadowing hazard.
-                   // Nested-scope captured closures remain a later burn-down slice (need scope-aware
-                   // captured-name resolution that survives shadowing).
-                   plan.HasOnlyRootFlatSlotMappings;
+                   // Option A (collision-only guard): admit nested-scope captured closures whose captured
+                   // names do NOT collide with any nested-scope lexical binding. A nested lexical scope
+                   // inside the closure (an `if`/loop block declaring its own `let`/`const`) only
+                   // miscompiles when its name SHADOWS a captured enclosing name read in the closure's
+                   // outer scope: the unscoped SlotAssignmentRewriter.TryResolve fallback then stamps the
+                   // captured read to the (uninitialized) nested local's flat slot → undefined/NaN
+                   // (NestedFunctionScopeRegressionTests). A non-colliding nested scope cannot hit that
+                   // path, so HasNoCapturedNameShadowedByNestedScope (a strict superset of
+                   // HasOnlyRootFlatSlotMappings) admits the common non-colliding case while still
+                   // declining the colliding shapes. See
+                   // docs/plans/nested-scope-capture-resolution-design.md (Option A).
+                   plan.HasNoCapturedNameShadowedByNestedScope;
         }
 
         private static bool CanUseProductionUnifiedBytecodeArrowProgramShape(ExecutionPlan plan)

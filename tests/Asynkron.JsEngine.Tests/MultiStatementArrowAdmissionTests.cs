@@ -86,20 +86,46 @@ public sealed class MultiStatementArrowAdmissionTests(ITestOutputHelper output) 
     }
 
     [Fact]
-    public async Task NestedScopeArrow_DeclaresLetInNestedBlock_DeclinesUnderGuard()
+    public async Task NestedScopeArrow_DeclaresNonCollidingLetInNestedBlock_RoutesUnderOptionA()
     {
         await using var engine = CreateEngine();
-        // The body opens a nested lexical scope (the `if` block declares its own `let y`). Under the
-        // HasOnlyRootFlatSlotMappings guard this must DECLINE (same shadowing hazard as the closure lift),
-        // but must still execute correctly via the IR runner.
+        // The body opens a nested lexical scope (the `if` block declares its own `let y`). Under Option A
+        // (collision-only guard) the nested `let y` does NOT collide with any captured name, so this now
+        // ROUTES through the production VM — and must still compute correctly. (Previously declined under
+        // the blunt HasOnlyRootFlatSlotMappings guard.)
         var r = await engine.Evaluate("""
             const f = (c) => { if (c) { let y = 1; return y; } return 0; };
             '' + f(true) + ',' + f(false);
             """);
         Assert.Equal("1,0", r);
-        Assert.DoesNotContain(
+        Assert.Contains(
             CurrentLogger!.Collector.Snapshot(),
             x => x.Message.Contains(ProdLog, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task NestedScopeArrow_ShadowsCapturedNameInNestedBlock_DeclinesUnderOptionA()
+    {
+        await using var engine = CreateEngine();
+        // COLLIDING counterpart: the arrow captures the enclosing local `base` AND a nested `if` block
+        // declares its own `let base`. That collision is exactly the miscompile hazard, so Option A must
+        // DECLINE and route through the IR runner — while still computing correctly. The captured `base`
+        // read after the block must observe the enclosing value (100), not the block-local 7.
+        var r = await engine.Evaluate("""
+            function mk(base) {
+                return (c) => {
+                    if (c) { let base = 7; return base; }
+                    return base;
+                };
+            }
+            var f = mk(100);
+            '' + f(true) + ',' + f(false);
+            """);
+        Assert.Equal("7,100", r);
+        // The enclosing `mk` routes (func=mk); the colliding arrow (func=<anonymous>) must NOT.
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            x => x.Message.Contains(ProdLog + "<anonymous>", StringComparison.Ordinal));
     }
 
     [Fact]

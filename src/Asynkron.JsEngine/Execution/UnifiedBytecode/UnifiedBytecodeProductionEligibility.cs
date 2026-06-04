@@ -488,26 +488,16 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // A9/A10 safety boundary: when the ordinary dynamic-identifier path is active, the production VM
-        // materializes a real call environment (currentCallingEnvironment / slotEnvironments). In that
-        // materialized-environment mode a plain `continue` that re-enters a loop body carrying a
-        // per-iteration lexical `const` does NOT restore the body block's scope-environment owners the
-        // way PopEnvironment does, so a later iteration reads the const slot while it is still in TDZ
-        // ("Cannot access '<name>' before initialization"). This is a pre-existing limitation of the VM
-        // loop-environment handling that also affects the already-admitted free-identifier READ cluster;
-        // it only manifests once a free name (read, write, or call target) forces the materialized-env
-        // path. Decline this exact shape so it keeps running on the IR runner, which restores per-iteration
-        // const scopes correctly. Pure-slot functions never enter the materialized-env path (the const
-        // slot is reset directly), so this guard intentionally only fires under the dynamic-name path.
-        if (allowsOrdinaryDynamicIdentifiers &&
-            ContainsContinueOverPerIterationConstScope(plan))
-        {
-            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-            declineReason =
-                "A continue that re-enters a loop body with a per-iteration lexical const requires the IR runner under the dynamic-name path; not eligible for production unified bytecode routing.";
-            return true;
-        }
-
+        // NOTE: the former A9/A10 decline for "a continue that re-enters a loop body with a per-iteration
+        // lexical const under the dynamic-name path" has been removed. That shape used to break in the
+        // materialized-environment mode because a per-iteration const/let was lowered to dynamic-lexical
+        // opcodes (DeclareDynamicLexical / InitializeDynamicLexical) that wrote only the call-environment
+        // binding, while the read used a flat slot left in its TDZ (uninitialized) state — throwing a
+        // spurious "Cannot access '<name>' before initialization". The production VM now mirrors
+        // dynamic-lexical declare/init back into the bound flat slot (see
+        // UnifiedBytecodeVirtualMachine.MirrorDynamicLexicalToFlatSlot), so own-scope LoadSlot reads observe
+        // the initialized value and the shape routes through production correctly under the dynamic-name
+        // path. Pure-slot functions were never affected (the const slot is reset directly).
         for (var instructionIndex = 0; instructionIndex < plan.Instructions.Length; instructionIndex++)
         {
             if (activeWithDepths[instructionIndex] < 0)
@@ -670,40 +660,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (instructions[i] is EnterTryInstruction { FinallyIndex: >= 0 } enterTry &&
                 FinallyRegionContainsCallReturn(instructions, enterTry.FinallyIndex))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // True when the plan has BOTH a `continue` (a loop with a continue edge) AND a lexical block scope
-    // that declares a per-iteration `const` (a PushEnvironment carrying const lexical slots). This is the
-    // exact shape the production VM mishandles in the materialized-call-environment mode: a plain continue
-    // re-enters the loop body without restoring the const block's scope-environment owner, leaving the
-    // const slot in TDZ on a later iteration. The check is intentionally conservative — it does not prove
-    // the continue can actually skip THIS const's initializer — because the alternative (a precise reach
-    // analysis from each continue over each const PushEnvironment) is the IR runner's job; declining the
-    // whole shape under the dynamic-name path is safe and keeps these functions correct on the IR runner.
-    private static bool ContainsContinueOverPerIterationConstScope(ExecutionPlan plan)
-    {
-        var instructions = plan.Instructions;
-        var hasContinue = false;
-        var hasPerIterationConstScope = false;
-        for (var i = 0; i < instructions.Length; i++)
-        {
-            switch (instructions[i])
-            {
-                case ContinueInstruction:
-                    hasContinue = true;
-                    break;
-                case PushEnvironmentInstruction { ConstLexicalSlotIndices.IsDefaultOrEmpty: false }:
-                    hasPerIterationConstScope = true;
-                    break;
-            }
-
-            if (hasContinue && hasPerIterationConstScope)
             {
                 return true;
             }

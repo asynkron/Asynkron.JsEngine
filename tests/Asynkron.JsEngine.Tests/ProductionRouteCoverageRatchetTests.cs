@@ -49,6 +49,22 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(o,k1,k2){ return o[k1].child[k2]++; } f({a:{child:{x:1}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1){ return o[k1].child++; } f({a:{child:1}},'a');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1,k2){ return --o[k1].child[k2]; } f({a:{child:{x:5}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
+    // Free-identifier (DynamicLookupDependency) family — a free name escaping the activation's slots
+    // resolves as a dynamic-identifier op walking the threaded environment chain.
+    // A13: free READ of a declared global (LoadDynamicIdentifier).
+    [InlineData("var g=7; function f(){ return g; } f();", "unified-bytecode-production-fast-path func=f")]
+    // A15: typeof of a free identifier (TypeOfDynamicIdentifier; never throws for an unbound name).
+    [InlineData("var g=7; function f(){ return typeof g; } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(){ return typeof undeclaredX; } f();", "unified-bytecode-production-fast-path func=f")]
+    // A22: identifier UPDATE on a free name (UpdateDynamicIdentifier) — postfix and prefix.
+    [InlineData("var c=5; function f(){ return c++; } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("var c=5; function f(){ return ++c; } f();", "unified-bytecode-production-fast-path func=f")]
+    // A24: delete of a free identifier (DeleteDynamicIdentifier).
+    [InlineData("var g=1; function f(){ return delete g; } f();", "unified-bytecode-production-fast-path func=f")]
+    // A16: computed-property delete with a FREE identifier as the key (free computed delete key).
+    [InlineData("var k='a'; function f(o){ return delete o[k]; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
+    // A14: free identifier STORE (StoreDynamicIdentifier) — sloppy-mode global creation.
+    [InlineData("function f(){ createdGlobalRatchet=99; return createdGlobalRatchet; } f();", "unified-bytecode-production-fast-path func=f")]
     // A1 (closure Stage 0): FLAT multi-statement closures that capture an enclosing activation
     // binding now route through the production VM — captured names lower to dynamic-identifier ops
     // over the threaded closure environment. Captured READ (config), captured WRITE (counter n++),

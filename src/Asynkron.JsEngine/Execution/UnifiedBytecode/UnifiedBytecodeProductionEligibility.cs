@@ -457,16 +457,23 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // The production VM does not implement same-function tail-call optimization. A call expression
-        // returned from inside a finally block is a tail position per spec (the finally completion
-        // overrides the protected block), so deep self-recursion through such a return must run on the
-        // TCO-capable IR runner (ExecutionPlanRunner) instead of the VM; otherwise the native call stack
-        // grows unbounded and overflows. Decline so these functions route to the IR runner.
-        if (ContainsCallReturnReachableFromFinally(plan))
+        // A8 (burn-down) tail-call safety boundary — STRICT-ONLY. A call expression returned from inside a
+        // finally block is a tail position per spec (the finally completion overrides the protected block).
+        // The production VM has NO same-function tail-call optimization, but the IR runner
+        // (SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget) tail-call-optimizes deep STRICT
+        // same-function identifier recursion onto a flat native stack — and that restart path fires for a
+        // `return <call>;` inside a finally exactly as it does for a `return <call>;` in the try body (proven
+        // by StrictSameFunctionTailCall_InFinallyReturnDoesNotGrowCallDepth, 1500-deep, no overflow). Routing
+        // such a strict finally-return self-recursion to the VM would re-enter the native stack each iteration
+        // and overflow it (uncatchable StackOverflow, crashes the host). So decline any STRICT function whose
+        // finally region returns a call, keeping it on the TCO-capable IR runner. This mirrors the A9/A10
+        // strict-only gate below: the restart requires strict mode, so a NON-STRICT finally-return call is
+        // never tail-call-optimized anywhere and is no worse on the VM — those stay ADMITTED.
+        if (isStrict && ContainsCallReturnReachableFromFinally(plan))
         {
             declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
             declineReason =
-                "A call returned from within a finally block is a tail position and requires the tail-call-optimizing IR runner; not eligible for production unified bytecode routing.";
+                "A call returned from within a finally block in a strict function is a tail position and requires the tail-call-optimizing IR runner; not eligible for production unified bytecode routing.";
             return true;
         }
 

@@ -868,8 +868,10 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
 
                     case UnifiedBytecodeOpCode.DeclareDynamicLexical:
+                        var declaredDynamicLexicalName =
+                            program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)];
                         DeclareDynamicLexical(
-                            program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                            declaredDynamicLexicalName,
                             DecodeDynamicLexicalDeclarationIsConst(instruction.Operand),
                             RequireDynamicEnvironment(currentCallingEnvironment),
                             context);
@@ -883,13 +885,27 @@ internal static class UnifiedBytecodeVirtualMachine
                             return JsValue.Undefined;
                         }
 
+                        // A lexical declaration target can carry BOTH a materialized-env binding (written
+                        // above) AND a flat slot that own-scope LoadSlot reads use. The dynamic-lexical
+                        // declaration only puts the binding into the environment in its TDZ (uninitialized)
+                        // state; mirror that TDZ state into the bound flat slot so a premature read still
+                        // throws and a later InitializeDynamicLexical can lift it (see below).
+                        MirrorDynamicLexicalToFlatSlot(
+                            slotEnvironments,
+                            slots,
+                            currentCallingEnvironment,
+                            declaredDynamicLexicalName,
+                            JsValue.Uninitialized);
+
                         programCounter++;
                         break;
 
                     case UnifiedBytecodeOpCode.InitializeDynamicLexical:
                         var dynamicLexicalValue = stack[--stackPointer];
+                        var initializedDynamicLexicalName =
+                            program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)];
                         InitializeDynamicLexical(
-                            program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                            initializedDynamicLexicalName,
                             DecodeDynamicStoreAllowsNameInference(instruction.Operand),
                             dynamicLexicalValue,
                             RequireDynamicEnvironment(currentCallingEnvironment),
@@ -903,6 +919,19 @@ internal static class UnifiedBytecodeVirtualMachine
 
                             return JsValue.Undefined;
                         }
+
+                        // Keep the bound flat slot in lock-step with the env binding the dynamic-lexical
+                        // path just initialized, so own-scope LoadSlot reads of this lexical observe the
+                        // initialized value instead of a stale TDZ slot. Without this, a per-iteration
+                        // const/let that the compiler lowered to dynamic-lexical ops (e.g. because a loop
+                        // body containing `continue` over the per-iteration scope kept its declaration off
+                        // the flat-slot path) would throw a spurious "before initialization" error on read.
+                        MirrorDynamicLexicalToFlatSlot(
+                            slotEnvironments,
+                            slots,
+                            currentCallingEnvironment,
+                            initializedDynamicLexicalName,
+                            dynamicLexicalValue);
 
                         programCounter++;
                         break;
@@ -6158,6 +6187,44 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         binding.Environment.SetSlotDirect(binding.SlotIndex, value);
+    }
+
+    /// <summary>
+    /// Inverse of <see cref="SyncSlotEnvironment"/> for the dynamic-lexical write path. A lexical binding
+    /// in the materialized call environment can be shadowed by a flat VM slot that own-scope
+    /// <c>LoadSlot</c> reads use as the source of truth. The <c>DeclareDynamicLexical</c> /
+    /// <c>InitializeDynamicLexical</c> opcodes only touch the environment binding (by name), so the bound
+    /// flat slot would otherwise keep its stale value. This writes <paramref name="value"/> into the flat
+    /// slot whose <see cref="UnifiedSlotEnvironmentBinding"/> resolves to <paramref name="environment"/>
+    /// and the env-slot index that <paramref name="name"/> maps to, keeping the two representations
+    /// consistent. No-op when there is no materialized slot-environment mapping (pure slot path) or when
+    /// the name has no flat-slot shadow.
+    /// </summary>
+    private static void MirrorDynamicLexicalToFlatSlot(
+        UnifiedSlotEnvironmentBinding?[]? slotEnvironments,
+        Span<JsValue> slots,
+        JsEnvironment? environment,
+        string name,
+        JsValue value)
+    {
+        if (slotEnvironments is null ||
+            environment is null ||
+            !environment.TryGetSlotIndex(Symbol.Intern(name), out var envSlotIndex))
+        {
+            return;
+        }
+
+        for (var flatSlotIndex = 0; flatSlotIndex < slotEnvironments.Length; flatSlotIndex++)
+        {
+            if (slotEnvironments[flatSlotIndex] is { } binding &&
+                binding.SlotIndex == envSlotIndex &&
+                ReferenceEquals(binding.Environment, environment) &&
+                (uint)flatSlotIndex < (uint)slots.Length)
+            {
+                slots[flatSlotIndex] = value;
+                return;
+            }
+        }
     }
 
     private static bool IsConstSlot(

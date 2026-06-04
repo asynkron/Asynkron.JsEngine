@@ -746,7 +746,20 @@ the final post-compile production subset check before VM entry.
   chains, including named-then-computed continuations, may also start after a
   plain named receiver prefix (`box.child?.value`, `box.child?.[key]`,
   `box.child?.items[key]`), with the prefix emitted as owned `GetNamedProperty`
-  reads before the optional jump-to-chain-end boundary. Nested named receiver
+  reads before the optional jump-to-chain-end boundary. A28: a standalone
+  whole-program optional NAMED read chain may also carry MULTIPLE optional hops
+  (`a?.b?.c`, `a?.b?.c?.d`, deeper, and prefixed tails such as `a.x?.b?.c` /
+  `a.b.c?.d?.e`) — `TryIsFirstBoundaryOptionalNamedChainCandidate` validates the
+  whole program (activation-resolved base, an optional run of plain named prefix
+  reads, the first optional `?.` hop, then one-or-more short-circuiting named
+  hops) and `TryAppendFirstBoundaryOptionalNamedPropertyReadChain` emits ONE
+  `JumpIfNullishReplaceUndefined` boundary per optional hop, every jump
+  backpatched to the same chain end so a nullish value at ANY hop short-circuits
+  the remaining chain to `undefined` while a real-undefined intermediate read by
+  a following NON-optional hop (`a?.b?.c.d`) still throws `TypeError`. This
+  multi-hop admission is for standalone whole-program reads; as a call-argument
+  span a second optional hop still declines with `OptionalChainDependency` (see
+  the call-argument narrative below). Nested named receiver
   chains ending in a simple
   computed delete (`delete box.child[key]`, `delete box.child[left + right]`)
   are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`. A25/A26

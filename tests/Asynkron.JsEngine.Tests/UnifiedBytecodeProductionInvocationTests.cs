@@ -3894,6 +3894,93 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalNamedChain_ShortCircuitsAtEveryHop()
+    {
+        // A28: a?.b?.c?.d — a multi-hop optional named read must chain one
+        // JumpIfNullishReplaceUndefined boundary per `?.` hop, each targeting the chain end.
+        // A nullish value introduced at ANY hop short-circuits the whole remaining chain to
+        // undefined; the read only succeeds when every hop is present. Routing through the
+        // production fast path is asserted via the func= log (interpreter fallback fails this).
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b?.c?.d;
+            }
+
+            var whenBaseNull = readChain(null);
+            var whenFirstNull = readChain({});
+            var whenSecondNull = readChain({ b: null });
+            var whenThirdNull = readChain({ b: { c: null } });
+            var whenPresent = readChain({ b: { c: { d: 9 } } });
+            "" + whenBaseNull + ":" + whenFirstNull + ":" + whenSecondNull +
+                ":" + whenThirdNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:undefined:9", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalNamedChain_AfterNonOptionalPrefix_ShortCircuitsAtEveryHop()
+    {
+        // A28: a.x?.b?.c — a non-optional receiver prefix followed by multiple optional hops.
+        // The prefix read (a.x) is a plain GetNamedProperty; each subsequent `?.` hop emits its
+        // own boundary jump to the chain end. Confirms the optionalStartIndex prefix-skip handles
+        // a multi-hop tail and still routes through the production fast path.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a.x?.b?.c;
+            }
+
+            var whenPrefixNull = readChain({ x: null });
+            var whenMiddleNull = readChain({ x: { b: null } });
+            var whenPresent = readChain({ x: { b: { c: 7 } } });
+            "" + whenPrefixNull + ":" + whenMiddleNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalNamedChain_RealUndefinedIntermediateBeforeNonOptionalHopThrows()
+    {
+        // A28 adversarial: a?.b?.c.d — the trailing `.d` is a NON-optional hop. When `a.b.c`
+        // reads a real-undefined VALUE (not a nullish base), the `?.` short-circuit must NOT fire
+        // for the following plain read, so `.d` throws a TypeError. This proves each boundary jump
+        // guards only its own optional hop and does not swallow downstream non-optional reads.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a) {
+                return a?.b?.c.d;
+            }
+
+            var threw = false;
+            try {
+                readChain({ b: { c: undefined } });
+            } catch (error) {
+                threw = error instanceof TypeError;
+            }
+
+            var whenShortCircuited = readChain({ b: null });
+            "" + threw + ":" + whenShortCircuited;
+            """);
+
+        Assert.Equal("true:undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedChainAfterNamedPrefix_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

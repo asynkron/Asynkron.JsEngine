@@ -599,6 +599,28 @@ predicates and proof tests.
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
   inside resumable bodies remain outside it.
+  - NESTED FUNCTION LITERALS (`var h = function(){...}`, `let f = () => n`;
+    `LoadFunctionLiteral`/`EnsureHasName`) and HOISTED NESTED FUNCTION DECLARATIONS
+    (`function helper(){...}`; `FunctionDeclarationInstruction` /
+    `DeclareFunction`) inside a generator/async body are INVESTIGATED-DECLINED
+    (B23 + B36). They stay on the IR runner with the correct value; they must NOT
+    route resumable. Two distinct architecture gaps, neither a 1:1 opcode
+    admission: (1) a nested function closes over the resumable activation's
+    ENVIRONMENT, but the body's own locals are realised as FLAT SLOTS on the
+    resume state, so a nested function that CAPTURES a generator/async local cannot
+    see it through its environment chain (a naive resumable route makes
+    `function* g(){ var n=1; var f=()=>n; yield f(); }` throw
+    `ReferenceError: n is not defined`) and a sync-on-create would go stale on a
+    post-capture mutation; the non-capturing subset cannot be separated from the
+    broken capturing subset without free-variable capture analysis the resumable
+    route does not carry. (2) Hoisted declarations are materialised by
+    FunctionDeclarationInstantiation at call time, which the resumable setup does
+    not run, so the declared name's slot stays `undefined` on a naive route.
+    `LoadFunctionLiteral`, `EnsureHasName`, and `DeclareFunction` are therefore
+    kept OFF the resumable opcode allowlist (`TryFindUnsupportedResumableOpcode`)
+    and `FunctionDeclarationInstruction` OFF the resumable instruction allowlist
+    (`IsSupportedResumableInstruction`); the boundary is pinned by
+    `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

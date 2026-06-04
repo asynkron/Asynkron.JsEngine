@@ -66,18 +66,18 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A10** Free identifier call target (`helper(x)`) — sync only; resumable admits — *DynamicLookupDependency* — ◐/☑ — `:1195`
 - [ ] **A11** Complex call arguments outside admitted spans (`fn(a+g(b))`) — *CallInvocationBoundary* — ☐/◐ — `:1245`
 - [ ] **A12** Member/computed call-target outside first boundary (`a.b().c()`) — *CallInvocationBoundary/CallDependency* — ◐/◐ — `:1240`
-- [ ] **A13** Free identifier READ (sync only; resumable admits) — *DynamicLookupDependency* — ◐/☑ — `:1328`
-- [ ] **A14** Free dynamic identifier STORE `freeVar = x` (both routes) — *DynamicLookupDependency* — ☐/☐ — `:1359`
-- [ ] **A15** `typeof freeName` dynamic lookup — *DynamicLookupDependency* — ☐/☐ — `:1417`
-- [ ] **A16** Computed-property delete key `delete box[freeName]` — *DynamicLookupDependency* — ☐/◐ — `:1632`
+- [x] **A13** Free identifier READ (sync only; resumable admits) — *DynamicLookupDependency* — ☑/☑ — `:1328` ✅ (commit af1be8ecc): already admitted via `allowsOrdinaryDynamicIdentifiers` → `LoadDynamicIdentifier`; locked with adversarial tests (global value; undeclared → ReferenceError).
+- [x] **A14** Free dynamic identifier STORE `freeVar = x` (both routes) — *DynamicLookupDependency* — ☑/☑ — `:1359` ✅ (commit af1be8ecc): admitted; `StoreDynamicIdentifier` creates a configurable sloppy global, strict unresolvable → ReferenceError. Both verified.
+- [x] **A15** `typeof freeName` dynamic lookup — *DynamicLookupDependency* — ☑/☑ — `:1417` ✅ (commit af1be8ecc): `TypeOfDynamicIdentifier` → "undefined" for unbound (never throws), correct type for bound.
+- [x] **A16** Computed-property delete key `delete box[freeName]` — *DynamicLookupDependency* — ☑/◐ — `:1632` ✅ (commit af1be8ecc): free key lowers via `LoadDynamicIdentifier`; first-boundary computed-delete candidate accepts.
 - [x] **A17** Named property read past first boundary (`box.a.b.c.d`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1652` ✅ #3154
 - [x] **A18** Computed property read past first boundary (`box[a][b][c]`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1785` ✅ #3154
 - [x] **A19** Named/computed write past admitted (`box.a.b.c=v`, `a=b=v`) — *PropertyWriteDependency* — ◐/◐ — `:1812` ✅ #3160
 - [x] **A20** Ternary/branching computed-key write `box.child[c?a:b]=v` (+ update/delete) — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [x] **A21** Compound/logical computed write w/ ternary key `box[c?a:b]+=v`, `a&&b`, `a??b` — *PropertyWriteDependency* — ☑/◐ ✅ #3121
-- [ ] **A22** Identifier update on free name `freeName++` — *PropertyUpdateDependency* — ☐/☐ — `:1829`
+- [x] **A22** Identifier update on free name `freeName++` — *PropertyUpdateDependency* — ☑/☑ — `:1829` ✅ (commit af1be8ecc): `UpdateDynamicIdentifier` returns old/new and mutates the global; verified.
 - [x] **A23** Update w/ computed receiver prefix `box[k1].child[k2]++` — *PropertyUpdateDependency* — ◐/◐ — `:1850` ✅ #3168
-- [ ] **A24** `delete freeName` — *DeleteDependency* — ☐/☐ — `:1861`
+- [x] **A24** `delete freeName` — *DeleteDependency* — ☑/☑ — `:1861` ✅ (commit af1be8ecc): `DeleteDynamicIdentifier` — correct false/true per configurability, unresolvable-ref → true.
 - [x] **A25** Named property delete past admitted (`delete box.a.b.c`) — *DeleteDependency* — ◐/◐ — `:1888` ✅ #3155
 - [x] **A26** Computed property delete past admitted (`delete box[k1][k2]`) — *DeleteDependency* — ◐/◐ — `:1918` ✅ #3155
 - [ ] **A27** `super.m()` / `super[k]()` call-target prep outside first boundary — *SuperPropertyDependency* — ◐/☐ — `:1302` — _(in progress: workflow A1-super)_

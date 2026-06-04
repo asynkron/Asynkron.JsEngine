@@ -59,7 +59,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A3** `arguments` whole-object dependency (escape/pass/return/mutate) — *ArgumentsObjectDependency* — ☑/☐ — `:427` ✅ (Codex)
 - [x] **A4** `arguments` as call target — *ArgumentsObjectDependency* — ☑/☐ — `:1172` ✅ (Codex)
 - [x] **A5** `arguments` store / assignment-reference — *ArgumentsObjectDependency* — ☑/☐ — `:1340` ✅ (Codex)
-- [ ] **A6** Arrow needing lexical-this / new.target environment (non-simple body) — *ArrowLexicalThisDependency* — ☐/n/a — `:455`
+- [x] **A6** Arrow needing lexical-this / new.target environment (non-simple body) — *ArrowLexicalThisDependency* — ◐/n/a — `:455` ✅ (commit 3591e8507): FLAT multi-statement arrow bodies now route through the production VM (lexical `this`/`new.target` threaded before VM entry, body-shape-agnostic). Mirrors closure Stage 0: lifted the arrow path off `SimpleReturnProgram`-only, bounded by `HasOnlyRootFlatSlotMappings`. NESTED-lexical-scope arrows still decline (shadowing hazard) — later slice.
 - [ ] **A7** Class constructor activation outside admitted param shapes — *ClassConstructorActivation* — ◐/n/a — `:462`
 - [ ] **A8** Tail call returned from inside `finally` — *CallDependency* — ☐/n/a — `:498`
 - [ ] **A9** Identifier call-target outside first invocation boundary — *CallDependency* — ◐/◐ — `:1204`

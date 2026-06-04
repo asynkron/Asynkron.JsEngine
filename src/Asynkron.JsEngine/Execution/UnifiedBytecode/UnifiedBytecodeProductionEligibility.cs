@@ -855,6 +855,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ImmutableArray<ExecutionInstruction> instructions,
         int enterTryIndex,
         EnterTryInstruction enterTry,
+        ActivationSlotShape activationSlots,
         out string instructionName)
     {
         // The instruction stream is threaded by Next/branch-target pointers, NOT laid out in ascending
@@ -900,109 +901,39 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
-        // A USER `try { yield } finally { ... }` whose try body suspends and whose finally is NOT the
-        // synthetic for-of iterator-close region. When such a generator is CLOSED early (a for-of `break` /
-        // `throw` over it, or an explicit `.return()`/`.throw()` while it is suspended at the protected
-        // yield), the spec requires the finally to run during the abrupt completion. The resumable VM's
-        // cleanup path does not drive a user finally on early close, so the finally is skipped — decline and
-        // keep these on the IR runner. The for-of-lowered iterator-close finally is detected by the
-        // IteratorCloseInstruction in its region (a synthetic, non-suspending cleanup the resumable VM
-        // handles correctly) and stays admitted. (Without this guard, admitting a free/captured update inside
-        // the finally — e.g. `finally { n++; }` — would newly route the generator and silently drop the
-        // finally on close.)
+        // SCOPED close-finally guard for the NEW captured/free dynamic-UPDATE admission only. The resumable
+        // VM's early-close path (`.return()`/`.throw()` while the generator is suspended at a yield protected
+        // by this try) does not re-drive a user finally body — a PRE-EXISTING limitation shared by every
+        // non-empty finally (property-write finallies included; those keep routing exactly as on main, so the
+        // B32 normal-completion pin stays green). This guard does NOT widen that limitation. It only declines
+        // the shapes THIS change newly admitted: a finally that performs a free/captured dynamic UPDATE
+        // (`n++` where `n` escapes the activation's slots, lowering to UpdateDynamicIdentifier). Before this
+        // change such a finally declined at the increment gate and ran on the IR runner (where early-close
+        // finallies execute correctly — see IteratorCloseGeneratorTests `finally { finallyCount++; }`);
+        // admitting UpdateDynamicIdentifier would otherwise newly route those generators and silently drop the
+        // finally on early close. Declining them here restores their IR-runner route. (A free/captured READ in
+        // the finally is unaffected — only the new dynamic UPDATE is gated.)
         if (enterTry.FinallyIndex >= 0 &&
-            // An EMPTY finally (`finally {}`, FinallyIndex == EndFinallyIndex) has no observable body, so
-            // whether the resumable VM drives it on early close is unobservable — leave it for the
-            // nested-chain guard above (it owns the `try { try { yield } finally {} } finally {}` shape and
-            // its specific decline reason). Only a NON-empty user finally with a real side effect needs this
-            // guard.
-            enterTry.FinallyIndex != enterTry.EndFinallyIndex &&
-            !FinallyRegionIsSyntheticIteratorClose(instructions, enterTry) &&
-            TryBodyContainsSuspension(instructions, enterTry))
+            FinallyRegionContainsFreeOrCapturedUpdate(instructions, enterTry, activationSlots))
         {
-            instructionName = "user try/finally protecting a yield/await (finally is skipped on early close)";
+            instructionName = "finally body performs a captured/free dynamic update whose early-close execution the resumable VM does not drive";
             return true;
         }
 
         return false;
     }
 
-    private static bool TryBodyContainsSuspension(
+    private static bool FinallyRegionContainsFreeOrCapturedUpdate(
         ImmutableArray<ExecutionInstruction> instructions,
-        EnterTryInstruction enterTry)
-    {
-        var boundary = new HashSet<int>();
-        if (enterTry.HandlerIndex >= 0)
-        {
-            boundary.Add(enterTry.HandlerIndex);
-        }
-
-        if (enterTry.FinallyIndex >= 0)
-        {
-            boundary.Add(enterTry.FinallyIndex);
-        }
-
-        if (enterTry.EndFinallyIndex >= 0)
-        {
-            boundary.Add(enterTry.EndFinallyIndex);
-        }
-
-        if (enterTry.LeaveTryIndex >= 0)
-        {
-            boundary.Add(enterTry.LeaveTryIndex);
-        }
-
-        var visited = new HashSet<int>();
-        var pending = new Stack<int>();
-        if (enterTry.Next >= 0)
-        {
-            pending.Push(enterTry.Next);
-        }
-
-        while (pending.Count > 0)
-        {
-            var index = pending.Pop();
-            if ((uint)index >= (uint)instructions.Length || boundary.Contains(index) || !visited.Add(index))
-            {
-                continue;
-            }
-
-            var instruction = instructions[index];
-            if (InstructionCanSuspendResumableExecution(instruction))
-            {
-                return true;
-            }
-
-            switch (instruction)
-            {
-                case BranchInstruction branch:
-                    pending.Push(branch.ConsequentIndex);
-                    pending.Push(branch.AlternateIndex);
-                    break;
-                case EnterTryInstruction nested:
-                    pending.Push(nested.Next);
-                    pending.Push(nested.HandlerIndex);
-                    pending.Push(nested.FinallyIndex);
-                    break;
-                default:
-                    pending.Push(instruction.Next);
-                    break;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool FinallyRegionIsSyntheticIteratorClose(
-        ImmutableArray<ExecutionInstruction> instructions,
-        EnterTryInstruction enterTry)
+        EnterTryInstruction enterTry,
+        ActivationSlotShape activationSlots)
     {
         if (enterTry.FinallyIndex < 0)
         {
             return false;
         }
 
-        var boundary = new HashSet<int> { enterTry.FinallyIndex };
+        var boundary = new HashSet<int>();
         if (enterTry.EndFinallyIndex >= 0)
         {
             boundary.Add(enterTry.EndFinallyIndex);
@@ -1013,23 +944,29 @@ internal static class UnifiedBytecodeProductionEligibility
             boundary.Add(enterTry.LeaveTryIndex);
         }
 
-        // Walk the finally region (from its first instruction up to EndFinally). The for-of-lowered cleanup
-        // finally is the synthetic GetMethod("return")/IteratorClose sequence, identified by the
-        // IteratorCloseInstruction it contains; any finally that does NOT contain one is a user-authored
-        // finally body whose abrupt-completion execution the resumable VM does not drive on early close.
+        // Walk only the finally region (from its first instruction up to EndFinally). Detect an
+        // IncrementSlotInstruction whose target does NOT resolve to one of this activation's slots — that is
+        // the free/captured update (`n++`) that lowers to UpdateDynamicIdentifier and is the sole shape this
+        // change newly admitted into finally-on-close territory.
         var visited = new HashSet<int>();
         var pending = new Stack<int>();
         pending.Push(enterTry.FinallyIndex);
         while (pending.Count > 0)
         {
             var index = pending.Pop();
-            if ((uint)index >= (uint)instructions.Length || (index != enterTry.FinallyIndex && boundary.Contains(index)) || !visited.Add(index))
+            if ((uint)index >= (uint)instructions.Length ||
+                (index != enterTry.FinallyIndex && boundary.Contains(index)) ||
+                !visited.Add(index))
             {
                 continue;
             }
 
             var instruction = instructions[index];
-            if (instruction is IteratorCloseInstruction)
+            if (instruction is IncrementSlotInstruction
+                {
+                    TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId
+                } &&
+                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots))
             {
                 return true;
             }
@@ -1262,9 +1199,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     // (TryFindUnsupportedResumableOpcode) admits UpdateDynamicIdentifier, and the
                     // ExecuteResumable switch carries its handler; both stay 1:1. Do NOT decline here — the
                     // captured-write tier is admitted (mirrors the sync captured-closure route, commit
-                    // 1c0b30675).
-                    declineCode = UnifiedBytecodeProductionDeclineCode.None;
-                    declineReason = string.Empty;
+                    // 1c0b30675). The one exception is a captured/free update sited INSIDE a finally that
+                    // protects a yield/await: TryFindTryFinallyRegionResumableSuspension declines that so the
+                    // generator keeps its IR-runner early-close finally semantics.
                 }
                 else if (IsLexicalSlotUpdateTarget(updateSlotIndex, updateFlatSlotId, activationSlots))
                 {
@@ -1317,6 +1254,7 @@ internal static class UnifiedBytecodeProductionEligibility
                     plan.Instructions,
                     instructionIndex,
                     enterTry,
+                    activationSlots,
                     out var suspendingInstructionName))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;

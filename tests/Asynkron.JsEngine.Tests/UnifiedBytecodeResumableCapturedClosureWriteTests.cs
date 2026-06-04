@@ -254,6 +254,42 @@ public sealed class UnifiedBytecodeResumableCapturedClosureWriteTests(ITestOutpu
             record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
     }
 
+    // Close-finally boundary: a captured update (`n++`) sited INSIDE a finally that protects a yield must
+    // keep the generator on the IR runner, because the resumable VM's early-close (.return()/.throw()) path
+    // does not re-drive a user finally. Closing the generator early (for-of break) MUST still run the
+    // finally, mutating the captured `n` — proven by the sibling `peek`. The generator must NOT route
+    // resumable (it would silently drop the finally on close). A non-empty property-write finally is a
+    // DIFFERENT, pre-existing tier that keeps routing (ResumableAlreadyRoutingPinTests.B32); only the
+    // captured/free UPDATE this change introduced into finally territory is gated here.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorCapturedUpdateInFinally_EarlyCloseRunsFinally_StaysOnRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function mk() {
+                let n = 0;
+                function* g() {
+                    try {
+                        yield 1;
+                        yield 2;
+                    } finally {
+                        n++;
+                    }
+                }
+                function peek() { return n; }
+                return { g: g, peek: peek };
+            }
+            var o = mk();
+            for (var x of o.g()) { break; }   // early close -> finally must run -> n === 1
+            o.peek();
+            """);
+
+        Assert.Equal(1d, result);
+        Assert.DoesNotContain(
+            CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal));
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(

@@ -81,6 +81,13 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function mk(){ let n=0; function inc(){ n++; return n; } return inc; } var f=mk(); f(); f();", "unified-bytecode-production-fast-path func=inc")]
     [InlineData("function mk(c){ function read(){ return c.x + c.y; } return read; } mk({x:1,y:2})();", "unified-bytecode-production-fast-path func=read")]
     [InlineData("function mk(o){ return function set(){ o.value=43; return o.value; }; } mk({value:42})();", "unified-bytecode-production-fast-path func=set")]
+    // A1 (Option A, collision-only guard): nested-scope captured closures whose nested-block lexical
+    // bindings do NOT collide with any captured name now route through the production VM. Captured READ
+    // with a disjoint nested `let step`, multi-level disjoint nesting, and a disjoint nested `const`.
+    // Colliding nested-scope closures (NestedFunctionScopeRegressionTests) STAY declined — no entry.
+    [InlineData("function mk(){ let acc=0; function inc(n){ if(n>0){ let step=n*2; acc+=step; } return acc; } return inc; } var f=mk(); f(1); f(2);", "unified-bytecode-production-fast-path func=inc")]
+    [InlineData("function mk(){ let acc=1; function go(n){ if(n>0){ let mid=n+1; if(mid>1){ let deep=mid*2; acc+=deep; } } return acc; } return go; } var f=mk(); f(1); f(2);", "unified-bytecode-production-fast-path func=go")]
+    [InlineData("function mk(){ let acc=0; function add(n){ if(n>0){ const factor=3; acc+=n*factor; } return acc; } return add; } var f=mk(); f(2); f(1);", "unified-bytecode-production-fast-path func=add")]
     // A46: the `**` exponentiation binary operator (BinaryOperator.Power) is in the production operator
     // subset (IsProductionBinaryOperator) and evaluates via JsOps.Exp. Integer base/exponent, the
     // right-associative chain (2**3**2 === 512), and the `**=` compound form all keep routing sync.
@@ -96,6 +103,11 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("const f = (a,b) => { const s = a+b; return s*2; }; f(3,4);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("function mk(base){ return (k) => { var t = base*2; return t+k; }; } mk(100)(1);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("var o={ x:10, m:function(){ var f=()=>{ var b=5; return this.x+b; }; return f(); } }; o.m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    // A6 (Option A, collision-only guard): nested-scope arrows whose nested-block lexical bindings do NOT
+    // collide with any captured name now route. Non-captured nested `let y`, and a captured-`base` arrow
+    // with a disjoint nested `let bonus`. Colliding nested-scope arrows STAY declined — no entry.
+    [InlineData("const f = (c) => { if (c) { let y = 1; return y; } return 0; }; f(true);", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("function mk(base){ return (n) => { if(n>0){ let bonus=n*10; return base+bonus; } return base; }; } mk(5)(2);", "unified-bytecode-production-fast-path func=<anonymous>")]
     // A52: `debugger;` lowers to an EmptyStatement no-op, so functions/scripts containing it keep
     // routing through the production VM (in the body, after a side effect, and inside a loop body).
     [InlineData("function f(){ debugger; return 1; } f();", "unified-bytecode-production-fast-path func=f")]

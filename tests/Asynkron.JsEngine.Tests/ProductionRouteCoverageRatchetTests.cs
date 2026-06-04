@@ -44,6 +44,11 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(g){ return {...g()}; } f(()=>({a:1,b:2}));", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g){ return {...g().inner}; } f(()=>({inner:{x:4,y:5}}));", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(a,g){ return { a, ...g(), c: 3 }; } f(0,()=>({b:2}));", "unified-bytecode-production-fast-path func=f")]
+    // A23: property UPDATE with a computed receiver prefix — computed-update terminal
+    // (box[k1].child[k2]++), named-update terminal (box[k1].child++), and prefix decrement.
+    [InlineData("function f(o,k1,k2){ return o[k1].child[k2]++; } f({a:{child:{x:1}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k1){ return o[k1].child++; } f({a:{child:1}},'a');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k1,k2){ return --o[k1].child[k2]; } f({a:{child:{x:5}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]

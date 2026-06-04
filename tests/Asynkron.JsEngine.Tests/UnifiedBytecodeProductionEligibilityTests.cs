@@ -8914,10 +8914,13 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     [Theory]
     [InlineData("box[k1].child[k2]++")]
     [InlineData("--box[k1].child[k2]")]
-    public void Evaluate_ComputedPrefixComputedPropertyUpdate_DeclinesWithPropertyUpdateDependency(string expression)
+    [InlineData("box[k1].child[k2]--")]
+    [InlineData("++box[k1].child[k2]")]
+    public void Evaluate_ComputedPrefixComputedPropertyUpdate_AcceptsOwnedPropertyOpcodes(string expression)
     {
-        // A computed receiver prefix (`box[k1].child[k2]++`) is outside the
-        // nested-NAMED-prefix computed-update boundary and must still decline.
+        // A23: a computed receiver prefix (`box[k1].child[k2]++`) resolves the prefix once via the
+        // shared computed-read span helper, then performs a computed update. It now routes through
+        // production unified bytecode.
         var plan = GetFunctionPlan($$"""
             function update(box, k1, k2) {
                 return {{expression}};
@@ -8929,8 +8932,59 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
+    }
+
+    [Theory]
+    [InlineData("box[k1].child++")]
+    [InlineData("--box[k1].child")]
+    public void Evaluate_ComputedPrefixNamedPropertyUpdate_AcceptsOwnedPropertyOpcodes(string expression)
+    {
+        // A23: a computed receiver prefix (`box[k1].child++`) feeding a NAMED update. The
+        // computed-read span is the whole receiver and the named property is the update target.
+        var plan = GetFunctionPlan($$"""
+            function update(box, k1) {
+                return {{expression}};
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetComputedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedProperty);
+    }
+
+    [Fact]
+    public void Evaluate_ComputedPrefixPropertyUpdateWithCallInPrefix_Declines()
+    {
+        // A call hop inside the receiver prefix (`box[k1]().child[k2]++`) is not a simple read
+        // span and must decline. The call is caught first by the invocation boundary, so the
+        // decline surfaces as CallDependency -- the contract is that it stays OUT of production.
+        var plan = GetFunctionPlan("""
+            function update(box, k1, k2) {
+                return box[k1]().child[k2]++;
+            }
+            """,
+            "update");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
         Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.PropertyUpdateDependency, result.Code);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
     }
 
     [Fact]

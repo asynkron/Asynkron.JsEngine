@@ -297,7 +297,8 @@ internal sealed record PushEnvironmentInstruction(
     ImmutableArray<(int SlotIndex, int FlatSlotId)> FlatSlotMappings = default,
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames = default,
     ImmutableArray<int> LexicalSlotIndices = default,
-    BlockStatement? SourceBlock = null)
+    BlockStatement? SourceBlock = null,
+    ImmutableArray<int> ConstLexicalSlotIndices = default)
     : ExecutionInstruction(InstructionKind.PushEnvironment, Next);
 
 /// <summary>

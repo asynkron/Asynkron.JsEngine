@@ -60,15 +60,18 @@ internal sealed class ScopeSlotCollector : AstVisitor
         var immutableSlotMaps = new Dictionary<int, ImmutableDictionary<Symbol, int>>(
             _scopes.Count);
         var lexicalBindings = new Dictionary<int, ImmutableHashSet<Symbol>>(_scopes.Count);
+        var constBindings = new Dictionary<int, ImmutableHashSet<Symbol>>(_scopes.Count);
 
         foreach (var (scopeId, info) in _scopes)
         {
             immutableSlotMaps[scopeId] = info.ToImmutableSlotMap();
             lexicalBindings[scopeId] =
                 info.LexicalBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
+            constBindings[scopeId] =
+                info.ConstBindings.ToImmutableHashSet(ReferenceEqualityComparer<Symbol>.Instance);
         }
 
-        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, _blockScopeIds);
+        return new ScopeSlotAnalysis(_scopes, immutableSlotMaps, lexicalBindings, constBindings, _blockScopeIds);
     }
 
     private void TraverseFrom(int index)
@@ -547,13 +550,27 @@ internal sealed class ScopeSlotCollector : AstVisitor
         _ = AllocateSlotInScope(targetScope, targetSymbol);
         if (varKind != VariableKind.Var)
         {
-            GetOrCreateScopeInfo(targetScope).LexicalBindings.Add(targetSymbol);
+            var info = GetOrCreateScopeInfo(targetScope);
+            info.LexicalBindings.Add(targetSymbol);
+            if (varKind is VariableKind.Const or VariableKind.Using or VariableKind.AwaitUsing)
+            {
+                info.ConstBindings.Add(targetSymbol);
+            }
         }
         else
         {
-            GetOrCreateScopeInfo(targetScope).LexicalBindings.Remove(targetSymbol);
+            var info = GetOrCreateScopeInfo(targetScope);
+            info.LexicalBindings.Remove(targetSymbol);
+            info.ConstBindings.Remove(targetSymbol);
         }
     }
+
+    /// <summary>
+    ///     Returns whether <paramref name="symbol" /> was declared with an immutable lexical kind
+    ///     (const/using/await-using) according to the block's hoist plan.
+    /// </summary>
+    private static bool IsConstLexicalKind(HoistPlan hoistPlan, Symbol symbol) =>
+        hoistPlan.LexicalDeclarationKinds.TryGetValue(symbol, out var isConst) && isConst;
 
     protected override void VisitIdentifierExpression(IdentifierExpression node)
     {
@@ -591,6 +608,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
                 {
                     AllocateSlotInScope(_rootScopeId, lexName);
                     rootInfo.LexicalBindings.Add(lexName);
+                    if (IsConstLexicalKind(functionBodyHoistPlan, lexName))
+                    {
+                        rootInfo.ConstBindings.Add(lexName);
+                    }
                 }
 
                 rootInfo.SlotCountHint = Math.Max(rootInfo.SlotCountHint,
@@ -624,6 +645,10 @@ internal sealed class ScopeSlotCollector : AstVisitor
             var slotIndex = info.NextSlotIndex++;
             info.IncludeSlot(lexName, slotIndex);
             info.LexicalBindings.Add(lexName);
+            if (IsConstLexicalKind(hoistPlan, lexName))
+            {
+                info.ConstBindings.Add(lexName);
+            }
         }
 
         info.SlotCountHint = Math.Max(info.SlotCountHint, hoistPlan.TopLevelLexicalNames.Count);
@@ -666,6 +691,13 @@ internal sealed class ScopeSlotInfo(int scopeId)
     public int ScopeId { get; } = scopeId;
     public Dictionary<Symbol, int> Slots { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
     public HashSet<Symbol> LexicalBindings { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
+
+    /// <summary>
+    ///     Subset of <see cref="LexicalBindings" /> that were declared with an immutable lexical kind
+    ///     (<c>const</c>, <c>using</c>, or <c>await using</c>). Used to thread const-ness into the
+    ///     bytecode program / activation environment so reassigning such a binding throws a TypeError.
+    /// </summary>
+    public HashSet<Symbol> ConstBindings { get; } = new(ReferenceEqualityComparer<Symbol>.Instance);
     public int SlotCountHint { get; set; }
     public int NextSlotIndex { get; set; }
 
@@ -710,10 +742,17 @@ internal sealed class ScopeSlotAnalysis(
     Dictionary<int, ScopeSlotInfo> scopes,
     Dictionary<int, ImmutableDictionary<Symbol, int>> immutableSlotMaps,
     Dictionary<int, ImmutableHashSet<Symbol>> lexicalBindings,
+    Dictionary<int, ImmutableHashSet<Symbol>> constBindings,
     Dictionary<BlockStatement, int> blockScopeIds)
 {
     public Dictionary<int, ScopeSlotInfo> Scopes { get; } = scopes;
     public Dictionary<int, ImmutableDictionary<Symbol, int>> ImmutableSlotMaps { get; } = immutableSlotMaps;
     public Dictionary<int, ImmutableHashSet<Symbol>> LexicalBindings { get; } = lexicalBindings;
+
+    /// <summary>
+    ///     Per-scope const lexical bindings (const/using/await-using). Subset of
+    ///     <see cref="LexicalBindings" />.
+    /// </summary>
+    public Dictionary<int, ImmutableHashSet<Symbol>> ConstBindings { get; } = constBindings;
     public Dictionary<BlockStatement, int> BlockScopeIds { get; } = blockScopeIds;
 }

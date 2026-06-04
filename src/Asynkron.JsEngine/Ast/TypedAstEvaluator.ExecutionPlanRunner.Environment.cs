@@ -145,7 +145,8 @@ public static partial class TypedAstEvaluator
                     activationSlots.LayoutId,
                     activationSlots.ScopeId,
                     activationSlots.SlotNames,
-                    activationSlots.LexicalSlotIndices);
+                    activationSlots.LexicalSlotIndices,
+                    activationSlots.ConstLexicalSlotIndices);
             }
 
             // ES2024 9.2.12 FunctionDeclarationInstantiation step 34-35:

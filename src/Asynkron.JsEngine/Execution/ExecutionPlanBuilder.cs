@@ -35,6 +35,7 @@ internal sealed partial class ExecutionPlanBuilder
     private string? _failureReason;
     private int _analysisRootScopeId;
     private Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings = new();
+    private Dictionary<int, ImmutableHashSet<Symbol>> _constBindings = new();
     private int _resumeSlotCounter;
     private int _scopeIdCounter = 1; // Start at 1; root scope id is handled separately and remapped later
     private int _rootScopeId;
@@ -185,11 +186,14 @@ internal sealed partial class ExecutionPlanBuilder
         var rootLexicalBindings = analysis is not null && _lexicalBindings.TryGetValue(mappedRootScopeId, out var rootLex)
             ? rootLex
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
+        var rootConstBindings = analysis is not null && _constBindings.TryGetValue(mappedRootScopeId, out var rootConst)
+            ? rootConst
+            : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
         var slotSymbols = _slotSymbols.ToImmutableArray();
         var layoutId = ComputeLayoutId(rootSlotCount, rootSlotMap, slotSymbols);
         var materializedBindingNames = BuildMaterializedActivationBindingNames(function, Instructions);
         var activationSlots = BuildActivationSlotShape(function, mappedRootScopeId, rootSlotCount, layoutId, rootSlotMap,
-            rootLexicalBindings, materializedBindingNames);
+            rootLexicalBindings, rootConstBindings, materializedBindingNames);
         var flatSlotCount = rewriter?.FlatSlotCount ?? 0;
         var flatSlotMappings = rewriter?.BuildFlatSlotMappings();
 
@@ -211,7 +215,10 @@ internal sealed partial class ExecutionPlanBuilder
             layoutId,
             flatSlotCount,
             flatSlotMappings,
-            activationSlots);
+            activationSlots,
+            RootConstBindings: rootConstBindings,
+            ScopeConstBindings: _constBindings.ToImmutableDictionary(kv => kv.Key, kv => kv.Value,
+                EqualityComparer<int>.Default));
         return true;
     }
 
@@ -337,12 +344,14 @@ internal sealed partial class ExecutionPlanBuilder
         int layoutId,
         ImmutableDictionary<Symbol, int> rootSlotMap,
         ImmutableHashSet<Symbol> rootLexicalBindings,
+        ImmutableHashSet<Symbol> rootConstBindings,
         ImmutableHashSet<Symbol> materializedBindingNames)
     {
         var parameterNames = ((IAstCacheable<FunctionParameterNamesPlan>)function).GetOrCreateCache()
             .ParameterNames;
         var parameterSlotIndices = BuildParameterSlotIndices(rootSlotMap, parameterNames);
         var lexicalSlotIndices = BuildLexicalSlotIndices(rootSlotMap, rootLexicalBindings);
+        var constLexicalSlotIndices = BuildLexicalSlotIndices(rootSlotMap, rootConstBindings);
         if (rootSlotMap.IsEmpty)
         {
             return new ActivationSlotShape(
@@ -353,7 +362,8 @@ internal sealed partial class ExecutionPlanBuilder
                 ImmutableArray<(Symbol Name, int SlotIndex)>.Empty,
                 parameterSlotIndices,
                 lexicalSlotIndices,
-                materializedBindingNames);
+                materializedBindingNames,
+                constLexicalSlotIndices);
         }
 
         var slotNames = rootSlotMap
@@ -364,7 +374,8 @@ internal sealed partial class ExecutionPlanBuilder
         return new ActivationSlotShape(rootScopeId, rootSlotCount, layoutId, rootSlotMap, slotNames,
             parameterSlotIndices,
             lexicalSlotIndices,
-            materializedBindingNames);
+            materializedBindingNames,
+            constLexicalSlotIndices);
     }
 
     private static ImmutableHashSet<Symbol> BuildMaterializedActivationBindingNames(
@@ -597,6 +608,10 @@ internal sealed partial class ExecutionPlanBuilder
         rewriter = new SlotAssignmentRewriter(analysis, targetRootScopeId, analysisRootScopeId);
         var slotMapper = new Func<int, int>(rewriter.MapScopeId);
         _lexicalBindings = analysis.LexicalBindings.ToDictionary(
+            kv => slotMapper(kv.Key),
+            kv => kv.Value,
+            EqualityComparer<int>.Default);
+        _constBindings = analysis.ConstBindings.ToDictionary(
             kv => slotMapper(kv.Key),
             kv => kv.Value,
             EqualityComparer<int>.Default);

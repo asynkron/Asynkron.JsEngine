@@ -4003,7 +4003,8 @@ public sealed class JsEnvironment : IRentable
         int layoutId,
         int scopeId,
         ImmutableArray<(Symbol Name, int SlotIndex)> slotNames = default,
-        ImmutableArray<int> lexicalSlotIndices = default)
+        ImmutableArray<int> lexicalSlotIndices = default,
+        ImmutableArray<int> constSlotIndices = default)
     {
         var needsRebuild = LayoutId != layoutId || _slots is null || _slots.Length < requiredSlots ||
                            _slotCount < requiredSlots;
@@ -4043,6 +4044,9 @@ public sealed class JsEnvironment : IRentable
         {
             MarkSlotsLexicalUninitialized(lexicalBindings);
         }
+
+        // Mark const (const/using/await-using) activation slots immutable so a captured write throws.
+        SetSlotsConst(constSlotIndices);
 
         // Populate slot names from slotSymbols so TryValidateSlotTarget can verify
         // name-based slot resolution. Without this, strict-wrapper scripts fail because
@@ -4260,6 +4264,31 @@ public sealed class JsEnvironment : IRentable
             }
 
             SetSlotLexicalUninitialized(index);
+        }
+    }
+
+    /// <summary>
+    ///     Marks the given activation slots as immutable (<see cref="SlotFlags.Const" />) so a write to the
+    ///     binding — including a write captured by a nested closure — throws a TypeError. Used for
+    ///     function/block-scope <c>const</c> declarations on the fast activation path.
+    /// </summary>
+    internal void SetSlotsConst(ImmutableArray<int> indices)
+    {
+        if (_slots is null || indices.IsDefaultOrEmpty)
+        {
+            return;
+        }
+
+        for (var i = 0; i < indices.Length; i++)
+        {
+            var index = indices[i];
+            if ((uint)index >= (uint)_slotCount)
+            {
+                continue;
+            }
+
+            ref var slot = ref _slots[index];
+            slot.Flags |= SlotFlags.Const;
         }
     }
 

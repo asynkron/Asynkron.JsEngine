@@ -4300,7 +4300,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.LayoutId,
                 activationSlots.ScopeId,
                 activationSlots.SlotNames,
-                activationSlots.LexicalSlotIndices);
+                activationSlots.LexicalSlotIndices,
+                activationSlots.ConstLexicalSlotIndices);
 
             var boundThis = _isStrict ? thisValue : CoerceThisValueForNonStrict(thisValue);
             functionEnvironment._thisValue = boundThis;
@@ -4399,7 +4400,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.LayoutId,
                 activationSlots.ScopeId,
                 activationSlots.SlotNames,
-                activationSlots.LexicalSlotIndices);
+                activationSlots.LexicalSlotIndices,
+                activationSlots.ConstLexicalSlotIndices);
 
             functionEnvironment.SetThisInitializationStatus(false);
             functionEnvironment.DefineJsValue(Symbol.This, JsValue.Uninitialized);
@@ -4474,7 +4476,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                 activationSlots.LayoutId,
                 activationSlots.ScopeId,
                 activationSlots.SlotNames,
-                activationSlots.LexicalSlotIndices);
+                activationSlots.LexicalSlotIndices,
+                activationSlots.ConstLexicalSlotIndices);
 
             functionEnvironment.SetThisInitializationStatus(true);
             functionEnvironment._thisValue = thisValue;

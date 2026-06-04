@@ -30,6 +30,7 @@ internal static class UnifiedBytecodeCompiler
         ImmutableArray<int> LexicalSlotIndices,
         ImmutableArray<string?> SlotNames,
         bool AllowsOrdinaryDynamicIdentifiers,
+        ImmutableArray<int> ConstLexicalSlotIndices = default,
         int ScriptCompletionSlot = -1)
     {
         // Spread masks discovered while compiling synchronous spread invocations.
@@ -207,7 +208,10 @@ internal static class UnifiedBytecodeCompiler
                 ? ImmutableArray<TaggedTemplateDescriptor>.Empty
                 : templateObjectConstants.ToImmutable(),
             RequiresShortCircuitStackFlags(compiledInstructions),
-            slotLayout.ScriptCompletionSlot);
+            slotLayout.ScriptCompletionSlot,
+            slotLayout.ConstLexicalSlotIndices.IsDefaultOrEmpty
+                ? ImmutableArray<int>.Empty
+                : slotLayout.ConstLexicalSlotIndices);
         reason = string.Empty;
         return true;
     }
@@ -304,6 +308,12 @@ internal static class UnifiedBytecodeCompiler
             activationSlots.ScopeId,
             activationSlots.LexicalSlotIndices,
             flatSlotMappings);
+        var constLexicalSlotIndices = activationSlots.ConstLexicalSlotIndices.IsDefaultOrEmpty
+            ? ImmutableArray<int>.Empty
+            : RemapSlotIndices(
+                activationSlots.ScopeId,
+                activationSlots.ConstLexicalSlotIndices,
+                flatSlotMappings);
 
         return new UnifiedBytecodeSlotLayout(
             slotCount,
@@ -312,7 +322,8 @@ internal static class UnifiedBytecodeCompiler
             parameterSlotIndices,
             lexicalSlotIndices,
             names,
-            allowsOrdinaryDynamicIdentifiers);
+            allowsOrdinaryDynamicIdentifiers,
+            constLexicalSlotIndices);
     }
 
     private static ActivationSlotShape AddSyntheticResumeSlots(
@@ -1410,10 +1421,17 @@ internal static class UnifiedBytecodeCompiler
                             pushEnvironment.ScopeId,
                             pushEnvironment.LexicalSlotIndices,
                             slotLayout.FlatSlotMappings);
+                        var constSlotIndices = pushEnvironment.ConstLexicalSlotIndices.IsDefaultOrEmpty
+                            ? ImmutableArray<int>.Empty
+                            : RemapSlotIndices(
+                                pushEnvironment.ScopeId,
+                                pushEnvironment.ConstLexicalSlotIndices,
+                                slotLayout.FlatSlotMappings);
                         var scopeDescriptorIndex = scopeDescriptors.Count;
                         scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(
                             pushEnvironment.ScopeId,
-                            lexicalSlotIndices));
+                            lexicalSlotIndices,
+                            constSlotIndices));
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.PushEnvironment,
                             scopeDescriptorIndex));

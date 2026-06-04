@@ -38,7 +38,9 @@ internal sealed record ExecutionPlan(
     int FlatSlotCount = 0,
     ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? FlatSlotMappings = null,
     ActivationSlotShape? ActivationSlots = null,
-    CompactStatementStorageBoundary? CompactStatementStorageBoundary = null)
+    CompactStatementStorageBoundary? CompactStatementStorageBoundary = null,
+    ImmutableHashSet<Symbol>? RootConstBindings = null,
+    ImmutableDictionary<int, ImmutableHashSet<Symbol>>? ScopeConstBindings = null)
 {
     public ImmutableDictionary<Symbol, int> SafeRootSlotMap =>
         RootSlotMap ?? ImmutableDictionary<Symbol, int>.Empty.WithComparers(ReferenceEqualityComparer<Symbol>.Instance);
@@ -48,6 +50,12 @@ internal sealed record ExecutionPlan(
 
     public ImmutableDictionary<int, ImmutableHashSet<Symbol>> SafeScopeLexicalBindings =>
         ScopeLexicalBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
+
+    public ImmutableHashSet<Symbol> SafeRootConstBindings =>
+        RootConstBindings ?? ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
+
+    public ImmutableDictionary<int, ImmutableHashSet<Symbol>> SafeScopeConstBindings =>
+        ScopeConstBindings ?? ImmutableDictionary<int, ImmutableHashSet<Symbol>>.Empty;
 
     public bool HasOnlyRootFlatSlotMappings { get; } =
         ComputeHasOnlyRootFlatSlotMappings(RootScopeId, FlatSlotMappings);
@@ -420,7 +428,8 @@ internal sealed record ActivationSlotShape(
     ImmutableArray<(Symbol Name, int SlotIndex)> SlotNames,
     ImmutableArray<int> ParameterSlotIndices,
     ImmutableArray<int> LexicalSlotIndices,
-    ImmutableHashSet<Symbol> MaterializedBindingNames);
+    ImmutableHashSet<Symbol> MaterializedBindingNames,
+    ImmutableArray<int> ConstLexicalSlotIndices = default);
 
 internal readonly record struct SimpleReturnParameterBinaryExpression(
     BinaryOperator Operator,

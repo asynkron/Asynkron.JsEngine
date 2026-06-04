@@ -566,7 +566,9 @@ predicates and proof tests.
   operand stack like the call boundary, B11), optional
   chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `o.m?.()`, `f?.()`,
   `o[k]?.()`, `freeFn?.()` — B15), free/dynamic
-  identifier reads and calls, PROPERTY WRITES (`o.x = v`, `o[k] = v`,
+  identifier reads and calls, free-identifier `typeof`
+  (`typeof freeVar` via `TypeOfDynamicIdentifier` — unbound yields `"undefined"`
+  with no throw, B25), PROPERTY WRITES (`o.x = v`, `o[k] = v`,
   `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
   (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
   targets by the `IsLexicalSlotUpdateTarget` const-safety guard), and PROPERTY
@@ -577,7 +579,7 @@ predicates and proof tests.
   `OptionalChainDependency` — distinct from the now-admitted computed-member
   optional call `o[k]?.()`, B15), lexical-slot updates (`let i; i++`, where the resume state has no
   const-slot metadata to enforce a `const` reassignment `TypeError`),
-  dynamic-identifier `typeof`/`delete`, free dynamic writes/updates/deletes
+  dynamic-identifier `delete`, free dynamic writes/updates
   (`freeGlobal++`, `delete freeGlobal`), super-property updates/deletes, and
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
@@ -1145,9 +1147,9 @@ the final post-compile production subset check before VM entry.
   (proof: `UnifiedBytecodeResumableValueTierTests`). Optional/short-circuit read
   variants (`GetNamedPropertyOptional`, `GetComputedPropertyOptional`) stay
   declined because the resumable state has no `stackShortCircuitFlags` array to
-  persist short-circuit flags across suspension; `TypeOfDynamicIdentifier`,
-  property updates/deletes remain follow-ups (property writes are now admitted —
-  see the property-write entry below).
+  persist short-circuit flags across suspension. (`TypeOfDynamicIdentifier` is now
+  admitted — see the free-`typeof` entry below; property writes/updates/deletes are
+  now admitted — see the property entries below.)
 - Accepted resumable bodies may now DISPATCH synchronous calls between suspension
   points: non-optional `f()`, `o.m()`, and `o[k]()`. The
   `PrepareIdentifierCallTarget`, `PrepareNamedCallTarget`,
@@ -1225,6 +1227,35 @@ the final post-compile production subset check before VM entry.
   reassignment observed across a `yield`, a throwing callee surfacing on the
   resumed step (only a NULLISH callee short-circuits), and a pinned `o?.[k]()`
   plan-walk decline.
+- Accepted resumable bodies may now query `typeof` of a FREE/DYNAMIC IDENTIFIER
+  between suspension points (B25): `typeof freeVar` where `freeVar` is a
+  module/script-level binding, a captured outer binding, or an UNBOUND free name,
+  lowered to `TypeOfDynamicIdentifier`. The opcode is added to the
+  `TryFindUnsupportedResumableOpcode` allowlist and given one `ExecuteResumable`
+  handler that is the LITERAL TWIN of the sync `Execute` path: it resolves the name
+  against `RequireDynamicEnvironment(state.CallingEnvironment)` — the SAME live
+  closure environment (#3108) the admitted free dynamic reads / call targets /
+  optional-call targets already use, captured at construction and stable across
+  `yield`/`await` — and reuses the static `TypeOfDynamicIdentifier` helper. The
+  foundation was already in place (the calling environment is threaded; the
+  compiler already lowers a free `typeof` to `TypeOfDynamicIdentifier` under
+  `allowsOrdinaryDynamicIdentifiers: true`; the expression-decline walk already
+  admits a free `TypeOfIdentifier` operand when `allowsDynamicIdentifiers`), so the
+  opcode allowlist was the only gate. The defining invariant: `typeof` NEVER throws
+  ReferenceError — the helper swallows the unbound-binding throw and returns
+  `"undefined"`, so an UNBOUND free name yields `"undefined"` (no throw, unlike a
+  bare READ which would throw) and a BOUND name yields its runtime type; because
+  resolution is live, each resumed step observes the CURRENT binding (a retyped or
+  late-bound global flips type across the resume). The `ShouldStopEvaluation` guard
+  in the handler is purely the defensive non-ReferenceError-throw path (e.g. a
+  thrown getter on the global object), surfacing as the resumable Throw step. Free
+  dynamic WRITES/updates and `DeleteDynamicIdentifier` stay declined (no resumable
+  handler). Proofs (`UnifiedBytecodeResumableTypeOfDynamicTests`) cover the gate
+  (admits `TypeOfDynamicIdentifier`), the unbound-no-throw `"undefined"` result and
+  a defined type straddling a `yield`, a global RETYPED while suspended (live
+  `number|string`), a free name BOUND while suspended (`undefined|function`), a
+  generator NESTED IN A CONSTRUCTOR resolving the free/global name through its OWN
+  threaded env (not a per-activation value), and the async-across-`await` case.
 - Accepted resumable bodies may now resolve FREE/DYNAMIC IDENTIFIERS between
   suspension points: a free variable READ (`yield outerVar`, lowered to
   `LoadDynamicIdentifier`) and a free function CALL target (`yield helper(x)`
@@ -1234,8 +1265,9 @@ the final post-compile production subset check before VM entry.
   with `allowsOrdinaryDynamicIdentifiers: true`, and the two opcodes are added to
   the `TryFindUnsupportedResumableOpcode` allowlist (that allowlist is the gate —
   free WRITES/updates `StoreDynamicIdentifier`/`ResolveDynamicIdentifierReference`/
-  `UpdateDynamicIdentifier`, `TypeOfDynamicIdentifier`/`DeleteDynamicIdentifier`,
-  and `eval`/`with` stay off it and therefore decline). The `ExecuteResumable`
+  `UpdateDynamicIdentifier`, `DeleteDynamicIdentifier`, and `eval`/`with` stay off
+  it and therefore decline; `TypeOfDynamicIdentifier` is now admitted — see the
+  free-`typeof` entry below). The `ExecuteResumable`
   handlers resolve BY NAME against the LIVE closure environment threaded onto
   `UnifiedBytecodeResumeState.CallingEnvironment` (the same field #3108 threads
   for call dispatch), reusing the sync `GetDynamicIdentifierValue` /

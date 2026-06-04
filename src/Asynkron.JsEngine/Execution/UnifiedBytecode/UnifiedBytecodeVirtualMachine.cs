@@ -3961,6 +3961,33 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.TypeOfDynamicIdentifier:
+                    {
+                        // `typeof freeVar` where `freeVar` is module/script-level or a captured outer
+                        // binding (escapes this activation's slots), inside a resumable body. Resolve the
+                        // name against the live closure environment threaded onto
+                        // UnifiedBytecodeResumeState.CallingEnvironment (#3108) — the same env the admitted
+                        // free dynamic READS / CALL targets use — so a resumed step observes the CURRENT
+                        // binding. `typeof` NEVER throws ReferenceError: TypeOfDynamicIdentifier swallows the
+                        // unbound-binding throw and returns "undefined". The ShouldStopEvaluation guard below
+                        // is defensive — it only fires for a non-ReferenceError throw (e.g. a thrown getter on
+                        // the global object), which surfaces as the resumable Throw step. Literal twin of the
+                        // sync VM's TypeOfDynamicIdentifier handler.
+                        var resumableDynamicTypeOfEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        PushResumableValue(TypeOfDynamicIdentifier(
+                            program.StringConstants[instruction.Operand],
+                            resumableDynamicTypeOfEnvironment,
+                            context));
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.UnaryPlus:
                     var resumablePlusOperand = stack[stackPointer - 1];
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in resumablePlusOperand, context));

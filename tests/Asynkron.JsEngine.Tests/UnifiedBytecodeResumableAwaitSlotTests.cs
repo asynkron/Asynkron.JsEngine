@@ -154,6 +154,30 @@ public sealed class UnifiedBytecodeResumableAwaitSlotTests(ITestOutputHelper out
         AssertAsyncFastPath("f", argc: 1);
     }
 
+    // B1 MULTIPLE sequential awaits, each into its OWN slot: an earlier awaited slot value must survive a
+    // LATER await suspension in the same body (each slot is distinct and all three are read at the end).
+    [Fact(Timeout = 5000)]
+    public async Task VarAwaitSlot_MultipleSequentialAwaits_EachSlotSurvives()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function f(a, b, c) {
+                let x1 = await a;
+                let x2 = await b;
+                let x3 = await c;
+                return x1 + "|" + x2 + "|" + x3 + "|" + (x1 + x2 + x3);
+            }
+            f(Promise.resolve(10), Promise.resolve(20), Promise.resolve(30))
+                .then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        // x1=10 survives two later awaits, x2=20 survives one, x3=30; sum=60.
+        Assert.Equal("10|20|30|60", result);
+        AssertAsyncFastPath("f", argc: 3);
+    }
+
     // B1 error propagation: a rejected promise surfaces as a throw on the resumed step.
     [Fact(Timeout = 5000)]
     public async Task VarAwaitSlot_RejectedPromise_Throws()

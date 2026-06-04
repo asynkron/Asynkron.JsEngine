@@ -389,6 +389,7 @@ above in the same slice.
 
 - `Activation slot metadata is required.`
 - `Array literal RHS span does not match expected boundary.`
+- `Awaited declaration target '{awaitedDeclarationTargetSymbol.Name}' is not eligible for unified bytecode storage.`
 - `Binary underflow in complex call argument.`
 - `Binding-target expressions are not available in this unified bytecode compilation context.`
 - `Call target preparation is only supported for activation-resolved identifier and direct member calls.`

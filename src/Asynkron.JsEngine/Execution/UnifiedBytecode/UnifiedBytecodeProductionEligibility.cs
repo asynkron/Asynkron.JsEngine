@@ -1236,21 +1236,64 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (TryGetResumableExpressionProgram(instruction, out var program) &&
-                TryFindExpressionDecline(
-                    program,
-                    activationSlots,
-                    allowsDynamicIdentifiers,
-                    allowImplicitArgumentsObjectPropertyReadOperands: false,
-                    out declineCode,
-                    out declineReason))
+            if (TryGetResumableExpressionProgram(instruction, out var program))
             {
-                return true;
+                if (TryFindExpressionDecline(
+                        program,
+                        activationSlots,
+                        allowsDynamicIdentifiers,
+                        allowImplicitArgumentsObjectPropertyReadOperands: false,
+                        out declineCode,
+                        out declineReason))
+                {
+                    return true;
+                }
+
+                // `__debug()` introspection dependency. The engine's `__debug()` host hook captures the live
+                // ENVIRONMENT chain (JsEnvironment.GetAllVariables) to report each local binding's value. A
+                // resumable body keeps its own locals in flat slots, NOT as environment bindings, so a resumed
+                // `__debug()` step would report those locals as absent — a semantic difference from the IR
+                // runner, where the body's bindings live in the environment the hook reads. Decline any
+                // resumable body that references `__debug` so it keeps its IR-runner introspection semantics.
+                // This is narrow (only debug-instrumented bodies) and was the shape that previously kept such
+                // bodies off the resumable route implicitly, before the awaited-declaration admission (B1/B44)
+                // newly routed them.
+                if (ProgramReferencesDebugIntrospection(program))
+                {
+                    declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
+                    declineReason =
+                        "Resumable body references __debug() introspection, which reports environment-resident locals; it keeps its IR-runner routing.";
+                    return true;
+                }
             }
         }
 
         declineCode = UnifiedBytecodeProductionDeclineCode.None;
         declineReason = string.Empty;
+        return false;
+    }
+
+    // True when the expression program loads or calls the `__debug` host introspection identifier. Resumable
+    // bodies keep their own locals in flat slots, so the environment-walking `__debug()` hook would not see
+    // them; declining such bodies preserves the IR-runner introspection semantics.
+    private static bool ProgramReferencesDebugIntrospection(ExpressionProgram program)
+    {
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind is not (ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadIdentifierCallTarget) ||
+                operation.IsArguments)
+            {
+                continue;
+            }
+
+            if (operation.GetIdentifier(identifierConstants).Name == Symbol.DebugIdentifier)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 

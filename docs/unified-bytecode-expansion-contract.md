@@ -1030,7 +1030,8 @@ the final post-compile production subset check before VM entry.
   targets.
 - Accepted optional call programs either use a jump-owned optional-start prefix
   followed by an ordinary call-target preparation opcode (`a?.b.c(args)`,
-  `a.x?.b.c(args)`, `a?.b[k](args)`) or use
+  `a.x?.b.c(args)`, `a?.b[k](args)`, and — A30, sync route only —
+  `o?.[k](args)` and `a?.b?.[k](args)`) or use
   `PrepareIdentifierOptionalCallTarget`,
   `PrepareDynamicIdentifierOptionalCallTarget`,
   `PrepareNamedOptionalCallTarget`, or `PrepareComputedOptionalCallTarget`
@@ -1049,6 +1050,29 @@ the final post-compile production subset check before VM entry.
   receiver-optional computed calls use the jump-owned prefix, while
   callee-optional computed calls use `PrepareComputedOptionalCallTarget`.
   (Optional member calls admitted as of gh2689; ADR 0289.)
+- A30 (sync route only): optional-computed-START member calls extend the
+  jump-owned optional-start prefix family beyond the optional-NAMED start cases
+  above. `o?.[k](args)` (`TryIsFirstBoundaryOptionalComputedStartPlainCallCandidate`
+  / `TryAppendOptionalComputedStartPlainCallTarget`) and the double-optional
+  `a?.b?.[k](args)` (`TryIsFirstBoundaryOptionalChainComputedReceiverOptionalCallCandidate`
+  / `TryAppendOptionalChainComputedReceiverOptionalCallTarget`) are the
+  computed-key twins of the already-admitted `a?.b[k](args)` (Case 6) and
+  `a?.b?.c(args)` (Case 5). Each optional hop lowers to a
+  `JumpIfNullishReplaceUndefined` backpatched to the same chain end, so a nullish
+  receiver at ANY hop short-circuits the WHOLE call to `undefined` — the call is
+  never made and the computed key is never evaluated past the short-circuit. The
+  candidate predicates fully validate the rigid op layout (activation-resolved
+  base, the leading `JumpIfNullish(ReplaceWithUndefined)` / optional named hop +
+  `JumpIfShortCircuited`, a simple computed key, a non-optional
+  `LoadComputedCallTarget`, and simple call arguments) before any operand is
+  emitted; all emitted opcodes already have sync VM handlers. This widening is
+  SYNC-ONLY: it is gated by the `allowSyncOnlyOptionalComputedStartCalls` flag on
+  `TryFindExpressionDecline` (set only on the sync `TryFindPlanDecline` walk), so
+  the resumable route still declines these shapes as `OptionalChainDependency` at
+  the plan walk and the resumable opcode allowlist
+  (`TryFindUnsupportedResumableOpcode`) is untouched. Remaining optional-computed
+  call shapes — the callee-optional `o?.[k]?.()` and spread-onto-optional
+  (`a?.b?.(...args)`) — still decline.
 - Direct eval programs use `PrepareIdentifierCallTarget` followed by
   `CallInvocationBoundary` with the direct-eval operand flag. The admitted shape
   is exactly one non-spread eval-identifier argument; the VM invokes the eval host

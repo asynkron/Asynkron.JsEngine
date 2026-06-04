@@ -556,7 +556,9 @@ internal static class UnifiedBytecodeProductionEligibility
                     allowImplicitArgumentsObjectPropertyReadOperands &&
                     allowsDynamicIdentifiers,
                     out declineCode,
-                    out declineReason))
+                    out declineReason,
+                    // Sync production route only — A30 optional-computed-start member calls.
+                    allowSyncOnlyOptionalComputedStartCalls: true))
             {
                 return true;
             }
@@ -1442,7 +1444,12 @@ internal static class UnifiedBytecodeProductionEligibility
         bool allowsDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands,
         out UnifiedBytecodeProductionDeclineCode declineCode,
-        out string declineReason)
+        out string declineReason,
+        // A30: optional-computed-START member calls (o?.[k](), a?.b?.[k]()) are admitted only on the
+        // SYNC route. The resumable route still declines them as OptionalChainDependency at the plan
+        // walk (their leading optional-hop short-circuit is not threaded across yield/await), so this
+        // flag stays false for the resumable caller and the candidate predicate skips those shapes.
+        bool allowSyncOnlyOptionalComputedStartCalls = false)
     {
         var operationCount = program.OperationCount;
         var identifierConstants = program.IdentifierConstants.AsSpan();
@@ -1515,7 +1522,8 @@ internal static class UnifiedBytecodeProductionEligibility
             identifierConstants,
             stringConstants,
             activationSlots,
-            allowsDynamicIdentifiers);
+            allowsDynamicIdentifiers,
+            allowSyncOnlyOptionalComputedStartCalls);
         var isGeneralIdentifierCallExpressionCandidate = TryIsGeneralIdentifierCallExpressionCandidate(
             program,
             identifierConstants,
@@ -4825,11 +4833,31 @@ internal static class UnifiedBytecodeProductionEligibility
         ReadOnlySpan<IdentifierOperand> identifierConstants,
         ReadOnlySpan<string> stringConstants,
         ActivationSlotShape activationSlots,
-        bool allowsDynamicIdentifiers)
+        bool allowsDynamicIdentifiers,
+        // A30 sync-only widening: the optional-computed-START call shapes below are admitted only
+        // when this flag is set (the synchronous production route). The resumable route passes false
+        // so those shapes keep declining as OptionalChainDependency at the resumable plan walk.
+        bool allowSyncOnlyOptionalComputedStartCalls = false)
     {
         if (program.OperationCount < 2)
         {
             return false;
+        }
+
+        if (allowSyncOnlyOptionalComputedStartCalls &&
+            (TryIsFirstBoundaryOptionalComputedStartPlainCallCandidate(
+                 program,
+                 identifierConstants,
+                 activationSlots,
+                 allowsDynamicIdentifiers) ||
+             TryIsFirstBoundaryOptionalChainComputedReceiverOptionalCallCandidate(
+                 program,
+                 identifierConstants,
+                 stringConstants,
+                 activationSlots,
+                 allowsDynamicIdentifiers)))
+        {
+            return true;
         }
 
         // Optional-call shapes (fn?.(), box?.read(), box.read?.(), box[key]?.()) carry a
@@ -5593,6 +5621,177 @@ internal static class UnifiedBytecodeProductionEligibility
                    computedCallTargetIndex + 1,
                    call,
                    allowsDynamicIdentifiers);
+    }
+
+    // Case 7 (A30): o?.[k]() — optional-computed-START chain, plain non-optional computed call.
+    // The leading optional hop is the computed receiver itself; it lowers to a JumpIfNullish that
+    // replaces the whole chain with undefined and targets the program end (the same chain-end short
+    // circuit Case 6 reaches via JumpIfShortCircuited for an optional-NAMED start). This is the
+    // computed-start twin of Case 6's `a?.b[k]()` and the leading-hop twin of Case 3's `box[key]?.()`.
+    // Expression program: [base(0), JumpIfNullish(ReplaceWithUndefined:true,target=End)(1),
+    //                       key(2), LoadComputedCallTarget(!opt,!sc)(3), args..., Call]
+    private static bool TryIsFirstBoundaryOptionalComputedStartPlainCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        // Minimum: [base, JumpIfNullish, key, LoadComputedCallTarget, Call] = 5
+        if (program.OperationCount < 5)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        // op[3] = LoadComputedCallTarget(!opt, !sc) must be at index 3 exactly so the leading
+        // optional hop is the only short-circuit before the call target.
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex != 3)
+        {
+            return false;
+        }
+
+        var computedCallTarget = program.GetOperation(computedCallTargetIndex);
+        if (computedCallTarget.IsOptional || computedCallTarget.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        // op[1] = JumpIfNullish(ReplaceWithUndefined) — the leading `o?.` short circuit. It must
+        // jump to the program end so a nullish receiver short-circuits the WHOLE call to undefined
+        // (the call is never made), matching the optional-chain semantics.
+        var jumpNullish = program.GetOperation(1);
+        if (jumpNullish.Kind != ExpressionOpKind.JumpIfNullish ||
+            !jumpNullish.ReplaceWithUndefined ||
+            jumpNullish.Target != program.OperationCount)
+        {
+            return false;
+        }
+
+        // op[0] = activation-resolved (or, when allowed, plain dynamic) receiver base.
+        var baseOperation = program.GetOperation(0);
+        if (!TryGetActivationResolvedValue(baseOperation, identifierConstants, activationSlots) &&
+            !(allowsDynamicIdentifiers &&
+              TryGetPlainDynamicIdentifierReadValue(baseOperation, identifierConstants, activationSlots)))
+        {
+            return false;
+        }
+
+        // op[2] = simple computed key.
+        if (!IsSimpleComputedPropertyKey(
+                program.GetOperation(2),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            computedCallTargetIndex + 1,
+            call,
+            allowsDynamicIdentifiers);
+    }
+
+    // Case 8 (A30): a?.b?.[k]() — double-optional chain (optional-named start, optional-computed
+    // continuation), plain non-optional call. Computed-key twin of Case 5's `a?.b?.c()`: the first
+    // optional hop reads `b` and provenance-short-circuits via JumpIfShortCircuited, the second
+    // optional hop (`?.[k]`) short-circuits via JumpIfNullish; both target the program end so any
+    // nullish hop short-circuits the WHOLE call to undefined (the call is never made).
+    // Expression program: [base(0), GetNamedProperty(IsOptional:true,b)(1), JumpIfShortCircuited(2),
+    //                       JumpIfNullish(ReplaceWithUndefined:true,target=End)(3), key(4),
+    //                       LoadComputedCallTarget(!opt,!sc)(5), args..., Call]
+    private static bool TryIsFirstBoundaryOptionalChainComputedReceiverOptionalCallCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        // Minimum: [base, GetNamedProperty, JumpIfShortCircuited, JumpIfNullish, key,
+        //           LoadComputedCallTarget, Call] = 7
+        if (program.OperationCount < 7)
+        {
+            return false;
+        }
+
+        var callIndex = program.OperationCount - 1;
+        var call = program.GetOperation(callIndex);
+        if (call.Kind != ExpressionOpKind.Call || !call.HasExplicitThis || call.IsDirectEval)
+        {
+            return false;
+        }
+
+        // LoadComputedCallTarget must be at index 5 exactly.
+        var computedCallTargetIndex = FindFirstOperation(program, ExpressionOpKind.LoadComputedCallTarget);
+        if (computedCallTargetIndex != 5)
+        {
+            return false;
+        }
+
+        var computedCallTarget = program.GetOperation(computedCallTargetIndex);
+        if (computedCallTarget.IsOptional || computedCallTarget.ShortCircuitOnNullishTarget)
+        {
+            return false;
+        }
+
+        // op[3] = JumpIfNullish(ReplaceWithUndefined) targeting the program end.
+        var jumpNullish = program.GetOperation(3);
+        if (jumpNullish.Kind != ExpressionOpKind.JumpIfNullish ||
+            !jumpNullish.ReplaceWithUndefined ||
+            jumpNullish.Target != program.OperationCount)
+        {
+            return false;
+        }
+
+        // op[2] = JumpIfShortCircuited (first-hop short-circuit provenance).
+        if (program.GetOperation(2).Kind != ExpressionOpKind.JumpIfShortCircuited)
+        {
+            return false;
+        }
+
+        // op[1] = GetNamedProperty(IsOptional:true, !SC, non-private) — the leading `a?.b` hop.
+        var firstHop = program.GetOperation(1);
+        if (firstHop.Kind != ExpressionOpKind.GetNamedProperty ||
+            !firstHop.IsOptional ||
+            firstHop.ShortCircuitOnNullishTarget ||
+            firstHop.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        // op[0] = activation-resolved base.
+        if (!TryGetActivationResolvedValue(program.GetOperation(0), identifierConstants, activationSlots))
+        {
+            return false;
+        }
+
+        // op[4] = simple computed key.
+        if (!IsSimpleComputedPropertyKey(
+                program.GetOperation(4),
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        return HasSimpleCallArguments(
+            program,
+            identifierConstants,
+            activationSlots,
+            computedCallTargetIndex + 1,
+            call,
+            allowsDynamicIdentifiers);
     }
 
     // Returns true and the index of the Call op when the expression program ends with

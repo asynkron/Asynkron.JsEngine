@@ -28,6 +28,12 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(o){ return delete o.a; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return o?.a; } f(null);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,c){ o[c?'a':'b']=1; return o.a; } f({},true);", "unified-bytecode-production-fast-path func=f")]
+    // A30: optional-computed-start member call (o?.[k]()) and double-optional named-then-computed
+    // call (a?.b?.[k]()) — short-circuiting variants that must keep routing through the sync VM.
+    [InlineData("function f(o,k){ return o?.[k](); } f(null,'m');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k){ var b={m(){return 7;}}; return o?.[k](); } f({m(){return 7;}},'m');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(a,k){ return a?.b?.[k](); } f(null,'c');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(a,k){ return a?.b?.[k](); } f({b:{c(){return 9;}}},'c');", "unified-bytecode-production-fast-path func=f")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]

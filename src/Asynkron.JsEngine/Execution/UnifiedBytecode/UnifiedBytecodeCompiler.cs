@@ -4075,7 +4075,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryNamedCompoundPropertySet(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4109,7 +4110,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryComputedCompoundPropertySet(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -11414,13 +11416,15 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendFirstBoundaryNamedCompoundPropertySet(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         // Shape: [base, GetNamedProperty(non-optional, non-private)*, DuplicateTop, GetNamedProperty, rhs..., Binary, SetNamedProperty]
         // The final target may be private; receiver-chain hops stay ordinary only.
         // Minimum: 6 ops (rhs is a single simple operand).
@@ -11504,6 +11508,15 @@ internal static class UnifiedBytecodeCompiler
         var unifiedCount = unified.Count;
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
+        var callTargetCount = callTargetConstants.Count;
+
+        void RollBack()
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            RollBackUnifiedBuilder(callTargetConstants, callTargetCount);
+        }
 
         if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
@@ -11514,9 +11527,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
-            RollBackUnifiedBuilder(unified, unifiedCount);
-            RollBackUnifiedBuilder(literalConstants, literalCount);
-            RollBackUnifiedBuilder(stringConstants, stringCount);
+            RollBack();
             return false;
         }
 
@@ -11536,6 +11547,7 @@ internal static class UnifiedBytecodeCompiler
 
         var rhsStart = duplicateIndex + 2;
         var rhsEnd = expressionProgram.OperationCount - 3;
+        var binaryIndex = expressionProgram.OperationCount - 2;
 
         if (rhsStart == rhsEnd)
         {
@@ -11549,40 +11561,57 @@ internal static class UnifiedBytecodeCompiler
                     stringConstants,
                     out reason))
             {
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
                 return false;
             }
         }
-        else
+        else if (expressionProgram.GetOperation(rhsStart).Kind == ExpressionOpKind.LoadLiteral &&
+                 TryMeasureSimpleTemplateLiteralSpan(
+                     expressionProgram,
+                     rhsStart,
+                     activationSlots,
+                     out var templateSpanProbe,
+                     allowsDynamicIdentifiers) &&
+                 templateSpanProbe > 1 &&
+                 rhsStart + templateSpanProbe - 1 == rhsEnd)
         {
-            var rhsOp = expressionProgram.GetOperation(rhsStart);
-            if (rhsOp.Kind != ExpressionOpKind.LoadLiteral)
-            {
-                reason = string.Empty;
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
-                return false;
-            }
-
+            // Simple template literal RHS span fast path.
             if (!TryAppendSimpleTemplateLiteralSpan(
                     expressionProgram, rhsStart, activationSlots,
                     unified, literalConstants, out var spanLen, out reason))
             {
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
                 return false;
             }
 
             if (rhsStart + spanLen - 1 != rhsEnd)
             {
                 reason = "Template literal RHS span does not match expected boundary.";
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
+                return false;
+            }
+        }
+        else
+        {
+            // Complex RHS region (mirrors the plain-write complex-RHS lowering): the old value is
+            // already on the stack (GetNamedPropertyForCompoundSet above). Lower [rhsStart, Binary)
+            // with the general operand-stack appender — it emits each op in source (evaluation)
+            // order, leaving exactly one value (the RHS) on top of the old value, preserving the
+            // read-old / evaluate-RHS / apply-op / store sequence exactly.
+            if (!TryAppendAdmittedComplexCallArgumentRegion(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    rhsStart,
+                    binaryIndex,
+                    expectedArgumentCount: 1,
+                    allowsDynamicIdentifiers,
+                    out reason))
+            {
+                RollBack();
                 return false;
             }
         }
@@ -11595,48 +11624,35 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendFirstBoundaryComputedCompoundPropertySet(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 9)
         {
             reason = string.Empty;
             return false;
         }
 
-        var suffixStart = expressionProgram.OperationCount - 7;
-        if (suffixStart <= 1)
-        {
-            reason = string.Empty;
-            return false;
-        }
-
-        var requireObjectCoercible = expressionProgram.GetOperation(suffixStart);
-        var resolvePropertyKey = expressionProgram.GetOperation(suffixStart + 1);
-        var duplicateTargetAndKey = expressionProgram.GetOperation(suffixStart + 2);
-        var propertyRead = expressionProgram.GetOperation(suffixStart + 3);
-        var rhs = expressionProgram.GetOperation(suffixStart + 4);
-        var binary = expressionProgram.GetOperation(suffixStart + 5);
-        var propertySet = expressionProgram.GetOperation(suffixStart + 6);
-        if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
-            requireObjectCoercible.Depth != 1 ||
-            resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
-            duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
-            propertyRead.Kind != ExpressionOpKind.GetComputedProperty ||
-            binary.Kind != ExpressionOpKind.Binary ||
+        // Layout: [base, recv*, key..., RequireObjectCoercible, ResolvePropertyKey,
+        // DuplicateTopTwo, GetComputedProperty (old-value read), RHS..., Binary,
+        // SetComputedProperty]. Binary and SetComputedProperty are the last two ops; the 4-op read
+        // prefix sits at [readStart, readStart+4). For a single-op RHS readStart = OperationCount-7
+        // (the old shape); a complex multi-op RHS pushes the read prefix earlier and the RHS region
+        // [readStart+4, Binary) is variable-length. We locate readStart, never reordering the op
+        // stream — evaluation order (object, key, read old value, RHS, apply op, store) is fixed.
+        var binaryIndex = expressionProgram.OperationCount - 2;
+        var binary = expressionProgram.GetOperation(binaryIndex);
+        var propertySet = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
+        if (binary.Kind != ExpressionOpKind.Binary ||
             propertySet.Kind != ExpressionOpKind.SetComputedProperty)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        if (propertyRead.ShortCircuitOnNullishTarget)
-        {
-            reason = "Optional computed compound property writes are not supported.";
             return false;
         }
 
@@ -11652,48 +11668,96 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
         var stringTable = expressionProgram.StringConstants.AsSpan();
-        var keyStart = 1;
-        while (keyStart < suffixStart)
+
+        var readStart = -1;
+        var keyStart = -1;
+        for (var candidateReadStart = expressionProgram.OperationCount - 7;
+             candidateReadStart >= 1;
+             candidateReadStart--)
         {
-            var receiverRead = expressionProgram.GetOperation(keyStart);
-            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+            if (candidateReadStart + 4 > binaryIndex)
             {
-                break;
+                continue;
             }
 
-            if (receiverRead.GetString(stringTable).IsPrivateName())
+            var requireObjectCoercible = expressionProgram.GetOperation(candidateReadStart);
+            var resolvePropertyKey = expressionProgram.GetOperation(candidateReadStart + 1);
+            var duplicateTargetAndKey = expressionProgram.GetOperation(candidateReadStart + 2);
+            var propertyRead = expressionProgram.GetOperation(candidateReadStart + 3);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+                requireObjectCoercible.Depth != 1 ||
+                resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+                duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
+                propertyRead.Kind != ExpressionOpKind.GetComputedProperty)
+            {
+                continue;
+            }
+
+            if (propertyRead.ShortCircuitOnNullishTarget)
+            {
+                reason = "Optional computed compound property writes are not supported.";
+                return false;
+            }
+
+            // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
+            var candidateKeyStart = 1;
+            var receiverChainOk = true;
+            var receiverChainPrivate = false;
+            while (candidateKeyStart < candidateReadStart)
+            {
+                var receiverRead = expressionProgram.GetOperation(candidateKeyStart);
+                if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+                {
+                    break;
+                }
+
+                if (receiverRead.GetString(stringTable).IsPrivateName())
+                {
+                    receiverChainPrivate = true;
+                    break;
+                }
+
+                if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+                {
+                    receiverChainOk = false;
+                    break;
+                }
+
+                candidateKeyStart++;
+            }
+
+            if (receiverChainPrivate)
             {
                 reason = "Private nested named property receiver reads are not supported.";
                 return false;
             }
 
-            if (receiverRead.IsOptional || receiverRead.ShortCircuitOnNullishTarget)
+            if (!receiverChainOk ||
+                candidateKeyStart >= candidateReadStart ||
+                !IsSupportedComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    startInclusive: candidateKeyStart,
+                    endExclusive: candidateReadStart,
+                    allowsDynamicIdentifiers))
             {
-                reason = string.Empty;
-                return false;
+                continue;
             }
 
-            keyStart++;
+            readStart = candidateReadStart;
+            keyStart = candidateKeyStart;
+            break;
         }
 
-        if (keyStart >= suffixStart)
+        if (readStart < 0)
         {
             reason = string.Empty;
             return false;
         }
 
-        if (!IsSupportedComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                startInclusive: keyStart,
-                endExclusive: suffixStart,
-                allowsDynamicIdentifiers))
-        {
-            reason = "Unsupported computed property key span.";
-            return false;
-        }
+        var rhsStart = readStart + 4;
+        var rhsIsSimpleSingleOperand = rhsStart == binaryIndex - 1;
 
         var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
         stagedUnified.AddRange(unified);
@@ -11703,6 +11767,9 @@ internal static class UnifiedBytecodeCompiler
 
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
+
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
 
         if (!TryAppendActivationOrPlainDynamicIdentifierReadValueLoad(
                 expressionProgram.GetOperation(0),
@@ -11731,7 +11798,7 @@ internal static class UnifiedBytecodeCompiler
                 stagedLiterals,
                 stagedStrings,
                 startInclusive: keyStart,
-                endExclusive: suffixStart,
+                endExclusive: readStart,
                 out reason,
                 allowsDynamicIdentifiers))
         {
@@ -11742,17 +11809,42 @@ internal static class UnifiedBytecodeCompiler
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedPropertyForCompoundSet));
 
-        if (!TryAppendSimpleOperandLoadWithDynamic(
-                rhs,
-                expressionProgram,
-                activationSlots,
-                allowsDynamicIdentifiers,
-                stagedUnified,
-                stagedLiterals,
-                stagedStrings,
-                out reason))
+        if (rhsIsSimpleSingleOperand)
         {
-            return false;
+            if (!TryAppendSimpleOperandLoadWithDynamic(
+                    expressionProgram.GetOperation(rhsStart),
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    stagedUnified,
+                    stagedLiterals,
+                    stagedStrings,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Complex RHS region: the old value is already on the stack
+            // (GetComputedPropertyForCompoundSet). Lower [rhsStart, Binary) with the general
+            // operand-stack appender, leaving exactly one value (the RHS) on top of the old value,
+            // preserving the read-old / evaluate-RHS / apply-op / store sequence exactly.
+            if (!TryAppendAdmittedComplexCallArgumentRegion(
+                    expressionProgram,
+                    slotLayout,
+                    stagedUnified,
+                    stagedLiterals,
+                    stagedStrings,
+                    stagedCallTargets,
+                    rhsStart,
+                    binaryIndex,
+                    expectedArgumentCount: 1,
+                    allowsDynamicIdentifiers,
+                    out reason))
+            {
+                return false;
+            }
         }
 
         stagedUnified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)binary.Operator));
@@ -11763,6 +11855,8 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
         reason = string.Empty;
         return true;
     }

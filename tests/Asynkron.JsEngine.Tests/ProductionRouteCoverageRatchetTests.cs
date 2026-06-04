@@ -206,6 +206,16 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     // enclosing local `n` (`n++`) on both sides of an await; the update aliases the enclosing slot across the
     // await suspension via UpdateDynamicIdentifier over the threaded CallingEnvironment.
     [InlineData("function mk(){ let n=1; async function run(){ n++; await Promise.resolve(0); n++; return n; } return run; } mk()();", "unified-bytecode-resumable-async-fast-path func=run")]
+    // B27: free identifier UPDATE in a resumable body. A generator updates a FREE (module/script-level)
+    // binding (`c++`) across a yield; the update lowers to UpdateDynamicIdentifier and mutates the SAME global
+    // resolved against the threaded CallingEnvironment on each suspension. (Async free-update variant below.)
+    [InlineData("var c=5; function* g(){ yield c++; } var it=g(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("var c=10; async function run(){ c++; await Promise.resolve(0); c++; return c; } run();", "unified-bytecode-resumable-async-fast-path func=run")]
+    // B28: free identifier DELETE in a resumable body. A generator deletes a FREE global (`delete gx`) across a
+    // yield; the self-contained DeleteDynamicIdentifier opcode resolves against the threaded CallingEnvironment
+    // and never uses the transient reference array. (Async free-delete variant below.)
+    [InlineData("globalThis.gx=1; function* g(){ yield delete gx; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("globalThis.gx=5; async function run(){ await Promise.resolve(0); return delete gx; } run();", "unified-bytecode-resumable-async-fast-path func=run")]
     // B1: an AWAITED value bound into a flat slot and read back across the suspension. `var x = await p`
     // lowers to `<awaited ops>` -> AwaitValue -> InitializeSlot; the store lands after the suspension so the
     // later `x + 1` reads the settled value.

@@ -583,7 +583,14 @@ predicates and proof tests.
   `o[k]?.()`, `freeFn?.()` — B15), free/dynamic
   identifier reads and calls, free-identifier `typeof`
   (`typeof freeVar` via `TypeOfDynamicIdentifier` — unbound yields `"undefined"`
-  with no throw, B25), PROPERTY WRITES (`o.x = v`, `o[k] = v`,
+  with no throw, B25), free/dynamic-identifier UPDATE (`freeVar++`/`freeVar--`/
+  `++freeVar`/`--freeVar` via `UpdateDynamicIdentifier`, B27 — resolves the
+  enclosing/global binding against the threaded `CallingEnvironment` and mutates
+  the SAME heap slot across each suspension; const-safety enforced by the
+  environment, not by absent const-slot metadata) and free/dynamic-identifier
+  DELETE (`delete freeVar` via `DeleteDynamicIdentifier`, B28 — self-contained:
+  name + environment + isStrict → bool, never touching the transient reference
+  array, so no pending reference for the resume state to thread), PROPERTY WRITES (`o.x = v`, `o[k] = v`,
   `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
   (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
   targets by the `IsLexicalSlotUpdateTarget` const-safety guard), and PROPERTY
@@ -594,8 +601,14 @@ predicates and proof tests.
   `OptionalChainDependency` — distinct from the now-admitted computed-member
   optional call `o[k]?.()`, B15), lexical-slot updates (`let i; i++`, where the resume state has no
   const-slot metadata to enforce a `const` reassignment `TypeError`),
-  dynamic-identifier `delete`, free dynamic writes/updates
-  (`freeGlobal++`, `delete freeGlobal`), super-property updates/deletes, and
+  free/dynamic plain and compound WRITES (`freeGlobal = v`, `freeGlobal += x`,
+  B26/B29 — these lower via the
+  `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference` sequence
+  whose pending `AssignmentReference` lives in a transient VM-local array NOT
+  threaded on the resume state, so a suspending RHS (`freeGlobal = yield`) would
+  lose the store target on resume; the compound form additionally declines earlier
+  at the `CompoundAssignmentSlotInstruction` plan-shape gate),
+  super-property updates/deletes, and
   `super`/super-construct boundaries (`SuperConstructInvocationBoundary`, which
   needs the dynamic super-environment plumbing the resume state does not carry)
   inside resumable bodies remain outside it.

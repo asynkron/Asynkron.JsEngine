@@ -81,6 +81,18 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("const f = (a,b) => { const s = a+b; return s*2; }; f(3,4);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("function mk(base){ return (k) => { var t = base*2; return t+k; }; } mk(100)(1);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("var o={ x:10, m:function(){ var f=()=>{ var b=5; return this.x+b; }; return f(); } }; o.m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    // A7 (base-class constructor, general body): a BASE-class constructor (no extends/super) with a
+    // general multi-statement FLAT body routes through the production VM identically to an ordinary
+    // function constructor — the class-ctor activation predicate gates on the activation-slot shape, not
+    // a SimpleReturnProgram-only body. Multi plain `this`-property stores, a local declaration feeding a
+    // plain `this`-store, `new.target` inside the body, and a nested-lexical-scope body (`this`-stores
+    // resolve through the receiver, so the captured-name shadowing hazard that bounds the closure/arrow
+    // lifts does not apply here). The log func is the class name. Derived (super) ctors, instance-field
+    // ctors, and private-name ctors stay declined downstream — no ratchet entry for them.
+    [InlineData("class C { constructor(a,b){ this.x=a; this.y=b; } } new C(1,2);", "unified-bytecode-production-fast-path func=C")]
+    [InlineData("class C { constructor(n){ let t=n+1; this.v=t; } } new C(2);", "unified-bytecode-production-fast-path func=C")]
+    [InlineData("class C { constructor(){ this.nt=new.target; } } new C();", "unified-bytecode-production-fast-path func=C")]
+    [InlineData("class C { constructor(n){ let s=0; if(n>0){ s=n+10; } this.s=s; } } new C(3);", "unified-bytecode-production-fast-path func=C")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]

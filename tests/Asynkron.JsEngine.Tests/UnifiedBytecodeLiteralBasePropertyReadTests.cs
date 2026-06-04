@@ -145,11 +145,15 @@ public sealed class UnifiedBytecodeLiteralBasePropertyReadTests(ITestOutputHelpe
     }
 
     [Fact]
-    public void Evaluate_WriteAtEndOfLiteralBaseChain_Declines()
+    public void Evaluate_ComputedWriteAtEndOfLiteralBaseChain_Declines()
     {
+        // The named-terminal write off a literal base (`.a.b = 1`) is now admitted by the A19
+        // write-past-boundary widening; the read walker itself still owns no writes. The
+        // computed-terminal write stays declined (compiler cannot lower it off a literal base), so it
+        // remains a stable "not a pure read chain" adversarial guard for the read walker.
         var result = Evaluate("""
             function write() {
-                return ({ a: { b: 0 } }).a.b = 1;
+                return ({ a: { b: 0 } }).a['b'] = 1;
             }
             """, "write");
 

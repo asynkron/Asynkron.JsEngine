@@ -1880,6 +1880,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A19 widening: this is a receiver-prefix read hop of a deep PURE write chain off
+                    // an object/array literal base (`({ a: {} }).a.b = v`). The terminal Set op is
+                    // validated by the same whole-program walker from the Set* case.
+                    if (TryIsFirstBoundaryLiteralBasePropertyWriteChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryBinaryNamedPropertyReadCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -2139,6 +2151,18 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A19 widening: a computed receiver-prefix read hop of a deep PURE write chain off
+                    // an object/array literal base (`[box][0].a = v`, `({ a: {} }).a['b'] = v`). The
+                    // terminal Set op is validated by the same whole-program walker from the Set* case.
+                    if (TryIsFirstBoundaryLiteralBasePropertyWriteChainCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
                     {
                         break;
@@ -2215,6 +2239,17 @@ internal static class UnifiedBytecodeProductionEligibility
                             activationSlots,
                             allowsDynamicIdentifiers) ||
                         TryIsFirstBoundaryComputedLogicalPropertyWriteCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
+                    // A19 widening: deep PURE write chains off an object/array literal base
+                    // (`({ a: { b: 0 } }).a.b = v`, `({ a: {} }).a['b'] = v`, `[box][0].a = v`).
+                    if (TryIsFirstBoundaryLiteralBasePropertyWriteChainCandidate(
                             program,
                             identifierConstants,
                             activationSlots,
@@ -3107,6 +3142,212 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return sawReadHop && stackDepth == 1;
+    }
+
+    /// <summary>
+    /// A19 write-past-boundary widening: admits a PURE deep property WRITE whose base is a simple
+    /// object/array literal and whose terminal store is NAMED, e.g. <c>({ a: { b: 0 } }).a.b = 1</c>,
+    /// <c>({ a: {} }).a.b.c = v</c>, and the array-literal / computed-prefix analog <c>[box][0].a = v</c>.
+    /// Mirrors the first-boundary read walker
+    /// (<see cref="TryIsFirstBoundaryLiteralBasePropertyReadChainCandidate"/>): the WHOLE program is
+    /// validated with one stack-discipline walk. <c>CreateObject</c>/<c>CreateArray</c> roots the base,
+    /// the literal's own construction ops balance the stack back to a single value, the receiver-prefix
+    /// is plain named/computed reads, the assigned value is a simple operand sub-expression, and the
+    /// program ends on EXACTLY ONE <c>SetNamedProperty</c>.
+    ///
+    /// The <c>SetComputedProperty</c> terminal off a literal base (<c>({a:{}}).a['b'] = v</c>) is
+    /// deliberately NOT admitted here: the compiler's computed-write lowering only recognizes an
+    /// activation-resolved / named-prefix receiver and currently bails on a literal base with
+    /// "Unsupported computed property key span." Admitting it would require compiler foundation work, so
+    /// it stays declined rather than half-correct.
+    ///
+    /// Anything outside the named-terminal vocabulary — a call anywhere in the chain, a compound/logical
+    /// write (<c>DuplicateTop</c>), a chained assignment (a second non-terminal <c>Set*</c>), an
+    /// optional/short-circuit read, a private name, a method/accessor, or a name-inferred define — falls
+    /// through to the default reject. So any setter in the chain runs exactly once (matching the
+    /// interpreter) and the base stays pure.
+    /// </summary>
+    private static bool TryIsFirstBoundaryLiteralBasePropertyWriteChainCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 3)
+        {
+            return false;
+        }
+
+        var rootKind = program.GetOperation(0).Kind;
+        if (rootKind is not (ExpressionOpKind.CreateObject or ExpressionOpKind.CreateArray))
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var lastIndex = program.OperationCount - 1;
+        var terminal = program.GetOperation(lastIndex);
+
+        // The chain must end on a single NAMED property write; anything else means the trailing ops are
+        // not a supported terminal store (read/call/define/compound, or a computed store the compiler
+        // cannot lower off a literal base) and this is not a pure literal-base named write chain.
+        if (terminal.Kind != ExpressionOpKind.SetNamedProperty ||
+            terminal.AllowNameInference ||
+            terminal.GetString(stringConstants).IsPrivateName())
+        {
+            return false;
+        }
+
+        var stackDepth = 0;
+        var sawWrite = false;
+        for (var index = 0; index < program.OperationCount; index++)
+        {
+            var operation = program.GetOperation(index);
+            switch (operation.Kind)
+            {
+                // ----- literal base construction -----
+                case ExpressionOpKind.CreateObject:
+                case ExpressionOpKind.CreateArray:
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.DefineObjectProperty:
+                    if (stackDepth < 2 ||
+                        operation.AllowNameInference ||
+                        operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                case ExpressionOpKind.DefineComputedObjectProperty:
+                    if (stackDepth < 3 || operation.AllowNameInference)
+                    {
+                        return false;
+                    }
+
+                    stackDepth -= 2;
+                    break;
+
+                case ExpressionOpKind.ArrayPush:
+                case ExpressionOpKind.ArraySpread:
+                case ExpressionOpKind.ObjectSpread:
+                    if (stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                case ExpressionOpKind.ArrayPushHole:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                // ----- pure read hops (receiver prefix and value sub-expression reads) -----
+                case ExpressionOpKind.GetNamedProperty:
+                    if (operation.IsOptional ||
+                        operation.ShortCircuitOnNullishTarget ||
+                        operation.GetString(stringConstants).IsPrivateName() ||
+                        stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.GetComputedProperty:
+                    if (operation.ShortCircuitOnNullishTarget || stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                case ExpressionOpKind.RequireObjectCoercible:
+                    // The receiver guard for a computed hop targets the object directly below the
+                    // pending key (Depth: 1); anything else is not a plain computed read/write.
+                    if (operation.Depth != 1 || stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.ResolvePropertyKey:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                // ----- key / value sub-expressions (shared between base members and the assigned value) -----
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadIdentifier:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                    if (!IsSimpleComputedPropertyKey(
+                            operation,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        return false;
+                    }
+
+                    stackDepth++;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                case ExpressionOpKind.UnaryMinus:
+                case ExpressionOpKind.UnaryLogicalNot:
+                case ExpressionOpKind.UnaryBitwiseNot:
+                case ExpressionOpKind.UnaryVoid:
+                case ExpressionOpKind.ToString:
+                    if (stackDepth < 1)
+                    {
+                        return false;
+                    }
+
+                    break;
+
+                case ExpressionOpKind.Binary:
+                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    break;
+
+                // ----- terminal store (exactly one, the last op) -----
+                case ExpressionOpKind.SetNamedProperty:
+                    // [receiver, value] -> value. Only the terminal op may be a store; an earlier
+                    // store means a chained assignment (`a.b = o.c = v`) which is not cleanly
+                    // verifiable here, so decline.
+                    if (index != lastIndex || stackDepth < 2)
+                    {
+                        return false;
+                    }
+
+                    stackDepth--;
+                    sawWrite = true;
+                    break;
+
+                default:
+                    return false;
+            }
+        }
+
+        return sawWrite && stackDepth == 1;
     }
 
     private static bool TryIsFirstBoundaryObjectLiteralNamedPropertyReadCandidate(

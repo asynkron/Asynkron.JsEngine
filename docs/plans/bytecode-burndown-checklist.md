@@ -64,7 +64,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A8** Tail call returned from inside `finally` — *CallDependency* — ☐/n/a — `:498`
 - [ ] **A9** Identifier call-target outside first invocation boundary — *CallDependency* — ◐/◐ — `:1204`
 - [ ] **A10** Free identifier call target (`helper(x)`) — sync only; resumable admits — *DynamicLookupDependency* — ◐/☑ — `:1195`
-- [ ] **A11** Complex call arguments outside admitted spans (`fn(a+g(b))`) — *CallInvocationBoundary* — ☐/◐ — `:1245`
+- [x] **A11** Complex call arguments outside admitted spans (`fn(a+g(b))`) — *CallInvocationBoundary* — ☑/◐ — `:1245` ✅ (commit ee4506026): general operand-stack region walker (eligibility `TryValidateAdmittedComplexCallArgumentRegion` + compiler `TryAppendAdmittedComplexCallArgumentRegion`) admits args built from any already-admitted value op — nested calls `g(h(x))`, call-in-binary `g(a+h(b))`, member/computed-member call args. Left-to-right eval order proven. Assignment args, spread, out-of-vocabulary ops correctly still decline (region rolls back).
 - [ ] **A12** Member/computed call-target outside first boundary (`a.b().c()`) — *CallInvocationBoundary/CallDependency* — ◐/◐ — `:1240`
 - [x] **A13** Free identifier READ (sync only; resumable admits) — *DynamicLookupDependency* — ☑/☑ — `:1328` ✅ (commit af1be8ecc): already admitted via `allowsOrdinaryDynamicIdentifiers` → `LoadDynamicIdentifier`; locked with adversarial tests (global value; undeclared → ReferenceError).
 - [x] **A14** Free dynamic identifier STORE `freeVar = x` (both routes) — *DynamicLookupDependency* — ☑/☑ — `:1359` ✅ (commit af1be8ecc): admitted; `StoreDynamicIdentifier` creates a configurable sloppy global, strict unresolvable → ReferenceError. Both verified.

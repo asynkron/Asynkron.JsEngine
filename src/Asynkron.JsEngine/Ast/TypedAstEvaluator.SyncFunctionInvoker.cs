@@ -3887,9 +3887,28 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _superConstructor is null &&
                    _superPrototype is null &&
                    _instanceFields.IsDefaultOrEmpty &&
-                   CanUseProductionUnifiedBytecodeArrowProgramShape(plan) &&
-                   CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(plan) &&
-                   CanUseSimpleIrActivationPlanShape(plan);
+                   // Generalized past SimpleReturnProgram bodies (A6): a multi-statement arrow body is
+                   // admitted over the FULL instruction stream, not just a single `return <expr>;`. The
+                   // authoritative per-instruction validation is
+                   // UnifiedBytecodeProductionEligibility.Evaluate(plan, activation), which receives this
+                   // path via the activation descriptor and declines any opcode it cannot execute
+                   // (e.g. a super-property read declines via SuperPropertyDependency). The old
+                   // arrow-program-shape + arrow-activation-dependency gates required a single
+                   // return-expression body and blocked every multi-statement arrow
+                   // (e.g. `(a,b) => { const s = a+b; return s*2; }`). Lexical this/new.target threading
+                   // is body-shape-agnostic (TryExecuteProductionUnifiedBytecode threads _lexicalThis /
+                   // _lexicalThisEnvironment / _lexicalNewTarget before VM entry), so it continues to flow
+                   // for multi-statement bodies unchanged.
+                   CanUseSimpleIrActivationPlanShape(plan) &&
+                   // Stage 0 admits FLAT arrow bodies only — same nested-lexical-scope hazard as the
+                   // captured-closure lift. A nested `if`/loop block declaring its own `let`/`const` can
+                   // SHADOW a captured enclosing name; the compiler then allocates a flat inner slot for
+                   // that name, and a read in the arrow's outer scope wrongly resolves to the
+                   // (uninitialized) local slot instead of the captured dynamic op — miscompiling to
+                   // undefined/NaN (NestedFunctionScopeRegressionTests). HasOnlyRootFlatSlotMappings is
+                   // true exactly when the body has no non-root scope mappings, so this excludes the
+                   // shadowing hazard. Nested-scope arrows remain a later burn-down slice.
+                   plan.HasOnlyRootFlatSlotMappings;
         }
 
         private bool CanUseProductionUnifiedBytecodeCapturedClosureActivation(

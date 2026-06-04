@@ -57,6 +57,14 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function mk(){ let n=0; function inc(){ n++; return n; } return inc; } var f=mk(); f(); f();", "unified-bytecode-production-fast-path func=inc")]
     [InlineData("function mk(c){ function read(){ return c.x + c.y; } return read; } mk({x:1,y:2})();", "unified-bytecode-production-fast-path func=read")]
     [InlineData("function mk(o){ return function set(){ o.value=43; return o.value; }; } mk({value:42})();", "unified-bytecode-production-fast-path func=set")]
+    // A6 (multi-statement arrow Stage 0): arrows with a FLAT multi-statement body now route through the
+    // production VM (previously SimpleReturnProgram-only). Arrows log anonymously (func=<anonymous>).
+    // Local-const-then-return, captured enclosing local across statements, and lexical `this` inside an
+    // object method. Nested-lexical-scope arrows (shadowing hazard) are intentionally NOT admitted yet
+    // (HasOnlyRootFlatSlotMappings guard) — no ratchet entry for them.
+    [InlineData("const f = (a,b) => { const s = a+b; return s*2; }; f(3,4);", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("function mk(base){ return (k) => { var t = base*2; return t+k; }; } mk(100)(1);", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("var o={ x:10, m:function(){ var f=()=>{ var b=5; return this.x+b; }; return f(); } }; o.m();", "unified-bytecode-production-fast-path func=<anonymous>")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]

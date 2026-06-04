@@ -32,6 +32,15 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(o,s){ o.x = s.a.b; return o.x; } f({},{a:{b:9}});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k,a,b){ o[k] = a*b; return o[k]; } f({},'z',6,7);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(a,b){ this.x = a*b; return this.x; } f.call({},4,5);", "unified-bytecode-production-fast-path func=f")]
+    // COMPOUND-WRITE complex RHS (the += analogue of the plain-write admission above): the RHS of a
+    // named/computed compound write may be any already-admitted value expression, evaluated AFTER the
+    // old-value read; receiver/key are evaluated once before the read. Spec order is preserved.
+    [InlineData("function f(o,a,b){ o.x += a + b; return o.x; } f({x:1},2,3);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,g,z){ o.x -= g(z); return o.x; } f({x:10},v=>v,3);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,s){ o.x += s.a.b; return o.x; } f({x:1},{a:{b:9}});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k,a,b){ o[k] *= a + b; return o[k]; } f({v:2},'v',2,1);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k,g,z){ o[k] += g(z); return o[k]; } f({v:4},'v',v=>v,6);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,a){ o.x += a; return o.x; } f({x:1},4);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ o.a++; return o.a; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return delete o.a; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return o?.a; } f(null);", "unified-bytecode-production-fast-path func=f")]

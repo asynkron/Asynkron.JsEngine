@@ -1883,6 +1883,22 @@ internal static class UnifiedBytecodeProductionEligibility
         var isComplexRhsPropertyWriteCandidate =
             lastOperationKind is ExpressionOpKind.SetNamedProperty or ExpressionOpKind.SetComputedProperty &&
             TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
+
+        // COMPOUND-WRITE complex RHS: when the program is an admitted compound-property-write
+        // candidate (`o.x += <complex>`, `o[k] -= <complex>`, `this.x *= <complex>`), any
+        // nested-call ops it contains belong to the already-validated RHS value region (the
+        // receiver/key are evaluated first as simple read spans, never carry calls), so the per-op
+        // call arms below must NOT decline them. The same gate also lets the embedded old-value
+        // read (GetNamedProperty/GetComputedProperty) through, which the compound flags already
+        // cover. Compute once; it gates the call-target/Call escape hatches.
+        var isComplexRhsCompoundPropertyWriteCandidate =
+            isFirstBoundaryNamedCompoundPropertyWriteCandidate ||
+            (lastOperationKind is ExpressionOpKind.SetComputedProperty &&
+             TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
+                 program,
+                 identifierConstants,
+                 activationSlots,
+                 allowsDynamicIdentifiers));
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -1899,7 +1915,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadIdentifierCallTarget:
                     if (isCallTargetPreparationCandidate ||
                         isGeneralIdentifierCallExpressionCandidate ||
-                        isComplexRhsPropertyWriteCandidate)
+                        isComplexRhsPropertyWriteCandidate ||
+                        isComplexRhsCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -1971,7 +1988,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadComputedCallTarget:
                     if (isCallTargetPreparationCandidate ||
                         isGeneralNamedMemberCallExpressionCandidate ||
-                        isComplexRhsPropertyWriteCandidate)
+                        isComplexRhsPropertyWriteCandidate ||
+                        isComplexRhsCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -2009,7 +2027,8 @@ internal static class UnifiedBytecodeProductionEligibility
                     if (isCallTargetPreparationCandidate ||
                         isGeneralIdentifierCallExpressionCandidate ||
                         isGeneralNamedMemberCallExpressionCandidate ||
-                        isComplexRhsPropertyWriteCandidate)
+                        isComplexRhsPropertyWriteCandidate ||
+                        isComplexRhsCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -2371,6 +2390,10 @@ internal static class UnifiedBytecodeProductionEligibility
                     {
                         break;
                     }
+                    if (isComplexRhsCompoundPropertyWriteCandidate)
+                    {
+                        break;
+                    }
                     if (isFirstBoundaryNamedLogicalPropertyWriteCandidate)
                     {
                         break;
@@ -2612,6 +2635,10 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    if (isComplexRhsCompoundPropertyWriteCandidate)
+                    {
+                        break;
+                    }
                     if (TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
                             program,
                             identifierConstants,
@@ -9020,11 +9047,32 @@ internal static class UnifiedBytecodeProductionEligibility
                 allowsDynamicIdentifiers);
         }
 
-        // Multi-op RHS — try template literal span.
-        return TryMeasureSimpleTemplateLiteralSpan(
-                   program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
-               spanLen > 1 &&
-               rhsStart + spanLen - 1 == rhsEnd;
+        // Multi-op RHS — first try the simple template literal span fast path.
+        if (TryMeasureSimpleTemplateLiteralSpan(
+                program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
+            spanLen > 1 &&
+            rhsStart + spanLen - 1 == rhsEnd)
+        {
+            return true;
+        }
+
+        // COMPOUND-WRITE complex RHS (mirrors the plain-write complex-RHS admission, 830236be0):
+        // the read of the old value (DuplicateTop + GetNamedProperty) is fixed in evaluation order
+        // BEFORE the RHS; the RHS region is [rhsStart, Binary). Admit ANY already-admitted
+        // value-producing expression (binary, nested call, member/optional read span, composition
+        // thereof) by validating the whole RHS region with the general operand-stack walker,
+        // requiring it to net exactly ONE operand. The op stream is already in evaluation order
+        // (base, old-value read, RHS, Binary, store), so the read-old / evaluate-RHS / apply-op /
+        // store spec sequence is preserved exactly — nothing is reordered.
+        var binaryIndex = program.OperationCount - 2;
+        return TryValidateAdmittedComplexCallArgumentRegion(
+            program,
+            argsStartIndex: rhsStart,
+            callIndex: binaryIndex,
+            expectedArgumentCount: 1,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
     }
 
     private static bool TryIsFirstBoundaryComputedCompoundPropertyWriteCandidate(
@@ -9050,57 +9098,120 @@ internal static class UnifiedBytecodeProductionEligibility
         // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
         // The collapsed receiver stays a single stack value so RequireObjectCoercible.Depth
         // remains 1; the computed key span starts after the prefix.
+        // The fixed tail is [..., GetComputedProperty (old-value read), RHS..., Binary,
+        // SetComputedProperty]. Binary and SetComputedProperty are the last two ops; the 4-op
+        // read prefix [RequireObjectCoercible, ResolvePropertyKey, DuplicateTopTwo,
+        // GetComputedProperty] is at [readStart, readStart+4). For a single-op RHS, readStart =
+        // OperationCount - 7 (the old shape); for a complex multi-op RHS the read prefix sits
+        // earlier and the RHS region [readStart+4, Binary) is variable-length. Evaluation order
+        // (object, key, read old value, RHS, apply op, store) is fixed by the op stream — we only
+        // locate where the RHS region begins, never reorder.
         var stringConstants = program.StringConstants.AsSpan();
-        var keyStart = 1;
-        var suffixStart = program.OperationCount - 7;
-        while (keyStart < suffixStart)
-        {
-            var receiverRead = program.GetOperation(keyStart);
-            if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
-            {
-                break;
-            }
-
-            if (receiverRead.GetString(stringConstants).IsPrivateName() ||
-                receiverRead.IsOptional ||
-                receiverRead.ShortCircuitOnNullishTarget)
-            {
-                return false;
-            }
-
-            keyStart++;
-        }
-
-        if (keyStart >= suffixStart ||
-            !IsSupportedComputedPropertyKeySpan(
-                program,
-                startInclusive: keyStart,
-                endExclusive: suffixStart,
-                identifierConstants,
-                activationSlots,
-                allowsDynamicIdentifiers))
+        var binaryIndex = program.OperationCount - 2;
+        var binary = program.GetOperation(binaryIndex);
+        var propertyWrite = program.GetOperation(program.OperationCount - 1);
+        if (binary.Kind != ExpressionOpKind.Binary ||
+            !IsProductionBinaryOperator(binary.Operator) ||
+            propertyWrite.Kind != ExpressionOpKind.SetComputedProperty ||
+            propertyWrite.AllowNameInference)
         {
             return false;
         }
 
-        var requireObjectCoercible = program.GetOperation(suffixStart);
-        var resolvePropertyKey = program.GetOperation(suffixStart + 1);
-        var duplicateTargetAndKey = program.GetOperation(suffixStart + 2);
-        var propertyRead = program.GetOperation(suffixStart + 3);
-        var rhs = program.GetOperation(suffixStart + 4);
-        var binary = program.GetOperation(suffixStart + 5);
-        var propertyWrite = program.GetOperation(suffixStart + 6);
-        return requireObjectCoercible.Kind == ExpressionOpKind.RequireObjectCoercible &&
-               requireObjectCoercible.Depth == 1 &&
-               resolvePropertyKey.Kind == ExpressionOpKind.ResolvePropertyKey &&
-               duplicateTargetAndKey.Kind == ExpressionOpKind.DuplicateTopTwo &&
-               propertyRead.Kind == ExpressionOpKind.GetComputedProperty &&
-               !propertyRead.ShortCircuitOnNullishTarget &&
-               IsSimpleOperand(rhs, identifierConstants, activationSlots, allowsDynamicIdentifiers) &&
-               binary.Kind == ExpressionOpKind.Binary &&
-               IsProductionBinaryOperator(binary.Operator) &&
-               propertyWrite.Kind == ExpressionOpKind.SetComputedProperty &&
-               !propertyWrite.AllowNameInference;
+        // readStart is the index of RequireObjectCoercible; readStart+3 = GetComputedProperty.
+        // The RHS region begins at readStart+4 and the smallest legal RHS is one op, so readStart
+        // ranges over [1, binaryIndex-4]. Prefer the simple single-op RHS (old fast path) and fall
+        // back to a complex RHS region only if that does not validate.
+        for (var readStart = program.OperationCount - 7; readStart >= 1; readStart--)
+        {
+            if (readStart + 4 > binaryIndex)
+            {
+                continue;
+            }
+
+            var requireObjectCoercible = program.GetOperation(readStart);
+            var resolvePropertyKey = program.GetOperation(readStart + 1);
+            var duplicateTargetAndKey = program.GetOperation(readStart + 2);
+            var propertyRead = program.GetOperation(readStart + 3);
+            if (requireObjectCoercible.Kind != ExpressionOpKind.RequireObjectCoercible ||
+                requireObjectCoercible.Depth != 1 ||
+                resolvePropertyKey.Kind != ExpressionOpKind.ResolvePropertyKey ||
+                duplicateTargetAndKey.Kind != ExpressionOpKind.DuplicateTopTwo ||
+                propertyRead.Kind != ExpressionOpKind.GetComputedProperty ||
+                propertyRead.ShortCircuitOnNullishTarget)
+            {
+                continue;
+            }
+
+            // Walk an optional named receiver-prefix chain (e.g. box.child[key] += value).
+            // The collapsed receiver stays a single stack value so RequireObjectCoercible.Depth
+            // remains 1; the computed key span starts after the prefix and ends at readStart.
+            var keyStart = 1;
+            var receiverChainOk = true;
+            while (keyStart < readStart)
+            {
+                var receiverRead = program.GetOperation(keyStart);
+                if (receiverRead.Kind != ExpressionOpKind.GetNamedProperty)
+                {
+                    break;
+                }
+
+                if (receiverRead.GetString(stringConstants).IsPrivateName() ||
+                    receiverRead.IsOptional ||
+                    receiverRead.ShortCircuitOnNullishTarget)
+                {
+                    receiverChainOk = false;
+                    break;
+                }
+
+                keyStart++;
+            }
+
+            if (!receiverChainOk ||
+                keyStart >= readStart ||
+                !IsSupportedComputedPropertyKeySpan(
+                    program,
+                    startInclusive: keyStart,
+                    endExclusive: readStart,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                continue;
+            }
+
+            var rhsStart = readStart + 4;
+
+            // Simple single-op RHS fast path.
+            if (rhsStart == binaryIndex - 1 &&
+                IsSimpleOperand(
+                    program.GetOperation(rhsStart),
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return true;
+            }
+
+            // Complex RHS region: admit ANY already-admitted value-producing expression (binary,
+            // nested call, member/optional read span, composition thereof) by validating the whole
+            // RHS region [rhsStart, Binary) with the general operand-stack walker, requiring it to
+            // net exactly ONE operand.
+            if (rhsStart < binaryIndex &&
+                TryValidateAdmittedComplexCallArgumentRegion(
+                    program,
+                    argsStartIndex: rhsStart,
+                    callIndex: binaryIndex,
+                    expectedArgumentCount: 1,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryIsFirstBoundaryNamedLogicalPropertyWriteCandidate(

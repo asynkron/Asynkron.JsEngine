@@ -128,7 +128,7 @@ sync-admitted ☑ but resumable-declined ☐ purely because they're absent from
 these allowlists — mechanical extensions against existing sync VM handlers.
 
 - [ ] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ◐
-- [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐
+- [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐ — note (audit a5b0c09): `yield*` over a LOCAL/param iterable already routes + correct, PINNED (`ResumableAlreadyRoutingPinTests`); `YieldStar`/`Iterator*` opcodes already allowlisted. **Remaining = free/dynamic iterable == B38.**
 - [x] **B3** **async generator `async function*` — first EvaluateResumable route modeled** — n/a/◐ ✅ #3135 (simple-parameter direct-yield bodies can route through `UnifiedBytecodeVirtualMachine.ExecuteResumable`; async-generator `yield*` / `yield* await ...` delegation remains an explicit pre-VM decline on the IR runner).
 - [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
 - [x] **B5** Computed property write `o[k]=v` — ☑/☑ ✅ #3114
@@ -159,7 +159,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐
 - [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex; #3123 hardened the guard: suspending/nested try-finally correctly declines, restoring 13 generator try/finally tests)
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
-- [ ] **B32** try/catch/finally across suspension — ☑/☐
+- [ ] **B32** try/catch/finally across suspension — ☑/◐ — note (audit a5b0c09): try/**finally** with yield-in-try already routes + correct (empty + non-empty finally runs), PINNED (`ResumableAlreadyRoutingPinTests`). **Remaining = try/CATCH across suspension only.**
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐
 - [x] **B34** Array destructuring across suspension — ☑/☑ ✅ (Codex)
 - [x] **B35** Object destructuring across suspension — ☑/☑ ✅ (Codex)

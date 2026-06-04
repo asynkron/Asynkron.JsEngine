@@ -2477,11 +2477,37 @@ public sealed class JsAstParser(
 
         private ExpressionNode ParseExponentiation()
         {
+            // Per the ExponentiationExpression grammar, the left operand must be an UpdateExpression, so a
+            // directly-applied prefix unary operator (`-`, `+`, `~`, `!`, `typeof`, `void`, `delete`) is
+            // forbidden as the base: `-2 ** 2` is a SyntaxError. Parentheses around the unary expression
+            // (`(-2) ** 2`) are fine, but those are consumed inside ParseUnary/ParsePrimary, so the leading
+            // token here is `(` rather than the unary operator in that case. `++`/`--` produce
+            // UpdateExpressions and remain valid bases, so they are intentionally excluded below. A unary
+            // operator on the EXPONENT side (`2 ** -2`) is legal and is unaffected, because that recursion
+            // returns before reaching this guard (no trailing `**`).
+            var leadingTokenIsForbiddenUnaryBase = Peek().Type is
+                TokenType.Minus or
+                TokenType.Plus or
+                TokenType.Tilde or
+                TokenType.Bang or
+                TokenType.Typeof or
+                TokenType.Void or
+                TokenType.Delete;
+            var unaryToken = Peek();
+
             var expr = ParseUnary();
 
             if (!Match(TokenType.StarStar))
             {
                 return expr;
+            }
+
+            if (leadingTokenIsForbiddenUnaryBase)
+            {
+                throw new ParseException(
+                    "Unary operator used immediately before exponentiation expression. Parenthesize the base.",
+                    unaryToken,
+                    source);
             }
 
             var right = ParseExponentiation();

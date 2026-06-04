@@ -73,6 +73,17 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(g,h,a,b){ return g(a + h(b)); } f(x=>x,h=>h*2,3,4);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g,o,x){ return g(o.m(x)); } f(v=>v+1, {m(n){return n*3;}}, 4);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g,o,k,x){ return g(o[k](x)); } f(v=>v+1, {m(n){return n*5;}}, 'm', 2);", "unified-bytecode-production-fast-path func=f")]
+    // A10: FREE/global identifier call target (helper(x)) — the callee is not an activation slot, so it
+    // lowers to PrepareDynamicIdentifierCallTarget walking the threaded environment chain (this=undefined,
+    // coerced per the callee's own mode). Free call, free callee with a nested free-call argument, and a
+    // free call whose enclosing function has no other dynamic dependency.
+    [InlineData("function helper(x){ return x+1; } function f(){ return helper(4); } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function g(x){ return x*2; } function helper(x){ return x+1; } function f(){ return helper(g(2)); } f();", "unified-bytecode-production-fast-path func=f")]
+    // A9: identifier call past the FIRST invocation boundary — the second/third sequential call in a body
+    // (a(); return b();) is admitted (free callees and slot callees alike), with side-effect order preserved.
+    [InlineData("function a(){ return 1; } function b(){ return 2; } function f(){ a(); return b(); } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("var log=''; function p(t){ log+=t; } function f(){ p('a'); p('b'); p('c'); return log; } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g,h){ g(); return h(); } f(()=>0, ()=>7);", "unified-bytecode-production-fast-path func=f")]
     // A1 (closure Stage 0): FLAT multi-statement closures that capture an enclosing activation
     // binding now route through the production VM — captured names lower to dynamic-identifier ops
     // over the threaded closure environment. Captured READ (config), captured WRITE (counter n++),

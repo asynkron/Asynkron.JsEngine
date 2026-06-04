@@ -38,7 +38,8 @@ internal readonly record struct UnifiedBytecodeProductionActivationDescriptor(
     bool HasClassConstructorActivation = false,
     bool HasDynamicLookupDependency = false,
     bool AllowsOrdinaryDynamicIdentifierEnvironmentOperations = false,
-    bool AllowsImplicitArgumentsObjectPropertyReadOperands = false);
+    bool AllowsImplicitArgumentsObjectPropertyReadOperands = false,
+    bool IsStrict = false);
 
 internal readonly record struct UnifiedBytecodeProductionEligibilityResult(
     bool IsEligible,
@@ -167,7 +168,38 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             if (TryGetExpressionProgram(instruction, out var program) &&
-                HasOrdinaryDynamicExpressionDependency(program, activationSlots))
+                (HasOrdinaryDynamicExpressionDependency(program, activationSlots) ||
+                 HasOrdinaryDynamicCallTargetDependency(program, activationSlots)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // A10 (burn-down): a FREE identifier used purely as a CALL TARGET (`helper(x)` where helper is a
+    // global/free name) is an ordinary dynamic-identifier dependency for the production SYNC route — it
+    // lowers to PrepareDynamicIdentifierCallTarget, which walks the threaded environment chain exactly
+    // like LoadDynamicIdentifier. HasOrdinaryDynamicExpressionDependency intentionally omits
+    // LoadIdentifierCallTarget (the yield* resumable walker relies on that omission), so detect free
+    // call targets here so CanUseProductionUnifiedBytecodeOrdinaryDynamicNameFastPath admits a body
+    // whose only dynamic dependency is a free callee (e.g. `function f(){ return helper(4); }`).
+    private static bool HasOrdinaryDynamicCallTargetDependency(
+        ExpressionProgram program,
+        ActivationSlotShape activationSlots)
+    {
+        var identifierConstants = program.IdentifierConstants.AsSpan();
+        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
+        {
+            var operation = program.GetOperation(operationIndex);
+            if (operation.Kind != ExpressionOpKind.LoadIdentifierCallTarget || operation.IsArguments)
+            {
+                continue;
+            }
+
+            var callIdentifier = operation.GetIdentifier(identifierConstants);
+            if (IsOrdinaryDynamicIdentifier(callIdentifier, activationSlots))
             {
                 return true;
             }
@@ -210,6 +242,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots,
                 activation.AllowsOrdinaryDynamicIdentifierEnvironmentOperations,
                 activation.AllowsImplicitArgumentsObjectPropertyReadOperands,
+                activation.IsStrict,
                 out var declineCode,
                 out var declineReason))
         {
@@ -409,6 +442,7 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsOrdinaryDynamicIdentifiers,
         bool allowImplicitArgumentsObjectPropertyReadOperands,
+        bool isStrict,
         out UnifiedBytecodeProductionDeclineCode declineCode,
         out string declineReason)
     {
@@ -433,6 +467,44 @@ internal static class UnifiedBytecodeProductionEligibility
             declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
             declineReason =
                 "A call returned from within a finally block is a tail position and requires the tail-call-optimizing IR runner; not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        // A9/A10 tail-call safety boundary: the production VM has NO tail-call optimization. The IR runner
+        // performs same-function tail-call optimization for STRICT functions (see
+        // SyncFunctionInvoker.TryGetLegacySameFunctionTailRestartTarget), so a deep self-recursive tail
+        // call there runs on a flat native stack. Admitting the identifier call-target cluster (A9/A10)
+        // would route a strict `return f(...)` tail call to the VM, which re-enters the native call stack
+        // on every iteration and overflows it for deep recursion (StackOverflow crashes the host). Decline
+        // any strict function with a tail-position `return <bare-identifier call>;` so it keeps running on
+        // the TCO-capable IR runner. Non-strict functions are never tail-call-optimized anywhere (the IR
+        // runner's restart requires strict mode), so a non-strict `return f(...)` is no worse on the VM and
+        // stays admitted; non-tail calls (statement calls, call arguments/operands) also stay admitted.
+        if (isStrict && ContainsTailPositionIdentifierCallReturn(plan))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.CallDependency;
+            declineReason =
+                "A strict tail-position identifier call requires the tail-call-optimizing IR runner; not eligible for production unified bytecode routing.";
+            return true;
+        }
+
+        // A9/A10 safety boundary: when the ordinary dynamic-identifier path is active, the production VM
+        // materializes a real call environment (currentCallingEnvironment / slotEnvironments). In that
+        // materialized-environment mode a plain `continue` that re-enters a loop body carrying a
+        // per-iteration lexical `const` does NOT restore the body block's scope-environment owners the
+        // way PopEnvironment does, so a later iteration reads the const slot while it is still in TDZ
+        // ("Cannot access '<name>' before initialization"). This is a pre-existing limitation of the VM
+        // loop-environment handling that also affects the already-admitted free-identifier READ cluster;
+        // it only manifests once a free name (read, write, or call target) forces the materialized-env
+        // path. Decline this exact shape so it keeps running on the IR runner, which restores per-iteration
+        // const scopes correctly. Pure-slot functions never enter the materialized-env path (the const
+        // slot is reset directly), so this guard intentionally only fires under the dynamic-name path.
+        if (allowsOrdinaryDynamicIdentifiers &&
+            ContainsContinueOverPerIterationConstScope(plan))
+        {
+            declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
+            declineReason =
+                "A continue that re-enters a loop body with a per-iteration lexical const requires the IR runner under the dynamic-name path; not eligible for production unified bytecode routing.";
             return true;
         }
 
@@ -590,6 +662,40 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
+    // True when the plan has BOTH a `continue` (a loop with a continue edge) AND a lexical block scope
+    // that declares a per-iteration `const` (a PushEnvironment carrying const lexical slots). This is the
+    // exact shape the production VM mishandles in the materialized-call-environment mode: a plain continue
+    // re-enters the loop body without restoring the const block's scope-environment owner, leaving the
+    // const slot in TDZ on a later iteration. The check is intentionally conservative — it does not prove
+    // the continue can actually skip THIS const's initializer — because the alternative (a precise reach
+    // analysis from each continue over each const PushEnvironment) is the IR runner's job; declining the
+    // whole shape under the dynamic-name path is safe and keeps these functions correct on the IR runner.
+    private static bool ContainsContinueOverPerIterationConstScope(ExecutionPlan plan)
+    {
+        var instructions = plan.Instructions;
+        var hasContinue = false;
+        var hasPerIterationConstScope = false;
+        for (var i = 0; i < instructions.Length; i++)
+        {
+            switch (instructions[i])
+            {
+                case ContinueInstruction:
+                    hasContinue = true;
+                    break;
+                case PushEnvironmentInstruction { ConstLexicalSlotIndices.IsDefaultOrEmpty: false }:
+                    hasPerIterationConstScope = true;
+                    break;
+            }
+
+            if (hasContinue && hasPerIterationConstScope)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static bool FinallyRegionContainsCallReturn(
         ImmutableArray<ExecutionInstruction> instructions,
         int finallyIndex)
@@ -684,6 +790,43 @@ internal static class UnifiedBytecodeProductionEligibility
         for (var i = 0; i < program.OperationCount; i++)
         {
             if (program.GetOperation(i).Kind == ExpressionOpKind.Call)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // True when the plan has a non-awaited `return <expr>;` whose lowered expression contains an
+    // identifier call target (LoadIdentifierCallTarget) — i.e. a `return f(...)` tail-position call by
+    // name, including the conditional form `return c ? a : f(...)`. This is exactly the shape the IR
+    // runner optimizes via same-function tail-call restart (for strict functions); the production VM does
+    // not, so routing a strict self-recursive tail call there overflows the native stack. Member/computed
+    // call targets and bare statement calls are deliberately NOT matched: the A9/A10 admission only newly
+    // routes IDENTIFIER call targets, so scoping the guard to LoadIdentifierCallTarget keeps the boundary
+    // minimal and leaves pre-existing admissions untouched.
+    private static bool ContainsTailPositionIdentifierCallReturn(ExecutionPlan plan)
+    {
+        var instructions = plan.Instructions;
+        for (var i = 0; i < instructions.Length; i++)
+        {
+            if (instructions[i] is ReturnInstruction { AwaitedProgram: null, ReturnProgram: { } returnProgram } &&
+                ExpressionProgramContainsIdentifierCallTarget(returnProgram))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramContainsIdentifierCallTarget(ExpressionProgram program)
+    {
+        for (var i = 0; i < program.OperationCount; i++)
+        {
+            var operation = program.GetOperation(i);
+            if (operation.Kind == ExpressionOpKind.LoadIdentifierCallTarget && !operation.IsArguments)
             {
                 return true;
             }

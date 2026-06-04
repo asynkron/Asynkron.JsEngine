@@ -168,9 +168,13 @@ public sealed class ActivationSemanticsProofPackTests(ITestOutputHelper output) 
             """);
 
         Assert.Equal("fast path throw", result);
-        // probe() uses the simple IR activation + return fast path; thrown exceptions propagate correctly.
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        // A10 (burn-down): probe() returns a FREE identifier call (boom()), so it now routes through the
+        // production unified bytecode VM (the free call target lowers to PrepareDynamicIdentifierCallTarget)
+        // rather than the older simple-IR-return fast path. Thrown exceptions still propagate correctly.
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(SimpleIrReturnFastPathLog, StringComparison.Ordinal));
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(UnifiedBytecodeProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

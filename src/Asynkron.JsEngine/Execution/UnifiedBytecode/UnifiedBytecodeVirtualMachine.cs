@@ -5205,6 +5205,80 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget:
+                    {
+                        // `o[k]?.()`: computed-member receiver already on the stack, key on top. Pop the key,
+                        // load the method off the receiver; if the method is nullish, short-circuit the whole
+                        // call to undefined by replacing the receiver with undefined and jumping to the chain
+                        // end. The packed operand carries the call-target index (low 16) and chain-end jump
+                        // target (high) — identical encoding to the sync VM's handler. Short-circuit here is
+                        // realized by the JUMP (not flag propagation): the replaced undefined is the final call
+                        // result, so ReplaceResumableTop clears the flag. Literal twin of the sync VM case.
+                        var optComputedCallTargetIdx = instruction.Operand & 0xFFFF;
+                        var optComputedJumpTarget = instruction.Operand >> 16;
+                        _ = program.CallTargetConstants[optComputedCallTargetIdx];
+
+                        var optComputedKey = stack[--stackPointer];
+                        var optComputedReceiver = stack[stackPointer - 1];
+                        var optComputedCallee = GetComputedCallTargetValue(optComputedReceiver, optComputedKey, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        if (optComputedCallee.IsNullOrUndefined)
+                        {
+                            ReplaceResumableTop(JsValue.Undefined);
+                            programCounter = optComputedJumpTarget;
+                            break;
+                        }
+
+                        PushResumableValue(optComputedCallee);
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget:
+                    {
+                        // `freeFn?.()` where `freeFn` is a free/dynamic identifier (module/script-level or a
+                        // captured outer binding). Resolve the callee by name against the live closure
+                        // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment, pushing the
+                        // <thisValue, callee> pair. If the resolved callee is nullish, short-circuit the whole
+                        // call to undefined: drop the pushed pair, push undefined, and jump to the chain end.
+                        // The packed operand carries the name constant index (low 16) and the chain-end jump
+                        // target (high) — identical encoding to the sync VM's handler. Literal twin of the
+                        // sync VM case; resolution is live, so a resumed step reflects any reassignment.
+                        var resumableDynamicOptionalCallEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var dynamicOptionalNameIndex = instruction.Operand & 0xFFFF;
+                        var dynamicOptionalJumpTarget = instruction.Operand >> 16;
+                        PrepareDynamicIdentifierCallTarget(
+                            program.StringConstants[dynamicOptionalNameIndex],
+                            resumableDynamicOptionalCallEnvironment,
+                            stack,
+                            ref stackPointer,
+                            context);
+                        SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        SetResumableShortCircuitFlag(stackPointer - 2, false);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        var resumableDynamicOptionalCallable = stack[stackPointer - 1];
+                        if (resumableDynamicOptionalCallable.IsNullOrUndefined)
+                        {
+                            stackPointer -= 2;
+                            PushResumableValue(JsValue.Undefined);
+                            programCounter = dynamicOptionalJumpTarget;
+                            break;
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.CallInvocationBoundary:
                     {
                         // Synchronous call dispatch from inside the resumable frame. ExecutePreparedCall

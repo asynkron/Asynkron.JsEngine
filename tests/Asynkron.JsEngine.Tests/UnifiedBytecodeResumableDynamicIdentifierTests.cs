@@ -92,10 +92,10 @@ public sealed class UnifiedBytecodeResumableDynamicIdentifierTests(ITestOutputHe
     // SIBLING closure (`bump`) mutates; outer code calls `bump` between the generator's yields. Because
     // the generator resolves `n` by name against the live environment (not a value snapshot taken at
     // construction), each resumed step observes the freshly-mutated value. The generator performs no
-    // free write itself — a free write lowers to UpdateDynamicIdentifier, which stays declined — so this
-    // exercises exactly the admitted live-READ shape. (`n` is module/script-level here so it resolves
-    // dynamically by name; a binding captured from an *enclosing function* scope resolves to that
-    // activation's slot, a distinct tier this slice does not admit.)
+    // free write itself here. (`n` is module/script-level so it resolves dynamically by name; a binding
+    // captured from an *enclosing function* scope resolves against the threaded CallingEnvironment too — the
+    // captured READ and captured UPDATE (`n++`) tiers are both admitted now, see
+    // UnifiedBytecodeResumableCapturedClosureWriteTests; the captured plain/compound STORE stays declined.)
     [Fact(Timeout = 5000)]
     public async Task GeneratorReadsFreeBindingMutatedByClosureSibling_ReadsLiveValue()
     {

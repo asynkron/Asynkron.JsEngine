@@ -3669,6 +3669,36 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:
+                    {
+                        // Captured / free UPDATE (`n++`, `n--`, `++n`, `--n` where `n` escapes this
+                        // activation's slots). The instruction resolves an assignment reference against the
+                        // live closure environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment
+                        // (#3108, stable across yield/await), reads the current value, applies the numeric
+                        // ++/--, and writes it back — so the update mutates the SAME enclosing heap slot before
+                        // and after every suspension (the captured binding aliases across yields). const-safety
+                        // is enforced by the environment: ResolveIdentifierAssignmentReference ->
+                        // reference.SetValue throws the `TypeError: Assignment to constant variable` for a
+                        // captured `const`, surfaced here as the resumable Throw step (unlike the slot-update
+                        // path, no const-slot metadata is needed). The opcode carries no AwaitedProgram and
+                        // cannot itself suspend, so it runs to completion inside one resumable step and pushes
+                        // the prefix (new) or postfix (old) value.
+                        PushResumableValue(UpdateDynamicIdentifierValue(
+                            program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                            DecodeIsIncrement(instruction.Operand),
+                            DecodeIsPrefix(instruction.Operand),
+                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            context));
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.TdzHeadInit:
                     {
                         // Establish the loop-head temporal dead zone before the for-in/iterator source is

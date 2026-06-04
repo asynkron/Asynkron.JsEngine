@@ -160,6 +160,15 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function* g(){ yield [1,2]; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield new.target; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield /ab+c/gi; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    // Resumable captured-closure WRITE: a generator nested in `mk` mutates `mk`'s enclosing local `n`
+    // (`n++`) across yields. `n` escapes the generator's own activation slots, so the update lowers to the
+    // UpdateDynamicIdentifier opcode and resolves against the threaded CallingEnvironment, aliasing the same
+    // enclosing heap slot across each suspension. (Captured READ of an enclosing local already routed.)
+    [InlineData("function mk(){ let n=0; function* g(){ n++; yield n; n++; yield n; } return g; } var it=mk()(); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    // Resumable captured-closure WRITE across await: an async function nested in `mk` mutates `mk`'s
+    // enclosing local `n` (`n++`) on both sides of an await; the update aliases the enclosing slot across the
+    // await suspension via UpdateDynamicIdentifier over the threaded CallingEnvironment.
+    [InlineData("function mk(){ let n=1; async function run(){ n++; await Promise.resolve(0); n++; return n; } return run; } mk()();", "unified-bytecode-resumable-async-fast-path func=run")]
     public async Task AdmittedShape_StillRoutesThroughProduction(string source, string expectedLog)
     {
         await using var engine = CreateEngine();

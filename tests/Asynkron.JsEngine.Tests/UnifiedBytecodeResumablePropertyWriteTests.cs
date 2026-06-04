@@ -84,19 +84,50 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedProperty);
     }
 
-    // NEGATIVE gate: a dynamic FREE-variable update (`freeGlobal++` on an undeclared name) is NOT part of
-    // the property-write/update/delete slice and stays declined — it lowers to UpdateDynamicIdentifier,
-    // which has no resumable handler and is absent from the resumable opcode allowlist. (The plain
-    // property UPDATE `o.x++` that this test originally pinned is now admitted by the resumable property
-    // update/delete slice; see UnifiedBytecodeResumablePropertyUpdateDeleteTests.) This pins the admitted
-    // surface so a future change cannot silently route dynamic-name mutation through an unverified path.
+    // A dynamic FREE/captured-variable UPDATE (`freeGlobal++`) between yields is now ADMITTED: it lowers to
+    // UpdateDynamicIdentifier, which resolves the name against the threaded CallingEnvironment (stable across
+    // suspension) and is on the resumable opcode allowlist with a matching ExecuteResumable handler. The
+    // update is atomic inside one resumable step (it never leaves a half-resolved reference on the operand
+    // stack across a suspension), and const-safety is enforced by the environment. See
+    // UnifiedBytecodeResumableCapturedClosureWriteTests for the captured-enclosing-local end-to-end battery.
+    // (The dynamic plain/compound STORE `freeGlobal = v` stays declined — it lowers via
+    // ResolveDynamicIdentifierReference, whose pending reference the resume state does not thread.)
     [Fact]
-    public void EvaluateResumable_DynamicFreeVariableUpdate_StaysDeclined()
+    public void EvaluateResumable_DynamicFreeVariableUpdate_AdmitsUpdateDynamicIdentifier()
     {
         var plan = GetFunctionPlan("""
             function* g() {
                 yield 1;
                 freeGlobal++;
+                yield 2;
+            }
+            """,
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateDynamicIdentifier);
+    }
+
+    // NEGATIVE gate: the dynamic plain STORE `freeGlobal = v` STAYS declined — it lowers via the
+    // ResolveDynamicIdentifierReference -> <RHS> -> StoreDynamicIdentifierReference sequence whose pending
+    // AssignmentReference is held in a transient VM-local array, not on the resume state, so a suspending RHS
+    // would corrupt the store target on resume. ResolveDynamicIdentifierReference is absent from the
+    // resumable opcode allowlist, so this pins the admitted surface against silently routing dynamic-name
+    // reference assignment through an unverified path.
+    [Fact]
+    public void EvaluateResumable_DynamicFreeVariableStore_StaysDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            function* g() {
+                yield 1;
+                freeGlobal = 7;
                 yield 2;
             }
             """,

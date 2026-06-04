@@ -1215,6 +1215,20 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget or
                 UnifiedBytecodeOpCode.TypeOf or
                 UnifiedBytecodeOpCode.TypeOfIdentifier or
+                // `typeof freeVar` of a free/dynamic identifier (module/script-level or a captured outer
+                // binding that escapes this activation's slots) inside a resumable body. Resolves the name
+                // against the live closure environment threaded onto
+                // UnifiedBytecodeResumeState.CallingEnvironment (#3108 — the same env the admitted free
+                // dynamic READS / CALL targets / OPTIONAL call targets already use, stable across
+                // yield/await), so a resumed step observes the CURRENT binding. `typeof` NEVER throws
+                // ReferenceError: the resumable handler reuses the sync VM's TypeOfDynamicIdentifier helper,
+                // which swallows the unbound-binding throw and returns "undefined" (an unbound `freeVar`
+                // yields "undefined", a bound one yields its type). The opcode pushes exactly one value,
+                // carries no AwaitedProgram, and cannot itself suspend, so it always runs to completion
+                // inside one resumable step with no resume-state restoration. The dynamic *write* / reference
+                // opcodes stay omitted (no resumable handler), so any non-typeof dynamic mutation still
+                // declines back to the interpreter.
+                UnifiedBytecodeOpCode.TypeOfDynamicIdentifier or
                 UnifiedBytecodeOpCode.UnaryPlus or
                 UnifiedBytecodeOpCode.UnaryMinus or
                 UnifiedBytecodeOpCode.UnaryLogicalNot or

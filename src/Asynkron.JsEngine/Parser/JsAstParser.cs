@@ -3596,6 +3596,14 @@ public sealed class JsAstParser(
                 return (token.Literal!, false, CreateSourceReference(token));
             }
 
+            if (Check(TokenType.PrivateIdentifier))
+            {
+                // Private names are only valid as class-body member keys; they are a SyntaxError
+                // in object-literal property keys (e.g. `({#x: 1})`). Reject them here so the
+                // object-literal path does not accept `#`-prefixed keys.
+                throw new ParseException("Private names are only allowed in class bodies.", Peek(), source);
+            }
+
             var identifier = ConsumePropertyIdentifierToken("Expected property name.");
             return (identifier.Lexeme, false, CreateSourceReference(identifier));
         }

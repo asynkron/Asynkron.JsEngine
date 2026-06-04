@@ -130,11 +130,12 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
     // ----- DECLINED (correctly): out-of-scope shapes that must NOT silently route -----
 
     [Fact(Timeout = 5000)]
-    public async Task DerivedCtor_WithSuperCall_DeclinesButIsCorrect()
+    public async Task DerivedCtor_WithSuperCall_RoutesAndIsCorrect()
     {
         await using var engine = CreateEngine();
-        // A derived constructor with super(...) must STILL decline the base-class activation path (the
-        // base ctor B is admitted; the derived ctor D is not). Both must compute the correct instance.
+        // A derived constructor with super(...) now ROUTES through the production VM and computes the
+        // correct instance (the complex-RHS property-write admission lifted the body-shape blocker; super
+        // is threaded correctly, and `this`-before-`super` TDZ is still enforced — see SuperFieldCtor battery).
         var result = await engine.Evaluate("""
             class B { constructor(x) { this.x = x; } }
             class D extends B { constructor(x) { super(x); this.y = x * 2; } }
@@ -143,22 +144,22 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
             """);
 
         Assert.Equal("5,10", result);
-        Assert.False(Routed("D"), "a derived (super) constructor must NOT route through the base-class activation path");
+        Assert.True(Routed("D"), "a derived (super) constructor now routes through the production VM");
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_WithInstanceFieldInitializer_DeclinesButIsCorrect()
+    public async Task BaseCtor_WithInstanceFieldInitializer_RoutesAndIsCorrect()
     {
         await using var engine = CreateEngine();
-        // An instance-field initializer must keep the ctor declined (fields run before the body and are
-        // gated at the fast-path entry by !_instanceFields.IsDefaultOrEmpty).
+        // An instance-field initializer ctor now ROUTES — fields initialize (in order, before the body) and
+        // the body reads them correctly through the receiver.
         var result = await engine.Evaluate("""
             class C { f = 1; constructor() { this.g = this.f + 1; } }
             new C().g;
             """);
 
         Assert.Equal(2d, result);
-        Assert.False(Routed("C"), "a class ctor with an instance-field initializer must NOT route");
+        Assert.True(Routed("C"), "a class ctor with an instance-field initializer now routes");
     }
 
     [Fact(Timeout = 5000)]
@@ -176,37 +177,35 @@ public sealed class ClassConstructorActivationAdmissionTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task BaseCtor_BinaryRhsPropertyStore_DeclinesButIsCorrect()
+    public async Task BaseCtor_BinaryRhsPropertyStore_RoutesAndIsCorrect()
     {
         await using var engine = CreateEngine();
-        // `this.y = b * 2` produces a [base, b, 2, Binary, SetNamedProperty] program whose RHS is a binary
-        // op. The SHARED property-write-RHS candidate (TryIsFirstBoundaryPropertyWriteCandidate) admits only
-        // a single simple operand or a template-literal RHS, so this declines — for ANY function shape, not
-        // just class ctors. Left declined here (widening it lives in the shared eligibility walker, not the
-        // class-ctor predicate). Correctness must still hold via the IR fallback.
+        // `this.y = b * 2` has a binary-op RHS. The shared property-write-RHS candidate now admits any
+        // already-admitted value-producing RHS expression (complex-RHS admission), so this routes — for any
+        // function shape, not just class ctors.
         var result = await engine.Evaluate("""
             class C { constructor(b) { this.y = b * 2; } }
             new C(4).y;
             """);
 
         Assert.Equal(8d, result);
-        Assert.False(Routed("C"), "a binary-RHS property store declines via the shared property-write gate (not class-ctor-specific)");
+        Assert.True(Routed("C"), "a binary-RHS property store now routes via the widened property-write gate");
     }
 
     // ----- Parity guard: identical bodies route identically for class ctor vs ordinary fn ctor -----
 
     [Fact(Timeout = 5000)]
-    public async Task BinaryRhsStore_DeclinesForOrdinaryFunctionConstructorToo()
+    public async Task BinaryRhsStore_RoutesForOrdinaryFunctionConstructorToo()
     {
         await using var engine = CreateEngine();
-        // Proves the binary-RHS-store decline is NOT class-ctor-specific: an ordinary function constructor
-        // with the same body declines the same way.
+        // Proves the binary-RHS-store admission is NOT class-ctor-specific: an ordinary function constructor
+        // with the same body routes the same way.
         var result = await engine.Evaluate("""
             function F(b) { this.y = b * 2; }
             new F(4).y;
             """);
 
         Assert.Equal(8d, result);
-        Assert.False(Routed("F"), "an ordinary function ctor with a binary-RHS store also declines (shared gate)");
+        Assert.True(Routed("F"), "an ordinary function ctor with a binary-RHS store also routes (shared gate widened)");
     }
 }

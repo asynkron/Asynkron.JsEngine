@@ -3531,6 +3531,239 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    // ---- A30: optional-computed-START member calls (sync production route) ----
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedStartCall_ShortCircuitsToUndefinedWhenBaseNullish()
+    {
+        // o?.[k]() — a nullish receiver short-circuits the whole call to undefined; the
+        // call is never made and the key is never evaluated.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(o, k) {
+                return o?.[k]();
+            }
+
+            invoke(null, "m") + "," + invoke(undefined, "m");
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedStartCall_InvokesMethodAndPreservesThisWhenBaseNonNull()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = {
+                offset: 1,
+                read(value) {
+                    return this === box ? value + this.offset : -1;
+                }
+            };
+
+            function invoke(box, key, value) {
+                return box?.[key](value);
+            }
+
+            invoke(box, "read", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedStartCall_DoesNotEvaluateKeyOrInvokeWhenBaseNullish()
+    {
+        // Adversarial: the key sub-expression has a side effect; it must NOT run when the
+        // receiver short-circuits, and neither must the method.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function key(name) { log.push("key:" + name); return name; }
+            var box = { read() { log.push("read"); return 7; } };
+
+            function invoke(box) {
+                return box?.[key("read")]();
+            }
+
+            var shortCircuit = invoke(null);
+            var present = invoke(box);
+            shortCircuit + ":" + present + ":" + log.join(",");
+            """);
+
+        // First call short-circuits (no key, no read); second runs key then read.
+        Assert.Equal("undefined:7:key:read,read", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedStartCall_PropagatesThrowFromInvokedMethod()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { read() { throw new Error("boom"); } };
+
+            function invoke(box, key) {
+                return box?.[key]();
+            }
+
+            try { invoke(box, "read"); "no-throw"; }
+            catch (error) { "caught:" + error.message; }
+            """);
+
+        Assert.Equal("caught:boom", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    // ---- A30: double-optional named-then-computed member calls (a?.b?.[k]()) ----
+
+    [Fact(Timeout = 5000)]
+    public async Task DoubleOptionalNamedThenComputedCall_ShortCircuitsWhenFirstHopNullish()
+    {
+        // a?.b?.[k]() — first hop (a) nullish short-circuits the entire chain.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, k) {
+                return a?.b?.[k]();
+            }
+
+            invoke(null, "c") + "," + invoke(undefined, "c");
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DoubleOptionalNamedThenComputedCall_ShortCircuitsWhenSecondHopNullish()
+    {
+        // a?.b?.[k]() — second hop (a.b) nullish short-circuits the call.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(a, k) {
+                return a?.b?.[k]();
+            }
+
+            invoke({ b: null }, "c") + "," + invoke({ b: undefined }, "c");
+            """);
+
+        Assert.Equal("undefined,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DoubleOptionalNamedThenComputedCall_InvokesMethodAndPreservesThisWhenPresent()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var inner = {
+                offset: 1,
+                read(value) {
+                    return this === inner ? value + this.offset : -1;
+                }
+            };
+            var box = { b: inner };
+
+            function invoke(box, key, value) {
+                return box?.b?.[key](value);
+            }
+
+            invoke(box, "read", 41);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DoubleOptionalNamedThenComputedCall_DoesNotEvaluateKeyWhenShortCircuited()
+    {
+        // Adversarial: the key side effect must not run on either short-circuit path.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function key(name) { log.push("key:" + name); return name; }
+            var inner = { read() { log.push("read"); return 5; } };
+            var box = { b: inner };
+
+            function invoke(value) {
+                return value?.b?.[key("read")]();
+            }
+
+            var hopOne = invoke(null);
+            var hopTwo = invoke({ b: null });
+            var present = invoke(box);
+            hopOne + ":" + hopTwo + ":" + present + ":" + log.join(",");
+            """);
+
+        // Only the present call evaluates the key and the method.
+        Assert.Equal("undefined:undefined:5:key:read,read", result?.ToString());
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DoubleOptionalNamedThenComputedCall_PropagatesThrowFromInvokedMethod()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { b: { read() { throw new Error("boom"); } } };
+
+            function invoke(box, key) {
+                return box?.b?.[key]();
+            }
+
+            try { invoke(box, "read"); "no-throw"; }
+            catch (error) { "caught:" + error.message; }
+            """);
+
+        Assert.Equal("caught:boom", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task OptionalComputedStartCall_WithLiteralKeyAndArguments()
+    {
+        // o?.['lit'](a, b) — literal key + multiple simple args.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var box = { sum(a, b) { return a + b; } };
+
+            function invoke(box) {
+                return box?.["sum"](40, 2);
+            }
+
+            invoke(box) + "," + invoke(null);
+            """);
+
+        Assert.Equal("42,undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke",
+                StringComparison.Ordinal));
+    }
+
     [Fact(Timeout = 5000)]
     public async Task OptionalNamedPropertyRead_ReturnsUndefinedWhenBaseIsNull()
     {

@@ -5844,6 +5844,50 @@ internal static class UnifiedBytecodeCompiler
             }
         }
 
+        // Case 7 (A30): optional-computed-START plain call — o?.[k](args)
+        // Pattern: [base, JumpIfNullish(RWU,end), key, LoadComputedCallTarget, args..., Call]
+        if (callTargetIndexInProgram == 3 &&
+            expressionProgram.GetOperation(1) is
+                { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true })
+        {
+            return TryAppendOptionalComputedStartPlainCallTarget(
+                expressionProgram,
+                slotLayout,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                call,
+                callIndex,
+                callTargetIndexInProgram,
+                out reason);
+        }
+
+        // Case 8 (A30): double-optional named-then-computed plain call — a?.b?.[k](args)
+        // Pattern: [base, GetNamedProperty(opt,b), JumpIfShortCircuited, JumpIfNullish(RWU,end),
+        //           key, LoadComputedCallTarget, args..., Call]
+        if (callTargetIndexInProgram == 5 &&
+            expressionProgram.GetOperation(1) is
+                { Kind: ExpressionOpKind.GetNamedProperty, IsOptional: true, ShortCircuitOnNullishTarget: false } &&
+            expressionProgram.GetOperation(2).Kind == ExpressionOpKind.JumpIfShortCircuited &&
+            expressionProgram.GetOperation(3) is
+                { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true })
+        {
+            return TryAppendOptionalChainComputedReceiverOptionalCallTarget(
+                expressionProgram,
+                slotLayout,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                call,
+                callIndex,
+                callTargetIndexInProgram,
+                out reason);
+        }
+
         // Case 3: callee-optional computed call — box[key]?.()
         // Pattern: [Receiver, Key, LoadComputedCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]
         if (callTargetIndexInProgram + 1 < callIndex &&
@@ -6215,6 +6259,176 @@ internal static class UnifiedBytecodeCompiler
         unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
             unified.Count);
+        return true;
+    }
+
+    // Case 7 (A30): o?.[k](args) — optional-computed-START chain, plain non-optional computed call.
+    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), key-load,
+    //            PrepareComputedCallTarget, args, (end:). A nullish receiver short-circuits the
+    //            whole call to undefined (the call is never made).
+    private static bool TryAppendOptionalComputedStartPlainCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        var nullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        var keyIndex = callTargetIndexInProgram - 1;
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(keyIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                allowsDynamicIdentifiers,
+                out reason))
+        {
+            return false;
+        }
+
+        unified[nullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            unified.Count);
+        return true;
+    }
+
+    // Case 8 (A30): a?.b?.[k](args) — double-optional chain (optional-named start, optional-computed
+    // continuation), plain non-optional call. Computed-key twin of Case 5's a?.b?.c(args).
+    // Lowers to: LoadSlot(base), JumpIfNullishReplaceUndefined(end), GetNamedProperty(b),
+    //            JumpIfNullishReplaceUndefined(end), key-load, PrepareComputedCallTarget, args, (end:).
+    // Either nullish hop short-circuits the whole call to undefined (the call is never made).
+    private static bool TryAppendOptionalChainComputedReceiverOptionalCallTarget(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        PackedExpressionOp call,
+        int callIndex,
+        int callTargetIndexInProgram,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        // Emit base load.
+        if (!TryAppendActivationValueLoad(
+                expressionProgram.GetOperation(0),
+                expressionProgram,
+                activationSlots,
+                unified,
+                out reason))
+        {
+            return false;
+        }
+
+        // Emit first-hop short-circuit (a?.) — backpatch after args.
+        var firstNullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        // Emit GetNamedProperty(b) — receiver for ?.[k]().
+        var firstHop = expressionProgram.GetOperation(1);
+        var receiverName = firstHop.GetString(expressionStringConstants);
+        if (receiverName.IsPrivateName())
+        {
+            reason = "Private named member call targets are outside the call-target preparation boundary.";
+            return false;
+        }
+
+        var receiverNameIndex = stringConstants.Count;
+        stringConstants.Add(receiverName);
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, receiverNameIndex));
+
+        // Emit second-hop short-circuit (?.[k]) — backpatch after args.
+        var secondNullishJumpIndex = unified.Count;
+        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+        // Emit computed key.
+        var keyIndex = callTargetIndexInProgram - 1;
+        if (!TryAppendComputedPropertyKeyLoad(
+                expressionProgram.GetOperation(keyIndex),
+                expressionProgram,
+                activationSlots,
+                unified,
+                literalConstants,
+                out reason))
+        {
+            return false;
+        }
+
+        var callTargetConstantIndex = callTargetConstants.Count;
+        callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+        unified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+            callTargetConstantIndex));
+
+        if (!TryAppendCallArguments(
+                expressionProgram,
+                slotLayout,
+                unified,
+                literalConstants,
+                stringConstants,
+                callTargetConstants,
+                callTargetIndexInProgram + 1,
+                call,
+                callIndex,
+                allowsDynamicIdentifiers,
+                out reason))
+        {
+            return false;
+        }
+
+        var chainEnd = unified.Count;
+        unified[firstNullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            chainEnd);
+        unified[secondNullishJumpIndex] = new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+            chainEnd);
         return true;
     }
 

@@ -153,10 +153,10 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B23** Nested function literal — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, doc + 7 tripwires): a nested function literal inside a generator/async that CAPTURES a body local can't see it — the body's locals are flat slots on the resume state, not env bindings, so the captured nested fn resolves through the env chain and throws `ReferenceError`/goes stale. Needs free-variable capture analysis the resumable route doesn't carry. Non-capturing subset works but can't be safely separated. Correct via IR.
 - [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
-- [ ] **B26** Dynamic free write `freeVar=v` — ☑/☐
-- [ ] **B27** Dynamic free update `freeVar++` — ☑/☐
-- [ ] **B28** `delete freeVar` — ☑/☐
-- [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐
+- [ ] **B26** Dynamic free write `freeVar=v` — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 0c2707532): free WRITE lowers via `ResolveDynamicIdentifierReference` → `StoreDynamicIdentifierReference`; the pending `AssignmentReference` lives in a transient VM-local array NOT threaded on `UnifiedBytecodeResumeState`, so a suspending RHS (`freeVar = yield`) would corrupt the store target on resume. Needs resume-state reference threading (same class as resumeclosure's captured-store decline). Correct via IR.
+- [x] **B27** Dynamic free update `freeVar++` — ☑/☑ ✅ (commit 0c2707532): `UpdateDynamicIdentifier` admitted to the resumable route (commit 71be17015), free/global update routes; pinned.
+- [x] **B28** `delete freeVar` — ☑/☑ ✅ (commit 0c2707532): `DeleteDynamicIdentifier` is self-contained (name+env+isStrict → bool, no pending reference), new resumable handler + allowlist entry (1:1). Routes; same-global-across-suspension verified.
+- [ ] **B29** Dynamic reference plumbing (compound free-var ops) — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 0c2707532): declines at the `CompoundAssignmentSlotInstruction` plan-shape gate + carries B26's reference-threading hazard. Correct via IR.
 - [x] **B30** `for-of` sync driver across suspension — ☑/☑ ✅ (Codex; #3123 hardened the guard: suspending/nested try-finally correctly declines, restoring 13 generator try/finally tests)
 - [x] **B31** `for-in` driver across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B32** try/catch/finally across suspension — ☑/◐ — note (audit a5b0c09): try/**finally** with yield-in-try already routes + correct (empty + non-empty finally runs), PINNED (`ResumableAlreadyRoutingPinTests`). **Remaining = try/CATCH across suspension only.**

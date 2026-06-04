@@ -95,7 +95,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A39** Array destructuring unsupported driver — *DestructuringDependency* — ☑/☐ — `:531` ✅ (Codex)
 - [x] **A40** Object destructuring unsupported driver — *DestructuringDependency* — ☑/☐ — `:544` ✅ (Codex)
 - [ ] **A41** Slot-resolved identifier via dynamic-name reference op — *UnsupportedPlanShape* — ☐/☐ — `:1346`
-- [ ] **A42** `using` / `await using` declaration *(split → P0.4)* — *UnsupportedPlanShape* — ☐/☐ — `:571`
+- [ ] **A42** `using` / `await using` declaration *(split → P0.4)* — *UnsupportedPlanShape* — ☐/☐ — `:571` — note: bytecode ADMISSION still pending (declines to interpreter/IR). Separately, a real disposal correctness bug was fixed (commit 5e14e701): function-body-scope `using` never fired `[Symbol.dispose]` because the function environment is never popped via `PopEnvironment`; `RunSync`/`ExecuteAsyncStep` now dispose on completion+throw (LIFO, SuppressedError preserved). Known residual: `await using` async-dispose promise isn't awaited before resolution (pre-existing engine-wide limitation).
 - [ ] **A43** Descriptor-backed block-scoped function declaration (Annex B) — *UnsupportedPlanShape* — ☐/☐ — `:581`
 - [ ] **A44** PushEnvironment for iterating / non-flat-slot lexical block (per-iter `let`) — *UnsupportedPlanShape* — ◐/☐ — `:599`
 - [ ] **A45** with-depth analysis failure (unbalanced Enter/Leave, irreducible flow) — *UnsupportedPlanShape* — ☐/☐ — `:482`

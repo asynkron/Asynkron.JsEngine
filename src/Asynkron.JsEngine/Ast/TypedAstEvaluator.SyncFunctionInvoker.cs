@@ -3521,7 +3521,8 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     canUseArrowFunctionPath ||
                     canUseCapturedClosurePath,
                 AllowsImplicitArgumentsObjectPropertyReadOperands:
-                    allowImplicitArgumentsObjectPropertyReadOperands);
+                    allowImplicitArgumentsObjectPropertyReadOperands,
+                IsStrict: _isStrict);
         }
 
         [MethodImpl(JsEngineConstants.Inlining)]

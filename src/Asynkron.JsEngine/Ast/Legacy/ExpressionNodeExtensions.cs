@@ -3227,6 +3227,19 @@ public static partial class TypedAstEvaluator
                         return false;
                     }
 
+                    // Optional-chain short-circuit: if the target chain short-circuited to nullish — this
+                    // hop is optional with a nullish base (`delete box?.x`), or an earlier optional hop in
+                    // the target short-circuited (`delete box?.[k1][k2]`) — the enclosing `delete` evaluates
+                    // to `true` per spec rather than attempting a delete on the nullish reference (which
+                    // would throw `Cannot delete property on null or undefined`). This mirrors the read path
+                    // short-circuit condition in EvaluateMember, so `delete chain` returns true exactly when
+                    // reading `chain` would short-circuit to undefined.
+                    if (targetJs.IsNullOrUndefined
+                        && (member.IsOptional || HasOptionalChaining(member.Target)))
+                    {
+                        return true;
+                    }
+
                     var propertyValueJs = EvaluateDynamicExpressionProgram(
                         member.Property,
                         environment,

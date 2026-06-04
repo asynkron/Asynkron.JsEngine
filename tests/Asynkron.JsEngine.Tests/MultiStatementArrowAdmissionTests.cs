@@ -9,9 +9,11 @@ namespace Asynkron.JsEngine.Tests;
 ///     body (no longer restricted to a single <c>return &lt;expr&gt;;</c>) now routes through the production
 ///     unified-bytecode VM. Arrows inherit <c>this</c> and <c>new.target</c> LEXICALLY from the enclosing
 ///     scope; that threading (TryExecuteProductionUnifiedBytecode) is body-shape-agnostic and continues to
-///     flow for multi-statement bodies. Bounded by HasOnlyRootFlatSlotMappings: an arrow whose body opens a
-///     nested lexical scope (an <c>if</c>/loop block with its own <c>let</c>/<c>const</c>) must DECLINE, same
-///     shadowing hazard as the captured-closure lift. Probes the correctness edges the design flagged.
+///     flow for multi-statement bodies. Under Option B (Stage 5) the nested-scope collision guard has been
+///     retired — an arrow whose body opens a nested lexical scope (an <c>if</c>/loop block with its own
+///     <c>let</c>/<c>const</c>), whether or not the nested name SHADOWS a captured enclosing name, now routes
+///     AND computes correctly, because SlotAssignmentRewriter no longer mis-stamps the captured read to the
+///     off-stack block slot. Probes the correctness edges the design flagged.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 public sealed class MultiStatementArrowAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
@@ -86,13 +88,12 @@ public sealed class MultiStatementArrowAdmissionTests(ITestOutputHelper output) 
     }
 
     [Fact]
-    public async Task NestedScopeArrow_DeclaresNonCollidingLetInNestedBlock_RoutesUnderOptionA()
+    public async Task NestedScopeArrow_DeclaresNonCollidingLetInNestedBlock_Routes()
     {
         await using var engine = CreateEngine();
-        // The body opens a nested lexical scope (the `if` block declares its own `let y`). Under Option A
-        // (collision-only guard) the nested `let y` does NOT collide with any captured name, so this now
-        // ROUTES through the production VM — and must still compute correctly. (Previously declined under
-        // the blunt HasOnlyRootFlatSlotMappings guard.)
+        // The body opens a nested lexical scope (the `if` block declares its own `let y`). The nested
+        // `let y` does not collide with any captured name; this ROUTES through the production VM and
+        // computes correctly.
         var r = await engine.Evaluate("""
             const f = (c) => { if (c) { let y = 1; return y; } return 0; };
             '' + f(true) + ',' + f(false);
@@ -104,13 +105,13 @@ public sealed class MultiStatementArrowAdmissionTests(ITestOutputHelper output) 
     }
 
     [Fact]
-    public async Task NestedScopeArrow_ShadowsCapturedNameInNestedBlock_DeclinesUnderOptionA()
+    public async Task NestedScopeArrow_ShadowsCapturedNameInNestedBlock_RoutesUnderOptionB()
     {
         await using var engine = CreateEngine();
         // COLLIDING counterpart: the arrow captures the enclosing local `base` AND a nested `if` block
-        // declares its own `let base`. That collision is exactly the miscompile hazard, so Option A must
-        // DECLINE and route through the IR runner — while still computing correctly. The captured `base`
-        // read after the block must observe the enclosing value (100), not the block-local 7.
+        // declares its own `let base`. Under Option B the rewriter no longer mis-stamps the captured read
+        // to the block-local slot, so the colliding arrow ROUTES and computes correctly: the captured
+        // `base` read after the block observes the enclosing value (100), not the block-local 7.
         var r = await engine.Evaluate("""
             function mk(base) {
                 return (c) => {
@@ -122,8 +123,7 @@ public sealed class MultiStatementArrowAdmissionTests(ITestOutputHelper output) 
             '' + f(true) + ',' + f(false);
             """);
         Assert.Equal("7,100", r);
-        // The enclosing `mk` routes (func=mk); the colliding arrow (func=<anonymous>) must NOT.
-        Assert.DoesNotContain(
+        Assert.Contains(
             CurrentLogger!.Collector.Snapshot(),
             x => x.Message.Contains(ProdLog + "<anonymous>", StringComparison.Ordinal));
     }

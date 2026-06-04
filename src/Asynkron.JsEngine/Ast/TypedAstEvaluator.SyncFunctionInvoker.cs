@@ -3901,18 +3901,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    // _lexicalThisEnvironment / _lexicalNewTarget before VM entry), so it continues to flow
                    // for multi-statement bodies unchanged.
                    CanUseSimpleIrActivationPlanShape(plan) &&
-                   // Option A (collision-only guard): admit nested-scope arrows whose captured names do
-                   // NOT collide with any nested-scope lexical binding. The miscompile hazard is the
-                   // SHADOW case — a nested `if`/loop block declaring its own `let`/`const` whose name
-                   // equals a captured enclosing name read in the arrow's outer scope; the unscoped
-                   // SlotAssignmentRewriter.TryResolve fallback then stamps that captured read to the
-                   // (uninitialized) nested local's flat slot, miscompiling to undefined/NaN
-                   // (NestedFunctionScopeRegressionTests). A non-colliding nested scope cannot hit that
-                   // path, so HasNoCapturedNameShadowedByNestedScope (which strictly subsumes
-                   // HasOnlyRootFlatSlotMappings) admits the common non-colliding case while still
-                   // declining the colliding shapes. See
-                   // docs/plans/nested-scope-capture-resolution-design.md (Option A).
-                   plan.HasNoCapturedNameShadowedByNestedScope;
+                   // Option B (Stage 5): the BLOCK-scope collision guard has been retired — a captured
+                   // enclosing name shadowed by a nested { } block now routes AND computes correctly because
+                   // SlotAssignmentRewriter no longer mis-stamps the captured read to the off-stack block
+                   // slot. The residual guard declines ONLY a captured-name collision with a CATCH binding or
+                   // a per-iteration LOOP binding: the rewriter cannot distinguish those captured reads from
+                   // a legitimate local read without enclosing-scope knowledge, so they stay on the IR runner.
+                   // See docs/plans/nested-scope-capture-resolution-design.md (Option B / Stage 5).
+                   plan.HasNoCapturedNameShadowedByNonBlockNestedScope;
         }
 
         private bool CanUseProductionUnifiedBytecodeCapturedClosureActivation(
@@ -3949,18 +3945,14 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    // gates required a single return-expression body and blocked every multi-statement
                    // closure (e.g. `function inc(){ n++; return n; }`).
                    CanUseSimpleIrActivationPlanShape(plan) &&
-                   // Option A (collision-only guard): admit nested-scope captured closures whose captured
-                   // names do NOT collide with any nested-scope lexical binding. A nested lexical scope
-                   // inside the closure (an `if`/loop block declaring its own `let`/`const`) only
-                   // miscompiles when its name SHADOWS a captured enclosing name read in the closure's
-                   // outer scope: the unscoped SlotAssignmentRewriter.TryResolve fallback then stamps the
-                   // captured read to the (uninitialized) nested local's flat slot → undefined/NaN
-                   // (NestedFunctionScopeRegressionTests). A non-colliding nested scope cannot hit that
-                   // path, so HasNoCapturedNameShadowedByNestedScope (a strict superset of
-                   // HasOnlyRootFlatSlotMappings) admits the common non-colliding case while still
-                   // declining the colliding shapes. See
-                   // docs/plans/nested-scope-capture-resolution-design.md (Option A).
-                   plan.HasNoCapturedNameShadowedByNestedScope;
+                   // Option B (Stage 5): the BLOCK-scope collision guard has been retired — a captured
+                   // enclosing name shadowed by a nested { } block now routes AND computes correctly because
+                   // SlotAssignmentRewriter no longer mis-stamps the captured read to the off-stack block
+                   // slot. The residual guard declines ONLY a captured-name collision with a CATCH binding or
+                   // a per-iteration LOOP binding: the rewriter cannot distinguish those captured reads from
+                   // a legitimate local read without enclosing-scope knowledge, so they stay on the IR runner.
+                   // See docs/plans/nested-scope-capture-resolution-design.md (Option B / Stage 5).
+                   plan.HasNoCapturedNameShadowedByNonBlockNestedScope;
         }
 
         private static bool CanUseProductionUnifiedBytecodeArrowProgramShape(ExecutionPlan plan)

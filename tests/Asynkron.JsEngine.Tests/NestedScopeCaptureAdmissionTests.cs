@@ -5,16 +5,15 @@ using Xunit.Abstractions;
 namespace Asynkron.JsEngine.Tests;
 
 /// <summary>
-///     Option A (collision-only guard) adversarial battery for the nested-scope captured-closure (A1) and
-///     arrow (A6) production-VM admissions. The guard was narrowed from "no nested scope at all"
-///     (<c>HasOnlyRootFlatSlotMappings</c>) to "no captured name collides with a nested-scope binding"
-///     (<c>HasNoCapturedNameShadowedByNestedScope</c>). The hazard (NestedFunctionScopeRegressionTests) is
-///     PROVABLY collision-specific: the only flat-slot path for a captured enclosing name is the unscoped
-///     <c>SlotAssignmentRewriter.TryResolve</c> fallback, which fires ONLY when a nested scope declares the
-///     same name. Non-colliding nested scopes are therefore SAFE to admit; colliding ones must still decline
-///     and compute correctly via the IR runner.
+///     Nested-scope captured-closure (A1) and arrow (A6) production-VM admission battery. Option A's
+///     collision-only admission guard (<c>HasNoCapturedNameShadowedByNestedScope</c>) has been RETIRED by
+///     Option B (Stage 5): the captured-name miscompile is now fixed at the source in
+///     <c>SlotAssignmentRewriter.TryResolve</c> — the unscoped fallback never resolves a captured read to an
+///     off-stack lexical { } block scope, so a shadowed captured read lowers to a dynamic-identifier op
+///     walking the live env chain (matching the IR runner). Consequently the COLLIDING (shadowing) shapes
+///     now ROUTE through the production VM AND compute correctly, exactly like the non-colliding shapes.
 ///
-///     See docs/plans/nested-scope-capture-resolution-design.md (Option A) and §5 risk matrix.
+///     See docs/plans/nested-scope-capture-resolution-design.md (Option B / Stage 5) and §5 risk matrix.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
 [Category(TestCategories.ScopeAnalysis)]
@@ -82,14 +81,14 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
         AssertRouted("<anonymous>");
     }
 
-    // ── Colliding nested-scope CLOSURE → STILL declines + correct (regression shapes) ───────────────
+    // ── Colliding nested-scope CLOSURE → now ROUTES + correct (Option B; regression shapes) ─────────
     [Fact]
-    public async Task CollidingNestedScopeClosure_CapturesOuterLetAfterReturn_DeclinesAndComputes()
+    public async Task CollidingNestedScopeClosure_CapturesOuterLetAfterReturn_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
-        // The inner `if` block declares `let baseValue` shadowing the captured `baseValue`. This is the
-        // miscompile hazard, so Option A must DECLINE — the captured read after the block must observe the
-        // enclosing value, not the block-local one.
+        // The inner `if` block declares `let baseValue` shadowing the captured `baseValue`. Under Option B
+        // the rewriter no longer mis-stamps the captured read to the block-local slot, so the inner closure
+        // ROUTES and the captured read after the block correctly observes the enclosing value.
         var r = await engine.Evaluate("""
             function outer(seed){
                 let baseValue = seed;
@@ -103,17 +102,16 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
             '' + fn(false) + ',' + fn(true) + ',' + fn(false);
             """);
         Assert.Equal("10,110,10", r);
-        // The enclosing `outer` may route; the colliding inner closure must NOT.
-        AssertNotRouted("inner");
+        AssertRouted("inner");
     }
 
     [Fact]
-    public async Task CollidingNestedScopeClosure_ShadowingInsideInner_DeclinesAndComputes()
+    public async Task CollidingNestedScopeClosure_ShadowingInsideInner_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
         // Partial collision: captures `outer` (collides with nested `let outer`) and `captured` (no
-        // collision). The presence of the `outer` collision is the decline trigger; the value must remain
-        // correct via the IR runner.
+        // collision). Under Option B both resolve correctly — the shadowed `outer` read outside the block
+        // walks the env chain to the enclosing binding — so the inner closure ROUTES.
         var r = await engine.Evaluate("""
             function make(){
                 const captured = 2;
@@ -128,8 +126,7 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
             '' + fn(false) + ',' + fn(true) + ',' + fn(false);
             """);
         Assert.Equal("7,101,7", r);
-        // `captured` (no collision) must still resolve; the `outer` collision declines the inner closure.
-        AssertNotRouted("shadower");
+        AssertRouted("shadower");
     }
 
     // ── Multi-level non-colliding nesting → routes + correct ────────────────────────────────────────
@@ -163,14 +160,14 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
         AssertRouted("go");
     }
 
-    // ── Multi-level collision at the DEEPEST level only → declines + correct (§5.4) ─────────────────
+    // ── Multi-level collision at the DEEPEST level only → now ROUTES + correct (§5.4; Option B) ─────
     [Fact]
-    public async Task DeepCollidingNesting_DeclinesAndComputes()
+    public async Task DeepCollidingNesting_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
-        // Captured `base`; the collision (`let base = 7`) is TWO blocks deep. The captured-name set is
-        // gathered across the whole instruction stream, so the deep collision is still detected and the
-        // shape declines — the outer captured read must observe 100.
+        // Captured `base`; the collision (`let base = 7`) is TWO blocks deep. Under Option B the deep
+        // shadowing block scope is recognised as off-stack for the outer `return base`, which walks the env
+        // chain to the captured 100, so the shape ROUTES and computes correctly at every level.
         var r = await engine.Evaluate("""
             function mk(base){
                 function deep(c){
@@ -186,7 +183,7 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
             '' + f(true) + ',' + f(false);
             """);
         Assert.Equal("7,100", r);
-        AssertNotRouted("deep");
+        AssertRouted("deep");
     }
 
     // ── Loop nested `let` (per-iteration) non-colliding capture → correct (route per predicate) ─────
@@ -272,14 +269,14 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
         Assert.Contains("ReferenceError", error.Message, StringComparison.Ordinal);
     }
 
-    // ── Mixed: shadow collision where the nested name is `const` → declines + correct ───────────────
+    // ── Mixed: shadow collision where the nested name is `const` → now ROUTES + correct (Option B) ──
     [Fact]
-    public async Task CollidingNestedConst_DeclinesAndComputes()
+    public async Task CollidingNestedConst_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
-        // The closure captures `limit`; a nested block declares `const limit` that SHADOWS it. The
-        // collision (regardless of const-ness) is the decline trigger. The captured `limit` read outside
-        // the block must observe the enclosing value (50), not the block-local 7.
+        // The closure captures `limit`; a nested block declares `const limit` that SHADOWS it. Under
+        // Option B the captured `limit` read outside the block walks the env chain to the enclosing value
+        // (50), so the shape ROUTES and computes correctly (the block-local 7 only applies inside the block).
         var r = await engine.Evaluate("""
             function mk(limit){
                 function clamp(flag){
@@ -292,19 +289,19 @@ public sealed class NestedScopeCaptureAdmissionTests(ITestOutputHelper output) :
             '' + f(true) + ',' + f(false);
             """);
         Assert.Equal("7,50", r);
-        AssertNotRouted("clamp");
+        AssertRouted("clamp");
     }
 
     // ──────────────────────────────────────────────────────────────────────────────────────────────
 
-    // ── Re-entrancy / permanent-decline cache is not poisoned across distinct plans (§5.9) ──────────
+    // ── Re-entrancy: a distinct closure is not poisoned by a prior plan's state (§5.9) ──────────────
     [Fact]
     public async Task DistinctNonCollidingClosure_NotPoisonedByPriorCollidingDecline()
     {
         await using var engine = CreateEngine();
-        // First evaluate a COLLIDING closure (declines, may mark its own plan permanently). Then a
-        // DISTINCT non-colliding closure must still ROUTE — the decline is plan-scoped, not name-set
-        // global state.
+        // First evaluate a previously-colliding closure (under Option B it now routes and computes
+        // correctly). Then a DISTINCT closure must still ROUTE — eligibility is plan-scoped, not name-set
+        // global state, so neither shape can poison the other.
         await engine.Evaluate("""
             function mkBad(base){
                 return function(flag){

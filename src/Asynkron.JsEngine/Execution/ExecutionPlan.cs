@@ -61,45 +61,43 @@ internal sealed record ExecutionPlan(
         ComputeHasOnlyRootFlatSlotMappings(RootScopeId, FlatSlotMappings);
 
     /// <summary>
-    ///     True when no captured/dynamic identifier name (a free name the production VM resolves
-    ///     through the live environment chain) collides with a lexical binding declared in a
-    ///     non-root (nested) scope of this function.
+    ///     True when no captured/dynamic identifier name (a free name the production VM resolves through the
+    ///     live environment chain) collides with a lexical binding declared in a CATCH scope or a
+    ///     per-iteration LOOP scope of this function.
     /// </summary>
     /// <remarks>
-    ///     Narrows the blunt <see cref="HasOnlyRootFlatSlotMappings" /> guard for the captured-closure
-    ///     (A1) and arrow (A6) production-VM admissions from "no nested scope at all" to
-    ///     "no name collision between a captured name and a nested-scope binding".
+    ///     Option B (Stage 5) narrowing. The captured-name miscompile (a captured enclosing name stamped to
+    ///     a SHADOWING nested-scope flat slot by SlotAssignmentRewriter's unscoped fallback, design §1.3) is
+    ///     now fixed AT THE SOURCE for plain lexical { } BLOCK scopes: the rewriter never resolves a captured
+    ///     read to an off-stack block scope (it lowers to a dynamic-identifier op walking the env chain). So
+    ///     block-shadow collisions route AND compute correctly and no longer need a guard.
     ///
-    ///     Soundness (see docs/plans/nested-scope-capture-resolution-design.md §1.3 / §6): the only
-    ///     way a captured enclosing name takes a flat inner slot is the unscoped fallback in
-    ///     SlotAssignmentRewriter.TryResolve, which fires ONLY when a nested scope declares the same
-    ///     name. A captured name disjoint from every nested-scope binding cannot hit that path, so the
-    ///     flat-slot production VM matches the IR runner.
+    ///     The rewriter fix is UNSOUND for two non-block env-bearing scope kinds that never enter the active
+    ///     scope stack at their lexical position during rewriting: CATCH bindings and per-iteration LOOP
+    ///     bindings (which are legitimately resolved via the same unscoped fallback for their own local
+    ///     reads). For those, a captured enclosing read sharing the binding's name is indistinguishable from
+    ///     the legitimate local read at the rewriter level (it would require knowledge of the ENCLOSING
+    ///     function's scopes, which the inner rewriter does not have). This guard therefore still DECLINES a
+    ///     captured-name collision with a catch / per-iteration-loop binding, keeping those shapes on the IR
+    ///     runner where they compute correctly.
     ///
-    ///     nestedBoundNames := union of lexical binding names over every non-root scope id in
-    ///     <see cref="ScopeLexicalBindings" /> (authoritative per-scope let/const/per-iteration set).
-    ///     Compared by textual name (Symbol names are interned, so reference- and name-equality coincide).
+    ///     nonBlockNestedBoundNames := names bound by an <see cref="EnterCatchInstruction" /> (catch scope)
+    ///     or carried as <see cref="PushEnvironmentInstruction.PerIterationBindings" /> (per-iteration loop
+    ///     scope). Plain block-scope let/const names are deliberately EXCLUDED — the rewriter handles them.
     ///
-    ///     A read of a nestedBoundName collides (declines) if EITHER detector fires (union; over-decline
-    ///     is safe, under-decline is the only unsound direction):
-    ///     - (1) the identifier OPERATION (read from the program's operation stream, NOT the raw constant
-    ///       pool which also carries unresolved pre-resolution placeholders) resolves to NEITHER a flat
-    ///       slot (FlatSlotId &gt;= 0) NOR a slot in one of this plan's own scopes — i.e. it points at an
-    ///       ENCLOSING scope (or is unresolved) and lowers to a dynamic op walking the env chain.
+    ///     A read of a nonBlockNestedBoundName collides (declines) if EITHER detector fires (union;
+    ///     over-decline is safe, under-decline is the only unsound direction):
+    ///     - (1) the identifier OPERATION resolves to NEITHER a flat slot (FlatSlotId &gt;= 0) NOR a slot in
+    ///       one of this plan's own scopes — i.e. it points at an ENCLOSING scope (or is unresolved) and
+    ///       lowers to a dynamic op walking the env chain.
     ///     - (2) the read is STAMPED to one of this plan's own nested scopes S, but a forward MUST-active
     ///       scope dataflow (intersected at CFG joins) shows S is NOT guaranteed active where the read
-    ///       occurs. This is the direct symptom of SlotAssignmentRewriter's unscoped fallback
-    ///       mis-stamping a captured enclosing read to a shadowing nested local's slot (design §1.3): the
-    ///       regression shapes collapse BOTH reads of the shadowed name to the nested flat slot, so the
-    ///       enclosing read is no longer "dynamic" (detector (1) misses it) — but it is read where its
-    ///       stamped scope is not in scope, which detector (2) catches. A genuine nested local is only
-    ///       ever read while its own scope is active, so it never trips detector (2).
+    ///       occurs — the mis-stamp symptom (design §1.3).
     /// </remarks>
-    public bool HasNoCapturedNameShadowedByNestedScope { get; } =
-        ComputeHasNoCapturedNameShadowedByNestedScope(
+    public bool HasNoCapturedNameShadowedByNonBlockNestedScope { get; } =
+        ComputeHasNoCapturedNameShadowedByNonBlockNestedScope(
             RootScopeId,
             Instructions,
-            ScopeLexicalBindings,
             FlatSlotMappings);
 
     public bool CanUseRawSyncReturn { get; } = ComputeCanUseRawSyncReturn(Instructions);
@@ -167,52 +165,66 @@ internal sealed record ExecutionPlan(
         return true;
     }
 
-    private static bool ComputeHasNoCapturedNameShadowedByNestedScope(
+    private static bool ComputeHasNoCapturedNameShadowedByNonBlockNestedScope(
         int rootScopeId,
         ImmutableArray<ExecutionInstruction> instructions,
-        ImmutableDictionary<int, ImmutableHashSet<Symbol>>? scopeLexicalBindings,
         ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>>? flatSlotMappings)
     {
-        // No non-root lexical scope ⇒ no shadow site ⇒ no hazard. This subsumes the trivial
-        // HasOnlyRootFlatSlotMappings==true case (and any plan that simply has no nested scopes).
-        if (scopeLexicalBindings is null || scopeLexicalBindings.Count == 0)
-        {
-            return true;
-        }
-
-        // nestedBoundNames: every lexical binding name declared in a NON-root scope.
-        HashSet<string>? nestedBoundNames = null;
-        foreach (var (scopeId, names) in scopeLexicalBindings)
-        {
-            if (scopeId == rootScopeId)
-            {
-                continue;
-            }
-
-            foreach (var name in names)
-            {
-                (nestedBoundNames ??= new HashSet<string>(StringComparer.Ordinal)).Add(name.Name);
-            }
-        }
-
-        if (nestedBoundNames is null || nestedBoundNames.Count == 0)
-        {
-            // Only the root scope owns lexical bindings ⇒ no nested shadow site.
-            return true;
-        }
-
         if (instructions.IsDefaultOrEmpty)
         {
             return true;
         }
 
-        // ownScopeIds: every scope id THIS plan owns (root + every nested scope it declares slots in).
-        // An identifier resolving to one of these scopes reads a local slot; an identifier resolving to
-        // any OTHER scope id (an enclosing scope) — or staying unresolved — is captured/dynamic.
+        // nonBlockNestedBoundNames: names bound by a CATCH scope (EnterCatchInstruction.SlotMap) or a
+        // per-iteration LOOP scope (PushEnvironmentInstruction carrying PerIterationBindings). Plain { }
+        // block-scope let/const names are DELIBERATELY EXCLUDED — SlotAssignmentRewriter now resolves a
+        // captured read past such a block correctly (Option B), so block shadows need no guard. Catch /
+        // per-iteration scopes are the residual cases the rewriter cannot distinguish from a legitimate
+        // local read, so a captured-name collision with one of them must still decline.
+        HashSet<string>? nonBlockNestedBoundNames = null;
         var ownScopeIds = new HashSet<int> { rootScopeId };
-        foreach (var scopeId in scopeLexicalBindings.Keys)
+
+        foreach (var instruction in instructions)
         {
-            ownScopeIds.Add(scopeId);
+            switch (instruction)
+            {
+                case EnterCatchInstruction enterCatch:
+                    if (enterCatch.ScopeId >= 0)
+                    {
+                        ownScopeIds.Add(enterCatch.ScopeId);
+                    }
+
+                    foreach (var symbol in enterCatch.SlotMap.Keys)
+                    {
+                        (nonBlockNestedBoundNames ??= new HashSet<string>(StringComparer.Ordinal))
+                            .Add(symbol.Name);
+                    }
+
+                    break;
+
+                case PushEnvironmentInstruction push:
+                    if (push.ScopeId >= 0)
+                    {
+                        ownScopeIds.Add(push.ScopeId);
+                    }
+
+                    if (!push.PerIterationBindings.IsDefaultOrEmpty)
+                    {
+                        foreach (var symbol in push.PerIterationBindings)
+                        {
+                            (nonBlockNestedBoundNames ??= new HashSet<string>(StringComparer.Ordinal))
+                                .Add(symbol.Name);
+                        }
+                    }
+
+                    break;
+            }
+        }
+
+        if (nonBlockNestedBoundNames is null || nonBlockNestedBoundNames.Count == 0)
+        {
+            // No catch / per-iteration-loop binding ⇒ no residual shadow site ⇒ no hazard.
+            return true;
         }
 
         if (flatSlotMappings is not null)
@@ -222,6 +234,8 @@ internal sealed record ExecutionPlan(
                 ownScopeIds.Add(scopeId);
             }
         }
+
+        var nestedBoundNames = nonBlockNestedBoundNames;
 
         // Per-instruction MUST-active nested scope set: the nested scope ids guaranteed to be on the
         // active scope chain on EVERY control-flow path that reaches the instruction, plus the universe of

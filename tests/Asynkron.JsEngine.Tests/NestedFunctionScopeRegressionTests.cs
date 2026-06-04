@@ -1,3 +1,4 @@
+using System;
 using Asynkron.JsEngine.Ast;
 using Asynkron.JsEngine.JsTypes;
 using Xunit.Abstractions;
@@ -33,7 +34,7 @@ public sealed class NestedFunctionScopeRegressionTests : InternalTestBase
             })();
             """;
 
-        await AssertInvariantResult(script, "10,110,10");
+        await AssertInvariantResult(script, "10,110,10", routedFunc: "inner");
     }
 
     [Fact]
@@ -57,10 +58,10 @@ public sealed class NestedFunctionScopeRegressionTests : InternalTestBase
             })();
             """;
 
-        await AssertInvariantResult(script, "7,101,7");
+        await AssertInvariantResult(script, "7,101,7", routedFunc: "<anonymous>");
     }
 
-    private async Task AssertInvariantResult(string script, string expected)
+    private async Task AssertInvariantResult(string script, string expected, string? routedFunc = null)
     {
         var pipeline = AstTestHelpers.ParseAndAnalyze(script);
         var outerDecl = AstTestHelpers.FindFirst<FunctionDeclaration>(pipeline.Analyzed);
@@ -85,6 +86,17 @@ public sealed class NestedFunctionScopeRegressionTests : InternalTestBase
 
         Assert.Equal(expected, ToJsString(first));
         Assert.Equal(expected, ToJsString(second));
+
+        if (routedFunc is not null)
+        {
+            // Option B (Stage 5): the colliding inner closure now routes through the production
+            // unified-bytecode VM (no longer forced onto the IR runner by the retired collision guard)
+            // while still computing the correct result above.
+            const string prodLog = "unified-bytecode-production-fast-path func=";
+            Assert.Contains(
+                CurrentLogger!.Collector.Snapshot(),
+                x => x.Message.Contains(prodLog + routedFunc, StringComparison.Ordinal));
+        }
     }
 
     private static string ToJsString(object? value)

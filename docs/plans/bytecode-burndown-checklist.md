@@ -72,7 +72,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A16** Computed-property delete key `delete box[freeName]` — *DynamicLookupDependency* — ☐/◐ — `:1632`
 - [x] **A17** Named property read past first boundary (`box.a.b.c.d`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1652` ✅ #3154
 - [x] **A18** Computed property read past first boundary (`box[a][b][c]`) — *PropertyReadBoundaryOutOfScope* — ◐/◐ — `:1785` ✅ #3154
-- [ ] **A19** Named/computed write past admitted (`box.a.b.c=v`, `a=b=v`) — *PropertyWriteDependency* — ◐/◐ — `:1812`
+- [x] **A19** Named/computed write past admitted (`box.a.b.c=v`, `a=b=v`) — *PropertyWriteDependency* — ◐/◐ — `:1812` ✅ #3160
 - [x] **A20** Ternary/branching computed-key write `box.child[c?a:b]=v` (+ update/delete) — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [x] **A21** Compound/logical computed write w/ ternary key `box[c?a:b]+=v`, `a&&b`, `a??b` — *PropertyWriteDependency* — ☑/◐ ✅ #3121
 - [ ] **A22** Identifier update on free name `freeName++` — *PropertyUpdateDependency* — ☐/☐ — `:1829`
@@ -81,8 +81,8 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A25** Named property delete past admitted (`delete box.a.b.c`) — *DeleteDependency* — ◐/◐ — `:1888` ✅ #3155
 - [x] **A26** Computed property delete past admitted (`delete box[k1][k2]`) — *DeleteDependency* — ◐/◐ — `:1918` ✅ #3155
 - [ ] **A27** `super.m()` / `super[k]()` call-target prep outside first boundary — *SuperPropertyDependency* — ◐/☐ — `:1302` — _(in progress: workflow A1-super)_
-- [ ] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464`
-- [ ] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689`
+- [x] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464` ✅ #3161
+- [x] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689` ✅ #3162
 - [ ] **A30** Optional member/computed call beyond admitted `a?.b?.c()`, `o?.[k]()` — *OptionalChainDependency* — ◐/◐ — `:1232`
 - [ ] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ☐/☐ — `:1992`
 - [ ] **A32** Optional-chain delete chained `delete a?.b?.c` — *OptionalChainDependency* — ☐/☐ — `:1619`
@@ -142,7 +142,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B12** super call/construct — ☑/☐ — _(in progress: workflow A1-super, resumable side)_
 - [ ] **B13** super property read `super.x` — ☑/☐ — _(workflow A1-super)_
 - [ ] **B14** super property write/update — ☑/☐ — _(workflow A1-super)_
-- [ ] **B15** Optional member/computed call `o?.m()` / `o?.[k]()` — ☑/☐
+- [x] **B15** Optional member/computed call `o?.m()` / `o?.[k]()` — ☑/☑ ✅ #3159
 - [x] **B16** Object literal `{a,b:v,...spread}` — ☑/☑ ✅ #3151
 - [x] **B17** Array literal `[a,,b,...spread]` — ☑/☑ ✅ #3151
 - [x] **B18** `#field in obj` — ☑/☑ ✅ #3153
@@ -152,7 +152,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118
 - [ ] **B23** Nested function literal — ☑/☐
 - [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
-- [ ] **B25** `typeof unresolvedFreeVar` — ☑/☐
+- [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
 - [ ] **B26** Dynamic free write `freeVar=v` — ☑/☐
 - [ ] **B27** Dynamic free update `freeVar++` — ☑/☐
 - [ ] **B28** `delete freeVar` — ☑/☐
@@ -222,4 +222,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Status: 41 / ~131 complete (latest burn-down sweep: B16,B17,B11,B18,A17,A18,A25,A26 via #3151-#3155). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._
+_Status: 46 / ~131 complete (Stage 1 batch: B15,A19,A28,A29,B25 via #3159-#3163; standing route-coverage ratchet gate #3158). Plus correctness fix #3116. New leaves: A51a-A51m/B47a compiler declines, A52 (`debugger`), B8a (const-bitmap follow-up). Updated as each item merges._

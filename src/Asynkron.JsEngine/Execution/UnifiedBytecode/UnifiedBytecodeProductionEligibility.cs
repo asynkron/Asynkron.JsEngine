@@ -1696,6 +1696,16 @@ internal static class UnifiedBytecodeProductionEligibility
             allowsDynamicIdentifiers);
         var isConstructInvocationCandidate = TryIsConstructInvocationCandidate(program, identifierConstants, activationSlots);
         var hasOptionalChainOperation = HasOptionalChainOperation(program);
+
+        // PROPERTY-WRITE complex RHS: when the program is an admitted property-write candidate
+        // (`o.x = <complex>`, `o[k] = <complex>`, `this.x = <complex>`), any nested-call ops it
+        // contains belong to the already-validated RHS value region (the base is a simple
+        // identifier and computed keys never carry calls), so the per-op call arms below must
+        // NOT decline them. Compute the flag once; it gates the call-target/Call escape hatches.
+        var lastOperationKind = program.GetOperation(operationCount - 1).Kind;
+        var isComplexRhsPropertyWriteCandidate =
+            lastOperationKind is ExpressionOpKind.SetNamedProperty or ExpressionOpKind.SetComputedProperty &&
+            TryIsFirstBoundaryPropertyWriteCandidate(program, identifierConstants, activationSlots, allowsDynamicIdentifiers);
         for (var operationIndex = 0; operationIndex < operationCount; operationIndex++)
         {
             var operation = program.GetOperation(operationIndex);
@@ -1710,7 +1720,9 @@ internal static class UnifiedBytecodeProductionEligibility
             switch (operation.Kind)
             {
                 case ExpressionOpKind.LoadIdentifierCallTarget:
-                    if (isCallTargetPreparationCandidate || isGeneralIdentifierCallExpressionCandidate)
+                    if (isCallTargetPreparationCandidate ||
+                        isGeneralIdentifierCallExpressionCandidate ||
+                        isComplexRhsPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -1780,7 +1792,9 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.LoadNamedCallTarget:
                 case ExpressionOpKind.LoadComputedCallTarget:
-                    if (isCallTargetPreparationCandidate || isGeneralNamedMemberCallExpressionCandidate)
+                    if (isCallTargetPreparationCandidate ||
+                        isGeneralNamedMemberCallExpressionCandidate ||
+                        isComplexRhsPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -1817,7 +1831,8 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.Call:
                     if (isCallTargetPreparationCandidate ||
                         isGeneralIdentifierCallExpressionCandidate ||
-                        isGeneralNamedMemberCallExpressionCandidate)
+                        isGeneralNamedMemberCallExpressionCandidate ||
+                        isComplexRhsPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -6456,7 +6471,7 @@ internal static class UnifiedBytecodeProductionEligibility
     // walked here: their control flow is owned by the dedicated optional-chain span measurers in
     // the loop above, so an argument containing one falls back to the interpreter (the boundary
     // degrades correctly rather than over-admitting).
-    private static bool TryValidateAdmittedComplexCallArgumentRegion(
+    internal static bool TryValidateAdmittedComplexCallArgumentRegion(
         ExpressionProgram program,
         int argsStartIndex,
         int callIndex,
@@ -9147,14 +9162,35 @@ internal static class UnifiedBytecodeProductionEligibility
                     allowsDynamicIdentifiers);
             }
 
-            // Multi-op RHS — try template literal span.
-            return TryMeasureSimpleTemplateLiteralSpan(
-                       program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
-                   spanLen > 1 &&
-                   rhsStart + spanLen - 1 == rhsEnd;
+            // Multi-op RHS — first try the simple template literal span fast path.
+            if (TryMeasureSimpleTemplateLiteralSpan(
+                    program, rhsStart, identifierConstants, activationSlots, out var spanLen) &&
+                spanLen > 1 &&
+                rhsStart + spanLen - 1 == rhsEnd)
+            {
+                return true;
+            }
+
+            // PROPERTY-WRITE complex RHS (mirrors A11 call-arg admission): the base is op 0
+            // (already an activation/dynamic identifier); the RHS region is everything between
+            // it and the SetNamedProperty store. Admit ANY already-admitted value-producing
+            // expression (binary, nested call, member/optional read span, composition thereof)
+            // by validating the whole RHS region with the general operand-stack walker,
+            // requiring it to net exactly ONE operand. Because the op stream is already in
+            // evaluation order and the base precedes the RHS, the store observes
+            // base-then-RHS order exactly as the interpreter.
+            var setNamedIndex = program.OperationCount - 1;
+            return TryValidateAdmittedComplexCallArgumentRegion(
+                program,
+                argsStartIndex: rhsStart,
+                callIndex: setNamedIndex,
+                expectedArgumentCount: 1,
+                identifierConstants,
+                activationSlots,
+                allowsDynamicIdentifiers);
         }
 
-        // Computed property write: [base, key..., value, SetComputedProperty]
+        // Computed property write: [base, key..., value..., SetComputedProperty]
         if (lastOp.Kind == ExpressionOpKind.SetComputedProperty &&
             !lastOp.AllowNameInference &&
             TryGetActivationOrPlainDynamicIdentifierReadValue(
@@ -9163,19 +9199,53 @@ internal static class UnifiedBytecodeProductionEligibility
                 activationSlots,
                 allowsDynamicIdentifiers))
         {
-            var valueIndex = program.OperationCount - 2;
-            return IsSupportedComputedPropertyKeySpan(
-                   program,
-                   startInclusive: 1,
-                   endExclusive: valueIndex,
-                   identifierConstants,
-                   activationSlots,
-                   allowsDynamicIdentifiers) &&
-                   IsSimpleOperand(
-                       program.GetOperation(valueIndex),
-                       identifierConstants,
-                       activationSlots,
-                       allowsDynamicIdentifiers);
+            var setComputedIndex = program.OperationCount - 1;
+
+            // Simple-value fast path: [base, key..., value, SetComputedProperty].
+            var simpleValueIndex = setComputedIndex - 1;
+            if (IsSupportedComputedPropertyKeySpan(
+                    program,
+                    startInclusive: 1,
+                    endExclusive: simpleValueIndex,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers) &&
+                IsSimpleOperand(
+                    program.GetOperation(simpleValueIndex),
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers))
+            {
+                return true;
+            }
+
+            // Complex-value: find the split where [1, valueStart) is a valid key span (object
+            // then key, evaluated FIRST) and [valueStart, set) is a single-operand value region
+            // (the RHS, evaluated AFTER the reference). Evaluation order is preserved because
+            // the op stream is already base-then-key-then-value; we never reorder.
+            for (var valueStart = 2; valueStart < setComputedIndex; valueStart++)
+            {
+                if (IsSupportedComputedPropertyKeySpan(
+                        program,
+                        startInclusive: 1,
+                        endExclusive: valueStart,
+                        identifierConstants,
+                        activationSlots,
+                        allowsDynamicIdentifiers) &&
+                    TryValidateAdmittedComplexCallArgumentRegion(
+                        program,
+                        argsStartIndex: valueStart,
+                        callIndex: setComputedIndex,
+                        expectedArgumentCount: 1,
+                        identifierConstants,
+                        activationSlots,
+                        allowsDynamicIdentifiers))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         return false;

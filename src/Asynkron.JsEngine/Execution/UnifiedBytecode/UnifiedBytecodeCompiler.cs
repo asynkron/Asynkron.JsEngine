@@ -4020,7 +4020,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryNamedPropertySet(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -4070,7 +4071,8 @@ internal static class UnifiedBytecodeCompiler
 
         if (TryAppendFirstBoundaryComputedPropertySet(
                 expressionProgram,
-                activationSlots,
+                slotLayout,
+                callTargetConstants,
                 allowsDynamicIdentifiers,
                 unified,
                 literalConstants,
@@ -12104,13 +12106,15 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendFirstBoundaryNamedPropertySet(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 3)
         {
             reason = string.Empty;
@@ -12130,20 +12134,54 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        // This handler only owns the simple `base.name = rhs` shape (base at op 0, the
-        // RHS spanning the rest). A receiver chain between the base and the write — e.g.
-        // a computed read prefix `box[key].child = value` — is not this shape; reject it
-        // BEFORE emitting the base load so the general expression loop owns it. (Bailing
-        // after emitting the base would leave a stray operand load for the general loop
-        // to double, overflowing MaxStackDepth.)
+        // This handler owns the `base.name = rhs` shape: base at op 0, the RHS spanning the
+        // rest. A receiver chain between the base and the write — e.g. a computed read prefix
+        // `box[key].child = value` — is NOT this shape. We detect that by validating the RHS
+        // region (everything after the base) up front via the eligibility walker BEFORE
+        // emitting the base load, so a non-matching shape declines without leaving a stray
+        // operand load for the general loop to double (overflowing MaxStackDepth).
         var rhsStart = 1;
         var rhsEnd = expressionProgram.OperationCount - 2;
+        var setNamedIndex = expressionProgram.OperationCount - 1;
         var rhsIsSingleSimpleOperand = rhsStart == rhsEnd;
-        if (!rhsIsSingleSimpleOperand &&
-            expressionProgram.GetOperation(rhsStart).Kind != ExpressionOpKind.LoadLiteral)
+
+        // RHS region classification (in priority order):
+        //   - single simple operand,
+        //   - simple template literal span,
+        //   - any already-admitted complex value region (binary, nested call, member/optional
+        //     read span, composition thereof) — mirrors A11 call-arg admission.
+        var rhsIsTemplateLiteral = false;
+        var rhsIsComplexRegion = false;
+        if (!rhsIsSingleSimpleOperand)
         {
-            reason = string.Empty;
-            return false;
+            if (expressionProgram.GetOperation(rhsStart).Kind == ExpressionOpKind.LoadLiteral &&
+                TryMeasureSimpleTemplateLiteralSpan(
+                    expressionProgram,
+                    rhsStart,
+                    activationSlots,
+                    out var templateSpanProbe,
+                    allowsDynamicIdentifiers) &&
+                templateSpanProbe > 1 &&
+                rhsStart + templateSpanProbe - 1 == rhsEnd)
+            {
+                rhsIsTemplateLiteral = true;
+            }
+            else if (UnifiedBytecodeProductionEligibility.TryValidateAdmittedComplexCallArgumentRegion(
+                         expressionProgram,
+                         rhsStart,
+                         setNamedIndex,
+                         expectedArgumentCount: 1,
+                         expressionProgram.IdentifierConstants.AsSpan(),
+                         activationSlots,
+                         allowsDynamicIdentifiers))
+            {
+                rhsIsComplexRegion = true;
+            }
+            else
+            {
+                reason = string.Empty;
+                return false;
+            }
         }
 
         // Capture builder lengths before emission so a later failure rolls back
@@ -12152,6 +12190,15 @@ internal static class UnifiedBytecodeCompiler
         var unifiedCount = unified.Count;
         var literalCount = literalConstants.Count;
         var stringCount = stringConstants.Count;
+        var callTargetCount = callTargetConstants.Count;
+
+        void RollBack()
+        {
+            RollBackUnifiedBuilder(unified, unifiedCount);
+            RollBackUnifiedBuilder(literalConstants, literalCount);
+            RollBackUnifiedBuilder(stringConstants, stringCount);
+            RollBackUnifiedBuilder(callTargetConstants, callTargetCount);
+        }
 
         if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
@@ -12163,9 +12210,7 @@ internal static class UnifiedBytecodeCompiler
                 stringConstants,
                 out reason))
         {
-            RollBackUnifiedBuilder(unified, unifiedCount);
-            RollBackUnifiedBuilder(literalConstants, literalCount);
-            RollBackUnifiedBuilder(stringConstants, stringCount);
+            RollBack();
             return false;
         }
 
@@ -12181,30 +12226,48 @@ internal static class UnifiedBytecodeCompiler
                     stringConstants,
                     out reason))
             {
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
                 return false;
             }
         }
-        else
+        else if (rhsIsTemplateLiteral)
         {
             if (!TryAppendSimpleTemplateLiteralSpan(
                     expressionProgram, rhsStart, activationSlots,
                     unified, literalConstants, out var spanLen, out reason))
             {
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
                 return false;
             }
 
             if (rhsStart + spanLen - 1 != rhsEnd)
             {
                 reason = "Template literal RHS span does not match expected boundary.";
-                RollBackUnifiedBuilder(unified, unifiedCount);
-                RollBackUnifiedBuilder(literalConstants, literalCount);
-                RollBackUnifiedBuilder(stringConstants, stringCount);
+                RollBack();
+                return false;
+            }
+        }
+        else
+        {
+            // Complex RHS region: lower [rhsStart, setNamedIndex) with the general
+            // operand-stack appender (the compiler twin of the eligibility walker). It emits
+            // each op's lowering in source (evaluation) order, leaving exactly one value on
+            // the stack — the RHS — above the base, preserving base-then-RHS order.
+            if (!rhsIsComplexRegion ||
+                !TryAppendAdmittedComplexCallArgumentRegion(
+                    expressionProgram,
+                    slotLayout,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    rhsStart,
+                    setNamedIndex,
+                    expectedArgumentCount: 1,
+                    allowsDynamicIdentifiers,
+                    out reason))
+            {
+                RollBack();
                 return false;
             }
         }
@@ -12218,13 +12281,15 @@ internal static class UnifiedBytecodeCompiler
 
     private static bool TryAppendFirstBoundaryComputedPropertySet(
         ExpressionProgram expressionProgram,
-        ActivationSlotShape activationSlots,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
         bool allowsDynamicIdentifiers,
         ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
         ImmutableArray<JsValue>.Builder literalConstants,
         ImmutableArray<string>.Builder stringConstants,
         out string reason)
     {
+        var activationSlots = slotLayout.ActivationSlots;
         if (expressionProgram.OperationCount < 4)
         {
             reason = string.Empty;
@@ -12244,13 +12309,58 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var valueIndex = expressionProgram.OperationCount - 2;
-        if (!IsSupportedComputedPropertyKeySpan(
+        var setComputedIndex = expressionProgram.OperationCount - 1;
+        var identifierConstants = expressionProgram.IdentifierConstants.AsSpan();
+
+        // Resolve the key/value split. Evaluation order (object, then key, then RHS) is fixed
+        // by the op stream; we only locate where the key span ends and the value region begins,
+        // we never reorder. Prefer the simple-value fast path (value is the single op before
+        // SetComputedProperty); otherwise scan for the split where [1, valueStart) is a valid
+        // key span and [valueStart, set) is a single-operand complex value region.
+        var simpleValueIndex = setComputedIndex - 1;
+        var valueStart = -1;
+        var valueIsSimpleOperand = false;
+        if (IsSupportedComputedPropertyKeySpan(
                 expressionProgram,
                 activationSlots,
                 startInclusive: 1,
-                endExclusive: valueIndex,
+                endExclusive: simpleValueIndex,
+                allowsDynamicIdentifiers) &&
+            CanAppendSimpleOperandLoadWithDynamic(
+                expressionProgram.GetOperation(simpleValueIndex),
+                expressionProgram,
+                activationSlots,
                 allowsDynamicIdentifiers))
+        {
+            valueStart = simpleValueIndex;
+            valueIsSimpleOperand = true;
+        }
+        else
+        {
+            for (var candidate = 2; candidate < setComputedIndex; candidate++)
+            {
+                if (IsSupportedComputedPropertyKeySpan(
+                        expressionProgram,
+                        activationSlots,
+                        startInclusive: 1,
+                        endExclusive: candidate,
+                        allowsDynamicIdentifiers) &&
+                    UnifiedBytecodeProductionEligibility.TryValidateAdmittedComplexCallArgumentRegion(
+                        expressionProgram,
+                        candidate,
+                        setComputedIndex,
+                        expectedArgumentCount: 1,
+                        identifierConstants,
+                        activationSlots,
+                        allowsDynamicIdentifiers))
+                {
+                    valueStart = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (valueStart < 0)
         {
             reason = "Unsupported computed property key span.";
             return false;
@@ -12264,6 +12374,9 @@ internal static class UnifiedBytecodeCompiler
 
         var stagedStrings = ImmutableArray.CreateBuilder<string>();
         stagedStrings.AddRange(stringConstants);
+
+        var stagedCallTargets = ImmutableArray.CreateBuilder<UnifiedBytecodeCallTarget>();
+        stagedCallTargets.AddRange(callTargetConstants);
 
         if (!TryAppendSimpleOperandLoadWithDynamic(
                 expressionProgram.GetOperation(0),
@@ -12285,22 +12398,40 @@ internal static class UnifiedBytecodeCompiler
                 stagedLiterals,
                 stagedStrings,
                 startInclusive: 1,
-                endExclusive: valueIndex,
+                endExclusive: valueStart,
                 out reason,
                 allowsDynamicIdentifiers))
         {
             return false;
         }
 
-        if (!TryAppendSimpleOperandLoadWithDynamic(
-                expressionProgram.GetOperation(valueIndex),
-                expressionProgram,
-                activationSlots,
-                allowsDynamicIdentifiers,
-                stagedUnified,
-                stagedLiterals,
-                stagedStrings,
-                out reason))
+        if (valueIsSimpleOperand)
+        {
+            if (!TryAppendSimpleOperandLoadWithDynamic(
+                    expressionProgram.GetOperation(valueStart),
+                    expressionProgram,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    stagedUnified,
+                    stagedLiterals,
+                    stagedStrings,
+                    out reason))
+            {
+                return false;
+            }
+        }
+        else if (!TryAppendAdmittedComplexCallArgumentRegion(
+                     expressionProgram,
+                     slotLayout,
+                     stagedUnified,
+                     stagedLiterals,
+                     stagedStrings,
+                     stagedCallTargets,
+                     valueStart,
+                     setComputedIndex,
+                     expectedArgumentCount: 1,
+                     allowsDynamicIdentifiers,
+                     out reason))
         {
             return false;
         }
@@ -12312,6 +12443,8 @@ internal static class UnifiedBytecodeCompiler
         literalConstants.AddRange(stagedLiterals);
         stringConstants.Clear();
         stringConstants.AddRange(stagedStrings);
+        callTargetConstants.Clear();
+        callTargetConstants.AddRange(stagedCallTargets);
         reason = string.Empty;
         return true;
     }

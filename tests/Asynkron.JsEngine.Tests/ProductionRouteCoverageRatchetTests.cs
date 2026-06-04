@@ -24,6 +24,14 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(a,b){ return a+b; } f(1,2);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return o.a.b; } f({a:{b:1}});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,v){ o.a=v; return o.a; } f({},9);", "unified-bytecode-production-fast-path func=f")]
+    // PROPERTY-WRITE complex RHS (part of A37 / complements A7/A19): the RHS of a named/computed
+    // write may be any already-admitted value expression — binary, nested call, member-read chain,
+    // or composition thereof — lowered onto the operand stack with left-to-right eval order.
+    [InlineData("function f(o,a,b){ o.x = a*2 + b; return o.x; } f({},3,4);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,g,z){ o.x = g(z); return o.x; } f({},v=>v+1,5);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,s){ o.x = s.a.b; return o.x; } f({},{a:{b:9}});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k,a,b){ o[k] = a*b; return o[k]; } f({},'z',6,7);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(a,b){ this.x = a*b; return this.x; } f.call({},4,5);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ o.a++; return o.a; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return delete o.a; } f({a:1});", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o){ return o?.a; } f(null);", "unified-bytecode-production-fast-path func=f")]

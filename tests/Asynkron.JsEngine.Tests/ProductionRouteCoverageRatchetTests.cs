@@ -82,12 +82,21 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function mk(c){ function read(){ return c.x + c.y; } return read; } mk({x:1,y:2})();", "unified-bytecode-production-fast-path func=read")]
     [InlineData("function mk(o){ return function set(){ o.value=43; return o.value; }; } mk({value:42})();", "unified-bytecode-production-fast-path func=set")]
     // A1 (Option A, collision-only guard): nested-scope captured closures whose nested-block lexical
-    // bindings do NOT collide with any captured name now route through the production VM. Captured READ
+    // bindings do NOT collide with any captured name route through the production VM. Captured READ
     // with a disjoint nested `let step`, multi-level disjoint nesting, and a disjoint nested `const`.
-    // Colliding nested-scope closures (NestedFunctionScopeRegressionTests) STAY declined — no entry.
     [InlineData("function mk(){ let acc=0; function inc(n){ if(n>0){ let step=n*2; acc+=step; } return acc; } return inc; } var f=mk(); f(1); f(2);", "unified-bytecode-production-fast-path func=inc")]
     [InlineData("function mk(){ let acc=1; function go(n){ if(n>0){ let mid=n+1; if(mid>1){ let deep=mid*2; acc+=deep; } } return acc; } return go; } var f=mk(); f(1); f(2);", "unified-bytecode-production-fast-path func=go")]
     [InlineData("function mk(){ let acc=0; function add(n){ if(n>0){ const factor=3; acc+=n*factor; } return acc; } return add; } var f=mk(); f(2); f(1);", "unified-bytecode-production-fast-path func=add")]
+    // A1 (Option B, Stage 5): COLLIDING nested-scope captured closures — a nested block declares a
+    // `let`/`const` that SHADOWS a captured enclosing name — now route too, because
+    // SlotAssignmentRewriter no longer mis-stamps the captured read to the off-stack block slot (the
+    // captured read past the block lowers to a dynamic-identifier op over the env chain). Single-level
+    // `let` shadow, partial collision (shadowed `outer` + disjoint `captured`), two-level-deep shadow,
+    // and a `const` shadow. These are the shapes the retired collision guard used to decline.
+    [InlineData("function outer(seed){ let baseValue=seed; function inner(flag){ if(flag){ let baseValue=seed+100; return baseValue; } return baseValue; } return inner; } var fn=outer(10); fn(false); fn(true); fn(false);", "unified-bytecode-production-fast-path func=inner")]
+    [InlineData("function make(){ const captured=2; let outer=5; function shadower(flag){ if(flag){ let outer=99; return outer+captured; } return outer+captured; } return shadower; } var fn=make(); fn(false); fn(true);", "unified-bytecode-production-fast-path func=shadower")]
+    [InlineData("function mk(base){ function deep(c){ if(c){ let mid=1; if(mid>0){ let base=7; return base; } } return base; } return deep; } var f=mk(100); f(true); f(false);", "unified-bytecode-production-fast-path func=deep")]
+    [InlineData("function mk(limit){ function clamp(flag){ if(flag){ const limit=7; return limit; } return limit; } return clamp; } var f=mk(50); f(true); f(false);", "unified-bytecode-production-fast-path func=clamp")]
     // A46: the `**` exponentiation binary operator (BinaryOperator.Power) is in the production operator
     // subset (IsProductionBinaryOperator) and evaluates via JsOps.Exp. Integer base/exponent, the
     // right-associative chain (2**3**2 === 512), and the `**=` compound form all keep routing sync.

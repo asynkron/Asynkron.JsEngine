@@ -1173,10 +1173,28 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             }
         }
 
+        // Unscoped fallback: the symbol is declared in some scope that is NOT on the active scope
+        // chain (branch (a) already exhausted the live stack). This recovers slots for scopes that
+        // structurally never enter the scope stack during rewriting — chiefly elided per-iteration
+        // loop scopes and catch scopes whose bindings are stamped without a matching live push.
+        //
+        // It must NOT, however, resolve a CAPTURED enclosing name to a SHADOWING nested *block*
+        // scope's flat slot. A lexical { } block scope (an entry in _blockScopeIds) always enters
+        // the active stack at its proper place via a PushEnvironment, so reaching this fallback for a
+        // name that lives only in such an off-stack block means the use site is lexically OUTSIDE the
+        // block — i.e. the name is captured/free here and must lower to a dynamic identifier op that
+        // walks the live environment chain (matching the IR runner). Resolving it to the block's flat
+        // slot is the nested-scope-capture miscompile (design §1.3). Skip block scopes here; they are
+        // only ever a correct resolution while genuinely active, which branch (a) already covers.
         foreach (var scope in _scopes)
         {
             if (scope.Value.Slots.TryGetValue(symbol, out var slotIndex))
             {
+                if (IsLexicalBlockScope(scope.Key) && !IsActiveScope(RemapScopeId(scope.Key)))
+                {
+                    continue;
+                }
+
                 var mappedScope = RemapScopeId(scope.Key);
                 resolution = (mappedScope, slotIndex);
                 return true;
@@ -1185,6 +1203,44 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
 
         resolution = default;
         return false;
+    }
+
+    /// <summary>
+    ///     True when <paramref name="rawScopeId" /> is a lexical { } block scope (an if/block scope
+    ///     keyed in <see cref="_blockScopeIds" />). Such scopes push/pop an environment and therefore
+    ///     enter the active scope stack at their proper lexical position; a binding from one of them is
+    ///     a correct resolution only while it is active. Catch scopes and elided per-iteration loop
+    ///     scopes are NOT block scopes and remain resolvable via the unscoped fallback.
+    /// </summary>
+    private bool IsLexicalBlockScope(int rawScopeId)
+    {
+        return (_blockScopeRawIds ??= BuildBlockScopeRawIds()).Contains(rawScopeId);
+    }
+
+    private bool IsActiveScope(int mappedScopeId)
+    {
+        foreach (var active in _scopeStack)
+        {
+            if (active == mappedScopeId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private HashSet<int>? _blockScopeRawIds;
+
+    private HashSet<int> BuildBlockScopeRawIds()
+    {
+        var set = new HashSet<int>();
+        foreach (var rawScopeId in _blockScopeIds.Values)
+        {
+            set.Add(rawScopeId);
+        }
+
+        return set;
     }
 
     private ImmutableDictionary<Symbol, int> GetSlotMap(int scopeId)

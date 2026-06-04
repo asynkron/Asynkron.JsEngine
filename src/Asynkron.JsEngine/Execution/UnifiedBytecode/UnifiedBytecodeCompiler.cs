@@ -5240,6 +5240,21 @@ internal static class UnifiedBytecodeCompiler
 
         var lastOp = expressionProgram.GetOperation(expressionProgram.OperationCount - 1);
 
+        // A12: chained method/computed calls past the first invocation boundary —
+        // `a.b().c()`, `o.m().n()`, `o.a()[k]()`. The final call's TARGET is a member access on
+        // the RESULT of an earlier call, so an inner Call op appears before the final call-target
+        // preparation. The specialized receiver-chain appenders below assume the receiver is a
+        // plain identifier/property span and would mis-split the chain (FindFirstOperation latches
+        // the INNER call target). The general per-op expression loop already lowers the whole chain
+        // in source order onto the operand stack the VM maintains (the inner CallInvocationBoundary
+        // leaves its result as the next call's receiver), so decline cleanly here and let it run.
+        // Guard: this only applies when there are NO genuine optional-chain ops — real optional
+        // chains stay owned by the dedicated optional measurers/appenders above.
+        if (IsGeneralChainedCallProgram(expressionProgram))
+        {
+            return false;
+        }
+
         // Standard path: last op is Call (covers all non-optional and receiver-optional calls).
         if (lastOp.Kind == ExpressionOpKind.Call)
         {
@@ -5463,6 +5478,50 @@ internal static class UnifiedBytecodeCompiler
         }
 
         return false;
+    }
+
+    // A12: a "general chained call" is a call whose TARGET is a member access on the result of an
+    // earlier call (`a.b().c()`, `o.m().n()`, `o.a()[k]()`). Structurally: the LAST op is a Call,
+    // and at least one EARLIER op is also a Call (the inner invocation whose result is the next
+    // call's receiver). These shapes must be lowered by the general per-op expression loop, not the
+    // specialized first-boundary receiver-chain appenders (which assume a plain identifier/property
+    // receiver span and mis-split the chain). Genuine optional-chain ops (JumpIfShortCircuited,
+    // JumpIfNullish-replace-undefined, or any ShortCircuitOnNullishTarget) disqualify the shape so
+    // optional chains stay owned by the dedicated optional measurers/appenders.
+    private static bool IsGeneralChainedCallProgram(ExpressionProgram expressionProgram)
+    {
+        var operationCount = expressionProgram.OperationCount;
+        if (operationCount < 2)
+        {
+            return false;
+        }
+
+        if (expressionProgram.GetOperation(operationCount - 1).Kind != ExpressionOpKind.Call)
+        {
+            return false;
+        }
+
+        var innerCallSeen = false;
+        for (var operationIndex = 0; operationIndex < operationCount - 1; operationIndex++)
+        {
+            var operation = expressionProgram.GetOperation(operationIndex);
+
+            // Any genuine optional-chain structure keeps the program with the optional appenders.
+            if (operation.Kind == ExpressionOpKind.JumpIfShortCircuited ||
+                operation is { Kind: ExpressionOpKind.JumpIfNullish, ReplaceWithUndefined: true } ||
+                operation.ShortCircuitOnNullishTarget ||
+                (operation.Kind != ExpressionOpKind.Call && operation.IsOptional))
+            {
+                return false;
+            }
+
+            if (operation.Kind == ExpressionOpKind.Call)
+            {
+                innerCallSeen = true;
+            }
+        }
+
+        return innerCallSeen;
     }
 
     private static bool TryAppendIdentifierCallTargetPreparation(

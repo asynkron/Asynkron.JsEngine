@@ -90,6 +90,14 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(g,h,a,b){ return g(a + h(b)); } f(x=>x,h=>h*2,3,4);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g,o,x){ return g(o.m(x)); } f(v=>v+1, {m(n){return n*3;}}, 4);", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g,o,k,x){ return g(o[k](x)); } f(v=>v+1, {m(n){return n*5;}}, 'm', 2);", "unified-bytecode-production-fast-path func=f")]
+    // A12: MEMBER/COMPUTED call-target past the first invocation boundary — chained method calls
+    // (a.b().c()) where the final call's target is a member access on an earlier call's result. The
+    // receiver chain lowers in source order onto the operand stack and the final call applies with
+    // this = the immediate receiver (the inner call's result). Named chain, named chain with a final
+    // argument, and computed final chain.
+    [InlineData("function f(o){ return o.a().b(); } f({a(){return {b(){return 7;}};}});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o){ return o.get().m(2); } f({get(){return {m(x){return x*3;}};}});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o,k){ return o.a()[k](); } f({a(){return {z(){return 9;}};}}, 'z');", "unified-bytecode-production-fast-path func=f")]
     // A10: FREE/global identifier call target (helper(x)) — the callee is not an activation slot, so it
     // lowers to PrepareDynamicIdentifierCallTarget walking the threaded environment chain (this=undefined,
     // coerced per the callee's own mode). Free call, free callee with a nested free-call argument, and a

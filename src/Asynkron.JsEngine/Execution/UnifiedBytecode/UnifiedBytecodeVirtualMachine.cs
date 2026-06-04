@@ -3698,6 +3698,40 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget:
+                    {
+                        // B44: `let [a,b] = await p` / `const {x} = await p`. Reached only after AwaitValue has
+                        // settled the source value on top of the operand stack. Pop it and run the synchronous
+                        // destructuring of the lowered binding-target program. The body's own declared
+                        // bindings are flat slots backed by the resume state's CallingEnvironment via the slot
+                        // environment map; sync the flat slots into that environment, apply the binding (which
+                        // writes each name), then sync the environment back into the flat slots so a later
+                        // LoadSlot reads the bound value. The destructuring is synchronous and cannot itself
+                        // suspend, so this always completes inside one resumed step; a non-iterable /
+                        // non-coercible source or a throwing element getter surfaces as the resumable Throw
+                        // step.
+                        var declarationBindingValue = stack[--stackPointer];
+                        var declarationBindingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments: null, declarationBindingEnvironment);
+                        TypedAstEvaluator.ApplyLoweredDeclarationBindingTargetProgram(
+                            program.BindingTargetConstants[DecodeDeclarationBindingTargetIndex(instruction.Operand)],
+                            declarationBindingValue,
+                            declarationBindingEnvironment,
+                            context,
+                            DecodeDeclarationBindingTargetVariableKind(instruction.Operand),
+                            DecodeDeclarationBindingTargetHasInitializer(instruction.Operand),
+                            allowNameInference: false);
+                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, declarationBindingEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.UpdateDynamicIdentifier:
                     {
                         // Captured / free UPDATE (`n++`, `n--`, `++n`, `--n` where `n` escapes this

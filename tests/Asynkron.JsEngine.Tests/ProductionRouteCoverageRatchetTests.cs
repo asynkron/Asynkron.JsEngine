@@ -178,6 +178,15 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     // enclosing local `n` (`n++`) on both sides of an await; the update aliases the enclosing slot across the
     // await suspension via UpdateDynamicIdentifier over the threaded CallingEnvironment.
     [InlineData("function mk(){ let n=1; async function run(){ n++; await Promise.resolve(0); n++; return n; } return run; } mk()();", "unified-bytecode-resumable-async-fast-path func=run")]
+    // B1: an AWAITED value bound into a flat slot and read back across the suspension. `var x = await p`
+    // lowers to `<awaited ops>` -> AwaitValue -> InitializeSlot; the store lands after the suspension so the
+    // later `x + 1` reads the settled value.
+    [InlineData("async function f(p){ var x=await p; return x+1; } f(Promise.resolve(9));", "unified-bytecode-resumable-async-fast-path func=f")]
+    // B44: an AWAITED value bound into an array destructuring binding and read back across the suspension.
+    // `let [a,b] = await p` lowers to `<awaited ops>` -> AwaitValue -> ApplyDeclarationBindingTarget.
+    [InlineData("async function f(p){ let [a,b]=await p; return a+b; } f(Promise.resolve([1,2]));", "unified-bytecode-resumable-async-fast-path func=f")]
+    // B44 object form: `let {x} = await p` routes through the same await-into-binding lowering.
+    [InlineData("async function f(p){ let {x}=await p; return x; } f(Promise.resolve({x:7}));", "unified-bytecode-resumable-async-fast-path func=f")]
     public async Task AdmittedShape_StillRoutesThroughProduction(string source, string expectedLog)
     {
         await using var engine = CreateEngine();

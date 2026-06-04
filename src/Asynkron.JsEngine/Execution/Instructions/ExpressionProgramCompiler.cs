@@ -350,13 +350,19 @@ internal static class ExpressionProgramCompiler
                         failureReason = null;
                         return true;
 
+                    // Guarded (optional-chain) named delete. Matches both this hop being optional
+                    // (`delete box?.x`) AND a member whose TARGET chain short-circuits
+                    // (`delete box?.a.b` — the outer `.b` is not optional but `box?.a` is). Without the
+                    // target-chain check the latter fell through to the unguarded named-delete case below
+                    // and threw `Cannot delete property on null or undefined` instead of short-circuiting
+                    // the whole `delete` to `true` per spec.
                     case MemberExpression
                         {
                             Target: not SuperExpression,
-                            IsOptional: true,
                             IsComputed: false,
                             Property: LiteralExpression { Value.IsString: true } propertyLiteral
-                        } optionalNamedDelete:
+                        } optionalNamedDelete
+                        when optionalNamedDelete.IsOptional || HasOptionalChaining(optionalNamedDelete.Target):
                         if (!TryCompileExpression(optionalNamedDelete.Target, builder, out failureReason))
                         {
                             return false;
@@ -378,12 +384,15 @@ internal static class ExpressionProgramCompiler
                         failureReason = null;
                         return true;
 
+                    // Guarded (optional-chain) computed delete. Matches both this hop being optional
+                    // (`delete box?.[k]`) AND a member whose TARGET chain short-circuits
+                    // (`delete box?.[k1][k2]` — the outer `[k2]` is not optional but `box?.[k1]` is).
                     case MemberExpression
                         {
                             Target: not SuperExpression,
-                            IsOptional: true,
                             IsComputed: true
-                        } optionalComputedDelete:
+                        } optionalComputedDelete
+                        when optionalComputedDelete.IsOptional || HasOptionalChaining(optionalComputedDelete.Target):
                         if (!TryCompileExpression(optionalComputedDelete.Target, builder, out failureReason))
                         {
                             return false;

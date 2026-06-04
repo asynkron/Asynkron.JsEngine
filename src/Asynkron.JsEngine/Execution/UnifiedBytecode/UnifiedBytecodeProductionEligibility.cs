@@ -1439,6 +1439,26 @@ internal static class UnifiedBytecodeProductionEligibility
                 // literal twin of the sync VM's LoadNewTarget handler and the IR runner's
                 // ExpressionOpKind.LoadNewTarget.
                 UnifiedBytecodeOpCode.LoadNewTarget or
+                // `import.meta` (B20) inside a resumable async/generator body. A pure meta-property read: the
+                // resumable handler resolves the single Symbol.ImportMeta binding against the live closure
+                // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108 — the captured
+                // MODULE environment, stable across yield/await), returning the SAME per-module import.meta object
+                // on every step including across a suspension. The opcode pushes exactly one value, carries no
+                // AwaitedProgram, and cannot itself suspend, so it always runs to completion inside one resumable
+                // step with no resume-state restoration. `import.meta` is only ever bound in a module environment;
+                // outside a module the binding is absent and the resumable handler surfaces the same
+                // ReferenceError as the sync VM via the resumable Throw step (the resumable loop carries no
+                // ThrowSignal catch, so the handler sets the throw directly rather than raising one).
+                UnifiedBytecodeOpCode.LoadImportMeta or
+                // Template-substitution / explicit ToString coercion (B37) inside a resumable body — the per-hole
+                // String(value) coercion an untagged template literal (`` `v${x}` ``) emits before concatenation.
+                // Operates purely on the operand stack: the value to coerce sits on
+                // UnifiedBytecodeResumeState.OperandStack and is restored across any suspension in a sibling
+                // sub-expression (`` `v${yield 1}` ``), exactly like the admitted unaries. Literal twin of the sync
+                // VM handler (JsOps.ToJsString); a throwing coercion (a Symbol, or a throwing
+                // toString/Symbol.toPrimitive) surfaces as the resumable Throw step. Replaces the top value in
+                // place, carries no AwaitedProgram, cannot itself suspend.
+                UnifiedBytecodeOpCode.ToString or
                 // Regex LITERAL (`/pat/flags`) inside a resumable body. A pure constant materialization:
                 // the opcode reads the interned pattern string and encoded flags byte from the program and
                 // builds a fresh RegExp object via RegExpHelper.CreateRegExpLiteral against the realm. It

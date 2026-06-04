@@ -1535,6 +1535,50 @@ the final post-compile production subset check before VM entry.
   `undefined` read across a yield, a `typeof new.target` after a yield, an async
   `new.target` after an await, and the non-regressing async-arrow lexical
   inheritance on its existing route).
+- Accepted resumable bodies may now perform the per-hole `String(value)` coercion an
+  UNTAGGED template literal emits (`` `v${x}` ``) between suspension points (burndown
+  B37). The `ToString` opcode is ported into the `ExecuteResumable` switch and added to
+  the `TryFindUnsupportedResumableOpcode` allowlist. The resumable handler is the literal
+  twin of the sync VM's, reusing `JsOps.ToJsString`: it replaces the operand-stack top in
+  place. The value to coerce sits on `UnifiedBytecodeResumeState.OperandStack` and is
+  restored across any suspension in a sibling sub-expression (`` `v${yield 1}` ``), exactly
+  like the admitted unaries; the opcode carries no `AwaitedProgram` and cannot itself
+  suspend, so it runs to completion inside one resumable step. A throwing coercion (a
+  `Symbol`, or a throwing `toString`/`Symbol.toPrimitive`) surfaces as the resumable Throw
+  step (`state.IsCompleted = true; return UnifiedBytecodeStepResult.Throw(context.FlowValue)`).
+  BOUNDARY: TAGGED templates (`tag`a${x}b``, burndown B21) stay declined — the
+  tagged-template CALL shape declines at the shared expression-eligibility gate (the general
+  call-candidate predicates do not recognize the `LoadTemplateObject`-plus-substitutions
+  argument shape) on BOTH the sync and resumable routes, so `LoadTemplateObject` is never
+  reached by an admitted resumable program; admitting it is real expression-level
+  call-candidate infrastructure, not an allowlist/handler addition, and is left for a
+  separate slice (the `LoadTemplateObject` opcode is therefore NOT added to the allowlist).
+  The B37 scaffolding opcodes `EnsureHasName` and `ThrowReferenceError` are likewise NOT
+  admitted: `EnsureHasName`'s only producer (`let f = function(){}`) co-emits
+  `LoadFunctionLiteral`, which has no resumable handler and declines the whole program, and
+  `ThrowReferenceError`'s only producer (`delete super[...]`) co-emits the unsupported
+  `EnsureSuperReference`, so neither opcode is reachable by an admitted resumable program;
+  an uninitialized-binding TDZ read is already surfaced by the existing resumable `LoadSlot`
+  handler (no new opcode) (proof: `UnifiedBytecodeResumableTemplateToStringTests`, including
+  the generator/async ToString admit gates, end-to-end coercion, a substitution evaluated
+  ACROSS a yield with operand restoration, non-string `String()` coercion parity, and an
+  async template returned after an await).
+- Accepted resumable bodies may now read the `import.meta` meta-property between suspension
+  points (burndown B20). The `LoadImportMeta` opcode is ported into the `ExecuteResumable`
+  switch and added to the `TryFindUnsupportedResumableOpcode` allowlist. The resumable
+  handler resolves the single `Symbol.ImportMeta` binding against the live closure
+  environment threaded onto `UnifiedBytecodeResumeState.CallingEnvironment` (the captured
+  MODULE environment, stable across `yield`/`await`), so the SAME per-module `import.meta`
+  object is observed on every step including after a suspension, satisfying the
+  per-module-stability requirement. `import.meta` is ONLY bound in a module environment
+  (`EnsureModuleImportMeta`); outside a module the binding is absent and the handler surfaces
+  the same `ReferenceError` as the sync VM via the resumable Throw step (the resumable loop
+  carries no `ThrowSignal` catch, so the handler resolves the binding directly and calls
+  `context.SetThrow` rather than throwing). The opcode pushes exactly one value, carries no
+  `AwaitedProgram`, and cannot itself suspend (proof:
+  `UnifiedBytecodeResumableImportMetaTests`, including the async/generator admit gates, an
+  end-to-end `typeof import.meta` after an await in module context, the SAME-object identity
+  across an await, and a generator that observes the stable object across a yield).
 - Accepted resumable bodies may now materialize OBJECT and ARRAY LITERALS between
   suspension points (burndown B16/B17): `{a, b: v, [k]: v, ...spread}` and
   `[a, , b, ...spread]`. Twelve opcodes are ported into the `ExecuteResumable`

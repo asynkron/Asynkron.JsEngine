@@ -217,6 +217,13 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function* g(){ yield [1,2]; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield new.target; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(){ yield /ab+c/gi; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    // B37: an UNTAGGED template literal with a substitution (`` `v${x}` ``) inside a resumable generator
+    // body. The per-hole String(value) coercion lowers to the ToString opcode, now admitted to the resumable
+    // allowlist + ExecuteResumable handler (literal twin of the sync JsOps.ToJsString). The substitution
+    // value sits on the operand stack and is restored across the yield. (Substitution across a suspension and
+    // the explicit-coercion forms are pinned in UnifiedBytecodeResumableTemplateToStringTests.)
+    [InlineData("function* g(){ let x=5; yield `v${x}`; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
+    [InlineData("function* g(){ yield `n=${42}`; } g().next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     // Resumable captured-closure WRITE: a generator nested in `mk` mutates `mk`'s enclosing local `n`
     // (`n++`) across yields. `n` escapes the generator's own activation slots, so the update lowers to the
     // UpdateDynamicIdentifier opcode and resolves against the threaded CallingEnvironment, aliasing the same
@@ -281,6 +288,25 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
             run({ gate: Promise.resolve(0), v: 7 }).then(x => r = x);
             r;
             """);
+        AssertRouted("unified-bytecode-resumable-async-fast-path func=run");
+    }
+
+    // B20: `import.meta` inside a resumable async body, in MODULE context (import.meta is only bound in a
+    // module environment). The LoadImportMeta opcode is admitted to the resumable allowlist + ExecuteResumable
+    // handler, resolving the Symbol.ImportMeta binding against the threaded CallingEnvironment (the captured
+    // module env, stable across await). The async function must route resumable and observe the stable
+    // per-module import.meta object after the await suspension.
+    [Fact(Timeout = 5000)]
+    public async Task ResumableAsyncImportMetaInModule_StillRoutesThroughResumableAsync()
+    {
+        await using var engine = CreateEngine();
+        await engine.EvaluateModule("""
+            globalThis.metaType = "PENDING";
+            async function run(p){ await p; return typeof import.meta; }
+            run(Promise.resolve(0)).then(v => globalThis.metaType = v);
+            "started";
+            """, "b20-ratchet-module.js");
+        Assert.Equal("object", await engine.Evaluate("globalThis.metaType"));
         AssertRouted("unified-bytecode-resumable-async-fast-path func=run");
     }
 

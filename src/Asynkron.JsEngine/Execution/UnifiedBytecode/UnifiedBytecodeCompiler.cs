@@ -6839,6 +6839,16 @@ internal static class UnifiedBytecodeCompiler
     {
         var activationSlots = slotLayout.ActivationSlots;
 
+        // Snapshot the builder lengths BEFORE any argument is emitted. The greedy per-argument
+        // span appenders below can mis-split a complex argument (e.g. consume the receiver `o` of
+        // `o.m(x)` as a standalone argument before reaching its call target). A11's region
+        // fallback therefore rolls back to this point and re-lowers the WHOLE argument region with
+        // the stack-discipline appender rather than from the mid-argument failure point.
+        var preArgsUnifiedCount = unified.Count;
+        var preArgsLiteralCount = literalConstants.Count;
+        var preArgsStringCount = stringConstants.Count;
+        var preArgsCallTargetCount = callTargetConstants.Count;
+
         // Span-walk: each logical argument is a single simple operand or a multi-op
         // binary/array/object/template literal span. Validate argument count via
         // span-walk (gh2705).
@@ -7072,6 +7082,46 @@ internal static class UnifiedBytecodeCompiler
 
                 if (!appendedArgument)
                 {
+                    // A11: complex call arguments. The flat span appenders above cover leaf operands,
+                    // binaries/unaries of simple operands, member-read chains, literals, and member
+                    // calls with simple args. A richer argument — a NESTED CALL (`g(h(x))`,
+                    // `g(o.m(x))`), a binary whose operand is itself a call (`g(a + h(b))`), or any
+                    // deeper composition of already-admitted value-producing ops — cannot be split
+                    // per-argument by the greedy appenders (a postfix operator can read a value
+                    // pushed several ops earlier). Lower the WHOLE remaining argument region with the
+                    // general operand-stack appender, which mirrors the eligibility walker's stack
+                    // discipline and emits each op's unified lowering in source (evaluation) order,
+                    // preserving left-to-right argument evaluation.
+                    if (!call.IsDirectEval)
+                    {
+                        // Roll back ANY arguments already emitted by the greedy span appenders
+                        // (they may have mis-split this argument) and re-lower the entire region.
+                        unified.Count = preArgsUnifiedCount;
+                        literalConstants.Count = preArgsLiteralCount;
+                        stringConstants.Count = preArgsStringCount;
+                        callTargetConstants.Count = preArgsCallTargetCount;
+
+                        if (TryAppendAdmittedComplexCallArgumentRegion(
+                                expressionProgram,
+                                slotLayout,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                argsStartIndex,
+                                callIndex,
+                                call.ArgumentCount,
+                                allowsDynamicIdentifiers,
+                                out reason))
+                        {
+                            // The region appender lowered every logical argument up to the call
+                            // boundary; account for them and finish the span walk.
+                            argCount = call.ArgumentCount;
+                            operationIndex = callIndex;
+                            break;
+                        }
+                    }
+
                     return false;
                 }
 
@@ -7095,6 +7145,310 @@ internal static class UnifiedBytecodeCompiler
         unified.Add(new UnifiedBytecodeInstruction(
             UnifiedBytecodeOpCode.CallInvocationBoundary,
             EncodeCallBoundaryOperand(call.ArgumentCount, spreadMaskIndex, call.IsDirectEval)));
+        reason = string.Empty;
+        return true;
+    }
+
+    // A11: lowers the remaining complex call-argument region [startIndex, callIndex) for a
+    // non-optional, non-eval, non-spread call. This is the compiler twin of the eligibility
+    // walker TryValidateAdmittedComplexCallArgumentRegion: it tracks the operand-stack depth the
+    // production VM maintains and emits each op's unified lowering in source (evaluation) order,
+    // so left-to-right argument evaluation is preserved and each argument is fully evaluated
+    // before the next. Whole multi-op value spans (literals, templates, member-read chains,
+    // control expressions, member calls with simple args) are emitted by the existing flat
+    // appender; the remaining per-op cases (binary/unary/typeof, property reads, nested-call
+    // targets and Call boundaries) are emitted inline here. Emission is all-or-nothing: on any
+    // unsupported op or arity mismatch the builders are rolled back to their pre-region state and
+    // the method returns false so the caller can decline cleanly.
+    private static bool TryAppendAdmittedComplexCallArgumentRegion(
+        ExpressionProgram expressionProgram,
+        UnifiedBytecodeSlotLayout slotLayout,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        ImmutableArray<UnifiedBytecodeCallTarget>.Builder callTargetConstants,
+        int startIndex,
+        int callIndex,
+        int expectedArgumentCount,
+        bool allowsDynamicIdentifiers,
+        out string reason)
+    {
+        var activationSlots = slotLayout.ActivationSlots;
+        var expressionStringConstants = expressionProgram.StringConstants.AsSpan();
+
+        var startUnifiedCount = unified.Count;
+        var startLiteralCount = literalConstants.Count;
+        var startStringCount = stringConstants.Count;
+        var startCallTargetCount = callTargetConstants.Count;
+
+        void RollBack()
+        {
+            unified.Count = startUnifiedCount;
+            literalConstants.Count = startLiteralCount;
+            stringConstants.Count = startStringCount;
+            callTargetConstants.Count = startCallTargetCount;
+        }
+
+        var depth = 0;
+        var index = startIndex;
+        while (index < callIndex)
+        {
+            // Whole value spans (leaf operand, array/object/template literal, member-read chain,
+            // control expression, member call with simple args) each net +1 on the operand stack.
+            if (TryAppendSimpleLiteralValueOperandSpan(
+                    expressionProgram,
+                    index,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var literalSpan,
+                    out _) &&
+                literalSpan > 0 &&
+                index + literalSpan <= callIndex)
+            {
+                index += literalSpan;
+                depth++;
+                continue;
+            }
+
+            if (TryAppendSimpleTypeOfOperandSpan(
+                    expressionProgram,
+                    index,
+                    callIndex,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    callTargetConstants,
+                    slotLayout,
+                    out var typeOfSpan,
+                    out _) &&
+                typeOfSpan > 0 &&
+                index + typeOfSpan <= callIndex)
+            {
+                index += typeOfSpan;
+                depth++;
+                continue;
+            }
+
+            var op = expressionProgram.GetOperation(index);
+            switch (op.Kind)
+            {
+                case ExpressionOpKind.LoadLiteral:
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                case ExpressionOpKind.LoadIdentifier:
+                    if (!TryAppendSimpleOperandLoadWithDynamic(
+                            op,
+                            expressionProgram,
+                            activationSlots,
+                            allowsDynamicIdentifiers,
+                            unified,
+                            literalConstants,
+                            stringConstants,
+                            out var operandReason))
+                    {
+                        { RollBack(); reason = operandReason; return false; }
+                    }
+
+                    depth++;
+                    break;
+
+                case ExpressionOpKind.GetNamedProperty:
+                    if (depth < 1 ||
+                        op.IsOptional ||
+                        op.ShortCircuitOnNullishTarget ||
+                        op.GetString(expressionStringConstants).IsPrivateName())
+                    {
+                        { RollBack(); reason = "Unsupported named property read in complex call argument."; return false; }
+                    }
+
+                    var namedPropIndex = stringConstants.Count;
+                    stringConstants.Add(op.GetString(expressionStringConstants));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.GetNamedProperty,
+                        namedPropIndex));
+                    break;
+
+                case ExpressionOpKind.GetComputedProperty:
+                    if (depth < 2 || op.IsOptional || op.ShortCircuitOnNullishTarget)
+                    {
+                        { RollBack(); reason = "Unsupported computed property read in complex call argument."; return false; }
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+                    depth--;
+                    break;
+
+                case ExpressionOpKind.ResolvePropertyKey:
+                    if (depth < 1)
+                    {
+                        { RollBack(); reason = "ResolvePropertyKey underflow in complex call argument."; return false; }
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.ResolvePropertyKey));
+                    break;
+
+                case ExpressionOpKind.Binary when IsSupportedBinaryOperator(op.Operator):
+                    if (depth < 2)
+                    {
+                        { RollBack(); reason = "Binary underflow in complex call argument."; return false; }
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.Binary, (int)op.Operator));
+                    depth--;
+                    break;
+
+                case ExpressionOpKind.UnaryPlus:
+                    if (depth < 1) { RollBack(); reason = "Unary underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryPlus));
+                    break;
+
+                case ExpressionOpKind.UnaryMinus:
+                    if (depth < 1) { RollBack(); reason = "Unary underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryMinus));
+                    break;
+
+                case ExpressionOpKind.UnaryLogicalNot:
+                    if (depth < 1) { RollBack(); reason = "Unary underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryLogicalNot));
+                    break;
+
+                case ExpressionOpKind.UnaryBitwiseNot:
+                    if (depth < 1) { RollBack(); reason = "Unary underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryBitwiseNot));
+                    break;
+
+                case ExpressionOpKind.UnaryVoid:
+                    if (depth < 1) { RollBack(); reason = "Unary underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.UnaryVoid));
+                    break;
+
+                case ExpressionOpKind.TypeOf:
+                    if (depth < 1) { RollBack(); reason = "TypeOf underflow in complex call argument."; return false; }
+                    unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.TypeOf));
+                    break;
+
+                case ExpressionOpKind.LoadIdentifierCallTarget:
+                {
+                    if (op.IsArguments)
+                    {
+                        { RollBack(); reason = "arguments call targets are not supported in complex call arguments."; return false; }
+                    }
+
+                    var callTargetIdentifier = op.GetIdentifier(expressionProgram.IdentifierConstants.AsSpan());
+                    if (string.Equals(callTargetIdentifier.Name.Name, "eval", StringComparison.Ordinal))
+                    {
+                        { RollBack(); reason = "eval call targets are not supported in complex call arguments."; return false; }
+                    }
+
+                    if (!TryResolveActivationCallTargetSlot(callTargetIdentifier, slotLayout, out var resolvedSlot))
+                    {
+                        if (!allowsDynamicIdentifiers &&
+                            !CanUseMaterializedActivationDynamicLookup(callTargetIdentifier, activationSlots))
+                        {
+                            RollBack();
+                            reason =
+                                $"Identifier call target '{callTargetIdentifier.Name.Name}' requires dynamic lookup and is not eligible.";
+                            return false;
+                        }
+
+                        var dynamicNameIdx = stringConstants.Count;
+                        stringConstants.Add(callTargetIdentifier.Name.Name ?? string.Empty);
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget,
+                            dynamicNameIdx));
+                        depth += 2;
+                        break;
+                    }
+
+                    var nameIdx = stringConstants.Count;
+                    stringConstants.Add(callTargetIdentifier.Name.Name ?? string.Empty);
+                    var ctIdx = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.Identifier,
+                        resolvedSlot,
+                        nameIdx));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareIdentifierCallTarget,
+                        ctIdx));
+                    depth += 2;
+                    break;
+                }
+
+                case ExpressionOpKind.LoadNamedCallTarget:
+                {
+                    if (depth < 1 ||
+                        op.IsOptional ||
+                        op.ShortCircuitOnNullishTarget ||
+                        op.GetString(expressionStringConstants).IsPrivateName())
+                    {
+                        RollBack();
+                        reason = "Unsupported named call target in complex call argument.";
+                        return false;
+                    }
+
+                    var namedCtName = op.GetString(expressionStringConstants);
+                    var namedCtNameIdx = stringConstants.Count;
+                    stringConstants.Add(namedCtName);
+                    var namedCtIdx = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(
+                        UnifiedBytecodeCallTargetKind.NamedMember,
+                        NameConstantIndex: namedCtNameIdx));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareNamedCallTarget,
+                        namedCtIdx));
+                    depth++;
+                    break;
+                }
+
+                case ExpressionOpKind.LoadComputedCallTarget:
+                {
+                    if (depth < 2 || op.IsOptional || op.ShortCircuitOnNullishTarget)
+                    {
+                        { RollBack(); reason = "Unsupported computed call target in complex call argument."; return false; }
+                    }
+
+                    var computedCtIdx = callTargetConstants.Count;
+                    callTargetConstants.Add(new UnifiedBytecodeCallTarget(UnifiedBytecodeCallTargetKind.ComputedMember));
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.PrepareComputedCallTarget,
+                        computedCtIdx));
+                    break;
+                }
+
+                case ExpressionOpKind.Call:
+                    if (!op.HasExplicitThis ||
+                        op.IsDirectEval ||
+                        op.SpreadMaskConstantIndex >= 0 ||
+                        depth < op.ArgumentCount + 2)
+                    {
+                        { RollBack(); reason = "Unsupported nested call in complex call argument."; return false; }
+                    }
+
+                    unified.Add(new UnifiedBytecodeInstruction(
+                        UnifiedBytecodeOpCode.CallInvocationBoundary,
+                        EncodeCallBoundaryOperand(op.ArgumentCount, -1, isDirectEval: false)));
+                    depth -= op.ArgumentCount + 1;
+                    break;
+
+                default:
+                    { RollBack(); reason = $"Unsupported op '{op.Kind}' in complex call argument."; return false; }
+            }
+
+            index++;
+        }
+
+        if (depth != expectedArgumentCount)
+        {
+            { RollBack(); reason = "Complex call argument region did not produce the expected operand count."; return false; }
+        }
+
         reason = string.Empty;
         return true;
     }

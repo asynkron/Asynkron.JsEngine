@@ -389,8 +389,10 @@ above in the same slice.
 
 - `Activation slot metadata is required.`
 - `Array literal RHS span does not match expected boundary.`
+- `Binary underflow in complex call argument.`
 - `Binding-target expressions are not available in this unified bytecode compilation context.`
 - `Call target preparation is only supported for activation-resolved identifier and direct member calls.`
+- `Complex call argument region did not produce the expected operand count.`
 - `Complex computed keys and name-inferred computed properties are not admitted in simple object literals.`
 - `Complex value expressions are not admitted in simple computed object properties.`
 - `Computed compound property writes with name inference are not supported.`
@@ -426,6 +428,7 @@ above in the same slice.
 - `Identifier assignment reference '{referenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
 - `Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier assignment reference '{storeReferenceIdentifier.Name.Name}' resolves to an activation slot and is not eligible for dynamic unified bytecode assignment references.`
+- `Identifier call target '{callTargetIdentifier.Name.Name}' requires dynamic lookup and is not eligible.`
 - `Identifier call target '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Identifier call target '{identifierCallTarget.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `Instruction flow reached an invalid target index.`
@@ -477,12 +480,15 @@ above in the same slice.
 - `Private nested named property writes are not supported.`
 - `Property writes with name inference are not supported in the general expression loop.`
 - `Property writes with name inference are not supported.`
+- `ResolvePropertyKey underflow in complex call argument.`
 - `Resume target '{resumeSymbol.Name}' is not in the activation slot layout.`
 - `Simple binary spans require simple activation-resolved or admitted dynamic operands.`
 - `Simple unary spans require a simple activation-resolved or admitted dynamic operand.`
 - `Spread sources only admit direct named member calls with simple arguments.`
 - `Template literal RHS span does not match expected boundary.`
 - `Template literal RHS span does not match expected nested property-write boundary.`
+- `TypeOf underflow in complex call argument.`
+- `Unary underflow in complex call argument.`
 - `Unsupported array destructuring state slot '{arrayDestructuringClose.IteratorSlot.Name}'.`
 - `Unsupported array destructuring state slot '{arrayDestructuringElement.IteratorSlot.Name}'.`
 - `Unsupported array destructuring state slot '{arrayDestructuringInit.IteratorSlot.Name}'.`
@@ -493,8 +499,10 @@ above in the same slice.
 - `Unsupported compound assignment target '{compoundTargetSymbol.Name}'.`
 - `Unsupported compound computed property binary operator '{binary.Operator}'.`
 - `Unsupported compound property binary operator '{binary.Operator}'.`
+- `Unsupported computed call target in complex call argument.`
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
+- `Unsupported computed property read in complex call argument.`
 - `Unsupported conditional alternate in simple literal span.`
 - `Unsupported conditional consequent in simple literal span.`
 - `Unsupported declaration target '{declaration.TargetSymbol?.Name}'.`
@@ -518,18 +526,24 @@ above in the same slice.
 - `Unsupported loop control flow at instruction {instructionIndex}.`
 - `Unsupported loop control flow at instruction {sourceInstructionIndex}.`
 - `Unsupported member call receiver op '{propertyRead.Kind}'.`
+- `Unsupported named call target in complex call argument.`
+- `Unsupported named property read in complex call argument.`
+- `Unsupported nested call in complex call argument.`
 - `Unsupported object destructuring state slot '{objectDestructuringClose.SourceSlot.Name}'.`
 - `Unsupported object destructuring state slot '{objectDestructuringInit.SourceSlot.Name}'.`
 - `Unsupported object destructuring state slot '{objectDestructuringProperty.SourceSlot.Name}'.`
 - `Unsupported object destructuring state slot '{objectDestructuringRest.SourceSlot.Name}'.`
+- `Unsupported op '{op.Kind}' in complex call argument.`
 - `Unsupported property-read base op '{operation.Kind}'.`
 - `Unsupported simple operand op '{operation.Kind}'.`
 - `Unsupported typeof identifier '{identifier.Name.Name}'.`
 - `Update target '{updateIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `arguments assignment references are not supported.`
+- `arguments call targets are not supported in complex call arguments.`
 - `arguments call targets are outside the optional identifier call-target preparation boundary.`
 - `arguments typeof is not supported.`
 - `delete identifier '{deleteIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
+- `eval call targets are not supported in complex call arguments.`
 - `typeof identifier '{identifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `typeof identifier '{typeOfIdentifier.Name.Name}' requires dynamic lookup and is not eligible outside an active with environment.`
 - `yield* requires a state slot for resumable unified bytecode routing.`

@@ -4023,6 +4023,182 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_ShortCircuitsAtEveryHop()
+    {
+        // A29: a?.[k]?.[j] — a multi-hop optional COMPUTED read must chain one
+        // JumpIfNullishReplaceUndefined boundary per `?.[ ]` hop, each targeting the chain end.
+        // A nullish value introduced at ANY hop short-circuits the whole remaining chain to
+        // undefined; the read only succeeds when every hop is present. Routing through the
+        // production fast path is asserted via the func= log (interpreter fallback fails this).
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a, k, j) {
+                return a?.[k]?.[j];
+            }
+
+            var whenBaseNull = readChain(null, "b", "c");
+            var whenFirstNull = readChain({ b: null }, "b", "c");
+            var whenPresent = readChain({ b: { c: 9 } }, "b", "c");
+            "" + whenBaseNull + ":" + whenFirstNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:9", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_ThreeHops_ShortCircuitsAtEveryHop()
+    {
+        // A29: a?.[k]?.[j]?.[m] — three optional computed hops. Each hop emits its own
+        // boundary jump to the same chain end, so a nullish at any hop yields undefined.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a, k, j, m) {
+                return a?.[k]?.[j]?.[m];
+            }
+
+            var whenBaseNull = readChain(null, "b", "c", "d");
+            var whenFirstNull = readChain({ b: null }, "b", "c", "d");
+            var whenSecondNull = readChain({ b: { c: null } }, "b", "c", "d");
+            var whenPresent = readChain({ b: { c: { d: 11 } } }, "b", "c", "d");
+            "" + whenBaseNull + ":" + whenFirstNull + ":" + whenSecondNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:11", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_AfterNamedPrefix_ShortCircuitsAtEveryHop()
+    {
+        // A29: a.x?.[k]?.[j] — a non-optional named receiver prefix followed by multiple optional
+        // computed hops. The prefix read (a.x) is a plain GetNamedProperty; each subsequent
+        // `?.[ ]` hop emits its own boundary jump to the chain end.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a, k, j) {
+                return a.x?.[k]?.[j];
+            }
+
+            var whenPrefixNull = readChain({ x: null }, "b", "c");
+            var whenMiddleNull = readChain({ x: { b: null } }, "b", "c");
+            var whenPresent = readChain({ x: { b: { c: 7 } } }, "b", "c");
+            "" + whenPrefixNull + ":" + whenMiddleNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_TrailingNamedRead_ShortCircuitsBeforeKey()
+    {
+        // A29: a?.[k]?.[j].c — the trailing `.c` is a NON-optional named hop after the multi-hop
+        // optional computed prefix. When `a?.[k]?.[j]` short-circuits to undefined (nullish at a
+        // hop), the trailing named read is also skipped (chain short-circuit). When the prefix
+        // reads a present value, `.c` throws if that value is nullish — proving the boundary jumps
+        // guard only their own optional hops and a per-hop key is not evaluated after short-circuit.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var keyHits = 0;
+            var jKey = {
+                toString() {
+                    keyHits++;
+                    return "c";
+                }
+            };
+
+            function readChain(a, k, j) {
+                return a?.[k]?.[j].c;
+            }
+
+            var whenFirstNull = readChain({ b: null }, "b", jKey);
+            var nullHits = keyHits;
+            var whenPresent = readChain({ b: { c: { c: 42 } } }, "b", jKey);
+            "" + whenFirstNull + ":" + nullHits + ":" + whenPresent + ":" + keyHits;
+            """);
+
+        Assert.Equal("undefined:0:42:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_RealUndefinedIntermediateBeforeNonOptionalThrows()
+    {
+        // A29 adversarial: a?.[k]?.[j].c — when `a?.[k]?.[j]` reads a real-undefined VALUE (not a
+        // nullish base), the `?.` short-circuit must NOT fire for the following plain `.c` read, so
+        // it throws a TypeError. This proves each boundary jump guards only its own optional hop and
+        // does not swallow a downstream non-optional read of a genuinely-undefined value.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function readChain(a, k, j) {
+                return a?.[k]?.[j].c;
+            }
+
+            var threw = false;
+            try {
+                readChain({ b: { c: undefined } }, "b", "c");
+            } catch (error) {
+                threw = error instanceof TypeError;
+            }
+
+            var whenShortCircuited = readChain({ b: null }, "b", "c");
+            "" + threw + ":" + whenShortCircuited;
+            """);
+
+        Assert.Equal("true:undefined", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DeepChainedOptionalComputedChain_DoesNotEvaluateLaterKeysAfterShortCircuit()
+    {
+        // A29: a?.[k]?.[j] — when the first hop short-circuits (nullish), the SECOND hop's key (j)
+        // must NOT be evaluated. The boundary jump skips straight to the chain end, past every
+        // later key span. A side-effecting key object proves the later key is never coerced.
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var jHits = 0;
+            var jKey = {
+                toString() {
+                    jHits++;
+                    return "c";
+                }
+            };
+
+            function readChain(a, k, j) {
+                return a?.[k]?.[j];
+            }
+
+            var whenFirstNull = readChain({ b: null }, "b", jKey);
+            var afterShortCircuit = jHits;
+            var whenPresent = readChain({ b: { c: 5 } }, "b", jKey);
+            "" + whenFirstNull + ":" + afterShortCircuit + ":" + whenPresent + ":" + jHits;
+            """);
+
+        Assert.Equal("undefined:0:5:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=readChain",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task OptionalNamedThenComputedAfterNamedPrefix_SkipsKeyOnNullish()
     {
         await using var engine = CreateEngine();

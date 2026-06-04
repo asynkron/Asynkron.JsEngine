@@ -759,7 +759,26 @@ the final post-compile production subset check before VM entry.
   a following NON-optional hop (`a?.b?.c.d`) still throws `TypeError`. This
   multi-hop admission is for standalone whole-program reads; as a call-argument
   span a second optional hop still declines with `OptionalChainDependency` (see
-  the call-argument narrative below). Nested named receiver
+  the call-argument narrative below). A29: the COMPUTED analog of the A28 chain —
+  a standalone whole-program optional COMPUTED read may carry MULTIPLE optional
+  computed hops (`a?.[k]?.[j]`, deeper `a?.[k]?.[j]?.[m]`, named-prefixed
+  `a.x?.[k]?.[j]`, and a trailing short-circuiting named tail `a?.[k]?.[j].c`).
+  `TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate` validates the
+  whole program (activation-resolved base, an optional run of plain named prefix
+  reads, then one-or-more optional computed hops, each
+  `JumpIfNullish(ReplaceWithUndefined:true)` + key-span +
+  `GetComputedProperty` — the first hop's read is the chain's first boundary with
+  `!ShortCircuitOnNullishTarget` and every subsequent hop's read short-circuits;
+  the next `GetComputedProperty` delimits each hop's key span and each source
+  boundary jump targets the op right after its own `GetComputedProperty`).
+  `TryAppendFirstBoundaryOptionalComputedPropertyReadChain` emits ONE
+  `JumpIfNullishReplaceUndefined` per hop, every jump backpatched to the same
+  chain end, so a nullish value at ANY hop short-circuits the remaining chain to
+  `undefined` WITHOUT evaluating later hops' keys, while a real-undefined
+  intermediate read by a following NON-optional hop (`a?.[k]?.[j].c`) still throws
+  `TypeError`. The short-circuiting-`GetComputedProperty` eligibility case calls
+  the same candidate; the admitted opcodes already have sync VM handlers and the
+  resumable allowlist (`TryFindUnsupportedResumableOpcode`) is untouched. Nested named receiver
   chains ending in a simple
   computed delete (`delete box.child[key]`, `delete box.child[left + right]`)
   are admitted by `TryIsFirstBoundaryComputedPropertyDeleteCandidate`. A25/A26

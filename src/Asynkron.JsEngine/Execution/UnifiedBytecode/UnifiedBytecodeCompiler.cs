@@ -13216,10 +13216,13 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        var computedSuffixStart = expressionProgram.OperationCount;
-        while (computedSuffixStart > jumpIndex + 2)
+        // A29: peel any trailing short-circuiting NAMED reads (`a?.[k].c`,
+        // `a?.[k]?.[j].c`). The remaining span [jumpIndex, chainEnd) is exactly the
+        // one-or-more optional computed hops.
+        var chainEnd = expressionProgram.OperationCount;
+        while (chainEnd > jumpIndex + 2)
         {
-            var suffixOp = expressionProgram.GetOperation(computedSuffixStart - 1);
+            var suffixOp = expressionProgram.GetOperation(chainEnd - 1);
             if (suffixOp.Kind != ExpressionOpKind.GetNamedProperty ||
                 suffixOp.IsOptional ||
                 !suffixOp.ShortCircuitOnNullishTarget)
@@ -13233,32 +13236,66 @@ internal static class UnifiedBytecodeCompiler
                 return false;
             }
 
-            computedSuffixStart--;
+            chainEnd--;
         }
 
-        var computedIndex = computedSuffixStart - 1;
-        if (computedIndex <= jumpIndex + 1 ||
-            jumpOp.Target != computedIndex + 1)
+        // Pre-pass: validate each optional computed hop and record its
+        // GetComputedProperty index. Each hop is
+        // [JumpIfNullish(ReplaceWithUndefined:true), key-span..., GetComputedProperty].
+        // The first hop's read is the chain's first boundary (!ShortCircuitOnNullishTarget);
+        // subsequent hops short-circuit on a nullish receiver.
+        var hopComputedIndices = new List<int>();
+        var walkIndex = jumpIndex;
+        while (walkIndex < chainEnd)
+        {
+            var hopJump = expressionProgram.GetOperation(walkIndex);
+            var keyStart = walkIndex + 1;
+            var hopComputedIndex = keyStart;
+            while (hopComputedIndex < chainEnd &&
+                   expressionProgram.GetOperation(hopComputedIndex).Kind != ExpressionOpKind.GetComputedProperty)
+            {
+                hopComputedIndex++;
+            }
+
+            // Each hop's lowered boundary jump targets the operation immediately after its
+            // OWN GetComputedProperty; short-circuit cascades hop-to-hop. The emitted unified
+            // boundary jumps are later all backpatched to the single chain end.
+            if (hopJump.Kind != ExpressionOpKind.JumpIfNullish ||
+                !hopJump.ReplaceWithUndefined ||
+                hopComputedIndex >= chainEnd ||
+                hopComputedIndex <= keyStart ||
+                hopJump.Target != hopComputedIndex + 1)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            var hopComputedOp = expressionProgram.GetOperation(hopComputedIndex);
+            var expectedShortCircuit = hopComputedIndices.Count > 0;
+            if (hopComputedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+                hopComputedOp.ShortCircuitOnNullishTarget != expectedShortCircuit)
+            {
+                reason = string.Empty;
+                return false;
+            }
+
+            if (!IsSupportedComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    startInclusive: keyStart,
+                    endExclusive: hopComputedIndex))
+            {
+                reason = "Unsupported computed property key span.";
+                return false;
+            }
+
+            hopComputedIndices.Add(hopComputedIndex);
+            walkIndex = hopComputedIndex + 1;
+        }
+
+        if (hopComputedIndices.Count == 0 || walkIndex != chainEnd)
         {
             reason = string.Empty;
-            return false;
-        }
-
-        var computedOp = expressionProgram.GetOperation(computedIndex);
-        if (computedOp.Kind != ExpressionOpKind.GetComputedProperty ||
-            computedOp.ShortCircuitOnNullishTarget)
-        {
-            reason = string.Empty;
-            return false;
-        }
-
-        if (!IsSupportedComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                startInclusive: jumpIndex + 1,
-                endExclusive: computedIndex))
-        {
-            reason = "Unsupported computed property key span.";
             return false;
         }
 
@@ -13290,27 +13327,37 @@ internal static class UnifiedBytecodeCompiler
             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, prefixNameIndex));
         }
 
-        var unifiedJumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
-
-        if (!TryAppendComputedPropertyKeySpan(
-                expressionProgram,
-                activationSlots,
-                unified,
-                literalConstants,
-                stringConstants,
-                startInclusive: jumpIndex + 1,
-                endExclusive: computedIndex,
-                out reason))
+        // Emit each optional computed hop, recording its boundary-jump slot so every
+        // jump can be backpatched to the same chain end (the post-tail instruction count).
+        var unifiedJumpIndices = new List<int>(hopComputedIndices.Count);
+        var hopKeyStart = jumpIndex + 1;
+        foreach (var hopComputedIndex in hopComputedIndices)
         {
-            RollBackUnifiedBuilder(unified, unifiedCount);
-            RollBackUnifiedBuilder(literalConstants, literalCount);
-            RollBackUnifiedBuilder(stringConstants, stringCount);
-            return false;
+            var unifiedJumpIndex = unified.Count;
+            unifiedJumpIndices.Add(unifiedJumpIndex);
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+
+            if (!TryAppendComputedPropertyKeySpan(
+                    expressionProgram,
+                    activationSlots,
+                    unified,
+                    literalConstants,
+                    stringConstants,
+                    startInclusive: hopKeyStart,
+                    endExclusive: hopComputedIndex,
+                    out reason))
+            {
+                RollBackUnifiedBuilder(unified, unifiedCount);
+                RollBackUnifiedBuilder(literalConstants, literalCount);
+                RollBackUnifiedBuilder(stringConstants, stringCount);
+                return false;
+            }
+
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
+            hopKeyStart = hopComputedIndex + 2;
         }
 
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetComputedProperty));
-        for (var operationIndex = computedIndex + 1; operationIndex < expressionProgram.OperationCount; operationIndex++)
+        for (var operationIndex = chainEnd; operationIndex < expressionProgram.OperationCount; operationIndex++)
         {
             var suffixOp = expressionProgram.GetOperation(operationIndex);
             var suffixNameIndex = stringConstants.Count;
@@ -13318,9 +13365,13 @@ internal static class UnifiedBytecodeCompiler
             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.GetNamedProperty, suffixNameIndex));
         }
 
-        unified[unifiedJumpIndex] = new UnifiedBytecodeInstruction(
-            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
-            unified.Count);
+        foreach (var unifiedJumpIndex in unifiedJumpIndices)
+        {
+            unified[unifiedJumpIndex] = new UnifiedBytecodeInstruction(
+                UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+                unified.Count);
+        }
+
         reason = string.Empty;
         return true;
     }

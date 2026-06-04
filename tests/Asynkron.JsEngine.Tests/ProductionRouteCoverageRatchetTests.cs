@@ -81,6 +81,11 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("const f = (a,b) => { const s = a+b; return s*2; }; f(3,4);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("function mk(base){ return (k) => { var t = base*2; return t+k; }; } mk(100)(1);", "unified-bytecode-production-fast-path func=<anonymous>")]
     [InlineData("var o={ x:10, m:function(){ var f=()=>{ var b=5; return this.x+b; }; return f(); } }; o.m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    // A52: `debugger;` lowers to an EmptyStatement no-op, so functions/scripts containing it keep
+    // routing through the production VM (in the body, after a side effect, and inside a loop body).
+    [InlineData("function f(){ debugger; return 1; } f();", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o){ o.a=1; debugger; return o.a; } f({});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(){ var s=0; for(var i=0;i<2;i++){ debugger; s+=i; } return s; } f();", "unified-bytecode-production-fast-path func=f")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]
@@ -101,6 +106,15 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     {
         await using var engine = CreateEngine();
         await engine.Evaluate("var s=0; for (var i=0;i<3;i++){ s+=i; } s;");
+        AssertRouted("unified-bytecode-production-fast-path script");
+    }
+
+    // A52: a top-level `debugger;` no-op must keep the script on the production script route.
+    [Fact]
+    public async Task ScriptWithDebuggerStatement_StillRoutesThroughProductionScriptRoute()
+    {
+        await using var engine = CreateEngine();
+        await engine.Evaluate("debugger; var x = 5; x;");
         AssertRouted("unified-bytecode-production-fast-path script");
     }
 

@@ -159,6 +159,11 @@ public sealed class JsAstParser(
                 return ParseThrowStatement();
             }
 
+            if (Match(TokenType.Debugger))
+            {
+                return ParseDebuggerStatement();
+            }
+
             if (Match(TokenType.Switch))
             {
                 return ParseSwitchStatement();
@@ -351,6 +356,17 @@ public sealed class JsAstParser(
             var expression = ParseExpression();
             Consume(TokenType.Semicolon, "Expected ';' after throw.");
             return new ThrowStatement(CreateSourceReference(keyword), expression);
+        }
+
+        private StatementNode ParseDebuggerStatement()
+        {
+            // ECMAScript: a `debugger;` statement evaluates to a no-op when no debugger is
+            // attached (DebuggerStatement : Empty). We lower it to an EmptyStatement, which is a
+            // fully-owned no-op on every execution path (interpreter, IR, and the production VM),
+            // so functions/scripts containing `debugger;` keep routing through the production VM.
+            var keyword = Previous();
+            Consume(TokenType.Semicolon, "Expected ';' after debugger statement.");
+            return new EmptyStatement(CreateSourceReference(keyword));
         }
 
         private ExpressionStatement ParseExpressionStatement()
@@ -4495,7 +4511,7 @@ public sealed class JsAstParser(
                     TokenType.Get or TokenType.Set or TokenType.Yield or TokenType.Async or
                     TokenType.Await or TokenType.Static or TokenType.Import or TokenType.Export
                     or TokenType.Using
-                    or TokenType.With => true,
+                    or TokenType.With or TokenType.Debugger => true,
                 _ => false
             };
         }

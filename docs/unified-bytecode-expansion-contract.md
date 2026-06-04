@@ -564,15 +564,18 @@ predicates and proof tests.
   no dedicated `Prepare*ConstructTarget` opcode exists, so the constructor and its
   arguments are pushed by ordinary value-loading ops and survive suspension on the
   operand stack like the call boundary, B11), optional
-  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `f?.()`), free/dynamic
+  chains/optional calls (`o?.a`, `o?.[k]`, `o?.m()`, `o.m?.()`, `f?.()`,
+  `o[k]?.()`, `freeFn?.()` — B15), free/dynamic
   identifier reads and calls, PROPERTY WRITES (`o.x = v`, `o[k] = v`,
   `this.x = v` via `SetNamedProperty`/`SetComputedProperty`), SLOT UPDATES
   (`x++`/`x--`/`++x`/`--x` via `UpdateSlot`, restricted to parameter and `var`
   targets by the `IsLexicalSlotUpdateTarget` const-safety guard), and PROPERTY
   UPDATES/DELETES (`o.x++`, `o[k]--`, `delete o.x`, `delete o[k]` via
   `UpdateNamedProperty`/`UpdateComputedProperty`/`DeleteNamedProperty`/
-  `DeleteComputedProperty`) between suspension points; computed optional calls
-  (`o?.[k]()`), lexical-slot updates (`let i; i++`, where the resume state has no
+  `DeleteComputedProperty`) between suspension points; the OPTIONAL-COMPUTED call
+  `o?.[k]()` (a leading optional hop, declined at the shared plan walk as
+  `OptionalChainDependency` — distinct from the now-admitted computed-member
+  optional call `o[k]?.()`, B15), lexical-slot updates (`let i; i++`, where the resume state has no
   const-slot metadata to enforce a `const` reassignment `TypeError`),
   dynamic-identifier `typeof`/`delete`, free dynamic writes/updates/deletes
   (`freeGlobal++`, `delete freeGlobal`), super-property updates/deletes, and
@@ -1160,11 +1163,36 @@ the final post-compile production subset check before VM entry.
   shape. Proofs (`UnifiedBytecodeResumableOptionalChainTests`) cover the
   adversarial cases the contract demands: a nullish head whose short-circuit
   STRADDLES a `yield`/`await`, and a non-nullish optional read after a resume
-  that must NOT inherit a prior chain's short-circuit. Computed optional calls
-  (`o?.[k]()`, lowered with `PrepareComputedOptionalCallTarget`) remain declined
-  because the resumable compiler declines that shape at compile time, so the
-  opcode never reaches the resumable path; `super`/construct optional boundaries
-  remain declined as before.
+  that must NOT inherit a prior chain's short-circuit. `super`/construct optional
+  boundaries remain declined as before.
+- Accepted resumable bodies may now dispatch the two remaining OPTIONAL CALL
+  shapes that REACH the opcode path (B15): the computed-member optional call
+  `o[k]?.()` (`PrepareComputedOptionalCallTarget`) and the free/dynamic-identifier
+  optional call `freeFn?.()` (`PrepareDynamicIdentifierOptionalCallTarget`). Both
+  opcodes are removed from `TryFindUnsupportedResumableOpcode` and given
+  `ExecuteResumable` handlers that are literal twins of the sync VM's:
+  `o[k]?.()` pops the key, loads the method via `GetComputedCallTargetValue`, and
+  short-circuits to `undefined` via the chain-end jump if the method is nullish;
+  `freeFn?.()` resolves the callee by name via `PrepareDynamicIdentifierCallTarget`
+  against the live `UnifiedBytecodeResumeState.CallingEnvironment` (#3108, stable
+  across suspension), pushes the `<thisValue, callee>` pair, and short-circuits the
+  whole call to `undefined` via the chain-end jump when the resolved callee is
+  nullish. The short-circuit is jump-owned (the replaced `undefined` is the final
+  call result), so it survives `yield`/`await` because the program counter and the
+  operand stack restore from the resume state; dynamic resolution is live, so a
+  resumed step observes any reassignment of the free binding made by outer code
+  between suspensions. The OPTIONAL-COMPUTED call `o?.[k]()` (a LEADING optional
+  hop on the receiver, lowered with a `JumpIfNullish`) is a DIFFERENT shape: the
+  shared production-plan walk (`TryFindResumablePlanDecline`) declines it as
+  `OptionalChainDependency` ("short-circuiting outside the first production
+  property-read boundary") BEFORE the opcode allowlist, so it never reaches the
+  resumable path — admitting `PrepareComputedOptionalCallTarget` here does not
+  change that. Proofs (`UnifiedBytecodeResumableOptionalCallTests`) cover the gate
+  (admits both newly admitted opcodes), end-to-end generator + async fast-path
+  routing, a nullish short-circuit that STRADDLES a `yield`, a free-binding
+  reassignment observed across a `yield`, a throwing callee surfacing on the
+  resumed step (only a NULLISH callee short-circuits), and a pinned `o?.[k]()`
+  plan-walk decline.
 - Accepted resumable bodies may now resolve FREE/DYNAMIC IDENTIFIERS between
   suspension points: a free variable READ (`yield outerVar`, lowered to
   `LoadDynamicIdentifier`) and a free function CALL target (`yield helper(x)`
@@ -1467,9 +1495,11 @@ support today.
    dispatch and now OPTIONAL CHAINS / OPTIONAL CALLS (`o?.a`, `o?.[k]`, `o?.m()`,
    `f?.()`) between suspension points, backed by an
    `OperandStackShortCircuitFlags` column on `UnifiedBytecodeResumeState` that
-   persists short-circuit state across suspension. Dynamic-identifier
-   `typeof`/`delete`, property writes/updates, computed optional calls
-   (`o?.[k]()`), and `super`/construct boundaries inside resumable bodies remain
+   persists short-circuit state across suspension. The computed-member optional
+   call `o[k]?.()` and the free/dynamic-identifier optional call `freeFn?.()` are
+   now admitted too (B15). Dynamic-identifier `typeof`/`delete`, property
+   writes/updates, the OPTIONAL-COMPUTED call `o?.[k]()` (leading hop, declined at
+   the plan walk), and `super`/construct boundaries inside resumable bodies remain
    unsupported follow-ups.
 2. Wider call invocation remains a high-impact unsupported bucket. Synchronous
    spread calls are now admitted (gh2676). Optional calls are now admitted

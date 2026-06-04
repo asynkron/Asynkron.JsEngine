@@ -1192,14 +1192,27 @@ internal static class UnifiedBytecodeProductionEligibility
                 // (JumpIfNullishReplaceUndefined) or the short-circuit-flag column persisted on the
                 // resume state (GetNamedPropertyOptional / JumpIfShortCircuited); both survive
                 // yield/await suspension because the flag column is stored on UnifiedBytecodeResumeState
-                // in lockstep with the operand stack. PrepareComputedOptionalCallTarget is intentionally
-                // omitted: the resumable compiler declines computed optional calls (`o?.[k]()`), so the
-                // opcode never reaches this path and admitting it would route a shape we cannot execute.
+                // in lockstep with the operand stack. PrepareComputedOptionalCallTarget admits the
+                // computed-member optional CALL (`o[k]?.()`): pop the key, load the method off the receiver,
+                // short-circuit to undefined via the chain-end jump if the method is nullish — the literal
+                // twin of the sync VM handler, reusing GetComputedCallTargetValue. The OPTIONAL-COMPUTED call
+                // `o?.[k]()` is a DIFFERENT shape: its leading optional hop lowers to a JumpIfNullish that the
+                // shared production-plan walk (TryFindResumablePlanDecline) declines as OptionalChainDependency
+                // ("short-circuiting outside the first production property-read boundary"), so that program
+                // never reaches this allowlist — admitting the opcode here does not change that.
                 UnifiedBytecodeOpCode.GetNamedPropertyOptional or
                 UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined or
                 UnifiedBytecodeOpCode.JumpIfShortCircuited or
                 UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget or
                 UnifiedBytecodeOpCode.PrepareNamedOptionalCallTarget or
+                UnifiedBytecodeOpCode.PrepareComputedOptionalCallTarget or
+                // Free/dynamic identifier OPTIONAL call target (`freeFn?.()` where `freeFn` is module/script-
+                // level or a captured outer binding). Resolves the callee by name against the live closure
+                // environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108, stable across
+                // suspension), pushing the <thisValue, callee> pair; a nullish callee short-circuits the whole
+                // call to undefined via the chain-end jump. Literal twin of the sync VM handler / the admitted
+                // non-optional PrepareDynamicIdentifierCallTarget, plus the optional nullish-callee jump.
+                UnifiedBytecodeOpCode.PrepareDynamicIdentifierOptionalCallTarget or
                 UnifiedBytecodeOpCode.TypeOf or
                 UnifiedBytecodeOpCode.TypeOfIdentifier or
                 UnifiedBytecodeOpCode.UnaryPlus or

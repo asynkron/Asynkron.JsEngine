@@ -77,6 +77,59 @@ public sealed class AlreadyRoutingShapePinTests(ITestOutputHelper output) : Inte
         AssertRouted("unified-bytecode-production-fast-path func=f");
     }
 
+    // A46 — the FULL pure-BigInt binary operator surface routes through the sync production VM.
+    // Probe finding (sync-cluster burn-down): every pure-BigInt arithmetic/bitwise/shift op routes;
+    // the earlier "BigInt declines" reading was an artifact of wrapping the result in a `.toString()`
+    // method call (the method call itself declines, not the BigInt op). Each body is kept pure-BigInt
+    // (`(expr) === <bigint literal>`) so no method call masks the routing signal.
+    [Theory]
+    [InlineData("2n+3n", "5n")]
+    [InlineData("7n-2n", "5n")]
+    [InlineData("5n*4n", "20n")]
+    [InlineData("8n/2n", "4n")]
+    [InlineData("10n%3n", "1n")]
+    [InlineData("2n**10n", "1024n")]
+    [InlineData("2n<<3n", "16n")]
+    [InlineData("16n>>2n", "4n")]
+    [InlineData("6n&3n", "2n")]
+    [InlineData("6n|1n", "7n")]
+    [InlineData("6n^3n", "5n")]
+    public async Task A46_PureBigIntBinaryOperators_Route(string expr, string expectedEq)
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate($"function f(){{ return ({expr}) === {expectedEq}; }} f();");
+        Assert.Equal(true, r);
+        AssertRouted("unified-bytecode-production-fast-path func=f");
+    }
+
+    // A46 — pure-BigInt relational and equality comparisons route and compute correctly.
+    [Theory]
+    [InlineData("2n<3n", true)]
+    [InlineData("3n>2n", true)]
+    [InlineData("2n<=2n", true)]
+    [InlineData("2n>=3n", false)]
+    [InlineData("2n===2n", true)]
+    [InlineData("2n!==3n", true)]
+    public async Task A46_PureBigIntComparisons_Route(string expr, bool expected)
+    {
+        await using var engine = CreateEngine();
+        var r = await engine.Evaluate($"function f(){{ return {expr}; }} f();");
+        Assert.Equal(expected, r);
+        AssertRouted("unified-bytecode-production-fast-path func=f");
+    }
+
+    // A46 — BigInt-MIXED arithmetic (`1n + 1`) is admitted to route but the VM throws the correct
+    // TypeError at runtime (mixing BigInt with a Number is a spec error), matching the interpreter.
+    [Fact]
+    public async Task A46_MixedBigIntNumber_RoutesAndThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var ex = await Assert.ThrowsAnyAsync<Exception>(
+            async () => await engine.Evaluate("function f(){ return 1n + 1; } f();"));
+        Assert.Contains("Cannot mix BigInt", ex.Message, StringComparison.Ordinal);
+        AssertRouted("unified-bytecode-production-fast-path func=f");
+    }
+
     // A49 — trivial plans (top-level script expression, empty function body) route.
     [Fact]
     public async Task A49_TopLevelScriptExpression_RoutesScript()
@@ -92,6 +145,24 @@ public sealed class AlreadyRoutingShapePinTests(ITestOutputHelper output) : Inte
     {
         await using var engine = CreateEngine();
         await engine.Evaluate("function f(){} f();");
+        AssertRouted("unified-bytecode-production-fast-path func=f");
+    }
+
+    // A49 — the "Activation slot metadata is required." decline arm is an unreachable defensive
+    // backstop: ExecutionPlanBuilder ALWAYS populates a non-null ActivationSlotShape for every valid
+    // compiled function/script plan (BuildActivationSlotShape is unconditional; the nested-function
+    // restamp carries it forward). These minimal-but-valid shapes all route, standing proof that the
+    // arm fires only for a genuinely-degenerate (never-produced) plan, not for any real input.
+    [Theory]
+    [InlineData("function f(){ return 1; } f();")]
+    [InlineData("function f(a,b){ return a+b; } f(1,2);")]
+    [InlineData("function f(){ var x=1; return x; } f();")]
+    [InlineData("function f(){ for(;;){ break; } return 0; } f();")]
+    [InlineData("function f(){ try { return 1; } finally {} } f();")]
+    public async Task A49_MinimalValidShapes_HaveActivationSlotsAndRoute(string source)
+    {
+        await using var engine = CreateEngine();
+        await engine.Evaluate(source);
         AssertRouted("unified-bytecode-production-fast-path func=f");
     }
 }

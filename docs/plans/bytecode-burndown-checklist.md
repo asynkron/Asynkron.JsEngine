@@ -99,7 +99,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A43** Descriptor-backed block-scoped function declaration (Annex B) — *UnsupportedPlanShape* — ☐/☐ — `:581`
 - [ ] **A44** PushEnvironment for iterating / non-flat-slot lexical block (per-iter `let`) — *UnsupportedPlanShape* — ◐/☐ — `:599`
 - [ ] **A45** with-depth analysis failure (unbalanced Enter/Leave, irreducible flow) — *UnsupportedPlanShape* — ☐/☐ — `:482`
-- [ ] **A46** Non-production binary operator (`**`, BigInt-mixed, …) *(decompose)* — *UnsupportedPlanShape* — ◐/◐ — `:2061`
+- [ ] **A46** Non-production binary operator (`**`, BigInt-mixed, …) *(decompose)* — *UnsupportedPlanShape* — ◐/◐ — `:2061` — ◐ (commit 9058879): `**` on Numbers confirmed admitted (`IsProductionBinaryOperator` + `JsOps.Exp`) and PINNED with 12 routing tests + 4 ratchet rows; right-assoc/`**=`/precedence/NaN edges verified. Also fixed a pre-existing parser bug: unparenthesized prefix-unary base before `**` (e.g. `-2**2`) now correctly throws SyntaxError. **Remaining:** BigInt operator production-routing (`2n**10n` computes correctly but routing tier not pinned; BigINt-mixed correctly throws TypeError).
 - [x] **A47** for-of unsupported iterator-init source — *UnsupportedPlanShape* — ☑/☑ — `:517` ✅ (Codex)
 - [ ] **A48** Sync iterator driver: async iterator kind — *UnsupportedPlanShape* — ☐/☐ — `:2332`
 - [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204`

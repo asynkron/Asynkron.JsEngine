@@ -109,6 +109,7 @@ public enum TokenType
     Delete,
     Import,
     Export,
+    Debugger,
     RegexLiteral,
     Eof
 }

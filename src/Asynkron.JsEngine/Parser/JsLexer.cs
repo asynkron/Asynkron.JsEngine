@@ -51,7 +51,8 @@ public sealed class JsLexer(string source, bool allowHtmlComments = true)
         ["void"] = TokenType.Void,
         ["delete"] = TokenType.Delete,
         ["import"] = TokenType.Import,
-        ["export"] = TokenType.Export
+        ["export"] = TokenType.Export,
+        ["debugger"] = TokenType.Debugger
     };
 
     // Track brace context: ObjectLiteral/FunctionBody → division; StatementBlock → regex

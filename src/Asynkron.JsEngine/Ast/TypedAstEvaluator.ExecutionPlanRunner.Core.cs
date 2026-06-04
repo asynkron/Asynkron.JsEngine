@@ -383,8 +383,43 @@ public static partial class TypedAstEvaluator
             try
             {
                 _completedWithRawSyncReturn = false;
-                // Run the plan - for sync functions this completes immediately
-                var result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
+                // Run the plan - for sync functions this completes immediately.
+                // 'using'/'await using' declarations at the function-body top level register
+                // their disposables directly on the execution (function) environment, which has
+                // no enclosing PushEnvironment/PopEnvironment to trigger disposal. Dispose them
+                // here on completion (normal return or throw) per the spec's
+                // DisposeResources/function-environment semantics, in reverse (LIFO) order.
+                // Resources are registered during body execution, so the disposable check must
+                // happen after ExecutePlan runs (or in the catch for abrupt completion).
+                JsValue result;
+                try
+                {
+                    result = ExecutePlan(ResumeMode.Next, JsValue.Undefined);
+                }
+                catch (ThrowSignal bodyError)
+                {
+                    // Abrupt completion: dispose registered resources, merging any dispose
+                    // failure into the original error via SuppressedError semantics. The
+                    // original throw is preserved (never swallowed or reordered).
+                    if (executionEnvironment.HasDisposableResources)
+                    {
+                        var merged = executionEnvironment.DisposeResources(bodyError);
+                        throw merged ?? bodyError;
+                    }
+
+                    throw;
+                }
+
+                // Normal completion: dispose registered resources. If disposal itself throws,
+                // that error propagates to the caller.
+                if (executionEnvironment.HasDisposableResources)
+                {
+                    var disposeError = executionEnvironment.DisposeResources();
+                    if (disposeError is not null)
+                    {
+                        throw disposeError;
+                    }
+                }
 
                 // ExecutePlan returns an iterator result {value, done} for generators.
                 // For sync execution, extract the raw value.
@@ -507,10 +542,30 @@ public static partial class TypedAstEvaluator
 
             try
             {
-                var result = ExecutePlan(mode, resumeValue);
+                JsValue result;
+                try
+                {
+                    result = ExecutePlan(mode, resumeValue);
+                }
+                catch (ThrowSignal bodyError)
+                {
+                    // Abrupt completion of an async function body. Dispose 'using'/'await using'
+                    // resources registered directly on the execution (function) environment,
+                    // merging any dispose failure into the original error via SuppressedError
+                    // semantics. The original throw is preserved (never swallowed or reordered).
+                    if (_executionEnvironment is { } throwEnv && throwEnv.HasDisposableResources)
+                    {
+                        var merged = throwEnv.DisposeResources(bodyError);
+                        throw merged ?? bodyError;
+                    }
+
+                    throw;
+                }
 
                 if (HasPendingPromise())
                 {
+                    // The step suspended on an await; resources stay registered until the
+                    // function ultimately completes on a later step.
                     return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Pending, JsValue.Undefined, false,
                         AsyncStateRef.PendingPromise);
                 }
@@ -521,13 +576,19 @@ public static partial class TypedAstEvaluator
                 {
                     // doneRaw and value are already JsValue from TryGetProperty
                     var done = doneRaw.IsTruthy;
-                    return done
-                        ? new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true, JsValue.Undefined)
-                        : new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);
+                    if (done)
+                    {
+                        DisposeExecutionEnvironmentResourcesOnAsyncCompletion();
+                        return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, value, true,
+                            JsValue.Undefined);
+                    }
+
+                    return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Yield, value, false, JsValue.Undefined);
                 }
 
                 // If the plan completed without producing a well-formed iterator
                 // result, treat it as a completed step with undefined.
+                DisposeExecutionEnvironmentResourcesOnAsyncCompletion();
                 return new AsyncGeneratorStepResult(AsyncGeneratorStepKind.Completed, JsValue.Undefined, true,
                     JsValue.Undefined);
             }
@@ -535,6 +596,25 @@ public static partial class TypedAstEvaluator
             {
                 AsyncStateRef.AsyncStepMode = previousAsyncStepMode;
                 AsyncStateRef.PendingPromise = JsValue.Undefined;
+            }
+        }
+
+        /// <summary>
+        /// Dispose 'using'/'await using' resources registered directly on the execution
+        /// (function) environment when an async function reaches normal completion. If a
+        /// disposal throws, surface it as a thrown completion.
+        /// </summary>
+        private void DisposeExecutionEnvironmentResourcesOnAsyncCompletion()
+        {
+            if (_executionEnvironment is not { } env || !env.HasDisposableResources)
+            {
+                return;
+            }
+
+            var disposeError = env.DisposeResources();
+            if (disposeError is not null)
+            {
+                throw disposeError;
             }
         }
     }

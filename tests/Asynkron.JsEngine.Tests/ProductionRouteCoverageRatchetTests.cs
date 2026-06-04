@@ -49,6 +49,14 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(o,k1,k2){ return o[k1].child[k2]++; } f({a:{child:{x:1}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1){ return o[k1].child++; } f({a:{child:1}},'a');", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(o,k1,k2){ return --o[k1].child[k2]; } f({a:{child:{x:5}}},'a','x');", "unified-bytecode-production-fast-path func=f")]
+    // A11: calls with COMPLEX arguments — nested call (g(h(x))), binary with a nested-call operand
+    // (g(a + h(b))), member call argument (g(o.m(x))), and computed-member call argument
+    // (g(o[k](x))). The argument expressions lower onto the existing operand stack with strict
+    // left-to-right evaluation preserved.
+    [InlineData("function f(g,h,x){ return g(h(x)); } f(a=>a+1,b=>b*10,5);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g,h,a,b){ return g(a + h(b)); } f(x=>x,h=>h*2,3,4);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g,o,x){ return g(o.m(x)); } f(v=>v+1, {m(n){return n*3;}}, 4);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g,o,k,x){ return g(o[k](x)); } f(v=>v+1, {m(n){return n*5;}}, 'm', 2);", "unified-bytecode-production-fast-path func=f")]
     // A1 (closure Stage 0): FLAT multi-statement closures that capture an enclosing activation
     // binding now route through the production VM — captured names lower to dynamic-identifier ops
     // over the threaded closure environment. Captured READ (config), captured WRITE (counter n++),

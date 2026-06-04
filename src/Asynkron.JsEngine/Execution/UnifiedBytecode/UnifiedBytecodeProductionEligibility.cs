@@ -6247,15 +6247,270 @@ internal static class UnifiedBytecodeProductionEligibility
             {
                 operationIndex++;
             }
+            // A11: complex call arguments. The flat measurers above handle a leaf operand,
+            // a binary/unary of SIMPLE operands, an admitted member-read span, and literals.
+            // Anything richer — a NESTED CALL (`g(h(x))`), a binary whose operand is itself a
+            // call (`g(a + h(b))`), a member call argument (`g(o.m(x))`), or any deeper
+            // composition of already-admitted value-producing ops — is not splittable by the
+            // greedy per-argument measurers above (a postfix operator can read a value that was
+            // pushed several ops earlier). Re-validate the WHOLE argument region with the general
+            // operand-stack walker, which tracks net stack depth exactly as the production VM does
+            // and requires the region to leave one operand per logical argument. Walking forward
+            // over the in-evaluation-order op stream preserves left-to-right argument evaluation
+            // (each argument fully evaluated before the next, then the call).
             else
             {
-                return false;
+                return TryValidateAdmittedComplexCallArgumentRegion(
+                    program,
+                    argsStartIndex,
+                    callIndex,
+                    call.ArgumentCount,
+                    identifierConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers);
             }
 
             argCount++;
         }
 
         return argCount == call.ArgumentCount;
+    }
+
+    // A11: general operand-stack walker for a SINGLE complex call-argument value span.
+    //
+    // Measures exactly one value-producing expression starting at <paramref name="startIndex"/>
+    // and ending strictly before <paramref name="endExclusive"/> (the outer call's Call op index).
+    // It simulates the operand-stack depth the production VM maintains (the same delta the VM
+    // applies per op), so the span it returns is the minimal prefix that leaves exactly one net
+    // value on the stack — i.e. one complete sub-expression. Because the op stream is already in
+    // evaluation order, walking it forward preserves left-to-right evaluation and guarantees each
+    // argument is fully evaluated before the next (and before the outer Call). Admitted ops:
+    //   * leaf/multi-op value spans the flat measurers already accept (simple operand, literal,
+    //     array/object/template literal, member-read span, control expression) — consumed whole
+    //     and treated as a single +1,
+    //   * property reads (named 0, computed -1), unary/typeof (0), binary (-1),
+    //   * NESTED CALLS — identifier (LoadIdentifierCallTarget +2), named-member
+    //     (LoadNamedCallTarget +1), computed-member (LoadComputedCallTarget 0), and the trailing
+    //     Call (-(argc+1)) — so an argument may itself be `g(h(x))`, `o.m(x)`, `o[k](x)`, or any
+    //     composition thereof.
+    // Optional/short-circuit call and member shapes (JumpIfNullish-bearing) are intentionally NOT
+    // walked here: their control flow is owned by the dedicated optional-chain span measurers in
+    // the loop above, so an argument containing one falls back to the interpreter (the boundary
+    // degrades correctly rather than over-admitting).
+    private static bool TryValidateAdmittedComplexCallArgumentRegion(
+        ExpressionProgram program,
+        int argsStartIndex,
+        int callIndex,
+        int expectedArgumentCount,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (argsStartIndex < 0 || argsStartIndex > callIndex)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var depth = 0;
+        var index = argsStartIndex;
+        while (index < callIndex)
+        {
+            // At each position first try the existing flat value-span measurers. Each one validates
+            // a COMPLETE self-contained value (a leaf operand, an array/object/template literal, a
+            // member-read chain, a control expression, or a member call with simple args) and nets
+            // exactly +1 on the operand stack. Consuming a whole value here lets the per-op deltas
+            // below model the genuinely-nested compositions (binaries/unaries/nested calls) whose
+            // operands are themselves such values.
+            if (TryMeasureSimpleLiteralValueOperandSpan(
+                    program,
+                    index,
+                    identifierConstants,
+                    activationSlots,
+                    out var literalSpan,
+                    allowsDynamicIdentifiers) &&
+                index + literalSpan <= callIndex)
+            {
+                index += literalSpan;
+                depth++;
+                continue;
+            }
+
+            if (TryMeasureSimpleTypeOfOperandSpan(
+                    program,
+                    index,
+                    identifierConstants,
+                    activationSlots,
+                    out var typeOfSpan,
+                    allowsDynamicIdentifiers) &&
+                index + typeOfSpan <= callIndex)
+            {
+                index += typeOfSpan;
+                depth++;
+                continue;
+            }
+
+            if (!TryApplyAdmittedArgumentOpStackDelta(
+                    program,
+                    index,
+                    identifierConstants,
+                    stringConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    depth,
+                    out depth))
+            {
+                return false;
+            }
+
+            index++;
+        }
+
+        // The whole argument region must leave exactly one operand per logical argument on the
+        // stack (and the per-op deltas above never underflowed), matching the call's arity.
+        return depth == expectedArgumentCount;
+    }
+
+    // Validates a SINGLE op at <paramref name="index"/> as an admitted value-producing argument
+    // op and applies its net operand-stack delta to <paramref name="depthBefore"/>. Returns false
+    // (declining the whole argument span) for any op outside the admitted vocabulary or any op
+    // whose pop would underflow the current span's operand stack.
+    private static bool TryApplyAdmittedArgumentOpStackDelta(
+        ExpressionProgram program,
+        int index,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ReadOnlySpan<string> stringConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        int depthBefore,
+        out int depthAfter)
+    {
+        depthAfter = depthBefore;
+        var op = program.GetOperation(index);
+        switch (op.Kind)
+        {
+            case ExpressionOpKind.LoadLiteral:
+            case ExpressionOpKind.LoadThis:
+            case ExpressionOpKind.LoadNewTarget:
+                depthAfter = depthBefore + 1;
+                return true;
+
+            case ExpressionOpKind.LoadIdentifier:
+                if (!IsSimpleOperand(op, identifierConstants, activationSlots, allowsDynamicIdentifiers))
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
+                return true;
+
+            case ExpressionOpKind.GetNamedProperty:
+                // receiver -> value: net 0. Reject private/optional/short-circuit reads.
+                if (depthBefore < 1 ||
+                    op.IsOptional ||
+                    op.ShortCircuitOnNullishTarget ||
+                    op.GetString(stringConstants).IsPrivateName())
+                {
+                    return false;
+                }
+
+                return true;
+
+            case ExpressionOpKind.GetComputedProperty:
+                // receiver, key -> value: net -1. Reject optional/short-circuit reads.
+                if (depthBefore < 2 || op.IsOptional || op.ShortCircuitOnNullishTarget)
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore - 1;
+                return true;
+
+            case ExpressionOpKind.ResolvePropertyKey:
+                // key -> coerced key, in place: net 0.
+                return depthBefore >= 1;
+
+            case ExpressionOpKind.Binary:
+                if (depthBefore < 2 || !IsProductionBinaryOperator(op.Operator))
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore - 1;
+                return true;
+
+            case ExpressionOpKind.UnaryPlus:
+            case ExpressionOpKind.UnaryMinus:
+            case ExpressionOpKind.UnaryLogicalNot:
+            case ExpressionOpKind.UnaryBitwiseNot:
+            case ExpressionOpKind.UnaryVoid:
+            case ExpressionOpKind.TypeOf:
+                // operand -> result, in place: net 0.
+                return depthBefore >= 1;
+
+            case ExpressionOpKind.LoadIdentifierCallTarget:
+                // Pushes <undefined this, callee>: net +2. Decline arguments/eval and unresolved
+                // free identifiers (those have no admitted lowering here).
+                if (op.IsArguments)
+                {
+                    return false;
+                }
+
+                var callIdentifier = op.GetIdentifier(identifierConstants);
+                if (string.Equals(callIdentifier.Name.Name, "eval", StringComparison.Ordinal))
+                {
+                    return false;
+                }
+
+                if (!TryResolveActivationSlot(callIdentifier, activationSlots) &&
+                    !allowsDynamicIdentifiers &&
+                    !CanUseMaterializedActivationDynamicLookup(callIdentifier, activationSlots))
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 2;
+                return true;
+
+            case ExpressionOpKind.LoadNamedCallTarget:
+                // receiver stays as `this`, callee pushed: net +1. Reject optional/private.
+                if (depthBefore < 1 ||
+                    op.IsOptional ||
+                    op.ShortCircuitOnNullishTarget ||
+                    op.GetString(stringConstants).IsPrivateName())
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
+                return true;
+
+            case ExpressionOpKind.LoadComputedCallTarget:
+                // pop key, keep receiver as `this`, push callee: net 0. Reject optional.
+                if (depthBefore < 2 || op.IsOptional || op.ShortCircuitOnNullishTarget)
+                {
+                    return false;
+                }
+
+                return true;
+
+            case ExpressionOpKind.Call:
+                // pops <this, callee, arg0..arg(n-1)> and pushes the result: net -(argc + 1).
+                // Reject spread/eval/non-explicit-this; require enough operands on the stack.
+                if (!op.HasExplicitThis ||
+                    op.IsDirectEval ||
+                    op.SpreadMaskConstantIndex >= 0 ||
+                    depthBefore < op.ArgumentCount + 2)
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore - (op.ArgumentCount + 1);
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     // Measures the op span for a simple array literal starting at startIndex.

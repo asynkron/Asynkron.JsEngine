@@ -141,11 +141,13 @@ public sealed class CallTargetAdmissionTests(ITestOutputHelper output) : Interna
     // SAFETY BOUNDARY (regression guard): a per-iteration `const` (TDZ) inside a for-of body with a
     // `continue` that skips the const initializer hits a pre-existing VM loop-environment limitation in
     // the materialized-call-environment mode (the mode the free-call-target / free-read paths force).
-    // The eligibility guard DECLINES this exact shape under the dynamic-name path so it runs on the IR
-    // runner and computes correctly. We assert BOTH the correct result AND that f did NOT route — proof
-    // the guard fires and the IR runner restores per-iteration const scopes correctly.
+    // This per-iteration const + continue shape under the dynamic-name path used to be DECLINED to the IR
+    // runner because the production VM left the per-iteration const's flat slot in TDZ (the dynamic-lexical
+    // init wrote only the materialized-env binding). The VM now mirrors dynamic-lexical declare/init into
+    // the bound flat slot (UnifiedBytecodeVirtualMachine.MirrorDynamicLexicalToFlatSlot), so this shape
+    // routes through production AND computes correctly. We assert BOTH.
     [Fact]
-    public async Task PerIterationConstWithContinueAndFreeCall_DeclinesButComputes()
+    public async Task PerIterationConstWithContinueAndFreeCall_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(
@@ -153,7 +155,7 @@ public sealed class CallTargetAdmissionTests(ITestOutputHelper output) : Interna
             "for (let inner of [10,20,30]) { if (inner===20) continue; " +
             "const value = inner; rows.push(String(value)); } return rows.join(','); } t();");
         Assert.Equal("10,30", result?.ToString());
-        AssertNotRouted("unified-bytecode-production-fast-path func=t");
+        AssertRouted("unified-bytecode-production-fast-path func=t");
     }
 
     // Same loop/continue/const shape but the callee is a SLOT (parameter) — no free name, so the
@@ -171,9 +173,10 @@ public sealed class CallTargetAdmissionTests(ITestOutputHelper output) : Interna
     }
 
     // Same loop/continue/const shape admitted via a free READ (LoadDynamicIdentifier) — also forces the
-    // materialized-env path, so the same guard declines it and the IR runner computes it correctly.
+    // materialized-env path. With the dynamic-lexical-to-flat-slot mirror in place the production VM keeps
+    // the per-iteration const slot consistent with its env binding, so this routes AND computes correctly.
     [Fact]
-    public async Task PerIterationConstWithContinueAndFreeRead_DeclinesButComputes()
+    public async Task PerIterationConstWithContinueAndFreeRead_RoutesAndComputes()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate(
@@ -181,7 +184,7 @@ public sealed class CallTargetAdmissionTests(ITestOutputHelper output) : Interna
             "for (let inner of [10,20,30]) { if (inner===20) continue; " +
             "const value = inner + bump; rows.push(value); } return rows.join(','); } t();");
         Assert.Equal("110,130", result?.ToString());
-        AssertNotRouted("unified-bytecode-production-fast-path func=t");
+        AssertRouted("unified-bytecode-production-fast-path func=t");
     }
 
     // BOUNDARY-DOESN'T-OVERREACH: a free call target in a loop body WITHOUT a per-iteration const must

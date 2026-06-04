@@ -89,7 +89,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A33** Array spread non-simple source `[...f().items]`, `[...gen()]` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2014` ✅ #3166
 - [x] **A34** Object spread non-simple source `{...f()}` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2036` ✅ #3167
 - [ ] **A35** Computed key / method / accessor object literal outside simple span *(decompose → P0.4)* — *ObjectLiteralOrSpreadDependency* — ☐/☐ — `:2019` — note (audit a0a7078): the BASIC computed-key (`{[k]:1}`), shorthand method (`{m(){}}`), and getter (`{get a(){}}`) object literals already route + correct, PINNED (`AlreadyRoutingShapePinTests`). The "outside simple span" complex cases (decompose → P0.4) still need work before check-off.
-- [ ] **A36** Private-field define in object literal `{#x:v}` — *PrivateFieldDependency* — ☐/☐ — `:2042`
+- [x] **A36** Private-field define in object literal `{#x:v}` — *PrivateFieldDependency* — n/a — `:2042` ✅ (commit 45aea8402): RESOLVED — `{#x:v}` is not a valid shape; the parser previously (wrongly) accepted it as a property named `"#x"`. Now `ParseObjectPropertyKey` throws a SyntaxError (private names are class-body-only), matching spec. Nothing to admit; the decline path is unreachable for valid input.
 - [ ] **A37** Private-named mutation outside admitted direct shapes — *PrivateFieldDependency* — ◐/◐ — `:1093`
 - [x] **A38** for-in unsupported driver source (awaited / non-lowered) — *ForInDriverStateDependency* — ☑/☑ — `:524` ✅ (Codex)
 - [x] **A39** Array destructuring unsupported driver — *DestructuringDependency* — ☑/☐ — `:531` ✅ (Codex)

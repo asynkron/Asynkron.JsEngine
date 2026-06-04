@@ -3100,6 +3100,23 @@ internal static class UnifiedBytecodeProductionEligibility
         // are modeled by ForInMoveNext/IteratorMoveNext writing to __forIn_value/__iter_value, the
         // PushEnvironment resetting the lexical slot to Uninitialized, and the binding statement
         // assigning the value slot to the per-iteration slot — all within the flat-slot model.
+        //
+        // A44 (burn-down) — DECLINED, investigated. A per-iteration `let`/`const` that is CAPTURED by a
+        // closure (each iteration must produce a FRESH binding the closure observes; e.g.
+        // `for(let i=0;i<3;i++){ fns.push(()=>i); }` → 0,1,2) emits a PushEnvironment whose synthetic
+        // per-iteration scope has NO flat-slot mapping — the binding lives in a heap environment the
+        // closure captures, so `flatSlotMappings.TryGetValue(ScopeId)` misses and we decline here. This
+        // gate is not the only blocker: relaxing it pushes the captured per-iteration `let` onto the
+        // dynamic-identifier path, where (a) the compiler rejects the lexical declaration target
+        // ("requires dynamic identifier operations", UnifiedBytecodeCompiler.TryAppendDynamicDeclaration)
+        // unless the function is already dynamic, and (b) once forced through, the VM throws a SPURIOUS
+        // `ReferenceError: Cannot access '<name>' before initialization` because the freshly-created
+        // per-iteration scope environment the closure captured is left in its TDZ — DeclareDynamicLexical
+        // / MirrorDynamicLexicalToFlatSlot mirror flat↔call-env but not the per-iteration scope env. A
+        // clean admission needs per-iteration heap-env binding init + value copy + TDZ initialization
+        // mirrored into the captured environment — a block-environment change with blast radius across all
+        // lexical block bindings (same class of work as the A43 decline). The IR runner keeps these shapes
+        // correct today; see A44PerIterationLetDeclineTests for the standing tripwire.
         if (instruction.ScopeId < 0 ||
             instruction.SlotCount < 0 ||
             instruction.SlotMap.IsEmpty ||

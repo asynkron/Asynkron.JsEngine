@@ -3571,6 +3571,57 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadImportMeta:
+                    {
+                        // `import.meta` (B20) inside a resumable async/generator body. The meta-property
+                        // resolves a single `Symbol.ImportMeta` binding against the live closure environment
+                        // threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108) — the same
+                        // captured module environment the admitted free dynamic READS use, stable across
+                        // yield/await — so a resumed step reads the SAME stable per-module import.meta object.
+                        // `import.meta` is only ever bound in a MODULE environment (EnsureModuleImportMeta);
+                        // outside a module the binding is absent and the sync GetImportMeta throws a
+                        // ReferenceError. To keep the resumable loop (which carries no ThrowSignal catch) sound,
+                        // the binding is resolved directly here and an absent binding is surfaced via the
+                        // resumable Throw step rather than by throwing. The opcode pushes exactly one value,
+                        // carries no AwaitedProgram, and cannot itself suspend, so it always runs to completion
+                        // inside one resumable step with no resume-state restoration.
+                        var importMetaEnvironment = state.CallingEnvironment;
+                        if (importMetaEnvironment is not null &&
+                            importMetaEnvironment.TryFindBindingJsValue(
+                                Symbol.ImportMeta, true, out _, out var resumableImportMeta))
+                        {
+                            stack[stackPointer++] = resumableImportMeta;
+                            programCounter++;
+                            break;
+                        }
+
+                        context.SetThrow(StandardLibrary.CreateReferenceError(
+                            "import.meta is not defined",
+                            context,
+                            context.RealmState));
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                case UnifiedBytecodeOpCode.ToString:
+                    // Template-substitution / explicit ToString coercion (B37) inside a resumable body — the
+                    // per-hole String(value) coercion an untagged template literal emits. The operand to coerce
+                    // sits on top of UnifiedBytecodeResumeState.OperandStack — pushed by a preceding admitted value
+                    // load and restored across any suspension in a sibling sub-expression (`` `v${yield 1}` ``),
+                    // exactly like the admitted unaries. Literal twin of the sync VM handler, reusing
+                    // JsOps.ToJsString: a throwing `Symbol`/`toString`/`Symbol.toPrimitive` surfaces as the resumable
+                    // Throw step. The opcode replaces the top value in place, carries no AwaitedProgram, and cannot
+                    // itself suspend.
+                    stack[stackPointer - 1] = new JsValue(JsOps.ToJsString(stack[stackPointer - 1], context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.LoadRegexLiteral:
                     // Regex LITERAL (`/pat/flags`) inside a resumable body. Literal twin of the sync VM's
                     // handler (UnifiedBytecodeOpCode.LoadRegexLiteral): read the interned pattern string and

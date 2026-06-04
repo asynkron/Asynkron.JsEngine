@@ -118,7 +118,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A51k** Simple binary/unary/control/conditional operand span gaps — owner: expression-span lowering; fallback route: existing expression-program evaluation; sync/resumable: both.
 - [ ] **A51l** Catch/try/driver cleanup topology diagnostics not otherwise captured by concrete driver rows — owner: statement diagnostics and control-flow reconstruction; fallback route: existing execution-plan runner; sync/resumable: both.
 - [ ] **A51m** Measured property-read span rollback diagnostics — owner: measured span helpers; fallback route: existing property-read expression evaluation; sync/resumable: both.
-- [ ] **A52** `debugger;` statement — no AST/lowering owner exists (surfaced by P0.1 grammar appendix); needs a parser/AST node + no-op-or-decline owner *(new leaf from P0.1)* — ☐/☐
+- [x] **A52** `debugger;` statement — *(new leaf from P0.1)* — ☑/☑ — ✅ (commit d01faf31f): was not a keyword — lexed as Identifier and threw `ReferenceError` at runtime. Now a reserved word (`TokenType.Debugger`) lowered to the already-owned `EmptyStatement` no-op (admitted on every path; no new opcode/eligibility change). Routes through both sync-function and script fast paths. Reserved-word rejection (`var debugger`) + property-name usage (`o.debugger`) preserved.
 
 ## Phase B — Resumable-VM parity + suspension machinery (48 items)
 

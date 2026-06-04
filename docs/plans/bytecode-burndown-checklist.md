@@ -150,7 +150,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B20** `import.meta` — ☑/☐
 - [ ] **B21** Tagged-template / template object — ☑/☐
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118
-- [ ] **B23** Nested function literal — ☑/☐
+- [ ] **B23** Nested function literal — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, doc + 7 tripwires): a nested function literal inside a generator/async that CAPTURES a body local can't see it — the body's locals are flat slots on the resume state, not env bindings, so the captured nested fn resolves through the env chain and throws `ReferenceError`/goes stale. Needs free-variable capture analysis the resumable route doesn't carry. Non-capturing subset works but can't be safely separated. Correct via IR.
 - [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
 - [ ] **B26** Dynamic free write `freeVar=v` — ☑/☐
@@ -163,7 +163,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B33** `break`/`continue` across suspension (driver cleanup) — ☑/☐
 - [x] **B34** Array destructuring across suspension — ☑/☑ ✅ (Codex)
 - [x] **B35** Object destructuring across suspension — ☑/☑ ✅ (Codex)
-- [ ] **B36** Nested function/class declaration hoisting in resumable body — ☑/☐
+- [ ] **B36** Nested function/class declaration hoisting in resumable body — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, same workstream as B23): hoisted function declarations aren't populated by the resumable invokers (the setup only copies params into positional slots + TDZ-inits lexical slots), so the declared name's slot stays `undefined` and `yield helper()` yields undefined. Needs hoisted-declaration slot population threaded into all three resumable invokers (AsyncFunctionInvoker/SyncGeneratorInvoker/AsyncGeneratorInvoker) — separate infrastructure. Correct via IR.
 - [ ] **B37** Scaffolding opcodes (Tdz/EnsureHasName/ToString/ThrowReferenceError) in resumable — ☑/☐
 - [ ] **B38** `yield* freeIter` over free/dynamic iterable — n/a/☐
 - [ ] **B39** async `yield* asyncIterable` — n/a/☐

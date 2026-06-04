@@ -147,8 +147,8 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B17** Array literal `[a,,b,...spread]` — ☑/☑ ✅ #3151
 - [x] **B18** `#field in obj` — ☑/☑ ✅ #3153
 - [x] **B19** `new.target` (LoadNewTarget) — ☑/☑ ✅ (Codex; leak fixed #3150 — per-activation new.target threaded onto the resume state: undefined for ordinary generators/async, inherited for async arrows)
-- [ ] **B20** `import.meta` — ☑/☐
-- [ ] **B21** Tagged-template / template object — ☑/☐
+- [x] **B20** `import.meta` — ☑/☑ ✅ (commit a8e64adb6): `import.meta` routes through ExecuteResumable — `LoadImportMeta` handler resolves `Symbol.ImportMeta` against the captured module env (stable across suspension); unbound → ReferenceError. Allowlist 1:1.
+- [ ] **B21** Tagged-template / template object — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit a8e64adb6): tagged-template calls decline at the SHARED expression-eligibility gate on BOTH sync+resumable routes — the general call-candidate predicates don't model the `LoadTemplateObject`+substitutions argument shape (`CallInvocationBoundary`/`CallDependency`), so `LoadTemplateObject` is never emitted by an admitted program. Needs expression-level call-candidate infrastructure, not an allowlist add.
 - [x] **B22** Regex literal — ☑/☑ ✅ #3118
 - [ ] **B23** Nested function literal — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, doc + 7 tripwires): a nested function literal inside a generator/async that CAPTURES a body local can't see it — the body's locals are flat slots on the resume state, not env bindings, so the captured nested fn resolves through the env chain and throws `ReferenceError`/goes stale. Needs free-variable capture analysis the resumable route doesn't carry. Non-capturing subset works but can't be safely separated. Correct via IR.
 - [ ] **B24** Class expression *(decompose → P0.4: ~8 member shapes)* — ☑/☐
@@ -164,7 +164,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B34** Array destructuring across suspension — ☑/☑ ✅ (Codex)
 - [x] **B35** Object destructuring across suspension — ☑/☑ ✅ (Codex)
 - [ ] **B36** Nested function/class declaration hoisting in resumable body — ☑/☐ — ⚠️ INVESTIGATED-DECLINE (commit 8b421604c, same workstream as B23): hoisted function declarations aren't populated by the resumable invokers (the setup only copies params into positional slots + TDZ-inits lexical slots), so the declared name's slot stays `undefined` and `yield helper()` yields undefined. Needs hoisted-declaration slot population threaded into all three resumable invokers (AsyncFunctionInvoker/SyncGeneratorInvoker/AsyncGeneratorInvoker) — separate infrastructure. Correct via IR.
-- [ ] **B37** Scaffolding opcodes (Tdz/EnsureHasName/ToString/ThrowReferenceError) in resumable — ☑/☐
+- [x] **B37** Scaffolding opcodes (Tdz/EnsureHasName/ToString/ThrowReferenceError) in resumable — ☑/◐ ✅ (commit a8e64adb6): `ToString` (untagged template per-hole `String()` coercion) admitted to resumable (handler + allowlist 1:1); `Tdz`/`TdzHeadInit` already surfaced by existing `LoadSlot`. `EnsureHasName`/`ThrowReferenceError` are UNREACHABLE by any admitted resumable program (their only producers co-emit unsupported `LoadFunctionLiteral`/`EnsureSuperReference`) — honestly not admitted.
 - [ ] **B38** `yield* freeIter` over free/dynamic iterable — n/a/☐
 - [ ] **B39** async `yield* asyncIterable` — n/a/☐
 - [ ] **B40** `with(obj){}` in generator/async body (routing gap, not residue) — n/a/☐

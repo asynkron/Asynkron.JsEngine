@@ -1556,6 +1556,21 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
+                    // A33: a bare identifier call used as an array-spread source
+                    // (`[...f()]`, `[...gen()]`, `[...f().items]`) is admitted when the
+                    // call-target op falls inside an admitted simple array-literal span.
+                    // The member-call (LoadNamedCallTarget) and Call cases below already
+                    // carry this escape hatch; identifier call targets did not.
+                    if (IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (operation.IsArguments)
                     {
                         if (!allowsDynamicIdentifiers)
@@ -1814,6 +1829,23 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.GetNamedProperty:
+                    // A33: a plain named property read off a call result used as an
+                    // array-spread source (`[...f().items]`, `[...f().a.b]`) is admitted
+                    // when the read op falls inside an admitted simple array-literal span.
+                    // The spread-source span only includes such reads when they terminate
+                    // in ArraySpread, so this does not widen ordinary property-read scope.
+                    if (!operation.IsOptional &&
+                        !operation.ShortCircuitOnNullishTarget &&
+                        IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers))
+                    {
+                        break;
+                    }
+
                     if (operation.ShortCircuitOnNullishTarget)
                     {
                         if (TryIsEmbeddedOptionalReadOperandOperation(program, operationIndex, identifierConstants, activationSlots))
@@ -6238,7 +6270,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (!TryMeasureSimpleLiteralValueOperandSpan(
+            if (TryMeasureSimpleLiteralValueOperandSpan(
                     program,
                     i,
                     identifierConstants,
@@ -6246,27 +6278,117 @@ internal static class UnifiedBytecodeProductionEligibility
                     out var elementSpanLength,
                     allowsDynamicIdentifiers))
             {
-                // Non-simple op terminates the element scan — the array literal ends here.
-                break;
+                var pushIndex = i + elementSpanLength;
+                if (pushIndex >= program.OperationCount)
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                var pushOp = program.GetOperation(pushIndex);
+                if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
+                {
+                    spanLength = 0;
+                    return false;
+                }
+
+                i = pushIndex + 1;
+                continue;
             }
 
-            i += elementSpanLength;
-            if (i >= program.OperationCount)
+            // A33: spread sources accept a wider operand set than push sources —
+            // a bare identifier call (`[...f()]`, `[...gen()]`) or a property read
+            // off a call (`[...f().items]`). These shapes are admitted ONLY when the
+            // terminating op is ArraySpread; a non-spread terminator ends the literal
+            // scan so the regular-element gate decides eligibility.
+            if (TryMeasureSimpleArraySpreadSourceOperandSpan(
+                    program,
+                    i,
+                    identifierConstants,
+                    activationSlots,
+                    out var spreadSourceSpanLength,
+                    allowsDynamicIdentifiers))
             {
-                spanLength = 0;
-                return false;
+                var spreadIndex = i + spreadSourceSpanLength;
+                if (spreadIndex < program.OperationCount &&
+                    program.GetOperation(spreadIndex).Kind == ExpressionOpKind.ArraySpread)
+                {
+                    i = spreadIndex + 1;
+                    continue;
+                }
             }
 
-            var pushOp = program.GetOperation(i);
-            if (pushOp.Kind is not (ExpressionOpKind.ArrayPush or ExpressionOpKind.ArraySpread))
-            {
-                spanLength = 0;
-                return false;
-            }
+            // Non-simple op terminates the element scan — the array literal ends here.
+            break;
+        }
 
+        spanLength = i - startIndex;
+        return true;
+    }
+
+    // A33: Measures the op span for a non-simple array-spread *source* operand.
+    // This is intentionally wider than TryMeasureSimpleLiteralValueOperandSpan (which
+    // gates regular array-push elements) and is consulted ONLY when the terminating op
+    // is ArraySpread. Admitted source shapes:
+    //   - bare identifier call:          `[...f()]`, `[...gen()]`
+    //   - property read off a call base:  `[...f().items]`, `[...o.m().items]`
+    // The trailing ArraySpread opcode iterates whatever value the source span leaves on
+    // the stack (the standard iterator protocol, throwing on a non-iterable), so any
+    // source span built from already-admitted VM opcodes (identifier/member call,
+    // plain named property read) is safe to spread. Other shapes (already covered by
+    // the simple-literal-value span) and anything not verifiable here are declined.
+    private static bool TryMeasureSimpleArraySpreadSourceOperandSpan(
+        ExpressionProgram program,
+        int startIndex,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        out int spanLength,
+        bool allowsDynamicIdentifiers = false)
+    {
+        spanLength = 0;
+
+        // Base: a bare identifier call (`f()`) or an admitted member call (`o.m()`).
+        int baseSpanLength;
+        if (TryMeasureSimpleIdentifierCallOperandSpan(
+                program,
+                startIndex,
+                identifierConstants,
+                activationSlots,
+                out baseSpanLength,
+                allowsDynamicIdentifiers))
+        {
+            // ok
+        }
+        else if (TryMeasureSimpleMemberCallOperandSpan(
+                     program,
+                     startIndex,
+                     identifierConstants,
+                     activationSlots,
+                     out baseSpanLength,
+                     allowsDynamicIdentifiers))
+        {
+            // A bare member call (`o.m()`) is already accepted as a simple-literal value,
+            // so on its own it is handled by the push gate; we only need it here as a base
+            // for trailing property reads (`o.m().items`).
+        }
+        else
+        {
+            return false;
+        }
+
+        // Optional trailing plain named property reads off the call result
+        // (`f().items`, `f().a.b`). Computed/optional/private reads are NOT admitted here.
+        var stringConstants = program.StringConstants.AsSpan();
+        var i = startIndex + baseSpanLength;
+        while (i < program.OperationCount &&
+               IsPlainNamedPropertyRead(program.GetOperation(i), stringConstants))
+        {
             i++;
         }
 
+        // A bare member call with no trailing read is already covered by the simple-literal
+        // value span; reporting it here would be redundant but harmless. A bare identifier
+        // call, or any call followed by >= 1 named read, is the genuinely-new admission.
         spanLength = i - startIndex;
         return true;
     }

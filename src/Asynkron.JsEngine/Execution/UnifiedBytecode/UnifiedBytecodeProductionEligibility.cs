@@ -2082,6 +2082,14 @@ internal static class UnifiedBytecodeProductionEligibility
                             break;
                         }
 
+                        // A29: a short-circuiting computed read of a multi-hop optional computed chain
+                        // (`a?.[k]?.[j]`). The first hop's GetComputedProperty is non-short-circuiting
+                        // (handled below); every subsequent hop's read short-circuits and lands here.
+                        if (TryIsFirstBoundaryOptionalComputedPropertyReadChainCandidate(program, identifierConstants, activationSlots))
+                        {
+                            break;
+                        }
+
                         // `fn(box?.prop[key])` — optional-named-then-plain-computed read used as a
                         // call argument; the program ends in a Call rather than the standalone shape.
                         if (TryIsOptionalNamedThenComputedReadCallArgumentOperation(program, operationIndex, identifierConstants, activationSlots))
@@ -4212,28 +4220,69 @@ internal static class UnifiedBytecodeProductionEligibility
             return false;
         }
 
-        var computedSuffixStart = program.OperationCount;
-        while (computedSuffixStart > jumpIndex + 2 &&
-               IsShortCircuitNamedPropertyRead(program.GetOperation(computedSuffixStart - 1), stringConstants))
+        // A29: peel any trailing short-circuiting NAMED reads (`a?.[k].c`, `a?.[k]?.[j].c`).
+        // The remaining span [jumpIndex, chainEnd) is exactly the one-or-more optional
+        // computed hops. Every hop's JumpIfNullish boundary targets the same chainEnd.
+        var chainEnd = program.OperationCount;
+        while (chainEnd > jumpIndex + 2 &&
+               IsShortCircuitNamedPropertyRead(program.GetOperation(chainEnd - 1), stringConstants))
         {
-            computedSuffixStart--;
+            chainEnd--;
         }
 
-        var computedIndex = computedSuffixStart - 1;
-        if (computedIndex <= jumpIndex + 1 || jumpOp.Target != computedIndex + 1)
+        // Walk the optional computed hops forward. Each hop is
+        // [JumpIfNullish(ReplaceWithUndefined:true), key-span..., GetComputedProperty].
+        // The first hop's read is the chain's first boundary (!ShortCircuitOnNullishTarget);
+        // every subsequent hop's read short-circuits on a nullish receiver
+        // (ShortCircuitOnNullishTarget:true).
+        var hopIndex = jumpIndex;
+        var hopCount = 0;
+        while (hopIndex < chainEnd)
         {
-            return false;
+            var hopJump = program.GetOperation(hopIndex);
+
+            // The key span runs from just after the boundary jump up to this hop's
+            // GetComputedProperty. Key spans never contain GetComputedProperty/JumpIfNullish,
+            // so the next GetComputedProperty delimits the hop.
+            var keyStart = hopIndex + 1;
+            var computedIndex = keyStart;
+            while (computedIndex < chainEnd &&
+                   program.GetOperation(computedIndex).Kind != ExpressionOpKind.GetComputedProperty)
+            {
+                computedIndex++;
+            }
+
+            // Each hop's lowered boundary jump targets the operation immediately after its
+            // OWN GetComputedProperty (the next hop's jump, or the chain end for the last hop);
+            // short-circuit then cascades hop-to-hop through the successive jumps.
+            if (hopJump.Kind != ExpressionOpKind.JumpIfNullish ||
+                !hopJump.ReplaceWithUndefined ||
+                computedIndex >= chainEnd ||
+                computedIndex <= keyStart ||
+                hopJump.Target != computedIndex + 1)
+            {
+                return false;
+            }
+
+            var getComputedOp = program.GetOperation(computedIndex);
+            var expectedShortCircuit = hopCount > 0;
+            if (getComputedOp.Kind != ExpressionOpKind.GetComputedProperty ||
+                getComputedOp.ShortCircuitOnNullishTarget != expectedShortCircuit ||
+                !IsSupportedComputedPropertyKeySpan(
+                    program,
+                    keyStart,
+                    computedIndex,
+                    identifierConstants,
+                    activationSlots))
+            {
+                return false;
+            }
+
+            hopIndex = computedIndex + 1;
+            hopCount++;
         }
 
-        var getComputedOp = program.GetOperation(computedIndex);
-        return getComputedOp.Kind == ExpressionOpKind.GetComputedProperty &&
-               !getComputedOp.ShortCircuitOnNullishTarget &&
-               IsSupportedComputedPropertyKeySpan(
-                   program,
-                   jumpIndex + 1,
-                   computedIndex,
-                   identifierConstants,
-                   activationSlots);
+        return hopCount >= 1 && hopIndex == chainEnd;
     }
 
     private static bool TryIsEmbeddedOptionalReadOperandOperation(

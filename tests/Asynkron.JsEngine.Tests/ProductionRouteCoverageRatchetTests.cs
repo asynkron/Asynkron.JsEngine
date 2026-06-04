@@ -162,6 +162,25 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("class C { constructor(n){ let t=n+1; this.v=t; } } new C(2);", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(){ this.nt=new.target; } } new C();", "unified-bytecode-production-fast-path func=C")]
     [InlineData("class C { constructor(n){ let s=0; if(n>0){ s=n+10; } this.s=s; } } new C(3);", "unified-bytecode-production-fast-path func=C")]
+    // A37 (private-named mutation): private-field MUTATION inside a class method routes through the
+    // production VM identically to the ordinary-property counterpart — the private name is just a name
+    // gated by the private-name scope (PropertyHandle.Resolve(allowPrivate: true) performs the brand
+    // check + spec TypeError). The method logs func=<anonymous> (class methods carry no IR-runner name),
+    // so that log proves the METHOD body routed (the auto-generated ctor logs func=C separately). Plain
+    // private write (this.#x = v), private postfix/prefix UPDATE (this.#x++ / ++this.#x), private SIMPLE
+    // compound write (this.#x += 5), a cross-instance private write (other.#x = v), a private write with
+    // an ordinary complex RHS (this.#x = a*b+c — carried by the 830236be0 complex-RHS widening, which is
+    // private-name-agnostic), and a private write with a call RHS (this.#x = g(z)). The remaining declines
+    // (a private READ used as a nested value operand, e.g. this.#x = this.#x + a; and compound-assignment
+    // with a COMPLEX rhs, e.g. x += a+b — which declines for ORDINARY properties too) are NOT private-
+    // mutation-specific gaps and are tracked as separate burn-down items.
+    [InlineData("class C{ #x=1; m(){ this.#x = 5; return this.#x; } } new C().m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; m(){ this.#x++; return this.#x; } } new C().m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; m(){ ++this.#x; return this.#x; } } new C().m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; m(){ this.#x += 5; return this.#x; } } new C().m();", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; setOther(o,v){ o.#x = v; return o.#x; } } var a=new C(); var b=new C(); a.setOther(b, 9);", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; m(a,b,c){ this.#x = a*b + c; return this.#x; } } new C().m(2,3,4);", "unified-bytecode-production-fast-path func=<anonymous>")]
+    [InlineData("class C{ #x=1; m(g,z){ this.#x = g(z); return this.#x; } } new C().m(v=>v+1,5);", "unified-bytecode-production-fast-path func=<anonymous>")]
     // Sync generator route — `unified-bytecode-resumable-generator-fast-path func=<name>`.
     [InlineData("function* g(o){ yield o.a; yield -o.b; } var it=g({a:1,b:2}); it.next(); it.next();", "unified-bytecode-resumable-generator-fast-path func=g")]
     [InlineData("function* g(o){ o.x=1; yield o.x; } g({}).next();", "unified-bytecode-resumable-generator-fast-path func=g")]

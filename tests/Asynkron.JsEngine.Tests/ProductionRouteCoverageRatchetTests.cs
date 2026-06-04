@@ -61,6 +61,18 @@ public sealed class ProductionRouteCoverageRatchetTests(ITestOutputHelper output
     [InlineData("function f(g){ return {...g()}; } f(()=>({a:1,b:2}));", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(g){ return {...g().inner}; } f(()=>({inner:{x:4,y:5}}));", "unified-bytecode-production-fast-path func=f")]
     [InlineData("function f(a,g){ return { a, ...g(), c: 3 }; } f(0,()=>({b:2}));", "unified-bytecode-production-fast-path func=f")]
+    // A35: COMPLEX object-literal members outside the simple span. (1) a property VALUE that is a
+    // bare-identifier call — `{x: g()}`, `{a: g(arg)}` (the member-call value form `{a: o.m()}` already
+    // routed). (2) a shorthand-method / accessor member followed by a LATER member — most importantly a
+    // trailing object-spread `{m(){}, ...o}` / `{get a(){}, ...o}` — which previously terminated the
+    // literal-span measurement at the method/accessor define. Computed-key + value subexpressions
+    // evaluate left-to-right (PropertyDefinitionEvaluation order preserved).
+    [InlineData("function f(g,z){ return {x: g(z)}; } f(v=>v+1,5);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g){ return {a: g(), b: 2}; } f(()=>1);", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(g){ return {[g()]: g()}; } f(()=>'k');", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o){ return { m(){return 1;}, ...o }; } f({z:9});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(o){ return { get a(){return 1;}, ...o }; } f({z:9});", "unified-bytecode-production-fast-path func=f")]
+    [InlineData("function f(k,o){ return { x:1, [k]:2, m(){return 3;}, get g(){return 4;}, set s(v){}, ...o }; } f('y',{z:9});", "unified-bytecode-production-fast-path func=f")]
     // A23: property UPDATE with a computed receiver prefix — computed-update terminal
     // (box[k1].child[k2]++), named-update terminal (box[k1].child++), and prefix decrement.
     [InlineData("function f(o,k1,k2){ return o[k1].child[k2]++; } f({a:{child:{x:1}}},'a','x');", "unified-bytecode-production-fast-path func=f")]

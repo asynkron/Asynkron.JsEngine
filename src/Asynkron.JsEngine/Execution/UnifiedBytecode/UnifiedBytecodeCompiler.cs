@@ -4115,6 +4115,23 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        if (TryAppendFirstBoundaryComputedPrefixComputedPropertyUpdate(
+                expressionProgram,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                unified,
+                literalConstants,
+                stringConstants,
+                out reason))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(reason))
+        {
+            return false;
+        }
+
         if (TryAppendFirstBoundaryComputedPropertyUpdate(
                 expressionProgram,
                 activationSlots,
@@ -12528,6 +12545,122 @@ internal static class UnifiedBytecodeCompiler
                 stagedLiterals,
                 stagedStrings,
                 startInclusive: 1,
+                endExclusive: propertyUpdateIndex,
+                out reason,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        stagedUnified.Add(new UnifiedBytecodeInstruction(
+            UnifiedBytecodeOpCode.UpdateComputedProperty,
+            EncodeUpdateFlags(propertyUpdate)));
+        unified.Clear();
+        unified.AddRange(stagedUnified);
+        literalConstants.Clear();
+        literalConstants.AddRange(stagedLiterals);
+        stringConstants.Clear();
+        stringConstants.AddRange(stagedStrings);
+        reason = string.Empty;
+        return true;
+    }
+
+    // A23: computed receiver-prefix property update with a COMPUTED-update terminal
+    // (`box[k1].child[k2]++`, `--box[k1].child[k2]`). The receiver prefix is a simple computed
+    // property read (`box[k1]`, optionally with trailing plain named reads such as `.child`) that
+    // TryAppendFirstBoundaryNestedNamedComputedPropertyUpdate cannot own (op 1 is not a plain
+    // GetNamedProperty) and that TryAppendFirstBoundaryComputedPropertyUpdate mis-reads as a single
+    // key span (`Unsupported computed property key span`). This handler resolves the prefix ONCE via
+    // the shared computed-read span emitter, then emits the trailing computed key span and the
+    // update. The whole shape is validated before any staging is committed so a false path never
+    // leaves a partially emitted program. The named-update terminal (`box[k1].child++`) is already
+    // owned by the generic UpdateNamedProperty per-op path, so it is not handled here.
+    private static bool TryAppendFirstBoundaryComputedPrefixComputedPropertyUpdate(
+        ExpressionProgram expressionProgram,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers,
+        ImmutableArray<UnifiedBytecodeInstruction>.Builder unified,
+        ImmutableArray<JsValue>.Builder literalConstants,
+        ImmutableArray<string>.Builder stringConstants,
+        out string reason)
+    {
+        reason = string.Empty;
+        if (expressionProgram.OperationCount < 6)
+        {
+            return false;
+        }
+
+        var propertyUpdateIndex = expressionProgram.OperationCount - 1;
+        var propertyUpdate = expressionProgram.GetOperation(propertyUpdateIndex);
+        if (propertyUpdate.Kind != ExpressionOpKind.UpdateComputedProperty)
+        {
+            return false;
+        }
+
+        // The receiver prefix must be a simple computed property read (`box[k1]`, optionally with
+        // trailing plain named reads) ending before the trailing computed key span.
+        if (!TryMeasureSimpleComputedPropertyReadOperandSpan(
+                expressionProgram,
+                0,
+                propertyUpdateIndex,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                out var keyStart,
+                out var keyEndExclusive,
+                out var receiverSpanLength))
+        {
+            return false;
+        }
+
+        if (receiverSpanLength <= 0 || receiverSpanLength >= propertyUpdateIndex)
+        {
+            return false;
+        }
+
+        // Validate the trailing computed key span fully before emitting anything.
+        if (!IsSupportedComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                startInclusive: receiverSpanLength,
+                endExclusive: propertyUpdateIndex,
+                allowsDynamicIdentifiers))
+        {
+            reason = "Unsupported computed property key span.";
+            return false;
+        }
+
+        var stagedUnified = ImmutableArray.CreateBuilder<UnifiedBytecodeInstruction>();
+        stagedUnified.AddRange(unified);
+
+        var stagedLiterals = ImmutableArray.CreateBuilder<JsValue>();
+        stagedLiterals.AddRange(literalConstants);
+
+        var stagedStrings = ImmutableArray.CreateBuilder<string>();
+        stagedStrings.AddRange(stringConstants);
+
+        if (!TryAppendMeasuredSimpleComputedPropertyReadOperandSpan(
+                expressionProgram,
+                0,
+                keyStart,
+                keyEndExclusive,
+                receiverSpanLength,
+                activationSlots,
+                allowsDynamicIdentifiers,
+                stagedUnified,
+                stagedLiterals,
+                stagedStrings,
+                out reason))
+        {
+            return false;
+        }
+
+        if (!TryAppendComputedPropertyKeySpan(
+                expressionProgram,
+                activationSlots,
+                stagedUnified,
+                stagedLiterals,
+                stagedStrings,
+                startInclusive: receiverSpanLength,
                 endExclusive: propertyUpdateIndex,
                 out reason,
                 allowsDynamicIdentifiers))

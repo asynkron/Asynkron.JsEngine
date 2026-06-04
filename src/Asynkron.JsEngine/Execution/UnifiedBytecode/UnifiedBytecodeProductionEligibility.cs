@@ -2367,6 +2367,11 @@ internal static class UnifiedBytecodeProductionEligibility
                             program,
                             identifierConstants,
                             activationSlots,
+                            allowsDynamicIdentifiers) ||
+                        TryIsFirstBoundaryComputedPrefixPropertyUpdateCandidate(
+                            program,
+                            identifierConstants,
+                            activationSlots,
                             allowsDynamicIdentifiers))
                     {
                         break;
@@ -9081,6 +9086,75 @@ internal static class UnifiedBytecodeProductionEligibility
         return IsSupportedComputedPropertyKeySpan(
             program,
             startInclusive: keyStart,
+            endExclusive: updateIndex,
+            identifierConstants,
+            activationSlots,
+            allowsDynamicIdentifiers);
+    }
+
+    // A23: computed receiver-prefix property update
+    // (`box[k1].child[k2]++`, `--box[k1].child[k2]`, `box[k1].child++`, `box[k1][k2]--`):
+    // [computed-read receiver-prefix span (`box[k1]`, optionally trailing plain named reads),
+    //  optional computed key span, UpdateNamedProperty | UpdateComputedProperty].
+    // Mirrors TryIsFirstBoundaryComputedPrefixNamedPropertyWriteCandidate but ends in an
+    // Update opcode (no separate value/Set sequence). The receiver prefix is resolved once via
+    // the shared computed-read span helper. Compound (`box[k1].child[k2] += v`) lowers to a
+    // GetComputedPropertyForCompoundSet/SetComputedProperty write pair and is NOT an update
+    // terminal, so it stays declined by the write-family boundary. A call inside the prefix is
+    // rejected because TryMeasureSimpleComputedPropertyReadOperandSpan only admits simple read
+    // hops.
+    private static bool TryIsFirstBoundaryComputedPrefixPropertyUpdateCandidate(
+        ExpressionProgram program,
+        ReadOnlySpan<IdentifierOperand> identifierConstants,
+        ActivationSlotShape activationSlots,
+        bool allowsDynamicIdentifiers)
+    {
+        if (program.OperationCount < 6)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        var updateIndex = program.OperationCount - 1;
+        var lastOp = program.GetOperation(updateIndex);
+
+        // The receiver is a simple computed property read (`box[k1]`, optionally with trailing
+        // plain named reads). For a named-update terminal the prefix is the full receiver; for a
+        // computed-update terminal the prefix is everything before the trailing computed key span.
+        if (!TryMeasureSimpleComputedPropertyReadOperandSpan(
+                program,
+                0,
+                identifierConstants,
+                activationSlots,
+                out var receiverSpanLength,
+                allowsDynamicIdentifiers))
+        {
+            return false;
+        }
+
+        if (lastOp.Kind == ExpressionOpKind.UpdateNamedProperty)
+        {
+            // `box[k1].child++` / `box[k1]['a'].b++`: the computed-read span is the whole
+            // receiver and the named property is the update target.
+            return !lastOp.GetString(stringConstants).IsPrivateName() &&
+                   receiverSpanLength == updateIndex;
+        }
+
+        if (lastOp.Kind != ExpressionOpKind.UpdateComputedProperty)
+        {
+            return false;
+        }
+
+        // `box[k1].child[k2]++`: the computed-read span resolves the receiver prefix, then a
+        // trailing computed key span feeds the computed update.
+        if (receiverSpanLength >= updateIndex)
+        {
+            return false;
+        }
+
+        return IsSupportedComputedPropertyKeySpan(
+            program,
+            startInclusive: receiverSpanLength,
             endExclusive: updateIndex,
             identifierConstants,
             activationSlots,

@@ -84,11 +84,11 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [x] **A28** Optional-chain named read beyond single hop `a?.b?.c` — *OptionalChainDependency* — ◐/◐ — `:1464` ✅ #3161
 - [x] **A29** Optional-chain computed read beyond admitted `a?.[k]?.[j]` — *OptionalChainDependency* — ◐/◐ — `:1689` ✅ #3162
 - [x] **A30** Optional member/computed call beyond admitted `a?.b?.c()`, `o?.[k]()` — *OptionalChainDependency* — ◐/◐ — `:1232` ✅ #3165
-- [ ] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ☐/☐ — `:1992`
+- [ ] **A31** Optional short-circuit guard outside admitted spans — *OptionalChainDependency* — ☐/☐ — `:1992` — note (audit a0a7078): multi-hop `o?.a?.b` read + short-circuit already routes + correct, PINNED (`AlreadyRoutingShapePinTests`). The exact "outside admitted spans" decline target still needs an exact repro before check-off.
 - [ ] **A32** Optional-chain delete chained `delete a?.b?.c` — *OptionalChainDependency* — ☐/☐ — `:1619` — ⚠️ FOUNDATION: ExpressionProgram IR is lossy for optional-chain deletes (terminal-hop optionality not encoded; `delete a?.b?.c` == `delete a?.b.c` in bytecode). Needs an IR-lowering change preserving terminal-hop optionality (broad blast radius, both interpreter + VM). Not a sync-route slice.
 - [x] **A33** Array spread non-simple source `[...f().items]`, `[...gen()]` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2014` ✅ #3166
 - [x] **A34** Object spread non-simple source `{...f()}` — *ObjectLiteralOrSpreadDependency* — ◐/◐ — `:2036` ✅ #3167
-- [ ] **A35** Computed key / method / accessor object literal outside simple span *(decompose → P0.4)* — *ObjectLiteralOrSpreadDependency* — ☐/☐ — `:2019` — _(in progress: workflow A3-objlit)_
+- [ ] **A35** Computed key / method / accessor object literal outside simple span *(decompose → P0.4)* — *ObjectLiteralOrSpreadDependency* — ☐/☐ — `:2019` — note (audit a0a7078): the BASIC computed-key (`{[k]:1}`), shorthand method (`{m(){}}`), and getter (`{get a(){}}`) object literals already route + correct, PINNED (`AlreadyRoutingShapePinTests`). The "outside simple span" complex cases (decompose → P0.4) still need work before check-off.
 - [ ] **A36** Private-field define in object literal `{#x:v}` — *PrivateFieldDependency* — ☐/☐ — `:2042`
 - [ ] **A37** Private-named mutation outside admitted direct shapes — *PrivateFieldDependency* — ◐/◐ — `:1093`
 - [x] **A38** for-in unsupported driver source (awaited / non-lowered) — *ForInDriverStateDependency* — ☑/☑ — `:524` ✅ (Codex)
@@ -102,7 +102,7 @@ Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on othe
 - [ ] **A46** Non-production binary operator (`**`, BigInt-mixed, …) *(decompose)* — *UnsupportedPlanShape* — ◐/◐ — `:2061` — ◐ (commit 9058879): `**` on Numbers confirmed admitted (`IsProductionBinaryOperator` + `JsOps.Exp`) and PINNED with 12 routing tests + 4 ratchet rows; right-assoc/`**=`/precedence/NaN edges verified. Also fixed a pre-existing parser bug: unparenthesized prefix-unary base before `**` (e.g. `-2**2`) now correctly throws SyntaxError. **Remaining:** BigInt operator production-routing (`2n**10n` computes correctly but routing tier not pinned; BigINt-mixed correctly throws TypeError).
 - [x] **A47** for-of unsupported iterator-init source — *UnsupportedPlanShape* — ☑/☑ — `:517` ✅ (Codex)
 - [ ] **A48** Sync iterator driver: async iterator kind — *UnsupportedPlanShape* — ☐/☐ — `:2332`
-- [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204`
+- [ ] **A49** Plan with no ActivationSlots metadata — *UnsupportedPlanShape* — ☐/☐ — `:204` — note (audit a0a7078): trivial no-ActivationSlots plans (top-level `1+1;` script route, empty `function f(){}`) already route + correct, PINNED (`AlreadyRoutingShapePinTests`). Confirm the `:204` decline arm is unreachable for valid shapes before check-off.
 - [ ] **A50** Default prototype-only opcode guard (drift backstop) *(→ P0.3)* — *UnsupportedPlanShape* — ☐/n/a — `:8243`
 - [x] **A51** Compiler `TryCompile` failure umbrella *(decomposed by P0.2)* — *UnsupportedPlanShape* — see A51a-A51m and B47a below.
 - [ ] **A51a** Compiler entrypoint, invalid target, loop-shaped topology, and unsupported breakable/loop control — owner: statement/control-flow lowering; fallback route: existing execution-plan runner; sync/resumable: both.

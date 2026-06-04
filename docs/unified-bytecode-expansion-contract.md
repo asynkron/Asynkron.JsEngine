@@ -1094,6 +1094,25 @@ the final post-compile production subset check before VM entry.
   `PrepareComputedSuperCallTarget` followed by `CallInvocationBoundary`; the VM
   evaluates the key before resolving the super-member callee and invokes with
   the derived receiver as `this`.
+- A12: MEMBER/COMPUTED call-targets past the first invocation boundary —
+  chained method/computed calls (`a.b().c()`, `o.m().n()`, `o.a()[k]()`) whose
+  final call's TARGET is a member access on an EARLIER call's result — are now
+  admitted. The named-member-call eligibility candidate
+  (`TryIsGeneralNamedMemberCallExpressionCandidate`) walks the whole program with
+  the canonical admitted-argument operand-stack model
+  (`TryApplyAdmittedArgumentOpStackDelta`), so it admits named and computed
+  receiver chains that contain an inner `Call` boundary in addition to the flat
+  member-call shape. The compiler detects these chains
+  (`IsGeneralChainedCallProgram`: last op is `Call`, an earlier op is also a
+  `Call`, and there are NO genuine optional-chain ops) and declines the
+  specialized first-boundary receiver-chain helper cleanly so the general
+  expression loop lowers the entire chain in source order: each inner
+  `CallInvocationBoundary` leaves its result on the operand stack as the next
+  call's receiver, and the final call applies with `this` = that immediate
+  receiver object. Left-to-right evaluation of the chain is preserved exactly.
+  STRICT self-recursive FLAT member tail calls (`this.step(n-1)`) are NOT a
+  chained shape, so A12 does not alter their routing — they recurse on the native
+  stack exactly as on baseline (no TCO, identical depth ceiling).
 - Ordinary non-optional identifier/member/super call-target opcodes now lower
   through the general expression loop. Direct eval and optional-call shapes
   still use the first-boundary call-target helper because they carry

@@ -5520,79 +5520,37 @@ internal static class UnifiedBytecodeProductionEligibility
         ActivationSlotShape activationSlots,
         bool allowsDynamicIdentifiers)
     {
-        var stackDepth = 0;
-        var hasNamedMemberCall = false;
+        // Walk the whole program with the canonical admitted-argument operand-stack model. This
+        // models named AND computed member/property reads, member-call-target preparations, and
+        // Call boundaries with exact deltas, so it admits not only the flat member-call shape
+        // (`o.m(args)`) but also chained method/computed calls past the first invocation boundary
+        // (`a.b().c()`, `o.m().n()`, `o.a()[k]()`) — A12. The trailing Call is the final invocation;
+        // at least one Call must occur (so a non-call read chain does not match), and the whole
+        // program must leave exactly one operand on the stack.
+        var depth = 0;
+        var hasCall = false;
         for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
         {
-            var operation = program.GetOperation(operationIndex);
-            switch (operation.Kind)
+            if (program.GetOperation(operationIndex).Kind == ExpressionOpKind.Call)
             {
-                case ExpressionOpKind.LoadLiteral:
-                case ExpressionOpKind.LoadThis:
-                case ExpressionOpKind.LoadNewTarget:
-                    stackDepth++;
-                    break;
+                hasCall = true;
+            }
 
-                case ExpressionOpKind.LoadIdentifier:
-                    if (!IsSimpleOperand(operation, identifierConstants, activationSlots, allowsDynamicIdentifiers))
-                    {
-                        return false;
-                    }
-
-                    stackDepth++;
-                    break;
-
-                case ExpressionOpKind.GetNamedProperty:
-                    if (stackDepth < 1 ||
-                        operation.IsOptional ||
-                        operation.ShortCircuitOnNullishTarget ||
-                        operation.GetString(stringConstants).IsPrivateName())
-                    {
-                        return false;
-                    }
-
-                    break;
-
-                case ExpressionOpKind.LoadNamedCallTarget:
-                    if (stackDepth < 1 ||
-                        operation.IsOptional ||
-                        operation.ShortCircuitOnNullishTarget ||
-                        operation.GetString(stringConstants).IsPrivateName())
-                    {
-                        return false;
-                    }
-
-                    stackDepth++;
-                    break;
-
-                case ExpressionOpKind.Call:
-                    if (!operation.HasExplicitThis ||
-                        operation.IsDirectEval ||
-                        operation.SpreadMaskConstantIndex >= 0 ||
-                        stackDepth < operation.ArgumentCount + 2)
-                    {
-                        return false;
-                    }
-
-                    stackDepth -= operation.ArgumentCount + 1;
-                    hasNamedMemberCall = true;
-                    break;
-
-                case ExpressionOpKind.Binary:
-                    if (stackDepth < 2 || !IsProductionBinaryOperator(operation.Operator))
-                    {
-                        return false;
-                    }
-
-                    stackDepth--;
-                    break;
-
-                default:
-                    return false;
+            if (!TryApplyAdmittedArgumentOpStackDelta(
+                    program,
+                    operationIndex,
+                    identifierConstants,
+                    stringConstants,
+                    activationSlots,
+                    allowsDynamicIdentifiers,
+                    depth,
+                    out depth))
+            {
+                return false;
             }
         }
 
-        return hasNamedMemberCall && stackDepth == 1;
+        return hasCall && depth == 1;
     }
 
     private static int FindComputedCallKeyStart(

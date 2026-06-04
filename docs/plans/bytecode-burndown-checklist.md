@@ -54,7 +54,7 @@ non-awaited `with`, the `Function` call boundary itself.
 
 Status: ☐ declined · ◐ partial · ☑ admitted (parity work remains on other engine)
 
-- [ ] **A1** Captured/dynamic activation: closure-captured locals / with-in-chain needing heap env — *CapturedOrDynamicActivation* — sync ◐ / res ☐ — `:418`
+- [ ] **A1** Captured/dynamic activation: closure-captured locals / with-in-chain needing heap env — *CapturedOrDynamicActivation* — sync ◐ / res ☐ — `:418` — **Stage 0 done** (commit 1c0b30675): FLAT multi-statement captured closures (counters/accumulators/captured reads+writes, e.g. `function inc(){ n++; return n; }`) now route through the production VM — captured locals lower to dynamic-identifier ops over the threaded closure env. Bounded by `HasOnlyRootFlatSlotMappings`: NESTED-lexical-scope closures still decline (a nested block's `let`/`const` can shadow a captured name → flat-slot miscompile; `NestedFunctionScopeRegressionTests`). Foundation prerequisite landed first: sync-VM `const` reassignment enforcement (commit d556f5d08) — function/block `const` slots were never marked const, so own- and captured-`const` writes silently succeeded; now they throw TypeError. Remaining A1 slices: nested-scope captured closures (scope-aware captured-name resolution), `with`-in-chain residue (A2), resumable parity (Stage 5).
 - [ ] **A2** Unresolved non-with dynamic activation chain — *CapturedOrDynamicActivation* — ☐/☐ — `:418`
 - [x] **A3** `arguments` whole-object dependency (escape/pass/return/mutate) — *ArgumentsObjectDependency* — ☑/☐ — `:427` ✅ (Codex)
 - [x] **A4** `arguments` as call target — *ArgumentsObjectDependency* — ☑/☐ — `:1172` ✅ (Codex)

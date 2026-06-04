@@ -3916,9 +3916,26 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                    _superConstructor is null &&
                    _superPrototype is null &&
                    _instanceFields.IsDefaultOrEmpty &&
-                   CanUseProductionUnifiedBytecodeArrowProgramShape(plan) &&
-                   CanUseProductionUnifiedBytecodeArrowActivationDependencyPath(plan) &&
-                   CanUseSimpleIrActivationPlanShape(plan);
+                   // Generalized past SimpleReturnProgram bodies: a captured enclosing-function local is
+                   // admitted as a dynamic-identifier op over the FULL instruction stream, not just a single
+                   // `return <expr>;`. The authoritative per-instruction validation is
+                   // UnifiedBytecodeProductionEligibility.Evaluate(plan, activation), which receives this
+                   // path via the activation descriptor and admits captured identifiers as dynamic ops
+                   // through the threaded closure environment, declining any opcode it cannot execute. Only
+                   // the slot-metadata sanity check remains here; the old arrow-program-shape + dependency
+                   // gates required a single return-expression body and blocked every multi-statement
+                   // closure (e.g. `function inc(){ n++; return n; }`).
+                   CanUseSimpleIrActivationPlanShape(plan) &&
+                   // Stage 0 admits FLAT captured-closure bodies only. A nested lexical scope inside the
+                   // closure (an `if`/loop block declaring its own `let`/`const`) can SHADOW a captured
+                   // enclosing name; the compiler then allocates a flat inner slot for that name, and a
+                   // read in the closure's outer scope wrongly resolves to the (uninitialized) local slot
+                   // instead of the captured dynamic op — miscompiling to undefined/NaN
+                   // (NestedFunctionScopeRegressionTests). HasOnlyRootFlatSlotMappings is true exactly when
+                   // the closure has no non-root scope mappings, so this excludes the shadowing hazard.
+                   // Nested-scope captured closures remain a later burn-down slice (need scope-aware
+                   // captured-name resolution that survives shadowing).
+                   plan.HasOnlyRootFlatSlotMappings;
         }
 
         private static bool CanUseProductionUnifiedBytecodeArrowProgramShape(ExecutionPlan plan)

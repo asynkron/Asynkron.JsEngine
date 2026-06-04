@@ -10086,8 +10086,13 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task FunctionExpression_CapturedOuterEnvironmentWrite_DoesNotUseUnifiedBytecodeProductionFastPath()
+    public async Task FunctionExpression_CapturedOuterEnvironmentWrite_UsesUnifiedBytecodeProductionFastPath()
     {
+        // Burn-down closure Stage 0: a FLAT multi-statement closure that captures an enclosing
+        // activation binding (`obj`) is now admitted to the production VM — the captured `obj` lowers
+        // to a dynamic-identifier op resolved through the threaded closure environment, and
+        // `obj.value = 43` is an ordinary property write on the resolved object. Previously this
+        // declined because the captured-closure path was gated to single-return-expression bodies.
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function makeSetter(obj) {
@@ -10102,7 +10107,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(43d, result);
-        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=set",
                 StringComparison.Ordinal));

@@ -4115,6 +4115,44 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.DeleteDynamicIdentifier:
+                    {
+                        // `delete freeVar` of a free/dynamic identifier (module/script-level binding or a
+                        // captured outer binding that escapes this activation's slots) inside a resumable body.
+                        // The name resolves against the live closure environment threaded onto
+                        // UnifiedBytecodeResumeState.CallingEnvironment (#3108 — the same env the admitted free
+                        // dynamic READS / CALL targets / typeof already use, captured at construction and stable
+                        // across yield/await), so a resumed step deletes against the CURRENT environment. The
+                        // opcode is self-contained: it neither reads nor writes the operand stack across a
+                        // suspension (a delete cannot itself yield/await — its operand is the resolved name, not
+                        // a sub-expression), it carries no AwaitedProgram, and it pushes exactly one boolean, so
+                        // it always runs to completion inside one resumable step with no resume-state
+                        // restoration. It does NOT use the transient dynamicIdentifierReferences array (the
+                        // reason the dynamic plain/compound STORE stays declined) — DeleteDynamicIdentifier
+                        // takes name + environment + isStrict and returns a bool directly. Strictness is the
+                        // body's own (state.IsStrict, captured at construction): a strict-mode `delete freeVar`
+                        // of an unqualified identifier is an early SyntaxError so never reaches here, while a
+                        // strict delete of a non-configurable global property returns false / throws per the
+                        // sync DeleteDynamicIdentifier helper, surfacing a throw as the resumable Throw step.
+                        // Literal twin of the sync VM's DeleteDynamicIdentifier handler.
+                        var resumableDynamicDeleteEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        PushResumableValue(DeleteDynamicIdentifier(
+                            program.StringConstants[instruction.Operand],
+                            resumableDynamicDeleteEnvironment,
+                            context,
+                            state.IsStrict)
+                            ? JsValue.True
+                            : JsValue.False);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.UnaryPlus:
                     var resumablePlusOperand = stack[stackPointer - 1];
                     stack[stackPointer - 1] = new JsValue(JsOps.ToNumber(in resumablePlusOperand, context));

@@ -1615,8 +1615,24 @@ internal static class UnifiedBytecodeProductionEligibility
                 // (`n = yield`), and the resume state does not thread the pending reference across the
                 // suspension, so admitting it would corrupt the store target on resume. It stays declined on
                 // the IR runner (ResolveDynamicIdentifierReference is absent from this allowlist). The
-                // remaining dynamic reference / single-shot store / delete opcodes likewise stay omitted.
+                // remaining dynamic reference / single-shot store opcodes likewise stay omitted.
                 UnifiedBytecodeOpCode.UpdateDynamicIdentifier or
+                // Free/dynamic identifier DELETE (`delete freeVar` where `freeVar` is module/script-level or a
+                // captured outer binding that escapes this activation's slots). Resolves the name against the
+                // live closure environment threaded onto UnifiedBytecodeResumeState.CallingEnvironment (#3108)
+                // — captured at construction and stable across yield/await — and deletes against the CURRENT
+                // environment, the literal twin of the sync VM's DeleteDynamicIdentifier handler. Unlike the
+                // dynamic plain/compound STORE, delete is SELF-CONTAINED: the DeleteDynamicIdentifier opcode
+                // takes name + environment + isStrict and returns a bool directly, never touching the transient
+                // dynamicIdentifierReferences array — so there is no pending reference for the resume state to
+                // thread. It cannot itself suspend (its operand is the resolved name, not a sub-expression),
+                // carries no AwaitedProgram, and pushes exactly one boolean, so it always runs to completion
+                // inside one resumable step with no operand-stack restoration. Strictness is the body's own
+                // (state.IsStrict): a strict-mode `delete freeVar` of an unqualified identifier is an early
+                // SyntaxError that never reaches here, and a strict delete of a non-configurable global property
+                // surfaces its false/throw exactly as the sync path. The ExecuteResumable switch carries the
+                // matching handler (kept 1:1 with this allowlist).
+                UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
                 // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
                 // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are

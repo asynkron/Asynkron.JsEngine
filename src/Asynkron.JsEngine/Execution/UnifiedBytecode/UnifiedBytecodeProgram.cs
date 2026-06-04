@@ -161,7 +161,8 @@ internal readonly record struct UnifiedBytecodeCallTarget(
 
 internal readonly record struct UnifiedBytecodeScopeDescriptor(
     int ScopeId,
-    ImmutableArray<int> LexicalSlotIndices);
+    ImmutableArray<int> LexicalSlotIndices,
+    ImmutableArray<int> ConstSlotIndices = default);
 
 internal readonly record struct UnifiedBytecodeTryDescriptor(
     int HandlerTarget,
@@ -415,4 +416,5 @@ internal sealed record UnifiedBytecodeProgram(
     ImmutableArray<BindingTargetProgram> BindingTargetConstants = default,
     ImmutableArray<TaggedTemplateDescriptor> TemplateObjectConstants = default,
     bool RequiresShortCircuitStackFlags = false,
-    int ScriptCompletionSlot = -1);
+    int ScriptCompletionSlot = -1,
+    ImmutableArray<int> ConstSlotIndices = default);

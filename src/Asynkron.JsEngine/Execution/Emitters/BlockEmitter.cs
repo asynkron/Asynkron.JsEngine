@@ -132,6 +132,7 @@ internal static class BlockEmitter
         // since those are initialized immediately by hoisting.
         var lexicalBindings = ComputeBlockLexicalBindings(hoistPlan.TopLevelLexicalNames, functionDeclarations);
         var lexicalSlotIndices = BuildLexicalSlotIndices(lexicalBindings, slotMap);
+        var constLexicalSlotIndices = BuildConstLexicalSlotIndices(lexicalBindings, hoistPlan, slotMap);
 
         entryIndex = ctx.Append(new PushEnvironmentInstruction(
             hoistEntry,
@@ -142,7 +143,8 @@ internal static class BlockEmitter
             allowPooling,
             LexicalBindings: lexicalBindings,
             LexicalSlotIndices: lexicalSlotIndices,
-            SourceBlock: block));
+            SourceBlock: block,
+            ConstLexicalSlotIndices: constLexicalSlotIndices));
 
         return true;
     }
@@ -204,6 +206,36 @@ internal static class BlockEmitter
         }
 
         return builder.Count == 0 ? default : builder.MoveToImmutable();
+    }
+
+    /// <summary>
+    ///     Builds the scope-relative slot indices for the const (const/using/await-using) subset of the
+    ///     block's lexical bindings, so the VM can mark those block-scope slots immutable and throw a
+    ///     TypeError on reassignment.
+    /// </summary>
+    private static ImmutableArray<int> BuildConstLexicalSlotIndices(
+        ImmutableHashSet<Symbol>? lexicalBindings,
+        HoistPlan hoistPlan,
+        ImmutableDictionary<Symbol, int> slotMap)
+    {
+        if (lexicalBindings is not { Count: > 0 } || slotMap.IsEmpty)
+        {
+            return default;
+        }
+
+        ImmutableArray<int>.Builder? builder = null;
+        foreach (var binding in lexicalBindings)
+        {
+            if (hoistPlan.LexicalDeclarationKinds.TryGetValue(binding, out var isConst) &&
+                isConst &&
+                slotMap.TryGetValue(binding, out var slotIndex))
+            {
+                builder ??= ImmutableArray.CreateBuilder<int>();
+                builder.Add(slotIndex);
+            }
+        }
+
+        return builder is null || builder.Count == 0 ? default : builder.ToImmutable();
     }
 
     /// <summary>

@@ -112,6 +112,23 @@ internal static class UnifiedBytecodeVirtualMachine
         var dynamicIdentifierReferenceCount = 0;
         bool[]? inactiveCatchBindingSlots = null;
         bool[]? constSlots = null;
+        // Seed the per-slot const bitmap with the function/block-scope const declarations recorded by the
+        // compiler (own-slot StoreSlot/UpdateSlot enforcement). Loop-head TDZ consts are added later via
+        // TdzHeadInit; block-scope consts are added when their PushEnvironment scope is entered.
+        if (!program.ConstSlotIndices.IsDefaultOrEmpty)
+        {
+            var programConstSlots = program.ConstSlotIndices;
+            constSlots = new bool[slots.Length];
+            for (var i = 0; i < programConstSlots.Length; i++)
+            {
+                var constSlotIndex = programConstSlots[i];
+                if ((uint)constSlotIndex < (uint)constSlots.Length)
+                {
+                    constSlots[constSlotIndex] = true;
+                }
+            }
+        }
+
         Stack<TryFrame>? tryStack = null;
         var nextActiveDriverOrdinal = 0;
 
@@ -2095,6 +2112,23 @@ internal static class UnifiedBytecodeVirtualMachine
                         for (var i = 0; i < lexicalSlotIndices.Length; i++)
                         {
                             slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+                        }
+
+                        // Record block-scope const declarations into the per-slot const bitmap so own-slot
+                        // StoreSlot/UpdateSlot writes throw a TypeError, and so the captured-env marking
+                        // below (IsConstSlotIndex) tags the scope env slot with SlotFlags.Const.
+                        var scopeConstSlotIndices = scopeDescriptor.ConstSlotIndices;
+                        if (!scopeConstSlotIndices.IsDefaultOrEmpty)
+                        {
+                            constSlots ??= new bool[slots.Length];
+                            for (var i = 0; i < scopeConstSlotIndices.Length; i++)
+                            {
+                                var constSlotIndex = scopeConstSlotIndices[i];
+                                if ((uint)constSlotIndex < (uint)constSlots.Length)
+                                {
+                                    constSlots[constSlotIndex] = true;
+                                }
+                            }
                         }
 
                         if (currentCallingEnvironment is not null && slotEnvironments is not null)

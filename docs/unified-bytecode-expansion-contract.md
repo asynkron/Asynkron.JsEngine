@@ -616,6 +616,7 @@ predicates and proof tests.
   and exact optional named/computed delete boundaries.
 - Object/array spread sources outside simple operands, admitted member-call
   spans, identifier-call and named-property-of-call array-spread sources (A33),
+  identifier-call and named-property-of-call OBJECT-spread sources (A34),
   and simple-control-expression spans; richer computed object keys/values
   outside admitted simple, member-call, and simple-control-expression spans;
   object methods/accessors outside restricted simple literal spans.
@@ -653,7 +654,7 @@ predicates and proof tests.
 | `DeleteDependency` | `delete` expressions outside the admitted ordinary named/computed property delete lane, simple-return dynamic-base named/computed property delete lane, ordinary dynamic-key computed delete lane, bounded implicit-`arguments` identifier delete lane, and with-backed dynamic-name delete lane | Existing sync IR delete route | Delete semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_NestedComputedPropertyDeleteDynamicKey_AcceptsOrdinaryDynamicNameOpcode"` |
 | `SuperPropertyDependency` | Out-of-boundary super call targets; super property reads/writes/updates are admitted by dedicated VM opcodes | Existing class / constructor route for remaining call-target shapes | Super semantics lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_SuperPropertyAccess_AcceptsOwnedOpcodes"` |
 | `OptionalChainDependency` | Optional chains outside the admitted optional property-read, optional-call, and exact optional named/computed delete boundaries | Existing sync IR optional-chain route | Optional-chain widening lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_OptionalChainNamedPrefixPlainCallExpressionPlan_AcceptsExecutableInvocationBoundary"` |
-| `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, receiver/callee-optional named/computed member-call spans, identifier-call and named-property-of-call array-spread sources (A33: `[...f()]`, `[...gen()]`, `[...f().items]`, `[a, ...f(), c]`), and simple-control-expression spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
+| `ObjectLiteralOrSpreadDependency` | Object/array spread sources outside simple operands, direct named/computed member-call spans, receiver/callee-optional named/computed member-call spans, identifier-call and named-property-of-call array-spread sources (A33: `[...f()]`, `[...gen()]`, `[...f().items]`, `[a, ...f(), c]`), identifier-call and named-property-of-call OBJECT-spread sources (A34: `{...f()}`, `{...gen()}`, `{...f().inner}`, `{a, ...f(), c:3}` — the shared `TryMeasureSimpleSpreadSourceOperandSpan` source measurer, consulted in the object-literal gate only when the property terminates in `ObjectSpread`; getters fire in source order, non-enumerables are skipped, null/undefined is a no-op), and simple-control-expression spans in spread sources, computed object keys, or object property values over activation-slot or admitted dynamic receiver/key/argument operands, and object methods/accessors only when they appear inside restricted simple literal spans | Existing sync IR literal/spread route for remaining spans | Literal/spread lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_ObjectLiteralUnsupportedFeatures_DeclineWithExplicitCodes"` |
 | `PrivateFieldDependency` | Private-name operations outside the admitted routes; `#name in obj`, direct private named reads/writes/updates, direct private named compound/logical writes, and direct private named method calls are VM-owned when the surrounding class method is otherwise production-eligible. Private member deletes are parser early errors before production eligibility. | Existing private-name route for remaining private member access | Private-name lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_PrivateFieldIn_AcceptsAndVmChecksPrivateBrand"` |
 | `ForInDriverStateDependency` | Unsupported for-in driver state outside the lowered synchronous source and resumable awaited-source lanes | Existing for-in IR driver route | Driver-state lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~EvaluateResumable_AwaitedForInSource_AdmitsAwaitValueAndForInDriver"` |
 | `DestructuringDependency` | Awaited binding values, unsupported destructuring driver shapes, and targets outside the admitted driver or descriptor-backed lanes; declaration defaults and computed binding names route through `ApplyDeclarationBindingTarget` | Existing destructuring IR route for remaining shapes | Destructuring driver lane | `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests&FullyQualifiedName~Evaluate_DeclarationDestructuringDescriptorShapes_AcceptDescriptorOpcode"` |
@@ -969,6 +970,23 @@ the final post-compile production subset check before VM entry.
   the same simple-array-literal-span escape hatch (already carried by the member
   call-target and `Call` cases) to the `LoadIdentifierCallTarget` and plain
   `GetNamedProperty` cases.
+- A34: object-literal spread entries additionally admit a NON-simple spread
+  *source* — a bare activation-resolved identifier call (`{...f()}`, `{...gen()}`),
+  an admitted member call (`{...o.make()}`), and a plain named property read off
+  such a call (`{...f().inner}`, `{...f().a.b}`) — including when mixed with normal
+  properties (`{a, ...f(), c: 3}`). The A33 source measurer is renamed
+  `TryMeasureSimpleSpreadSourceOperandSpan` and SHARED: it is consulted in the
+  object-literal gate only when the property terminates in `ObjectSpread`, so an
+  ordinary property value (`{a: f()}`) and a computed read off a call
+  (`{...f()[0]}`) stay declined. The `ObjectSpread` opcode copies the source's own
+  ENUMERABLE properties — getters fire in source order, non-enumerable properties
+  are skipped, and a null/undefined source is a no-op — and propagates any throw
+  raised while producing or reading the source, so the source span (built from
+  already-admitted VM opcodes) needs no new VM handler. Member-call sources
+  (`{...o.m()}`) were already admitted; A34 closes the identifier-call and
+  call-property-read gaps by extending the simple-OBJECT-literal-span escape hatch
+  to the `LoadIdentifierCallTarget` and plain `GetNamedProperty` cases (the
+  `LoadNamedCallTarget` and `Call` cases already carried it).
 - Synchronous spread calls are admitted (gh2676): `f(...args)`, `f(...a, ...b)`,
   `obj.method(...args)`, and mixed `f(a, ...b, c)`. Each argument (positional or
   spread) lowers to one value-producing load; the `CallInvocationBoundary`

@@ -1556,12 +1556,19 @@ internal static class UnifiedBytecodeProductionEligibility
                         break;
                     }
 
-                    // A33: a bare identifier call used as an array-spread source
-                    // (`[...f()]`, `[...gen()]`, `[...f().items]`) is admitted when the
-                    // call-target op falls inside an admitted simple array-literal span.
-                    // The member-call (LoadNamedCallTarget) and Call cases below already
-                    // carry this escape hatch; identifier call targets did not.
+                    // A33/A34: a bare identifier call used as a spread source
+                    // (`[...f()]`, `{...f()}`, `[...gen()]`, `[...f().items]`) is admitted
+                    // when the call-target op falls inside an admitted simple array- or
+                    // object-literal span. The member-call (LoadNamedCallTarget) and Call
+                    // cases below already carry this escape hatch; identifier call targets
+                    // did not.
                     if (IsOperationInSimpleArrayLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers) ||
+                        IsOperationInSimpleObjectLiteralSpan(
                             program,
                             operationIndex,
                             identifierConstants,
@@ -1829,19 +1836,26 @@ internal static class UnifiedBytecodeProductionEligibility
                     break;
 
                 case ExpressionOpKind.GetNamedProperty:
-                    // A33: a plain named property read off a call result used as an
-                    // array-spread source (`[...f().items]`, `[...f().a.b]`) is admitted
-                    // when the read op falls inside an admitted simple array-literal span.
-                    // The spread-source span only includes such reads when they terminate
-                    // in ArraySpread, so this does not widen ordinary property-read scope.
+                    // A33/A34: a plain named property read off a call result used as a
+                    // spread source (`[...f().items]`, `{...f().items}`, `{...f().a.b}`) is
+                    // admitted when the read op falls inside an admitted simple array- or
+                    // object-literal span. The spread-source span only includes such reads
+                    // when they terminate in ArraySpread/ObjectSpread, so this does not
+                    // widen ordinary property-read scope.
                     if (!operation.IsOptional &&
                         !operation.ShortCircuitOnNullishTarget &&
-                        IsOperationInSimpleArrayLiteralSpan(
+                        (IsOperationInSimpleArrayLiteralSpan(
                             program,
                             operationIndex,
                             identifierConstants,
                             activationSlots,
-                            allowsDynamicIdentifiers))
+                            allowsDynamicIdentifiers) ||
+                         IsOperationInSimpleObjectLiteralSpan(
+                            program,
+                            operationIndex,
+                            identifierConstants,
+                            activationSlots,
+                            allowsDynamicIdentifiers)))
                     {
                         break;
                     }
@@ -6301,7 +6315,7 @@ internal static class UnifiedBytecodeProductionEligibility
             // off a call (`[...f().items]`). These shapes are admitted ONLY when the
             // terminating op is ArraySpread; a non-spread terminator ends the literal
             // scan so the regular-element gate decides eligibility.
-            if (TryMeasureSimpleArraySpreadSourceOperandSpan(
+            if (TryMeasureSimpleSpreadSourceOperandSpan(
                     program,
                     i,
                     identifierConstants,
@@ -6326,18 +6340,20 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // A33: Measures the op span for a non-simple array-spread *source* operand.
+    // A33/A34: Measures the op span for a non-simple spread *source* operand.
     // This is intentionally wider than TryMeasureSimpleLiteralValueOperandSpan (which
-    // gates regular array-push elements) and is consulted ONLY when the terminating op
-    // is ArraySpread. Admitted source shapes:
-    //   - bare identifier call:          `[...f()]`, `[...gen()]`
-    //   - property read off a call base:  `[...f().items]`, `[...o.m().items]`
-    // The trailing ArraySpread opcode iterates whatever value the source span leaves on
-    // the stack (the standard iterator protocol, throwing on a non-iterable), so any
-    // source span built from already-admitted VM opcodes (identifier/member call,
-    // plain named property read) is safe to spread. Other shapes (already covered by
-    // the simple-literal-value span) and anything not verifiable here are declined.
-    private static bool TryMeasureSimpleArraySpreadSourceOperandSpan(
+    // gates regular array-push elements / object property values) and is consulted ONLY
+    // when the terminating op is ArraySpread (A33) or ObjectSpread (A34). Admitted shapes:
+    //   - bare identifier call:          `[...f()]`, `{...f()}`, `[...gen()]`
+    //   - property read off a call base:  `[...f().items]`, `{...f().items}`, `{...o.m().a}`
+    // The trailing spread opcode consumes whatever value the source span leaves on the
+    // stack — ArraySpread runs the iterator protocol (throwing on a non-iterable);
+    // ObjectSpread copies the source's own enumerable properties (a no-op for
+    // null/undefined). Either way any source span built from already-admitted VM opcodes
+    // (identifier/member call, plain named property read) is safe to spread. Other shapes
+    // (already covered by the simple-literal-value span) and anything not verifiable here
+    // are declined.
+    private static bool TryMeasureSimpleSpreadSourceOperandSpan(
         ExpressionProgram program,
         int startIndex,
         ReadOnlySpan<IdentifierOperand> identifierConstants,
@@ -6514,17 +6530,26 @@ internal static class UnifiedBytecodeProductionEligibility
                 continue;
             }
 
-            if (TryMeasureSimpleMemberCallOperandSpan(
+            // A34: an object-spread whose SOURCE is non-simple — a bare identifier call
+            // (`{...f()}`, `{...gen()}`), an admitted member call (`{...o.m()}`), or a plain
+            // named property read off such a call (`{...f().items}`, `{...o.m().a.b}`). The
+            // wider spread-source span is consulted ONLY when the terminating op is
+            // ObjectSpread; a non-spread terminator ends the literal scan so the regular
+            // property gate decides eligibility. ObjectSpread copies the source's own
+            // enumerable properties (getters fire in source order; non-enumerables skipped;
+            // null/undefined is a no-op), so any source span built from already-admitted VM
+            // opcodes is safe to spread.
+            if (TryMeasureSimpleSpreadSourceOperandSpan(
                     program,
                     i,
                     identifierConstants,
                     activationSlots,
-                    out var spreadCallSpanLength,
+                    out var spreadSourceSpanLength,
                     allowsDynamicIdentifiers) &&
-                i + spreadCallSpanLength < program.OperationCount &&
-                program.GetOperation(i + spreadCallSpanLength).Kind == ExpressionOpKind.ObjectSpread)
+                i + spreadSourceSpanLength < program.OperationCount &&
+                program.GetOperation(i + spreadSourceSpanLength).Kind == ExpressionOpKind.ObjectSpread)
             {
-                i += spreadCallSpanLength + 1;
+                i += spreadSourceSpanLength + 1;
                 continue;
             }
 

@@ -127,7 +127,7 @@ Gated by `TryFindUnsupportedResumableOpcode@895` (opcode allowlist) and
 sync-admitted ☑ but resumable-declined ☐ purely because they're absent from
 these allowlists — mechanical extensions against existing sync VM handlers.
 
-- [ ] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ◐
+- [x] **B1** async / async-arrow ordinary body — extend await-body admission — sync n/a / res ☑ ✅ (commit 48ca3dc12): `var x = await p` now routes through the resumable VM — the awaited declaration lowers to `<awaited ops> → AwaitValue → InitializeSlot`, so the settled value lands in the flat slot after the suspension and a later `LoadSlot` reads it correctly. Multi-sequential-await sound. `__debug`-instrumented bodies decline resumable routing (introspection walks the env chain, not flat slots).
 - [ ] **B2** generator body — extend yield* / remaining yield shapes — n/a/◐ — note (audit a5b0c09): `yield*` over a LOCAL/param iterable already routes + correct, PINNED (`ResumableAlreadyRoutingPinTests`); `YieldStar`/`Iterator*` opcodes already allowlisted. **Remaining = free/dynamic iterable == B38.**
 - [x] **B3** **async generator `async function*` — first EvaluateResumable route modeled** — n/a/◐ ✅ #3135 (simple-parameter direct-yield bodies can route through `UnifiedBytecodeVirtualMachine.ExecuteResumable`; async-generator `yield*` / `yield* await ...` delegation remains an explicit pre-VM decline on the IR runner).
 - [x] **B4** Property write `o.x=v` in resumable — ☑/☑ ✅ #3114
@@ -171,7 +171,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B41** `for await (x of asyncIter)` async-iterator driver (declines both routes) — ☐/☐
 - [x] **B42** `for(k in await p)` awaited for-in source — n/a/☑ ✅ (Codex)
 - [ ] **B43** Awaited with-object `with(await x){}` — ☐/☐
-- [ ] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☐/☐
+- [x] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☑/☑ ✅ (commit 48ca3dc12): awaited destructuring lowers to `<awaited ops> → AwaitValue → ApplyDeclarationBindingTarget` (new resumable VM handler that runs the synchronous destructuring against the resume state's CallingEnvironment after the suspension and writes each binding to its flat slot). Allowlist 1:1.
 - [ ] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/☐
 - [ ] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/☐
 - [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.

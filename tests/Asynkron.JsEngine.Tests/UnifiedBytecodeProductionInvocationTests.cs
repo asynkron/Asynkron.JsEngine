@@ -10400,6 +10400,54 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ClassExpressionPrivateFields_AcrossYield_UsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* makeBox() {
+                yield "ready";
+                return class {
+                    #value = 42;
+
+                    read() {
+                        return this.#value;
+                    }
+
+                    has(receiver) {
+                        return #value in receiver;
+                    }
+                };
+            }
+
+            var iterator = makeBox();
+            var first = iterator.next();
+            var second = iterator.next();
+            var Box = second.value;
+            var box = new Box();
+            [
+                first.value,
+                first.done,
+                box.read(),
+                box.has(box),
+                box.has({}),
+                second.done
+            ];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal("ready", steps.Items[0].AsString());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(42d, steps.Items[2].AsDouble());
+        Assert.True(steps.Items[3].AsBoolean());
+        Assert.False(steps.Items[4].AsBoolean());
+        Assert.True(steps.Items[5].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=makeBox argc=0",
+                StringComparison.Ordinal));
+    }
+
     public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
         new()
         {

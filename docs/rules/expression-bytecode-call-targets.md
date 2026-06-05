@@ -179,6 +179,15 @@ VM state write-back — while auditing any shared operand-packing helpers that
 construct paths depend on.
 
 Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f9c18ac10d`
+/ PR #3263 closed the D1 direct-eval quarantine gate as a proof ratchet. The
+runtime already had a narrow admitted direct-eval fast path, so the important
+learning was to pin the negative boundary around it: multi-argument direct eval,
+spread direct eval, and any synthetic `Call` op carrying `IsDirectEval` outside
+the proven one-argument non-spread literal shape must decline before the VM
+route while still evaluating correctly on IR.
+
+Issue
 `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-b4a52d0bfe`
 / PR #3261 closed the D2 eval-injected runtime binding quarantine as a ratchet
 slice. The existing eligibility code already declined declaration-bearing eval

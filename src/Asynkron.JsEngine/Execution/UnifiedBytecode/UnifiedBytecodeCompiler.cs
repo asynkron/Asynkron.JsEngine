@@ -1900,6 +1900,7 @@ internal static class UnifiedBytecodeCompiler
                             iteratorMoveNext.ValueSlot,
                             iteratorMoveNext.ValueSlotIndex,
                             UnifiedBytecodeOpCode.IteratorMoveNext,
+                            iteratorMoveNext.IteratorKind,
                             instructions,
                             activeWithDepths,
                             slotLayout,
@@ -2096,6 +2097,7 @@ internal static class UnifiedBytecodeCompiler
                             forInMoveNext.ValueSlot,
                             forInMoveNext.ValueSlotIndex,
                             UnifiedBytecodeOpCode.ForInMoveNext,
+                            IteratorDriverKind.Sync,
                             instructions,
                             activeWithDepths,
                             slotLayout,
@@ -3427,6 +3429,7 @@ internal static class UnifiedBytecodeCompiler
         Symbol valueSymbol,
         int valueSlotIndex,
         UnifiedBytecodeOpCode opCode,
+        IteratorDriverKind iteratorKind,
         ImmutableArray<ExecutionInstruction> instructions,
         int[] activeWithDepths,
         UnifiedBytecodeSlotLayout slotLayout,
@@ -3466,6 +3469,7 @@ internal static class UnifiedBytecodeCompiler
             new UnifiedBytecodeDriverDescriptor(
                 stateSlot,
                 ValueSlot: valueSlot,
+                IteratorKind: iteratorKind,
                 NextTarget: unified.Count + 1,
                 ContinueTarget: unified.Count,
                 MoveNextTarget: unified.Count));

@@ -183,7 +183,24 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, resumableEnvironment, isStrict)
+            var callingEnvironment = resumableEnvironment;
+            if (RequiresResumableSuperEnvironment(program))
+            {
+                _inner = new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,
+                    realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
+                    capturedPrivateNameScopes,
+                    planOverride: planSeed.Plan,
+                    planFailureOverride: planSeed.Failure);
+                callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse();
+            }
+
+            _unifiedState = new UnifiedBytecodeResumeState(
+                program,
+                slots,
+                boundThis,
+                callingEnvironment,
+                isStrict,
+                JsValue.Undefined)
             {
                 // Thread the private-name scopes lexically active where this async-generator body was
                 // defined so the resumable VM can re-enter them on each per-step context and resolve

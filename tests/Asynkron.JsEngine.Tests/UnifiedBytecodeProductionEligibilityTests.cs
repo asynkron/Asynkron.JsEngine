@@ -3991,6 +3991,29 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_UnreachableWithBody_DoesNotDeclineD3Residue()
+    {
+        var plan = GetFunctionPlan("""
+            function* dynamic(box) {
+                return 1;
+                with (box) {
+                    yield value;
+                }
+            }
+            """,
+            "dynamic");
+
+        Assert.Contains(plan.Instructions, static instruction => instruction is EnterWithInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_SimpleSourceArraySpread_Accepts()
     {
         var plan = GetFunctionPlan("""

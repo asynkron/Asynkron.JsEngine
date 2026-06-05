@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 42 complete / 15 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 44 complete / 13 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
-| D — Dynamic quarantine | 5 | 3 complete / 2 open; build the residue boundary |
+| D — Dynamic quarantine | 5 | 4 complete / 1 open; D1-D4 now pin terminal dynamic-residue boundaries |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (134 concrete A+B+C+D checklist items):** 94 complete / 40 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (134 concrete A+B+C+D checklist items):** 95 complete / 39 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

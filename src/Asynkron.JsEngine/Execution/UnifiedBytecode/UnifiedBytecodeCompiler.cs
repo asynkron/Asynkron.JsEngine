@@ -707,6 +707,30 @@ internal static class UnifiedBytecodeCompiler
         return builder.ToImmutable();
     }
 
+    private static ImmutableArray<int> RemapPerIterationCopySlotIndices(
+        int scopeId,
+        ImmutableArray<Symbol> perIterationBindings,
+        ImmutableDictionary<Symbol, int> slotMap,
+        ImmutableDictionary<int, ImmutableArray<(int SlotIndex, int FlatSlotId)>> flatSlotMappings)
+    {
+        if (perIterationBindings.IsDefaultOrEmpty || slotMap.IsEmpty)
+        {
+            return ImmutableArray<int>.Empty;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<int>(perIterationBindings.Length);
+        foreach (var binding in perIterationBindings)
+        {
+            if (slotMap.TryGetValue(binding, out var slotIndex) &&
+                TryMapSlot(scopeId, slotIndex, flatSlotMappings, out var flatSlotId))
+            {
+                builder.Add(flatSlotId);
+            }
+        }
+
+        return builder.ToImmutable();
+    }
+
     private static ImmutableArray<int> RemapParameterSlotIndices(
         int scopeId,
         ImmutableArray<int> slotIndices,
@@ -1617,10 +1641,8 @@ internal static class UnifiedBytecodeCompiler
 
                     case PushEnvironmentInstruction pushEnvironment:
                         // Per-iteration binding environments (for (const/let x in/of ...)) are compiled
-                        // as ordinary PushEnvironment instructions. The rebinding semantics are handled
-                        // by the move-next instruction writing to the synthetic value slot, the
-                        // PushEnvironment resetting the per-iteration lexical slot to Uninitialized, and
-                        // the binding statement assigning the value slot to the per-iteration slot.
+                        // as ordinary PushEnvironment instructions plus copy metadata for the slots that
+                        // need CreatePerIterationEnvironment-style value carry-forward.
                         var lexicalSlotIndices = RemapSlotIndices(
                             pushEnvironment.ScopeId,
                             pushEnvironment.LexicalSlotIndices,
@@ -1631,11 +1653,17 @@ internal static class UnifiedBytecodeCompiler
                                 pushEnvironment.ScopeId,
                                 pushEnvironment.ConstLexicalSlotIndices,
                                 slotLayout.FlatSlotMappings);
+                        var perIterationCopySlotIndices = RemapPerIterationCopySlotIndices(
+                            pushEnvironment.ScopeId,
+                            pushEnvironment.PerIterationBindings,
+                            pushEnvironment.SlotMap,
+                            slotLayout.FlatSlotMappings);
                         var scopeDescriptorIndex = scopeDescriptors.Count;
                         scopeDescriptors.Add(new UnifiedBytecodeScopeDescriptor(
                             pushEnvironment.ScopeId,
                             lexicalSlotIndices,
-                            constSlotIndices));
+                            constSlotIndices,
+                            perIterationCopySlotIndices));
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.PushEnvironment,
                             scopeDescriptorIndex));

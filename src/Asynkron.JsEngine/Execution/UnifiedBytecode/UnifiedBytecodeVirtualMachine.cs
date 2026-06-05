@@ -2138,9 +2138,24 @@ internal static class UnifiedBytecodeVirtualMachine
                     case UnifiedBytecodeOpCode.PushEnvironment:
                         var scopeDescriptor = program.ScopeDescriptors[instruction.Operand];
                         var lexicalSlotIndices = scopeDescriptor.LexicalSlotIndices;
+                        var perIterationCopySlotIndices = scopeDescriptor.PerIterationCopySlotIndices;
+                        JsValue[]? perIterationCopyValues = null;
+                        if (!perIterationCopySlotIndices.IsDefaultOrEmpty)
+                        {
+                            perIterationCopyValues = new JsValue[perIterationCopySlotIndices.Length];
+                            for (var i = 0; i < perIterationCopySlotIndices.Length; i++)
+                            {
+                                perIterationCopyValues[i] = slots[perIterationCopySlotIndices[i]];
+                            }
+                        }
+
                         for (var i = 0; i < lexicalSlotIndices.Length; i++)
                         {
-                            slots[lexicalSlotIndices[i]] = JsValue.Uninitialized;
+                            var lexicalSlotIndex = lexicalSlotIndices[i];
+                            if (!ContainsSlotIndex(perIterationCopySlotIndices, lexicalSlotIndex))
+                            {
+                                slots[lexicalSlotIndex] = JsValue.Uninitialized;
+                            }
                         }
 
                         // Record block-scope const declarations into the per-slot const bitmap so own-slot
@@ -2174,11 +2189,29 @@ internal static class UnifiedBytecodeVirtualMachine
                             {
                                 var slotIndex = lexicalSlotIndices[i];
                                 var isConst = IsConstSlotIndex(slotIndex, constSlots);
+                                var isCopiedPerIterationSlot = ContainsSlotIndex(
+                                    perIterationCopySlotIndices,
+                                    slotIndex);
                                 previousSlotEnvironments[i] = slotEnvironments[slotIndex];
                                 slotEnvironments[slotIndex] = new UnifiedSlotEnvironmentBinding(
                                     scopeEnvironment,
                                     slotIndex);
-                                MarkSlotEnvironmentLexical(slotEnvironments, slotIndex, isConst);
+                                MarkSlotEnvironmentLexical(
+                                    slotEnvironments,
+                                    slotIndex,
+                                    isConst,
+                                    isUninitialized: !isCopiedPerIterationSlot);
+                            }
+
+                            if (perIterationCopyValues is not null)
+                            {
+                                for (var i = 0; i < perIterationCopySlotIndices.Length; i++)
+                                {
+                                    var slotIndex = perIterationCopySlotIndices[i];
+                                    var value = perIterationCopyValues[i];
+                                    slots[slotIndex] = value;
+                                    scopeEnvironment.SetSlotDirect(slotIndex, value);
+                                }
                             }
 
                             environmentStack ??= new EnvironmentScopeFrame[instructions.Length];
@@ -7455,7 +7488,8 @@ internal static class UnifiedBytecodeVirtualMachine
     private static void MarkSlotEnvironmentLexical(
         UnifiedSlotEnvironmentBinding?[]? slotEnvironments,
         int slotIndex,
-        bool isConst)
+        bool isConst,
+        bool isUninitialized = true)
     {
         if (slotEnvironments is null ||
             (uint)slotIndex >= (uint)slotEnvironments.Length ||
@@ -7466,11 +7500,34 @@ internal static class UnifiedBytecodeVirtualMachine
         }
 
         ref var slot = ref binding.Environment.GetSlotByIndex(binding.SlotIndex);
-        slot.Flags |= SlotFlags.Lexical | SlotFlags.Uninitialized | SlotFlags.BlocksFunctionScopeOverride;
+        slot.Flags |= SlotFlags.Lexical | SlotFlags.BlocksFunctionScopeOverride;
+        if (isUninitialized)
+        {
+            slot.Flags |= SlotFlags.Uninitialized;
+        }
+
         if (isConst)
         {
             slot.Flags |= SlotFlags.Const;
         }
+    }
+
+    private static bool ContainsSlotIndex(ImmutableArray<int> slotIndices, int slotIndex)
+    {
+        if (slotIndices.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < slotIndices.Length; i++)
+        {
+            if (slotIndices[i] == slotIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static JsEnvironment CreateScopeEnvironment(

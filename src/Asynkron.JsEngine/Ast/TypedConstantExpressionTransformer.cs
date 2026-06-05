@@ -5,7 +5,7 @@ namespace Asynkron.JsEngine.Ast;
 
 /// <summary>
 ///     Performs constant folding directly on the typed AST so optimization passes
-///     no longer need to bounce back through cons cells.
+///     stay on the current parser and AST representation.
 /// </summary>
 public sealed class TypedConstantExpressionTransformer
 {

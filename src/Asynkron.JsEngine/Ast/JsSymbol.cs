@@ -8,7 +8,7 @@ namespace Asynkron.JsEngine.Ast;
 /// <summary>
 ///     Represents a JavaScript Symbol value (ES6 symbol primitive type).
 ///     Symbols are unique and immutable primitive values that can be used as object property keys.
-///     This is distinct from the internal Symbol class used for S-expression atoms.
+///     This is distinct from the engine's internal Symbol class used for identifier interning.
 /// </summary>
 public sealed class JsSymbol : IJsPropertyAccessor
 {

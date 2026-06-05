@@ -23,7 +23,7 @@ Rewind to November 2025
 Why build a JS Engine? …and why do it with 100% AI?
 
 --- SLIDE 08 (slide8.xml) ---
-It started with this prompt I want to create a JS execution engine using C#. It will need a js parser/ grammar . I want to represent the result of the parser as S-expressions / CDR/ Cons . The execution engine can then treat the code similar to lisp .
+It started with this prompt I want to create a JS execution engine using C#. It will need a js parser / grammar . I want to represent parser output as a typed AST, then lower it to IR and expression bytecode . The execution engine can then run explicit execution plans .
 
 --- SLIDE 09 (slide9.xml) ---
 [no extracted text]
@@ -35,7 +35,7 @@ It started with this prompt I want to create a JS execution engine using C#. It 
 [no extracted text]
 
 --- SLIDE 12 (slide12.xml) ---
-Raw JavaScript Translated to S-Expressions Continuation Passing Style
+Raw JavaScript Lowered to Typed AST / IR Continuation Passing Style
 
 --- SLIDE 13 (slide13.xml) ---
 Architecture
@@ -47,7 +47,7 @@ Execution model
 The initial itch , can I do this ? Adding more tests, design, architecture , trying to understand JS etc.
 
 --- SLIDE 16 (slide16.xml) ---
-Memory models S- Expr to Typed AST Redesign Generators Redesign Async Await Improved Lexer /Parser Runtime logs Runtime spy – capture variables at given points The first steps towards a StdLib ~1500 unit tests, including some known benchmark source files
+Memory models Typed AST to IR Redesign Generators Redesign Async Await Improved Lexer /Parser Runtime logs Runtime spy – capture variables at given points The first steps towards a StdLib ~1500 unit tests, including some known benchmark source files
 
 --- SLIDE 17 (slide17.xml) ---
 … two weeks later I found it
@@ -125,7 +125,7 @@ Test Bomb Layered Test
 You are almost done !!
 
 --- SLIDE 42 (slide42.xml) ---
-Performance , where are all the bottlenecks or hotspots ? What about memory ? Contention ? Exceptions ? How do you ensure any form of code quality ? C# take -no- prisoners . Warnings as errors , bump all Analyzers to error . How do we detect code duplication ? What about architecture , is the LISP model enough ? CPS, Generators, Replay , AST Eval , IR, ByteCode , IL?
+Performance , where are all the bottlenecks or hotspots ? What about memory ? Contention ? Exceptions ? How do you ensure any form of code quality ? C# take -no- prisoners . Warnings as errors , bump all Analyzers to error . How do we detect code duplication ? What about architecture , is the IR / bytecode model enough ? CPS, Generators, Replay , AST Eval , IR, ByteCode , IL?
 
 --- SLIDE 43 (slide43.xml) ---
 Profiling
@@ -159,4 +159,3 @@ I think the process is wrong
 
 --- SLIDE 53 (slide53.xml) ---
 [no extracted text]
-

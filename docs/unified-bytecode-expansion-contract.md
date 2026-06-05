@@ -173,8 +173,8 @@ statement interpretation.
   production bytecode. The resumable eligibility opcode allow-list is now
   audited against the `ExecuteResumable` switch, so opcodes already implemented
   by the resumable VM cannot remain stale declines. Broad async/generator
-  control flow, calls, dynamic lookup, arguments, awaited iterator sources, and
-  async-generator delegated yield shapes still decline.
+  control flow, calls, dynamic lookup, arguments, and awaited iterator sources
+  still decline.
 - Async generators have a narrow production route through
   `AsyncGeneratorInvoker`: simple-parameter direct-yield `async function*`
   bodies can initialize `UnifiedBytecodeResumeState` and settle
@@ -184,8 +184,8 @@ statement interpretation.
   async iterables is admitted through the same resumable state: delegated
   `next`/`return`/`throw` results may suspend as `PendingAwait` and resume back
   into the VM-owned `YieldStar` driver. Async-generator `yield* await ...`
-  delegation remains an explicit pre-VM decline until awaited delegated-source
-  settlement is VM-owned.
+  now emits the awaited source followed by `AwaitValue` and the same
+  VM-owned `YieldStar` driver.
 - Generator-lowered synthetic resume and driver targets
   (`__yield_lower_resume*`, internal `yield*` state slots) are now added to the
   unified slot layout when the original activation analysis did not include
@@ -1815,14 +1815,14 @@ the final post-compile production subset check before VM entry.
   iterator/destructuring drivers, unsupported expression payloads, and unmodeled
   statement families still decline before VM execution. (Non-optional synchronous
   call dispatch is now admitted — see the call-dispatch entry above.)
-- Non-awaited async-generator `yield*` now routes after B39 because the VM owns
-  delegated async iterator `.next(value)`, `.return(value)`, and `.throw(value)`
-  settlement through the resumable async-generator `PendingAwait` bridge.
-  Awaited delegated sources (`yield* await ...`) and unsupported delegated
-  expression payloads remain outside production resumable routing until their
-  source-await settlement semantics are modeled by the VM. Focused issue #2955
-  coverage pinned the earlier decline boundary; B39 / PR #3221 supersedes only
-  the non-awaited async-generator lane.
+- Async-generator `yield*` now routes after B39 and the awaited-source follow-up
+  because the VM owns delegated async iterator `.next(value)`, `.return(value)`,
+  and `.throw(value)` settlement through the resumable async-generator
+  `PendingAwait` bridge. The awaited delegated source form (`yield* await ...`)
+  emits `<awaited source> -> AwaitValue -> YieldStar`, so source-await
+  settlement and delegated-result settlement stay separate in the resumable
+  state. Unsupported delegated expression payloads remain outside production
+  resumable routing until their own lowering is modeled by the VM.
 
 ## Reserved Ownership Lanes (planned, not implemented)
 - Compiler-owned control-flow widening lanes

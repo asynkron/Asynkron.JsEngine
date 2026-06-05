@@ -9,8 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 ///     Proof pack for the first production async-generator route through
 ///     <see cref="UnifiedBytecodeVirtualMachine.ExecuteResumable" />. The admitted boundary is deliberately
 ///     narrow: simple-parameter async generators whose body is otherwise resumable-eligible can route, including
-///     non-awaited <c>yield*</c> over a delegated async iterable. Awaited delegated sources still stay on the
-///     async-generator IR runner until that source-await settlement is VM-owned.
+///     non-awaited <c>yield*</c> and <c>yield* await</c> over a delegated async iterable.
 /// </summary>
 [Category(TestCategories.AsyncRuntime)]
 [Category(TestCategories.IteratorRuntime)]
@@ -62,7 +61,7 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
     }
 
     [Fact]
-    public void EvaluateResumable_AsyncGeneratorYieldStarAwait_StaysDeclined()
+    public void EvaluateResumable_AsyncGeneratorYieldStarAwait_AdmitsAwaitValueAndYieldStar()
     {
         var plan = GetFunctionPlan("""
             async function* relay(values) {
@@ -75,9 +74,14 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true, IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
-        Assert.Contains("Async-generator yield* await delegation", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.AwaitValue);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.YieldStar);
     }
 
     [Fact(Timeout = 5000)]
@@ -148,6 +152,60 @@ public sealed class UnifiedBytecodeAsyncGeneratorRouteTests(ITestOutputHelper ou
 
             async function run() {
                 var iterator = relay(delegated);
+                var first = await iterator.next("ignored");
+                var second = await iterator.next("sent");
+                var third = await iterator.next("final");
+                return first.value + ":" + first.done + "|" +
+                    second.value + ":" + second.done + "|" +
+                    third.value + ":" + third.done + "|" +
+                    calls.join(",");
+            }
+
+            run().then(value => output = value);
+            output;
+            """);
+
+        Assert.Equal("first:false|second:sent:false|done:final:true|next:undefined,next:sent,next:final", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                $"{ResumableAsyncGeneratorFastPathLog} func=relay",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncGeneratorYieldStarAwait_RoutesResumableAndSettlesAwaitedSource()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var output = undefined;
+
+            async function* relay(values) {
+                return yield* await values;
+            }
+
+            var calls = [];
+            var delegated = {
+                [Symbol.asyncIterator]() {
+                    var index = 0;
+                    return {
+                        async next(value) {
+                            calls.push("next:" + String(value));
+                            if (index === 0) {
+                                index = 1;
+                                return { value: "first", done: false };
+                            }
+                            if (index === 1) {
+                                index = 2;
+                                return { value: "second:" + value, done: false };
+                            }
+                            return { value: "done:" + value, done: true };
+                        }
+                    };
+                }
+            };
+
+            async function run() {
+                var iterator = relay(Promise.resolve(delegated));
                 var first = await iterator.next("ignored");
                 var second = await iterator.next("sent");
                 var third = await iterator.next("final");

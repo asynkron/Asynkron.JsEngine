@@ -1664,13 +1664,22 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
             {
-                var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                if (IsResumableClassLiteral(program, activationSlots, classExpression, out declineReason))
+                if ((uint)instruction.Operand >= (uint)program.ClassLiteralConstants.Length)
                 {
-                    continue;
+                    declineReason = "Class literal operand is outside the unified bytecode class literal constants.";
+                    return true;
                 }
 
-                return true;
+                if (!IsResumableClassLiteral(
+                        program,
+                        activationSlots,
+                        program.ClassLiteralConstants[instruction.Operand],
+                        out declineReason))
+                {
+                    return true;
+                }
+
+                continue;
             }
 
             if (instruction.OpCode is
@@ -1925,10 +1934,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 // matching handler (kept 1:1 with this allowlist).
                 UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
-                // Class expressions inside resumable bodies materialize through the same class-definition
-                // program cache and private-name machinery as the sync VM. The resume state carries the live
-                // calling environment, so field initializers and private-brand checks close over the correct
-                // lexical scope after yield/await without adding an AST/IR fallback.
+                // Class expression literal creation is admitted only by the B24 shape guard above.
+                // Accepted class expressions materialize through the same class-definition program cache and
+                // private-name machinery as the sync VM, with the live calling environment available so owned
+                // field initializers and private-brand checks close over the correct lexical scope.
                 UnifiedBytecodeOpCode.LoadClassLiteral or
                 UnifiedBytecodeOpCode.LoadFunctionLiteral or
                 UnifiedBytecodeOpCode.EnsureHasName or
@@ -2029,17 +2038,23 @@ internal static class UnifiedBytecodeProductionEligibility
         out string declineReason)
     {
         var definition = classExpression.Definition;
+        if (IsB24cPublicStaticFieldClassLiteral(definition))
+        {
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
             declineReason =
-                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice.";
+                "Class literal is outside B24: extends expressions that read resumable activation slots need a later class-definition environment slice; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
         if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
         {
             declineReason =
-                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices.";
+                "Class literal is outside B24: static elements remain owned by later B24 static-field/static-block slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
@@ -2082,12 +2097,106 @@ internal static class UnifiedBytecodeProductionEligibility
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
-                "Class literal is outside B24: computed or static class members remain later B24 slices.";
+                "Class literal is outside B24: computed or static class members remain later B24 slices; admitted subsets include the B24c public static-field subset.";
             return false;
         }
 
         declineReason = string.Empty;
         return true;
+    }
+
+    private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
+    {
+        if (definition.Extends is not null ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            definition.Fields.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (!definition.StaticElements.IsDefaultOrEmpty &&
+            definition.StaticElements.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsStatic ||
+                field.IsPrivate ||
+                field.IsComputed ||
+                field.ComputedName is not null ||
+                StaticFieldInitializerCanCaptureActivation(field.Initializer))
+            {
+                return false;
+            }
+        }
+
+        var constructor = definition.Constructor;
+        return !constructor.IsAsync &&
+               !constructor.IsGenerator &&
+               !constructor.IsDefaultDerivedConstructor &&
+               constructor.Parameters.IsDefaultOrEmpty &&
+               constructor.Body.Statements.IsDefaultOrEmpty;
+    }
+
+    private static bool StaticFieldInitializerCanCaptureActivation(ExpressionNode? initializer) =>
+        initializer is not null &&
+        ClassStaticFieldInitializerCaptureDetector.ContainsClosureProducingExpression(initializer);
+
+    private sealed class ClassStaticFieldInitializerCaptureDetector : AstVisitor
+    {
+        [ThreadStatic] private static ClassStaticFieldInitializerCaptureDetector? _instance;
+
+        private bool _found;
+
+        public static bool ContainsClosureProducingExpression(ExpressionNode expression)
+        {
+            var detector = _instance ??= new ClassStaticFieldInitializerCaptureDetector();
+            detector._found = false;
+            detector.ShouldStop = false;
+            detector.Visit(expression);
+            return detector._found;
+        }
+
+        protected override void VisitFunctionExpression(FunctionExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitClassExpression(ClassExpression node)
+        {
+            _found = true;
+            ShouldStop = true;
+        }
+
+        protected override void VisitObjectExpression(ObjectExpression node)
+        {
+            foreach (var member in node.Members)
+            {
+                if (ShouldStop)
+                {
+                    break;
+                }
+
+                if (member.Key is ExpressionNode keyExpression)
+                {
+                    Visit(keyExpression);
+                }
+
+                if (!ShouldStop && member.Value is not null)
+                {
+                    Visit(member.Value);
+                }
+
+                if (!ShouldStop && member.Function is not null)
+                {
+                    VisitFunctionExpression(member.Function);
+                }
+            }
+        }
     }
 
     private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)

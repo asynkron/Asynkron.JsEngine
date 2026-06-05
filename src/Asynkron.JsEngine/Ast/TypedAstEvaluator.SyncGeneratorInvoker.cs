@@ -102,7 +102,8 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
-            if (needsMaterializedBodyEnvironment && RequiresResumableSuperEnvironment(program))
+            var requiresResumableSuperBinding = RequiresResumableSuperEnvironment(program);
+            if (needsMaterializedBodyEnvironment && requiresResumableSuperBinding)
             {
                 return false;
             }
@@ -150,16 +151,18 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
-            if (RequiresResumableSuperEnvironment(program))
+            SuperBinding? resumableSuperBinding = null;
+            if (requiresResumableSuperBinding &&
+                !TryCreateResumableSuperBinding(_closure, boundThis, _homeObject, out resumableSuperBinding))
             {
-                callingEnvironment = CreateResumableSuperEnvironmentBridgeRunner(arguments, thisValue)
-                    .GetOrCreateExecutionEnvironmentForInternalUse();
+                return false;
             }
 
             // A generator is never a constructor and never an arrow, so its own new.target is undefined.
             var state = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, JsValue.Undefined)
             {
                 HasMaterializedBodyEnvironment = needsMaterializedBodyEnvironment,
+                ResumableSuperBinding = resumableSuperBinding,
                 // Thread the private-name scopes lexically active where this generator method was defined
                 // (captured enclosing scopes plus the class's own brand scope, innermost last) onto the
                 // resume state so the resumable VM can re-enter them on each per-step context and resolve

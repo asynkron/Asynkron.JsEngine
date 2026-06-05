@@ -128,7 +128,7 @@ public sealed class UnifiedBytecodeResumableCallDispatchTests(ITestOutputHelper 
     }
 
     // End-to-end generator: named and computed super-member calls after an earlier yield route through the
-    // resumable fast path and preserve the derived instance as `this`.
+    // resumable fast path and preserve the derived instance as `this` from the resume-state super binding.
     [Fact(Timeout = 5000)]
     public async Task GeneratorSuperMemberCallsBetweenYields_RouteResumableAndPreserveReceiver()
     {

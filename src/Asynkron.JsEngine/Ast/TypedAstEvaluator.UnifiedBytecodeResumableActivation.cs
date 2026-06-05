@@ -177,13 +177,49 @@ public static partial class TypedAstEvaluator
                 UnifiedBytecodeOpCode.SetNamedSuperProperty or
                 UnifiedBytecodeOpCode.SetComputedSuperProperty or
                 UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
-                UnifiedBytecodeOpCode.UpdateComputedSuperProperty)
+                UnifiedBytecodeOpCode.UpdateComputedSuperProperty or
+                UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget or
+                UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget)
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool TryCreateResumableSuperBinding(
+        JsEnvironment closure,
+        JsValue boundThis,
+        IJsObjectLike? homeObject,
+        out SuperBinding binding)
+    {
+        binding = null!;
+        if (homeObject is not null)
+        {
+            var superPrototype = (homeObject as IPrototypeAccessorProvider)?.PrototypeAccessor ??
+                                 homeObject.Prototype;
+            if (superPrototype is null && boundThis.TryGetObject<JsObject>(out var thisObject))
+            {
+                superPrototype = thisObject.PrototypeAccessor ?? thisObject.Prototype;
+            }
+
+            var superConstructor = superPrototype as IJsEnvironmentAwareCallable;
+            binding = new SuperBinding(superConstructor, superPrototype, boundThis, true);
+            return true;
+        }
+
+        if (!closure.TryGetObject<SuperBinding>(Symbol.Super, out var inheritedBinding))
+        {
+            return false;
+        }
+
+        binding = new SuperBinding(
+            inheritedBinding.Constructor,
+            inheritedBinding.Prototype,
+            boundThis,
+            inheritedBinding.IsThisInitialized);
+        return true;
     }
 
     private static void InitializeResumableLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)

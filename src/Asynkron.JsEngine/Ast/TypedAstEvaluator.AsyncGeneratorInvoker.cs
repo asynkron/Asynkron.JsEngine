@@ -178,10 +178,11 @@ public static partial class TypedAstEvaluator
             }
 
             var callingEnvironment = resumableEnvironment;
-            if (RequiresResumableSuperEnvironment(program))
+            SuperBinding? resumableSuperBinding = null;
+            if (RequiresResumableSuperEnvironment(program) &&
+                !TryCreateResumableSuperBinding(closure, boundThis, homeObject, out resumableSuperBinding))
             {
-                _inner = CreateResumableSuperEnvironmentBridgeRunner();
-                callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse();
+                return false;
             }
 
             if (!TryPopulateResumableRootHoistedFunctionDeclarations(
@@ -205,6 +206,7 @@ public static partial class TypedAstEvaluator
             {
                 IsAsyncLike = true,
                 IsAsyncGenerator = true,
+                ResumableSuperBinding = resumableSuperBinding,
                 // Thread the private-name scopes lexically active where this async-generator body was
                 // defined so the resumable VM can re-enter them on each per-step context and resolve
                 // `#name in obj` correctly across yield/await.
@@ -240,11 +242,6 @@ public static partial class TypedAstEvaluator
         }
 
         private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
-        {
-            return CreateExecutionPlanRunner();
-        }
-
-        private ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner()
         {
             return CreateExecutionPlanRunner();
         }

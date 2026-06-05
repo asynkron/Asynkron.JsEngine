@@ -611,14 +611,6 @@ public static partial class TypedAstEvaluator
             return context.CreateClassifiedDeclinedBodyRunner();
         }
 
-        protected ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner(
-            IReadOnlyList<JsValue> arguments,
-            JsValue thisValue)
-        {
-            var context = CreateInvocationContext(arguments, thisValue);
-            return context.CreateResumableSuperEnvironmentBridgeRunner();
-        }
-
         protected GeneratorInvocationContext CreateInvocationContext(IReadOnlyList<JsValue> arguments, JsValue thisValue)
         {
             return new GeneratorInvocationContext(
@@ -699,11 +691,6 @@ public static partial class TypedAstEvaluator
         }
 
         public ExecutionPlanRunner CreateClassifiedDeclinedBodyRunner()
-        {
-            return CreateRunner();
-        }
-
-        public ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner()
         {
             return CreateRunner();
         }

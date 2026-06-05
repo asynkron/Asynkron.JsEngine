@@ -9,7 +9,7 @@ namespace Asynkron.JsEngine.Tests;
 ///     Proof pack for B13: super-property reads inside the resumable VM. A generator/async class method
 ///     that reads <c>super.x</c> or <c>super[k]</c> between suspension points is admitted by
 ///     <see cref="UnifiedBytecodeProductionEligibility.EvaluateResumable" /> and resolves the live
-///     home-object environment through <see cref="UnifiedBytecodeResumeState.CallingEnvironment" />.
+///     home-object receiver/prototype through <see cref="UnifiedBytecodeResumeState.ResumableSuperBinding" />.
 ///     Neighboring super call/write/update families are covered by their own proof packs.
 /// </summary>
 [Category(TestCategories.RuntimeSemantics)]
@@ -226,6 +226,26 @@ public sealed class UnifiedBytecodeResumableSuperPropertyReadTests(ITestOutputHe
         AssertAsyncGeneratorFastPath("<anonymous>", argc: 2);
     }
 
+    [Fact]
+    public void SourceGate_ResumableSuperSetup_DoesNotCreateRunnerBackedEnvironment()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var invokerPaths = new[]
+        {
+            Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.SyncGeneratorInvoker.cs"),
+            Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncFunctionInvoker.cs"),
+            Path.Combine("src", "Asynkron.JsEngine", "Ast", "TypedAstEvaluator.AsyncGeneratorInvoker.cs")
+        };
+
+        Assert.All(invokerPaths, relativePath =>
+        {
+            var fullPath = Path.Combine(repositoryRoot.FullName, relativePath);
+            Assert.True(File.Exists(fullPath), $"Missing source file for resumable super setup gate: {relativePath}");
+            var source = File.ReadAllText(fullPath);
+            Assert.DoesNotContain("GetOrCreateExecutionEnvironmentForInternalUse", source, StringComparison.Ordinal);
+        });
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             record => record.Message.Contains(
@@ -255,5 +275,21 @@ public sealed class UnifiedBytecodeResumableSuperPropertyReadTests(ITestOutputHe
         var cache = ((IAstCacheable<ExecutionPlanCache>)member.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static DirectoryInfo FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "Asynkron.JsEngine.sln")))
+            {
+                return current;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root from test output directory.");
     }
 }

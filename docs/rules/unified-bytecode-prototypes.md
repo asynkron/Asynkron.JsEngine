@@ -178,6 +178,29 @@ all-or-nothing until a separate routing issue proves production readiness.
      `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`
      and
      `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`.
+10f. When admitting class literals inside resumable unified bytecode, classify
+     each class element by the class-definition state it needs during creation,
+     not by the presence of `LoadClassLiteral` alone. Public member functions
+     and public instance field initializers that contain `super` may route only
+     when `LoadClassLiteral` can reuse the captured
+     `UnifiedBytecodeResumeState.CallingEnvironment` and the existing
+     class-definition program cache owns the member/initializer execution.
+     Extends expressions that read resumable activation slots, computed member
+     names, static elements, private methods/accessors, and broad static-field
+     creation must remain explicit pre-VM declines until the resumable route
+     owns that class-definition environment state directly. Future B24 widening
+     needs both positive route/runtime proof for the admitted element family and
+     nearby no-route proof for the still-unowned class-definition families.
+     WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f3d5eef198`
+     / PR #3205 admitted public class-literal member `super` and public
+     instance-field initializer `super` by renaming the B24a-only gate into a
+     B24 class-literal shape gate, detecting actual `SuperExpression` use, and
+     keeping activation-slot-reading `extends`, computed/static/private
+     families declined. The durable lesson is that `super` in class members is
+     routeable when existing class-definition machinery and the captured calling
+     environment already own lookup, but the route must not infer broad
+     class-expression safety from that narrow ownership proof.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

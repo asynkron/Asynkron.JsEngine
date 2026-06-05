@@ -348,7 +348,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 $"Plan is not eligible for resumable unified bytecode routing: {compileReason}");
         }
 
-        if (TryFindUnsupportedResumableOpcode(program, out declineReason))
+        if (TryFindUnsupportedResumableOpcode(program, activationSlots, out declineReason))
         {
             return UnifiedBytecodeProductionEligibilityResult.Decline(
                 UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
@@ -1657,6 +1657,7 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool TryFindUnsupportedResumableOpcode(
         UnifiedBytecodeProgram program,
+        ActivationSlotShape activationSlots,
         out string declineReason)
     {
         foreach (var instruction in program.Instructions)
@@ -1989,8 +1990,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.ArraySpread)
             {
                 if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral &&
-                    !IsResumableB24ClassLiteral(
+                    !IsResumableClassLiteral(
                         program,
+                        activationSlots,
                         program.ClassLiteralConstants[instruction.Operand],
                         out declineReason))
                 {
@@ -2009,8 +2011,9 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    private static bool IsResumableB24ClassLiteral(
+    private static bool IsResumableClassLiteral(
         UnifiedBytecodeProgram program,
+        ActivationSlotShape activationSlots,
         ClassExpression classExpression,
         out string declineReason)
     {
@@ -2037,6 +2040,36 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (IsB24fPrivateInstanceMemberClassLiteral(definition))
+        {
+            if (definition.Extends is not null)
+            {
+                declineReason =
+                    "Class literals with extends are not eligible for the B24f resumable private-member route.";
+                return false;
+            }
+
+            if (FunctionCapturesActivationSlot(definition.Constructor, activationSlots, out var constructorCapturedName))
+            {
+                declineReason =
+                    $"Class literal is outside B24f: constructor body captures activation binding '{constructorCapturedName}' and needs the materialized body environment route.";
+                return false;
+            }
+
+            foreach (var member in definition.Members)
+            {
+                if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+                {
+                    declineReason =
+                        $"Class literal is outside B24f: private member body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    return false;
+                }
+            }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
@@ -2045,6 +2078,26 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)
+    {
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty ||
+            definition.Members.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (!member.IsPrivate || member.IsStatic || member.IsComputed)
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

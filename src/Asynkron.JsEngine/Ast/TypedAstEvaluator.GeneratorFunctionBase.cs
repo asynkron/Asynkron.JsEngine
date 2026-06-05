@@ -603,13 +603,20 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
-        /// <summary>
-        /// Creates an ExecutionPlanRunner for this generator function.
-        /// </summary>
-        protected ExecutionPlanRunner CreateRunner(IReadOnlyList<JsValue> arguments, JsValue thisValue)
+        protected ExecutionPlanRunner CreateClassifiedGeneratorDeclinedBodyRunner(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue)
         {
             var context = CreateInvocationContext(arguments, thisValue);
-            return context.CreateRunner();
+            return context.CreateClassifiedDeclinedBodyRunner();
+        }
+
+        protected ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner(
+            IReadOnlyList<JsValue> arguments,
+            JsValue thisValue)
+        {
+            var context = CreateInvocationContext(arguments, thisValue);
+            return context.CreateResumableSuperEnvironmentBridgeRunner();
         }
 
         protected GeneratorInvocationContext CreateInvocationContext(IReadOnlyList<JsValue> arguments, JsValue thisValue)
@@ -673,7 +680,7 @@ public static partial class TypedAstEvaluator
             _planSeed = planSeed;
         }
 
-        public ExecutionPlanRunner CreateRunner()
+        private ExecutionPlanRunner CreateRunner()
         {
             return new ExecutionPlanRunner(
                 _function,
@@ -689,6 +696,16 @@ public static partial class TypedAstEvaluator
                 _capturedPrivateNameScopes,
                 planOverride: _planSeed.Plan,
                 planFailureOverride: _planSeed.Failure);
+        }
+
+        public ExecutionPlanRunner CreateClassifiedDeclinedBodyRunner()
+        {
+            return CreateRunner();
+        }
+
+        public ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner()
+        {
+            return CreateRunner();
         }
 
         public AsyncGeneratorInvoker CreateAsyncGeneratorInvoker()

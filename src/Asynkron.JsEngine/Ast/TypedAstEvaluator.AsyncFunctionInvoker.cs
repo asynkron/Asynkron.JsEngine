@@ -61,21 +61,8 @@ public static partial class TypedAstEvaluator
                         return JsValue.Undefined;
                     }
 
-                    // Initialize generator inside Promise to capture any early errors
-                    _inner = new ExecutionPlanRunner(
-                        function,
-                        closure,
-                        arguments,
-                        thisValue,
-                        callable,
-                        _realmState,
-                        isLexicallyStrict,
-                        hasFunctionNameEnvironment,
-                        homeObject,
-                        privateNameScope,
-                        capturedPrivateNameScopes,
-                        planOverride: _planSeed.Plan,
-                        planFailureOverride: _planSeed.Failure);
+                    // Initialize generator inside Promise to capture any early errors.
+                    _inner = CreateClassifiedAsyncDeclinedBodyRunner();
                     _inner.Initialize();
 
                     // Start execution - async functions don't receive an argument on first call
@@ -162,20 +149,7 @@ public static partial class TypedAstEvaluator
             var callingEnvironment = resumableEnvironment;
             if (RequiresResumableSuperEnvironment(program))
             {
-                callingEnvironment = new ExecutionPlanRunner(
-                        function,
-                        closure,
-                        arguments,
-                        thisValue,
-                        callable,
-                        _realmState,
-                        isLexicallyStrict,
-                        hasFunctionNameEnvironment,
-                        homeObject,
-                        privateNameScope,
-                        capturedPrivateNameScopes,
-                        planOverride: _planSeed.Plan,
-                        planFailureOverride: _planSeed.Failure)
+                callingEnvironment = CreateResumableSuperEnvironmentBridgeRunner()
                     .GetOrCreateExecutionEnvironmentForInternalUse();
             }
 
@@ -230,6 +204,34 @@ public static partial class TypedAstEvaluator
 
             plan = null!;
             return false;
+        }
+
+        private ExecutionPlanRunner CreateClassifiedAsyncDeclinedBodyRunner()
+        {
+            return CreateExecutionPlanRunner();
+        }
+
+        private ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner()
+        {
+            return CreateExecutionPlanRunner();
+        }
+
+        private ExecutionPlanRunner CreateExecutionPlanRunner()
+        {
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                _realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: _planSeed.Plan,
+                planFailureOverride: _planSeed.Failure);
         }
 
         private void DriveUnifiedBytecodeToCompletion(

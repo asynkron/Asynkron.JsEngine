@@ -58,11 +58,7 @@ public static partial class TypedAstEvaluator
                 return;
             }
 
-            _inner = new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,
-                realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
-                capturedPrivateNameScopes,
-                planOverride: planSeed.Plan,
-                planFailureOverride: planSeed.Failure);
+            _inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();
             _inner.Initialize();
         }
 
@@ -184,11 +180,7 @@ public static partial class TypedAstEvaluator
             var callingEnvironment = resumableEnvironment;
             if (RequiresResumableSuperEnvironment(program))
             {
-                _inner = new ExecutionPlanRunner(function, closure, arguments, thisValue, callable,
-                    realmState, isLexicallyStrict, hasFunctionNameEnvironment, homeObject, privateNameScope,
-                    capturedPrivateNameScopes,
-                    planOverride: planSeed.Plan,
-                    planFailureOverride: planSeed.Failure);
+                _inner = CreateResumableSuperEnvironmentBridgeRunner();
                 callingEnvironment = _inner.GetOrCreateExecutionEnvironmentForInternalUse();
             }
 
@@ -245,6 +237,34 @@ public static partial class TypedAstEvaluator
 
             plan = null!;
             return false;
+        }
+
+        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
+        {
+            return CreateExecutionPlanRunner();
+        }
+
+        private ExecutionPlanRunner CreateResumableSuperEnvironmentBridgeRunner()
+        {
+            return CreateExecutionPlanRunner();
+        }
+
+        private ExecutionPlanRunner CreateExecutionPlanRunner()
+        {
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: planSeed.Plan,
+                planFailureOverride: planSeed.Failure);
         }
 
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(

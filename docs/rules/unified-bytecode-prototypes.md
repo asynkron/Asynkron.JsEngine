@@ -309,6 +309,19 @@ all-or-nothing until a separate routing issue proves production readiness.
      and VM scope-entry handling agreed on per-iteration copy slots; the
      earlier forced route left closure-visible bindings in TDZ. Related ADR:
      `docs/adrs/0334-admit-captured-per-iteration-bindings-through-push-environment-copy-slots.md`.
+10i. When admitting descriptor-backed block-scoped function declarations on the
+     ordinary sync production route, treat Annex B blocked-name setup as part
+     of fast activation, not as an optional IR-runner side effect.
+     `PushEnvironment` and `DeclareFunction` may own the block environment and
+     runtime declaration update, but the function var environment must already
+     carry the same blocked-name set as the existing non-VM activation paths.
+     Pair positive route proof for sloppy block-function updates with adjacent
+     blocked-name and strict no-leak proofs. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-cbbdaf84ff`
+     / PR #3233 admitted A43, then the Annex B `let f = 123` blocked-name shape
+     showed that production unified fast activation had skipped the shared
+     blocked-name setup. Related ADR:
+     `docs/adrs/0337-keep-annex-b-blocked-names-shared-for-unified-fast-activation.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

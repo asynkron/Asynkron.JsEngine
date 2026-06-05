@@ -54,10 +54,17 @@ parse-phase redeclaration checks scoped to the correct syntactic container.
    function environment setup, sync invocation setup, and the legacy hoist-time
    undefined binding path.
 12. Keep Annex B block-function blocked-name collectors traversal-compatible
-   with the hoisted-function collectors they constrain. Transparent wrappers
-   such as `LabeledStatement` must be unwrapped in every duplicated collector,
-   otherwise a label-wrapped declaration can still receive a stale var-scope
-   slot or hoist artifact.
+    with the hoisted-function collectors they constrain. Transparent wrappers
+    such as `LabeledStatement` must be unwrapped in every duplicated collector,
+    otherwise a label-wrapped declaration can still receive a stale var-scope
+    slot or hoist artifact.
+13. When admitting block-scoped function declarations onto a fast activation or
+    production unified-bytecode route, install the same Annex B blocked-name set
+    as the existing IR/non-VM activation path before any descriptor-backed block
+    declaration executes. Slot ownership and `DeclareFunction` lowering are not
+    enough: body lexical names, parameters, non-simple catch names, parameter
+    expression block-function names, and observable `arguments` must still block
+    sloppy Annex B outer-binding updates.
 
 ## Why
 
@@ -97,3 +104,14 @@ collector did. Future work must treat the skip decision as a shared
 FunctionDeclarationInstantiation/slot-planning/hoist-time contract, not as a
 single local guard. Related ADR:
 `docs/adrs/0157-keep-annex-b-parameter-expression-blocked-names-shared.md`.
+
+Faktorial issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-cbbdaf84ff`
+/ PR #3233 admitted descriptor-backed block-scoped function declarations to the
+production unified-bytecode route, then caught that the fast activation bridge
+had not installed the existing Annex B blocked-name set. The durable lesson is
+that Annex B blocked names are activation metadata, not just an IR-runner detail:
+once `DeclareFunction` can run on the VM route, the fast activation var
+environment must carry the same blocked names before runtime block-function
+updates happen. Related ADR:
+`docs/adrs/0337-keep-annex-b-blocked-names-shared-for-unified-fast-activation.md`.

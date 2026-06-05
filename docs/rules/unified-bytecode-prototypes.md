@@ -86,6 +86,20 @@ all-or-nothing until a separate routing issue proves production readiness.
    / PR #2951 found that declaration instructions needed explicit production
    declines so runtime hoisting and lexical class declaration semantics stayed
    on the existing IR routes until the VM owns them.
+   Switch-style `BreakableKind.HandlesCompletionInternally` wrappers may route
+   through ordinary sync production unified bytecode when the existing lowered
+   plan proves compiler-owned numeric break targets and the rest of the opcode
+   subset is already admitted. Do not preserve a construct-kind-only compiler
+   rejection after the route-relevant control flow is reduced to patched jumps,
+   and do not turn that sync admission into broad resumable switch support.
+   Resumable switch bodies still need adjacent pre-VM decline proof until the
+   resumable instruction and environment model owns the lowered shape. WHY:
+   Faktorial issue
+   `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-1f1b588fd3`
+   / PR #3252 removed the stale compiler-only switch-wrapper rejection,
+   admitted the ordinary sync route, and pinned a generator switch body as an
+   eligibility decline. Related ADR:
+   `docs/adrs/0340-admit-sync-switch-breakable-wrappers-through-compiler-owned-targets.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

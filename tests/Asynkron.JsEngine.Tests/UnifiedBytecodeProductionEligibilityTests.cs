@@ -875,6 +875,48 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public async Task Execute_BlockScopedUsingBodyThrow_DisposesBeforeCatch()
+    {
+        await using var engine = CreateEngine();
+        var plan = GetFunctionPlan("""
+            function outer(resource, target) {
+                try {
+                    {
+                        using registered = resource;
+                        target.missing();
+                    }
+                } catch (e) {
+                    return 'caught';
+                }
+            }
+            """,
+            "outer");
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+        Assert.True(result.IsEligible, result.Reason);
+
+        await engine.Evaluate("var log = [];");
+        var resource = JsValue.FromObjectUnsafe(Assert.IsAssignableFrom<IAsJsValue>(
+            await engine.Evaluate("({ [Symbol.dispose]() { log.push('disposed'); } })")));
+        var context = engine.RealmState.CreateContext();
+        var slots = new JsValue[Math.Max(result.Program.SlotCount, 1)];
+        slots.AsSpan(0, result.Program.SlotCount).Fill(JsValue.Undefined);
+        SetSlot(result.Program, slots, "resource", resource);
+        SetSlot(result.Program, slots, "target", JsValue.Null);
+
+        _ = UnifiedBytecodeVirtualMachine.Execute(
+            result.Program,
+            slots,
+            context,
+            engine.GlobalEnvironment);
+
+        var log = await engine.Evaluate("log.join(',');");
+        Assert.False(context.IsThrow);
+        Assert.Equal("disposed", log);
+    }
+
+    [Fact]
     public async Task Execute_SyntheticIfBranchFunctionDeclaration_UpdatesAnnexBBinding()
     {
         await using var engine = CreateEngine();

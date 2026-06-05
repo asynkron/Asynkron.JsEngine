@@ -229,7 +229,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 ref environmentStack,
                 ref environmentStackCount))
             {
-                DisposeEnvironmentResources(currentCallingEnvironment, context);
+                DisposeActiveFunctionEnvironmentResources(currentCallingEnvironment, context);
                 return false;
             }
 
@@ -2778,7 +2778,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         CleanupActiveDriverStates(slots, slotEnvironments, context, false);
-                        if (!DisposeEnvironmentResources(currentCallingEnvironment, context))
+                        if (!DisposeActiveFunctionEnvironmentResources(currentCallingEnvironment, context))
                         {
                             return JsValue.Undefined;
                         }
@@ -2804,7 +2804,7 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         CleanupActiveDriverStates(slots, slotEnvironments, context, false);
-                        if (!DisposeEnvironmentResources(currentCallingEnvironment, context))
+                        if (!DisposeActiveFunctionEnvironmentResources(currentCallingEnvironment, context))
                         {
                             return JsValue.Undefined;
                         }
@@ -2832,7 +2832,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         context.SetThrow(thrownValue);
                         CleanupActiveDriverStates(slots, slotEnvironments, context, true);
-                        DisposeEnvironmentResources(currentCallingEnvironment, context);
+                        DisposeActiveFunctionEnvironmentResources(currentCallingEnvironment, context);
                         return JsValue.Undefined;
 
                     case UnifiedBytecodeOpCode.ThrowReferenceError:
@@ -9292,6 +9292,39 @@ internal static class UnifiedBytecodeVirtualMachine
         var disposeError = context.IsThrow
             ? environment.DisposeResources(new ThrowSignal(context.FlowValue))
             : environment.DisposeResources();
+        if (disposeError is null)
+        {
+            return true;
+        }
+
+        context.SetThrow(disposeError.ThrownValue);
+        return false;
+    }
+
+    private static bool DisposeActiveFunctionEnvironmentResources(JsEnvironment? environment, EvaluationContext context)
+    {
+        if (environment is null)
+        {
+            return true;
+        }
+
+        var currentEnvironment = environment;
+        var disposeError = context.IsThrow ? new ThrowSignal(context.FlowValue) : null;
+        while (currentEnvironment is not null)
+        {
+            if (currentEnvironment.HasDisposableResources)
+            {
+                disposeError = currentEnvironment.DisposeResources(disposeError);
+            }
+
+            if (currentEnvironment.IsFunctionScope)
+            {
+                break;
+            }
+
+            currentEnvironment = currentEnvironment.Enclosing;
+        }
+
         if (disposeError is null)
         {
             return true;

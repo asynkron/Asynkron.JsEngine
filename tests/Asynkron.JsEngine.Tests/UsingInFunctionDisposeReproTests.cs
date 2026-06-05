@@ -12,6 +12,8 @@ namespace Asynkron.JsEngine.Tests;
 /// </summary>
 public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) : InternalTestBase(output)
 {
+    private const string ProductionFastPathLog = "unified-bytecode-production-fast-path";
+
     [Fact(Timeout = 5000)]
     public async Task TopLevel_Using_Disposes()
     {
@@ -52,6 +54,29 @@ public sealed class UsingInFunctionDisposeReproTests(ITestOutputHelper output) :
             log.join(',');
         ");
         Assert.Equal("b,d,r42", result);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task InFunction_NestedBlockUsing_DisposesAllActiveScopes_OnExplicitReturn()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate(@"
+            var log=[];
+            function mk(t){ return { [Symbol.dispose](){ log.push(t); } }; }
+            function f(){
+                using outer = mk('outer');
+                {
+                    using inner = mk('inner');
+                    return 'body';
+                }
+            }
+            var r = f();
+            log.push('return:' + r);
+            log.join(',');
+        ");
+        Assert.Equal("inner,outer,return:body", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(ProductionFastPathLog, StringComparison.Ordinal));
     }
 
     [Fact(Timeout = 5000)]

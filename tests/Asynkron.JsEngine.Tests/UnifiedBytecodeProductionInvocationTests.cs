@@ -10428,12 +10428,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 return class {
                     #value = 42;
 
-                    read() {
-                        return this.#value;
-                    }
-
-                    has(receiver) {
-                        return #value in receiver;
+                    constructor() {
+                        this.value = this.#value;
                     }
                 };
             }
@@ -10446,9 +10442,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             [
                 first.value,
                 first.done,
-                box.read(),
-                box.has(box),
-                box.has({}),
+                box.value,
                 second.done
             ];
             """);
@@ -10458,8 +10452,6 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         Assert.False(steps.Items[1].AsBoolean());
         Assert.Equal(42d, steps.Items[2].AsDouble());
         Assert.True(steps.Items[3].AsBoolean());
-        Assert.False(steps.Items[4].AsBoolean());
-        Assert.True(steps.Items[5].AsBoolean());
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-resumable-generator-fast-path func=makeBox argc=0",

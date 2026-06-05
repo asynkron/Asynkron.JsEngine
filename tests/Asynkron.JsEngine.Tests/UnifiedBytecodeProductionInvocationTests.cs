@@ -57,6 +57,15 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             static record => record.Message.Contains(
                 "classified-script-ir-fallback reason=production-unified-bytecode-declined",
                 StringComparison.Ordinal));
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "code=UnsupportedPlanShape",
+                StringComparison.Ordinal));
+        Assert.Contains(snapshot,
+            static record => record.Message.Contains(
+                "detail=Plan is not eligible for production unified bytecode routing",
+                StringComparison.Ordinal) &&
+                record.Message.Contains("destructuring target", StringComparison.Ordinal));
         Assert.DoesNotContain(snapshot,
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path script",
@@ -9144,6 +9153,10 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "classified-script-ir-fallback reason=production-unified-bytecode-declined",
             helperSection,
             StringComparison.Ordinal);
+        Assert.Contains("code={DeclineCode}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("detail={DeclineReason}", helperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Code", helperSection, StringComparison.Ordinal);
+        Assert.Contains("eligibility.Reason", helperSection, StringComparison.Ordinal);
         Assert.Contains("ExecutionPlanRunner.RunScript(", helperSection, StringComparison.Ordinal);
     }
 

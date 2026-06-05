@@ -2539,27 +2539,47 @@ public static partial class TypedAstEvaluator
             throw new NotSupportedException($"IR plan generation failed for script: {failureReason}");
         }
 
-        if (executionKind == ExecutionKind.Script &&
-            TryRunScriptViaProductionUnifiedBytecode(scriptPlan, executionEnvironment, context, out var scriptBytecodeResult))
+        if (executionKind == ExecutionKind.Script)
         {
-            return scriptBytecodeResult;
+            var eligibility = UnifiedBytecodeProductionEligibility.EvaluateScript(scriptPlan);
+            if (TryRunScriptViaProductionUnifiedBytecode(
+                    scriptPlan,
+                    eligibility,
+                    executionEnvironment,
+                    context,
+                    out var scriptBytecodeResult))
+            {
+                return scriptBytecodeResult;
+            }
+
+            return RunScriptViaClassifiedIrFallback(
+                scriptPlan,
+                eligibility,
+                executionEnvironment,
+                context);
         }
 
         return RunScriptViaClassifiedIrFallback(
             scriptPlan,
+            UnifiedBytecodeProductionEligibilityResult.Decline(
+                UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape,
+                "Script execution kind is outside production unified bytecode routing."),
             executionEnvironment,
             context);
     }
 
     private static JsValue RunScriptViaClassifiedIrFallback(
         ExecutionPlan scriptPlan,
+        UnifiedBytecodeProductionEligibilityResult eligibility,
         JsEnvironment executionEnvironment,
         EvaluationContext context)
     {
         // Script-level var declarations are marked with IsScriptLevel=true in the IR
         // so they correctly update the global object.
         context.RealmState.Logger?.LogInformation(
-            "classified-script-ir-fallback reason=production-unified-bytecode-declined instructions={InstructionCount}",
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined code={DeclineCode} detail={DeclineReason} instructions={InstructionCount}",
+            eligibility.Code,
+            eligibility.Reason,
             scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
             scriptPlan,
@@ -2569,12 +2589,12 @@ public static partial class TypedAstEvaluator
 
     private static bool TryRunScriptViaProductionUnifiedBytecode(
         ExecutionPlan scriptPlan,
+        UnifiedBytecodeProductionEligibilityResult eligibility,
         JsEnvironment executionEnvironment,
         EvaluationContext context,
         out JsValue result)
     {
         result = JsValue.Undefined;
-        var eligibility = UnifiedBytecodeProductionEligibility.EvaluateScript(scriptPlan);
         if (!eligibility.IsEligible || eligibility.Program.ScriptCompletionSlot < 0)
         {
             return false;

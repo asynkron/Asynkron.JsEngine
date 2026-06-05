@@ -171,21 +171,35 @@ all-or-nothing until a separate routing issue proves production readiness.
      suspension context, not only the direct opcode allowlist. A nested function
      literal whose lowered body needs arrow lexical `this`, `new.target`,
      `super`, or private-name context must decline until the resumable route
-     materializes that closure context. A pending `finally` body that writes a
-     captured or free binding must also decline for generator early-close
-     (`.return()` / `.throw()`) until the VM owns that cleanup execution. Do not
-     infer resumable safety from "no ordinary activation-slot capture" alone:
-     lexical/private context and pending-finally cleanup are separate semantic
-     dependencies. Future widening must include adjacent no-route tests for
-     these hazards, not only accepted route tests. WHY: issue #3172 / PR #3179
-     repaired red `main` after the resumable route admitted generator shapes
-     that were correct on ordinary `.next()` completion but wrong for
-     pending-finally early close or nested arrow private-field access. Issue
-     `autrun-dj0vu3jrima8-13c399233d` / PR #3178 preserved the same boundary
-     for nearby resumable-generator widening. Related ADRs:
-     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`
+     materializes that closure context. A nested function literal that captures
+     root body locals may route only when the relevant invocation path
+     materializes a body `JsEnvironment`, mirrors resume-state flat slots into
+     it, and synchronizes slot writes back into that environment across
+     suspension. Treat this as generator-owned until async and async-generator
+     invocation/settlement paths prove the same environment lifetime; do not
+     infer async captured-literal safety from the sync-generator bridge. A
+     pending `finally` body that writes a captured or free binding must also
+     decline for generator early-close (`.return()` / `.throw()`) until the VM
+     owns that cleanup execution. Do not infer resumable safety from "no
+     ordinary activation-slot capture" alone: lexical/private context,
+     materialized body-environment lifetime, and pending-finally cleanup are
+     separate semantic dependencies. Future widening must include adjacent
+     no-route tests for these hazards, not only accepted route tests. WHY:
+     issue #3172 / PR #3179 repaired red `main` after the resumable route
+     admitted generator shapes that were correct on ordinary `.next()`
+     completion but wrong for pending-finally early close or nested arrow
+     private-field access. Issue `autrun-dj0vu3jrima8-13c399233d` / PR #3178
+     preserved the same boundary for nearby resumable-generator widening.
+     Faktorial issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-0768364f94`
+     / PR #3234 admitted the B23 sync-generator captured-root-local subset only
+     after adding a materialized resumable body environment plus slot
+     synchronization; async captured literals, lexical/private closure contexts,
+     and B36 declaration-instantiation graphs remain declined. Related ADRs:
+     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`,
+     `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`,
      and
-     `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`.
+     `docs/adrs/0333-admit-generator-captured-function-literals-through-materialized-resumable-body-environment.md`
 10f. When admitting class literals inside resumable unified bytecode, classify
      each class element by the class-definition state it needs during creation,
      not by the presence of `LoadClassLiteral` alone. Public member functions

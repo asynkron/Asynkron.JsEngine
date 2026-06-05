@@ -101,11 +101,11 @@ production unified-bytecode selector, specialized simple routes,
 Top-level scripts still use the classified
 `RunScriptViaClassifiedIrFallback` helper, which delegates to
 `ExecutionPlanRunner.RunScript`, after the script production selector declines.
-Async functions and sync generators still construct runner-backed fallbacks when
-`EvaluateResumable` declines. Async generators no longer have a declined-body
-runner fallback: route-ineligible async-generator bodies fail fast at
-initialization, and retained `ExecutionPlanRunner.AsyncGeneratorStepResult`
-references are settlement adapter types only. Class static blocks still execute
+Async functions, sync generators, and async generators still construct
+runner-backed fallbacks when `EvaluateResumable` declines; the async-generator
+fallback is explicitly classified in
+`CreateClassifiedAsyncGeneratorDeclinedBodyRunner`, while the accepted
+async-generator step path remains VM-owned. Class static blocks still execute
 their cached static-block plan through `ExecutionPlanRunner.RunScript`, and
 standalone expression, binding-target, and profiling bridges still construct
 runners for their quarantined helper surfaces. Direct eval, live `with`,

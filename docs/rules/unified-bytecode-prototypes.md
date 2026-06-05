@@ -260,18 +260,18 @@ all-or-nothing until a separate routing issue proves production readiness.
      through that same `PendingAwait` bridge. Awaited delegated sources may route
      when the source expression lowers to `AwaitValue` before the existing
      `YieldStar` driver, so `yield* await ...` must use the same resumable
-     async-generator settlement path instead of the IR runner. `AsyncGeneratorInvoker`
-     must not keep a declined-body `ExecutionPlanRunner` fallback: once the
-     fallback is retired, non-simple parameter lists, captured hoisted helpers,
-     and other route-ineligible async-generator bodies must fail fast at
-     initialization until the VM owns the missing semantics. Future widening
-     must pair public route-hit tests with nearby public fail-fast tests for
-     declined neighbors and source gates proving the accepted step body, the
-     whole async-generator invoker, and `UnifiedBytecodeVirtualMachine` do not
-     delegate back to `ExecutionPlanRunner`, `ExpressionProgram`, or
-     AST/expression evaluation bridges. Retained
-     `ExecutionPlanRunner.AsyncGeneratorStepResult` references are adapter
-     types only, not permission to construct or step a runner. Do not treat
+     async-generator settlement path instead of the IR runner. Declined
+     async-generator bodies still use the explicitly classified
+     `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` fallback until the VM
+     owns their semantics; non-simple parameter lists, captured hoisted helpers,
+     and other route-ineligible bodies must continue settling through that path.
+     Future widening must pair public route-hit tests with nearby public
+     declined-neighbor settlement tests and source gates proving the accepted
+     step body and `UnifiedBytecodeVirtualMachine` do not delegate back to
+     `ExecutionPlanRunner`, `ExpressionProgram`, or AST/expression evaluation
+     bridges. Retained `ExecutionPlanRunner.AsyncGeneratorStepResult`
+     references are adapter types, and the classified declined-body helper is
+     the only async-generator runner construction surface. Do not treat
      direct-yield or delegated `yield*` admission as broad async-generator
      support or add VM fallback into those existing evaluators.
      WHY: issue
@@ -298,6 +298,12 @@ all-or-nothing until a separate routing issue proves production readiness.
      fail-fast behavior, added an invoker-wide fallback tombstone source gate,
      and kept direct-yield, delegated `yield*`, awaited-source `yield* await`,
      pending-await settlement, and try/finally cleanup on the VM-owned route.
+     The follow-up quality-gate repair for issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-0bc18131a8`
+     restored the classified declined-body runner after internal async-generator
+     semantic tests showed that broad fail-fast retirement was premature, while
+     keeping the accepted route source-gated away from runner/expression
+     delegation.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

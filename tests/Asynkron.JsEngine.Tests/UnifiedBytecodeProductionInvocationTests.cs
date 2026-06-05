@@ -9271,13 +9271,22 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             File.Exists(asyncGeneratorInvokerPath),
             $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
         var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
-        AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
+        var asyncGeneratorFallbackSection = ExtractRequiredSourceSection(
             asyncGeneratorInvokerSource,
-            "async-generator invoker fallback tombstone",
-            [
-                "ExecutionPlanRunner.AsyncGeneratorStepResult",
-                "ExecutionPlanRunner.AsyncGeneratorStepKind"
-            ]);
+            "private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "classified async-generator declined-body fallback");
+        var asyncGeneratorStepDispatcher = ExtractRequiredSourceSection(
+            asyncGeneratorInvokerSource,
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(",
+            "async-generator step dispatcher");
+
+        Assert.Contains("new ExecutionPlanRunner(", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planOverride: planSeed.Plan", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planFailureOverride: planSeed.Failure", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
+        Assert.Contains("_inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindRepositoryRootForSourceGate()

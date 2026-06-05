@@ -609,6 +609,7 @@ above in the same slice.
 - `Private named property deletes are not supported in the general expression loop.`
 - `Private named property reads are not supported.`
 - `Private named receiver properties are outside the call-target preparation boundary.`
+- `Private named super call target in complex call argument.`
 - `Private named super call targets are outside the call-target preparation boundary.`
 - `Private named super call targets are outside the general expression loop boundary.`
 - `Private names and name inference are not admitted in simple object literals.`
@@ -637,6 +638,7 @@ above in the same slice.
 - `Unsupported compound computed property binary operator '{binary.Operator}'.`
 - `Unsupported compound property binary operator '{binary.Operator}'.`
 - `Unsupported computed call target in complex call argument.`
+- `Unsupported computed super call target in complex call argument.`
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
 - `Unsupported computed property read in complex call argument.`

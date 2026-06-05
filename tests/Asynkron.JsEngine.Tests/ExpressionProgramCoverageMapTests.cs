@@ -82,8 +82,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "LeaveWith",
         "LoadClassLiteral",
         "PopEnvironment",
-        "PrepareComputedSuperCallTarget",
-        "PrepareNamedSuperCallTarget",
         "PushEnvironment",
         "StoreDynamicIdentifier",
         "SuperConstructInvocationBoundary",

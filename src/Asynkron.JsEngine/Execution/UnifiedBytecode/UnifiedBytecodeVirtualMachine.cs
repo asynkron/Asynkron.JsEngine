@@ -5612,6 +5612,52 @@ internal static class UnifiedBytecodeVirtualMachine
                         break;
                     }
 
+                case UnifiedBytecodeOpCode.PrepareNamedSuperCallTarget:
+                    {
+                        // `super.m()`: resolve the super method through the captured method environment,
+                        // pushing the derived receiver and callee pair expected by CallInvocationBoundary.
+                        PrepareNamedSuperCallTarget(
+                            program,
+                            instruction.Operand,
+                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            stack,
+                            ref stackPointer,
+                            context);
+                        SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        SetResumableShortCircuitFlag(stackPointer - 2, false);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
+                case UnifiedBytecodeOpCode.PrepareComputedSuperCallTarget:
+                    {
+                        // `super[k]()`: pop/resolve the key, then use the same super lookup helper as the
+                        // synchronous VM. The receiver remains the derived instance, not the prototype.
+                        PrepareComputedSuperCallTarget(
+                            program,
+                            instruction.Operand,
+                            RequireDynamicEnvironment(state.CallingEnvironment),
+                            stack,
+                            ref stackPointer,
+                            context);
+                        SetResumableShortCircuitFlag(stackPointer - 1, false);
+                        SetResumableShortCircuitFlag(stackPointer - 2, false);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.PrepareIdentifierOptionalCallTarget:
                     {
                         // `f?.()`: load the callee from its activation slot. If nullish, short-circuit the

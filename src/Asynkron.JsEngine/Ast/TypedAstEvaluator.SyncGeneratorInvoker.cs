@@ -92,6 +92,16 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
+            var resumableEnvironment = CreateResumableInvocationEnvironment(
+                _closure,
+                boundThis,
+                isStrict,
+                _function.Source,
+                _homeObject);
             var program = eligibility.Program;
             var context = RealmState.CreateContext();
             if (!TryInitializeResumableSlots(
@@ -99,18 +109,14 @@ public static partial class TypedAstEvaluator
                     program,
                     arguments,
                     hoistedFunctionDeclarations,
-                    _closure,
+                    resumableEnvironment,
                     context,
                     out var slots))
             {
                 return false;
             }
 
-            var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
-            var boundThis = isStrict
-                ? thisValue
-                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
-            var callingEnvironment = _closure;
+            var callingEnvironment = resumableEnvironment;
             if (RequiresResumableSuperEnvironment(program))
             {
                 callingEnvironment = CreateRunner(arguments, thisValue)

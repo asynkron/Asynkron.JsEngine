@@ -6439,22 +6439,28 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
+        var keyStart = expressionProgram.GetOperation(0).Kind == ExpressionOpKind.EnsureSuperReference ? 1 : 0;
         var keyEnd = callTargetIndexInProgram;
         if (expressionProgram.GetOperation(keyEnd - 1).Kind == ExpressionOpKind.EnsureSuperReference)
         {
             keyEnd--;
         }
 
-        var hasResolvedKey = keyEnd == 2 &&
-                             expressionProgram.GetOperation(1).Kind == ExpressionOpKind.ResolvePropertyKey;
-        if (keyEnd is not 1 && !hasResolvedKey)
+        var hasResolvedKey = keyEnd == keyStart + 2 &&
+                             expressionProgram.GetOperation(keyStart + 1).Kind == ExpressionOpKind.ResolvePropertyKey;
+        if (keyEnd != keyStart + 1 && !hasResolvedKey)
         {
             reason = "Computed super call targets require exactly one computed key operand.";
             return false;
         }
 
+        if (keyStart == 1)
+        {
+            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureSuperReference));
+        }
+
         if (!TryAppendComputedPropertyKeyLoad(
-                expressionProgram.GetOperation(0),
+                expressionProgram.GetOperation(keyStart),
                 expressionProgram,
                 activationSlots,
                 unified,

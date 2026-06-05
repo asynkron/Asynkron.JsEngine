@@ -159,6 +159,16 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
+            var boundThis = isStrict
+                ? thisValue
+                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, realmState);
+            var resumableEnvironment = CreateResumableInvocationEnvironment(
+                closure,
+                boundThis,
+                isStrict,
+                function.Source,
+                homeObject);
             var program = eligibility.Program;
             var context = realmState.CreateContext();
             if (!TryInitializeResumableSlots(
@@ -166,18 +176,14 @@ public static partial class TypedAstEvaluator
                     program,
                     arguments,
                     hoistedFunctionDeclarations,
-                    closure,
+                    resumableEnvironment,
                     context,
                     out var slots))
             {
                 return false;
             }
 
-            var isStrict = function.Body.IsStrict || closure.IsStrict || isLexicallyStrict;
-            var boundThis = isStrict
-                ? thisValue
-                : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, realmState);
-            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, closure, isStrict)
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, resumableEnvironment, isStrict)
             {
                 // Thread the private-name scopes lexically active where this async-generator body was
                 // defined so the resumable VM can re-enter them on each per-step context and resolve

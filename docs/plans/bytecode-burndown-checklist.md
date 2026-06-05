@@ -143,7 +143,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [x] **B9** Property delete `delete o.x` — ☑/☑ ✅ #3117
 - [x] **B10** Computed property delete `delete o[k]` — ☑/☑ ✅ #3117
 - [x] **B11** `new C(args)` construct — ☑/☐ ✅ #3152
-- [ ] **B12** super call/construct — ☑/☐ — _(in progress: workflow A1-super, resumable side)_
+- [x] **B12** super call/construct — ☑/☑ ✅ (Codex): resumable generator/async method bodies now admit named/computed super-member calls after suspension via `EnsureSuperReference`, `PrepareNamedSuperCallTarget`, and `PrepareComputedSuperCallTarget`, using the captured dynamic method environment on `UnifiedBytecodeResumeState.CallingEnvironment` so `super.m()` / `super[k]()` preserve the derived receiver. Super-construct remains intentionally declined: derived constructors themselves cannot be generator/async bodies, and lexical constructor-state inheritance stays on existing activation gates until a legal resumable source shape is proven.
 - [ ] **B13** super property read `super.x` — ☑/☐ — _(workflow A1-super)_
 - [ ] **B14** super property write/update — ☑/☐ — _(workflow A1-super)_
 - [x] **B15** Optional member/computed call `o?.m()` / `o?.[k]()` — ☑/☑ ✅ #3159
@@ -185,7 +185,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B43** Awaited with-object `with(await x){}` — ☐/☐
 - [x] **B44** Awaited binding/destructuring decl `let [a]=await x` — ☑/☑ ✅ (commit 48ca3dc12): awaited destructuring lowers to `<awaited ops> → AwaitValue → ApplyDeclarationBindingTarget` (new resumable VM handler that runs the synchronous destructuring against the resume state's CallingEnvironment after the suspension and writes each binding to its flat slot). Allowlist 1:1.
 - [x] **B45** Resumable instruction-allowlist default (master plan-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 9 non-allowlisted instruction records are now named and drift-checked under `Resumable Instruction Allowlist Gaps`.
-- [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 29 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
+- [x] **B46** Resumable opcode-allowlist default (master opcode-level gap) *(→ P0.3)* — n/a/n/a ✅ decomposed by P0.3: the 26 non-allowlisted opcodes are now named and drift-checked under `Resumable Opcode Allowlist Gaps`; the admitted allowlist remains 1:1 with `ExecuteResumable`.
 - [x] **B47** Resumable compiler `TryCompile` wrap *(decomposed by P0.2)* — n/a/see A51a-A51m plus B47a.
 - [ ] **B47a** Resumable-only compiler declines for `yield*` state slots and synthetic resume targets — owner: resumable resume-state layout; fallback route: existing generator/async execution-plan route; sync/resumable: n/a/☐.
 
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 46 complete / 23 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 36 complete / 21 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 37 complete / 20 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 84 complete / 45 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 85 complete / 44 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

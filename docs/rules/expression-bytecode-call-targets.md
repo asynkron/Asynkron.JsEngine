@@ -87,6 +87,13 @@ checks separate.
     boundaries that share the helper. Non-call shapes must pass the new flag
     explicitly as off, and existing construct proofs should be rerun after the
     packing change.
+11. When admitting `super.m()` / `super[k]()` into resumable unified bytecode,
+    prove that the resumable activation owns the method environment used for
+    super lookup. The VM must resolve the callee through
+    `UnifiedBytecodeResumeState.CallingEnvironment`, preserve the derived
+    receiver as `this`, and keep `SuperConstructInvocationBoundary` declined
+    unless constructor-state ownership is separately proven for a legal
+    resumable source shape.
 
 ## Why
 
@@ -161,3 +168,17 @@ durable lesson is that widening executable call families must move three
 surfaces together — activation gating, boundary-local directness metadata, and
 VM state write-back — while auditing any shared operand-packing helpers that
 construct paths depend on.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-43182f6ef4`
+/ PR #3189 admitted resumable named and computed super member calls after
+`yield` / `await`. The delivery had to create a resumable invocation environment
+for method bodies, thread it through `UnifiedBytecodeResumeState.CallingEnvironment`,
+and add matching `PrepareNamedSuperCallTarget` /
+`PrepareComputedSuperCallTarget` handlers before widening eligibility. The
+durable lesson is that super member calls are not just another call-target
+opcode: they depend on both super lookup and receiver preservation across
+suspension. Super construct stays out of this route because constructor-state
+ownership was not proven by the legal generator/async method shapes in B12.
+
+Related ADR: `docs/adrs/0326-admit-resumable-super-member-calls-through-captured-method-environment.md`.

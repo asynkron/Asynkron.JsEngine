@@ -303,7 +303,11 @@ all-or-nothing until a separate routing issue proves production readiness.
      restored the classified declined-body runner after internal async-generator
      semantic tests showed that broad fail-fast retirement was premature, while
      keeping the accepted route source-gated away from runner/expression
-     delegation.
+     delegation. Issue #gh3295 / PR #3298 restored the same classified
+     declined-body fallback on `main` after PR #3291 made valid
+     route-ineligible async generators fail fast during verification.
+     Related ADR:
+     `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`.
 10e. When admitting resumable generator or async shapes that contain nested
      function literals or `try/finally` cleanup, prove the surrounding
      suspension context, not only the direct opcode allowlist. A nested function

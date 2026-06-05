@@ -158,6 +158,21 @@ all-or-nothing until a separate routing issue proves production readiness.
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` as an explicit decline so future
      widening does not accidentally route unowned delegation semantics.
+10e. When admitting resumable generator or async shapes that contain nested
+     function literals or `try/finally` cleanup, prove the surrounding
+     suspension context, not only the direct opcode allowlist. A nested function
+     literal whose lowered body needs arrow lexical `this`, `new.target`,
+     `super`, or private-name context must decline until the resumable route
+     materializes that closure context. A pending `finally` body that writes a
+     captured or free binding must also decline for generator early-close
+     (`.return()` / `.throw()`) until the VM owns that cleanup execution. Do not
+     infer resumable safety from "no ordinary activation-slot capture" alone:
+     lexical/private context and pending-finally cleanup are separate semantic
+     dependencies. WHY: issue #3172 / PR #3179 repaired red `main` after the
+     resumable route admitted generator shapes that were correct on ordinary
+     `.next()` completion but wrong for pending-finally early close or nested
+     arrow private-field access. Related ADR:
+     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

@@ -2365,7 +2365,10 @@ internal static class UnifiedBytecodeProductionEligibility
 
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 case ExpressionOpKind.LoadComputedSuperCallTarget:
-                    if (isCallTargetPreparationCandidate)
+                    if (isCallTargetPreparationCandidate ||
+                        isGeneralNamedMemberCallExpressionCandidate ||
+                        isComplexRhsPropertyWriteCandidate ||
+                        isComplexRhsCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -7096,6 +7099,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 // key -> coerced key, in place: net 0.
                 return depthBefore >= 1;
 
+            case ExpressionOpKind.EnsureSuperReference:
+                // This-initialization check for computed super keys; no stack effect.
+                return true;
+
             case ExpressionOpKind.Binary:
                 if (depthBefore < 2 || !IsProductionBinaryOperator(op.Operator))
                 {
@@ -7238,6 +7245,26 @@ internal static class UnifiedBytecodeProductionEligibility
                     return false;
                 }
 
+                return true;
+
+            case ExpressionOpKind.LoadNamedSuperCallTarget:
+                // Pushes <super receiver, callee>: net +2. Reject private names.
+                if (op.GetString(stringConstants).IsPrivateName())
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 2;
+                return true;
+
+            case ExpressionOpKind.LoadComputedSuperCallTarget:
+                // pop key, push <super receiver, callee>: net +1.
+                if (depthBefore < 1)
+                {
+                    return false;
+                }
+
+                depthAfter = depthBefore + 1;
                 return true;
 
             case ExpressionOpKind.Call:

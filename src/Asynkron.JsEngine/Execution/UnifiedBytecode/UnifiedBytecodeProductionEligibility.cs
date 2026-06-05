@@ -1664,13 +1664,17 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             if (instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral)
             {
-                var classExpression = program.ClassLiteralConstants[instruction.Operand];
-                if (IsResumableClassLiteral(program, activationSlots, classExpression, out declineReason))
+                if ((uint)instruction.Operand >= (uint)program.ClassLiteralConstants.Length ||
+                    !IsResumableClassLiteral(
+                        program,
+                        activationSlots,
+                        program.ClassLiteralConstants[instruction.Operand],
+                        out declineReason))
                 {
-                    continue;
+                    return true;
                 }
 
-                return true;
+                continue;
             }
 
             if (instruction.OpCode is
@@ -1925,10 +1929,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 // matching handler (kept 1:1 with this allowlist).
                 UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
-                // Class expressions inside resumable bodies materialize through the same class-definition
-                // program cache and private-name machinery as the sync VM. The resume state carries the live
-                // calling environment, so field initializers and private-brand checks close over the correct
-                // lexical scope after yield/await without adding an AST/IR fallback.
+                // Class expression literal creation is admitted only by the B24 shape guard above.
+                // Accepted class expressions materialize through the same class-definition program cache and
+                // private-name machinery as the sync VM, with the live calling environment available so owned
+                // field initializers and private-brand checks close over the correct lexical scope.
                 UnifiedBytecodeOpCode.LoadClassLiteral or
                 UnifiedBytecodeOpCode.LoadFunctionLiteral or
                 UnifiedBytecodeOpCode.EnsureHasName or
@@ -2029,6 +2033,12 @@ internal static class UnifiedBytecodeProductionEligibility
         out string declineReason)
     {
         var definition = classExpression.Definition;
+        if (IsB24cPublicStaticFieldClassLiteral(definition))
+        {
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
         {
             declineReason =
@@ -2088,6 +2098,41 @@ internal static class UnifiedBytecodeProductionEligibility
 
         declineReason = string.Empty;
         return true;
+    }
+
+    private static bool IsB24cPublicStaticFieldClassLiteral(ClassDefinition definition)
+    {
+        if (definition.Extends is not null ||
+            !definition.Members.IsDefaultOrEmpty ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            definition.Fields.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        if (!definition.StaticElements.IsDefaultOrEmpty &&
+            definition.StaticElements.Length != definition.Fields.Length)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsStatic ||
+                field.IsPrivate ||
+                field.IsComputed ||
+                field.ComputedName is not null)
+            {
+                return false;
+            }
+        }
+
+        var constructor = definition.Constructor;
+        return !constructor.IsAsync &&
+               !constructor.IsGenerator &&
+               !constructor.IsDefaultDerivedConstructor &&
+               constructor.Parameters.IsDefaultOrEmpty &&
+               constructor.Body.Statements.IsDefaultOrEmpty;
     }
 
     private static bool IsB24fPrivateInstanceMemberClassLiteral(ClassDefinition definition)

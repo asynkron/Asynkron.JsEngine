@@ -4854,6 +4854,34 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.LoadClassLiteral:
+                    {
+                        var resumableClassLiteralParentEnvironment = state.CallingEnvironment
+                            ?? throw new InvalidOperationException("Cannot create class literal without a calling environment.");
+                        var resumableClassLiteralEnvironment = CreateResumableClassLiteralEnvironment(
+                            program,
+                            slots,
+                            resumableClassLiteralParentEnvironment,
+                            state.IsStrict);
+                        PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
+                            program.ClassLiteralConstants[instruction.Operand],
+                            resumableClassLiteralEnvironment,
+                            context));
+                        SyncEnvironmentToUnifiedSlots(
+                            program,
+                            slots,
+                            slotEnvironments: null,
+                            resumableClassLiteralEnvironment);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            state.IsCompleted = true;
+                            return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                        }
+
+                        programCounter++;
+                        break;
+                    }
+
                 case UnifiedBytecodeOpCode.Jump:
                     programCounter = instruction.Operand;
                     break;
@@ -6605,6 +6633,53 @@ internal static class UnifiedBytecodeVirtualMachine
             ref var slot = ref binding.Environment.GetSlotByIndex(binding.SlotIndex);
             slots[i] = slot.IsUninitialized ? JsValue.Uninitialized : slot.Value;
         }
+    }
+
+    private static JsEnvironment CreateResumableClassLiteralEnvironment(
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        JsEnvironment parentEnvironment,
+        bool isStrict)
+    {
+        var environment = JsEnvironment.CreateInstance(
+            parentEnvironment,
+            isFunctionScope: true,
+            isStrict,
+            description: "resumable class literal activation");
+        var slotNames = program.SlotNames;
+        var count = Math.Min(slots.Length, slotNames.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (slotNames[i] is not { } name)
+            {
+                continue;
+            }
+
+            environment.DefineJsValue(
+                Symbol.Intern(name),
+                slots[i],
+                isConst: IsConstSlotIndex(i, program.ConstSlotIndices));
+        }
+
+        return environment;
+    }
+
+    private static bool IsConstSlotIndex(int slotIndex, ImmutableArray<int> constSlotIndices)
+    {
+        if (constSlotIndices.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < constSlotIndices.Length; i++)
+        {
+            if (constSlotIndices[i] == slotIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetSlotEnvironmentBinding(

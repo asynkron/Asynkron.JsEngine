@@ -14,6 +14,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     private readonly Dictionary<BlockStatement, int> _blockScopeIds;
     private readonly Stack<int> _tryFrameCatchScopes = new();
     private readonly Dictionary<int, ImmutableDictionary<Symbol, int>> _immutableSlotMaps;
+    private readonly Dictionary<int, ImmutableHashSet<Symbol>> _constBindings;
     private readonly Dictionary<int, ImmutableHashSet<Symbol>> _lexicalBindings;
     private readonly Dictionary<int, int> _reverseScopeIdRemap = new();
     private readonly Dictionary<int, int> _scopeIdRemap = new();
@@ -35,6 +36,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     /// Maps (scopeId, slotIndex) pairs to flat slot IDs for O(1) variable access.
     /// </summary>
     private readonly Dictionary<(int scopeId, int slotIndex), int> _flatSlotMap = new();
+    private readonly HashSet<string> _perIterationBindingNames = new(StringComparer.Ordinal);
     private bool _preserveNestedForEachStatements;
 
     /// <summary>
@@ -69,6 +71,7 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         _targetRootScopeId = targetRootScopeId;
         _scopes = analysis.Scopes;
         _immutableSlotMaps = analysis.ImmutableSlotMaps;
+        _constBindings = analysis.ConstBindings;
         _lexicalBindings = analysis.LexicalBindings;
         _blockScopeIds = analysis.BlockScopeIds;
         _mappedRootScopeId = MapScopeId(_analysisRootScopeId);
@@ -79,6 +82,8 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
     {
         _scopeStack.Clear();
         _tryFrameCatchScopes.Clear();
+        _perIterationBindingNames.Clear();
+        CollectPerIterationBindingNames(instructions);
         _scopeStack.Push(_mappedRootScopeId);
 
         var visited = new bool[instructions.Count];
@@ -247,19 +252,23 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             case PushEnvironmentInstruction push:
                 var mappedPushScope = RemapScopeId(push.ScopeId);
                 var lexical = GetLexicalBindings(mappedPushScope);
+                var constLexical = GetConstBindings(mappedPushScope);
                 var slotMap = GetSlotMap(mappedPushScope);
+                var constLexicalSlotIndices = BuildLexicalSlotIndices(constLexical, slotMap);
                 EnsurePushEnvironmentFlatSlots(
                     mappedPushScope,
                     lexical,
                     slotMap,
-                    push.PerIterationBindings);
+                    push.PerIterationBindings,
+                    constLexicalSlotIndices);
                 var updatedPush = push with
                 {
                     ScopeId = mappedPushScope,
                     SlotCount = GetSlotCount(mappedPushScope),
                     SlotMap = slotMap,
                     LexicalBindings = lexical,
-                    LexicalSlotIndices = BuildLexicalSlotIndices(lexical, slotMap)
+                    LexicalSlotIndices = BuildLexicalSlotIndices(lexical, slotMap),
+                    ConstLexicalSlotIndices = constLexicalSlotIndices
                 };
                 _scopeStack.Push(mappedPushScope);
                 return updatedPush;
@@ -1137,14 +1146,18 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         int scopeId,
         ImmutableHashSet<Symbol> lexicalBindings,
         ImmutableDictionary<Symbol, int> slotMap,
-        ImmutableArray<Symbol> perIterationBindings)
+        ImmutableArray<Symbol> perIterationBindings,
+        ImmutableArray<int> constLexicalSlotIndices)
     {
-        if (_isRestampingNestedFunction || lexicalBindings.Count == 0 || slotMap.IsEmpty)
+        var hasDirectPerIterationBindings = !perIterationBindings.IsDefaultOrEmpty;
+        if (_isRestampingNestedFunction ||
+            (!hasDirectPerIterationBindings && !ContainsKnownPerIterationBinding(lexicalBindings)) ||
+            lexicalBindings.Count == 0 ||
+            slotMap.IsEmpty)
         {
             return;
         }
 
-        var shareWithActiveScope = !perIterationBindings.IsDefaultOrEmpty;
         foreach (var binding in lexicalBindings)
         {
             if (!slotMap.TryGetValue(binding, out var slotIndex))
@@ -1152,7 +1165,12 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                 continue;
             }
 
-            if (shareWithActiveScope &&
+            if (!hasDirectPerIterationBindings && ContainsSlotIndex(constLexicalSlotIndices, slotIndex))
+            {
+                continue;
+            }
+
+            if (hasDirectPerIterationBindings &&
                 ContainsPerIterationBinding(perIterationBindings, binding) &&
                 TryFindActiveFlatSlot(binding, out var activeFlatSlotId))
             {
@@ -1161,6 +1179,22 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             }
 
             _ = GetOrCreateFlatSlotId(scopeId, slotIndex);
+        }
+    }
+
+    private void CollectPerIterationBindingNames(IList<ExecutionInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction is not PushEnvironmentInstruction { PerIterationBindings.IsDefaultOrEmpty: false } push)
+            {
+                continue;
+            }
+
+            foreach (var binding in push.PerIterationBindings)
+            {
+                _perIterationBindingNames.Add(binding.Name);
+            }
         }
     }
 
@@ -1190,6 +1224,37 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
         {
             if (ReferenceEquals(perIterationBindings[i], binding) ||
                 string.Equals(perIterationBindings[i].Name, binding.Name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ContainsKnownPerIterationBinding(ImmutableHashSet<Symbol> lexicalBindings)
+    {
+        foreach (var binding in lexicalBindings)
+        {
+            if (_perIterationBindingNames.Contains(binding.Name))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsSlotIndex(ImmutableArray<int> slotIndices, int slotIndex)
+    {
+        if (slotIndices.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < slotIndices.Length; i++)
+        {
+            if (slotIndices[i] == slotIndex)
             {
                 return true;
             }
@@ -1340,6 +1405,17 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
             : scopeId;
 
         return _lexicalBindings.TryGetValue(lookupScopeId, out var set)
+            ? set
+            : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
+    }
+
+    private ImmutableHashSet<Symbol> GetConstBindings(int scopeId)
+    {
+        var lookupScopeId = _reverseScopeIdRemap.TryGetValue(scopeId, out var original)
+            ? original
+            : scopeId;
+
+        return _constBindings.TryGetValue(lookupScopeId, out var set)
             ? set
             : ImmutableHashSet<Symbol>.Empty.WithComparer(ReferenceEqualityComparer<Symbol>.Instance);
     }

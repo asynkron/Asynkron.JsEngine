@@ -188,7 +188,13 @@ all-or-nothing until a separate routing issue proves production readiness.
      Public non-computed instance fields may route only when their lowered
      field initializer programs do not read resumable activation slots; an
      initializer that captures a body binding still needs a future materialized
-     body-environment route.
+     body-environment route. Public non-computed static fields may route when
+     their initializers are immediate value expressions owned by a temporary
+     class-definition environment bridged from the resume state's flat slots.
+     Static field initializers that create closure-bearing functions, methods,
+     accessors, object literals, or nested class bodies with activation captures
+     must still decline until the resumable route owns a materialized
+     body-environment route for those created closures.
      Extends expressions that read resumable activation slots, computed member
      names, static elements, broad static-field creation, and private
      method/accessor bodies that capture activation slots must remain explicit
@@ -221,6 +227,17 @@ all-or-nothing until a separate routing issue proves production readiness.
      private member bodies do not capture resumable activation slots; captured
      bodies still need a future materialized body-environment route. Related
      ADR: `docs/adrs/0327-admit-resumable-class-literal-private-members-through-shared-class-creation.md`.
+     Issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-61145a55dd`
+     / PR #3197 admitted the B24c public static-field subset by creating a
+     resumable class-definition environment from flat slots when static field
+     initializer value expressions need activation bindings, while keeping
+     closure-valued static initializers and neighboring static element families
+     declined. The durable lesson is that static field value evaluation and
+     closure creation are different ownership problems: the former can be
+     bridged for class creation, while the latter still needs a materialized
+     body environment that outlives class creation. Related ADR:
+     `docs/adrs/0329-admit-resumable-class-literal-static-fields-with-owned-environments.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

@@ -210,7 +210,7 @@ Use this meter instead:
 
 Current reproducible snapshot from local route-hit probes:
 
-Baseline: `origin/main` at `aa93c7112` on 2026-06-03. Command shape:
+Baseline: `origin/main` at `e2e0da918` on 2026-06-05. Command shape:
 
 ```bash
 profiles=(simplearithmetic fib forloop whileloop ir-arithmetic activation-noargs-lite activation-params-lite activation-arguments-lite activation-closures-lite activation-evalscope-lite objectcreation arrayops stringops propertyaccess classdef destructuring spread mapset json regex promise closures-lite recursion-lite forofiteration functioncalls functioncalls-lite)
@@ -226,27 +226,27 @@ done
 | `forloop` | 40 | Active ordinary sync loop/arithmetic route. |
 | `whileloop` | 20 | Active ordinary sync loop route. |
 | `ir-arithmetic` | 20 | Active var-binding arithmetic route. |
-| `activation-noargs-lite` | 600,000 | Active simple literal-return activation route. |
-| `activation-params-lite` | 500,000 | Active parameterized activation route. |
-| `activation-arguments-lite` | 0 | Zero-hit: arguments-object workload does not enter the production route. |
-| `activation-closures-lite` | 300 | Partial-hit: wrapper/eligible closure shapes route; the main closure workload still has captured-state blockers. |
+| `activation-noargs-lite` | 600,002 | Active simple literal-return activation route plus wrapper/entry shapes. |
+| `activation-params-lite` | 500,002 | Active parameterized activation route plus wrapper/entry shapes. |
+| `activation-arguments-lite` | 1 | Minimal-hit: wrapper/entry shape routes; the arguments-object workload itself remains a blocker. |
+| `activation-closures-lite` | 120,300 | Partial-hit: eligible closure shapes route; captured/dynamic activation residue remains a blocker for broader closure shapes. |
 | `activation-evalscope-lite` | 64 | Partial-hit: entry/wrapper shapes route; eval-sensitive dynamic scope remains a blocker. |
-| `objectcreation` | 0 | Zero-hit: measured object-construction workload does not enter the production route. |
+| `objectcreation` | 20 | Minimal-hit: wrapper/entry shape routes; broad object-construction workload remains outside the production route. |
 | `arrayops` | 400,000 | Active array operation wrapper/iteration route. |
-| `stringops` | 0 | Zero-hit: string builtin workload does not enter the production route. |
+| `stringops` | 20 | Minimal-hit: wrapper/entry shape routes; string builtin workload remains outside the production route. |
 | `propertyaccess` | 20 | Active narrow top-level property-access script route. |
 | `classdef` | 160,000 | Active class-definition workload route. |
 | `destructuring` | 0 | Zero-hit: measured destructuring profile remains blocked by non-admitted script/block shapes. |
 | `spread` | 0 | Zero-hit: measured spread workload does not enter the production route. |
-| `mapset` | 0 | Zero-hit: Map/Set builtin workload does not enter the production route. |
+| `mapset` | 20 | Minimal-hit: wrapper/entry shape routes; Map/Set builtin workload remains outside the production route. |
 | `json` | 0 | Zero-hit: JSON builtin workload does not enter the production route. |
 | `regex` | 0 | Zero-hit: RegExp builtin workload does not enter the production route. |
 | `promise` | 60 | Active promise wrapper/eligible route; async/microtask semantics remain separate. |
 | `closures-lite` | 8,400 | Active closure workload route for eligible shapes. |
-| `recursion-lite` | 0 | Zero-hit: recursive workload does not enter the production route. |
+| `recursion-lite` | 2 | Minimal-hit: wrapper/entry shape routes; recursive workload remains outside the production route. |
 | `forofiteration` | 2,000 | Active admitted sync iterator-driver route. |
-| `functioncalls` | 8,000,000 | Active ordinary function-call route. |
-| `functioncalls-lite` | 1,600,000 | Active ordinary function-call route. |
+| `functioncalls` | 8,000,010 | Active ordinary function-call route plus wrapper/entry shapes. |
+| `functioncalls-lite` | 1,600,002 | Active ordinary function-call route plus wrapper/entry shapes. |
 
 Zero route hits do not necessarily mean the syntax family has no bytecode
 support. They mean the measured workload shape did not enter the production

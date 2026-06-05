@@ -176,8 +176,11 @@ statement interpretation.
   bodies can initialize `UnifiedBytecodeResumeState` and settle
   `Yield`/`Completed`/`Throw`/`PendingAwait` results from
   `UnifiedBytecodeVirtualMachine.ExecuteResumable` without constructing the
-  `ExecutionPlanRunner`. Async-generator `yield*` and `yield* await ...`
-  delegation must remain explicit pre-VM declines until delegated async iterator
+  `ExecutionPlanRunner`. Non-awaited async-generator `yield*` over delegated
+  async iterables is admitted through the same resumable state: delegated
+  `next`/`return`/`throw` results may suspend as `PendingAwait` and resume back
+  into the VM-owned `YieldStar` driver. Async-generator `yield* await ...`
+  delegation remains an explicit pre-VM decline until awaited delegated-source
   settlement is VM-owned.
 - Generator-lowered synthetic resume and driver targets
   (`__yield_lower_resume*`, internal `yield*` state slots) are now added to the

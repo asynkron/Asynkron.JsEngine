@@ -1660,7 +1660,9 @@ internal static class UnifiedBytecodeCompiler
                         continue;
 
                     case PopEnvironmentInstruction popEnvironment:
-                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.PopEnvironment));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.PopEnvironment,
+                            popEnvironment.ScopeId));
                         if (activeScopes.Count > 1 && activeScopes.Peek().ScopeId == popEnvironment.ScopeId)
                         {
                             activeScopes.Pop();

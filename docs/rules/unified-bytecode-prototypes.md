@@ -408,6 +408,21 @@ all-or-nothing until a separate routing issue proves production readiness.
      showed that production unified fast activation had skipped the shared
      blocked-name setup. Related ADR:
      `docs/adrs/0337-keep-annex-b-blocked-names-shared-for-unified-fast-activation.md`.
+10j. Keep accepted production unified-bytecode route source gates broad and
+     exception-driven. Execution sections that claim an accepted unified route
+     should reject any remaining `ExecutionPlanRunner`, `ExpressionProgram`,
+     AST evaluator, script-runner, or async-step delegation marker after
+     removing only narrowly classified type names or setup-only runner
+     environment creation needed before `UnifiedBytecodeResumeState` exists.
+     Do not weaken the accepted-path guard with marker-specific exceptions for
+     fallback runner calls, comments, or broad expression-program text; classify
+     the exact source section instead and keep the production execution section
+     VM-owned. WHY: issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-71d456f552`
+     / PR #3273 repaired a review blocker where a source gate had become too
+     narrow to catch accepted-route delegation drift. The repair restored broad
+     forbidden-token checks while explicitly classifying async-generator
+     result/kind type names and setup-only runner environment creation.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

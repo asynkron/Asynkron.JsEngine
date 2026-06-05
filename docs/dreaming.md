@@ -1,6 +1,6 @@
 # Asynkron.JsEngine Dreaming
 
-Date: 2026-06-03 (rev 8)
+Date: 2026-06-05 (rev 9)
 
 ## Why this document exists
 Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScript runtime on .NET.
@@ -11,19 +11,19 @@ Architecture north star for Asynkron.JsEngine as a Node.js-competitive JavaScrip
 
 ## Critique of the current dream state (self-critique)
 
-Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. This rev 8 tightens that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary.
+Rev 6 replaced the stale greenfield/migration label conflict, added startup-cost, host-conversion, and host-error diagrams, grouped the proven-now table by phase, clarified capability-lifecycle back edges, and added the delivery decomposition flow. Rev 7 applied that flow to the current roadmap: optional computed delete chains are the next open property-family slice, and SLO proof remains a separate evidence packet rather than a side effect of route widening. Rev 8 tightened that packet into an acceptance/decline handoff so a future implementation starts from one owner, one receiving contract, and an explicit proof boundary. This rev 9 adds the packet-selection control plane for the current open roadmap queue so maintainers can route gh2934, gh3134, gh3135, gh2935, gh2954, and gh2955 without converting any directional target into a current runtime claim.
 
-1. **Delivery decomposition needs a live packet example.** The map below now explains how to route broad concerns, but maintainers still need one current roadmap packet that demonstrates the shape without implying new runtime behavior. Optional computed delete chains are the right example because the roadmap already isolates them under gh2934.
+1. **Delivery decomposition now needs a queue-level control plane.** The map below explains how to route one broad concern into one packet, and gh2934 remains the concrete property-family example. The roadmap now also carries multiple open packets across execution, concurrency, evidence, and performance fabrics, so the dream needs a selector that chooses the next packet without implying that all packets share an owner or proof shape.
 
-2. **Optional computed delete can be overclaimed easily.** Ordinary named/computed property delete and nested named receiver computed delete are proven, but optional computed delete chains still need selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof together. The document should make that boundary visible before implementation starts.
+2. **Optional computed delete can still be overclaimed easily.** Ordinary named/computed property delete and nested named receiver computed delete are proven, but optional computed delete chains still need selector, compiler, VM/opcode, expansion-contract, positive-route, and negative-decline proof together. The packet-selection view must keep gh2934 as an execution packet, not as broad optional-chain or Tier 0 dominance proof.
 
-3. **SLO evidence must stay separate from route coverage.** Recent tooling records committed startup and microtask baselines, but p95 and same-run comparison output remain non-failing evidence until a dedicated proof packet advances an SLO. Route widening, including optional computed delete chains, must not move SLO rows to ProvenScoped.
+3. **SLO evidence must stay separate from route coverage.** Recent tooling records committed startup and microtask baselines, but p95 and same-run comparison output remain non-failing evidence until a dedicated proof packet advances an SLO. Route widening, decline taxonomy, async-generator routing, and map/set profile work must not move SLO rows to ProvenScoped.
 
-4. **Roadmap links should point to owner surfaces, not broad themes.** A packet should name the exact owner module, receiving contract, focused proof pack, and documentation/evidence artifact. "Property-family widening" is not precise enough for review.
+4. **Roadmap links should point to owner surfaces, not broad themes.** A packet should name the exact owner module, receiving contract, focused proof pack, and documentation/evidence artifact. "Property-family widening", "async-generator seam", "decline cleanup", and "performance gap" are not precise enough for review.
 
-5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The live packet should keep those non-goals attached to the implementation route.
+5. **Non-goals remain part of the architecture.** A packet can be valid while explicitly not claiming Node/CommonJS parity, async seam closure, full Tier 0 dominance, or SLO proof. The queue-level selector should keep those non-goals attached before a future implementation chooses a lane.
 
-This revision therefore turns the optional computed delete packet into a sharper architecture handoff under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
+This revision therefore turns the open roadmap queue into a packet-selection handoff under the delivery decomposition flow. It is a routing aid only; it does not claim new runtime behavior.
 
 ## Product dream
 Build a standards-first, production-grade JavaScript Runtime Fabric on .NET that is:
@@ -1335,6 +1335,66 @@ Decomposition invariants:
 - The receiving contract is named before implementation starts; examples include typed artifact shape, suspension opcode, resume payload, host-callable bridge, or JsValue descriptor/brand boundary.
 - Proof stays owner-local first. Widened packs, route-coverage claims, and performance language come after focused semantics are green.
 - Documentation moves a row to **proven now** only after the evidence gate is attached. Otherwise the row stays in **directional next** with explicit non-goals.
+
+### Roadmap packet-selection control plane
+
+The current roadmap has more than one open packet candidate. The selector below keeps the queue reviewable: choose one lane, name the owner fabric and receiving contract, then carry only that packet to implementation and proof. It is a scheduling aid, not a capability claim.
+
+```mermaid
+flowchart TD
+    QUEUE["Open roadmap packet queue\none delivery per slice"]
+    CLASSIFY["Classify by owner fabric\nExecution / Concurrency / Evidence / Performance"]
+    PICK["Pick one bounded packet\nsmallest proofable owner surface"]
+
+    subgraph Execution["Execution fabric candidates"]
+        G2934["gh2934\noptional computed delete chains"]
+        G3134["gh3134\ncompiler decline umbrella leaves"]
+    end
+
+    subgraph Concurrency["Concurrency fabric candidates"]
+        G3135["gh3135\nasync function* EvaluateResumable boundary"]
+        G2955["gh2955\nasync-generator yield* delegated resume lane"]
+    end
+
+    subgraph Evidence["Evidence fabric candidates"]
+        G2935["gh2935\nSLO target-status proof"]
+    end
+
+    subgraph Perf["Performance fabric candidates"]
+        G2954["gh2954\nresidual mapset gap"]
+    end
+
+    CONTRACT["Receiving contract\nopcode / decline code / resume payload / ProfileRunner row"]
+    PROOF["Focused proof first\npositive path + negative decline\nor baseline/final profile"]
+    NONCLAIM["Non-goals stay attached\nno Node/CommonJS parity\nno async seam closure\nno Tier 0 dominance\nno SLO advancement without evidence"]
+
+    QUEUE --> CLASSIFY --> PICK
+    PICK --> Execution
+    PICK --> Concurrency
+    PICK --> Evidence
+    PICK --> Perf
+    Execution --> CONTRACT
+    Concurrency --> CONTRACT
+    Evidence --> CONTRACT
+    Perf --> CONTRACT
+    CONTRACT --> PROOF --> NONCLAIM
+
+    style QUEUE fill:#555,color:#fff
+    style PICK fill:#336,color:#fff
+    style CONTRACT fill:#363,color:#fff
+    style PROOF fill:#653,color:#fff
+    style NONCLAIM fill:#333,color:#fff
+```
+
+Packet-selection rules:
+- **gh2934 optional computed delete chains:** Execution Engine owns the selector/opcode route. The receiving contract is a descriptor-aware computed delete after nullish short-circuit has proven it may evaluate the key. It does not advance SLO status or broad optional-chain coverage.
+- **gh3134 decline umbrella leaves:** Language Compiler and Execution Engine share the classification boundary, but the delivery must choose one receiving contract at a time: a named decline code, expansion-contract row, and focused proof that the formerly opaque umbrella has one finite leaf.
+- **gh3135 async function* EvaluateResumable boundary:** Concurrency Runtime owns continuation state and resume scheduling; Execution Engine supplies consumed await/yield opcode contracts. The packet may model a first bounded route or keep B3 explicitly declined, but it cannot call the async-generator seam closed.
+- **gh2955 async-generator yield* delegated resume lane:** Concurrency Runtime owns delegated resume state; Execution Engine owns any yielded/awaited value opcode consumed by the lane. The packet must preserve no-mixed-execution and adjacent declines before any route wording advances.
+- **gh2935 SLO target-status proof:** Evidence owns the packet. The receiving contract is a ProfileRunner row with the matching measurement shape: p95 for p95 targets and same-run comparison for parity wording. A green baseline-regression gate alone is not SLO proof.
+- **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
+
+The selector deliberately preserves gh2934 as the active concrete packet example below. Future Dreamer revisions may replace the concrete example only when the roadmap has a newer open packet with clearer owner, receiving contract, and proof obligations.
 
 ### Current roadmap packet: optional computed delete chains
 

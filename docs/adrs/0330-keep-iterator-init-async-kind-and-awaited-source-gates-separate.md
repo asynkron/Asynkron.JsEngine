@@ -1,0 +1,68 @@
+# ADR 0330: Keep iterator init async-kind and awaited-source gates separate
+
+- Status: Accepted
+- Date: 2026-06-05
+- Tags: execution, unified-bytecode, iterators, async
+
+## Context
+
+ADR 0288 admitted TDZ head environments for synchronous iterator and for-in
+drivers, while leaving two later slices out of production routing: awaited
+sources and async iterator driver state. Later resumable unified bytecode work
+made one of those boundaries narrower than the ADR 0288 table: a synchronous
+iterator driver may now carry an `AwaitedProgram` source payload because the
+resumable route compiles the source expression, awaits it, and then initializes
+the same synchronous iterator driver state.
+
+Issue
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7e33a72606`
+and PR #3217 hardened that gate after the distinction became easy to blur. The
+production eligibility helper had to keep three cases separate:
+
+- a synchronous driver with exactly one `IterableProgram` payload;
+- a synchronous driver with exactly one `AwaitedProgram` payload;
+- an async iterator driver kind (`IteratorDriverKind.Await`), regardless of
+  source-payload shape.
+
+## Decision
+
+`IteratorInitInstruction` production eligibility treats source payload shape and
+iterator driver kind as separate gates.
+
+- The instruction must carry exactly one source payload: either `IterableProgram`
+  or `AwaitedProgram`, never neither and never both.
+- `IteratorDriverKind.Sync` may pass that payload gate. An `AwaitedProgram` on a
+  sync driver is not an async iterator driver; it represents an awaited source
+  followed by synchronous iterator initialization in the owned resumable path.
+- `IteratorDriverKind.Await` declines before payload inspection with the stable
+  async-driver reason until `for await...of` protocol state, async iterator
+  settlement, and close behavior are VM-owned.
+
+The helper tests assert all four boundary points directly: sync iterable source
+accepted, sync awaited source accepted, missing/dual source declined, and async
+kind declined with both iterable and awaited source shapes.
+
+## Consequences
+
+- Future widening must not use `AwaitedProgram` as shorthand for async iterator
+  driver state. The driver kind is the protocol-state boundary.
+- Async-kind tests should exercise `IsSupportedIteratorInit` directly where
+  async-like activation pre-gates would otherwise hide the iterator-kind
+  decision.
+- ADR 0288 remains the record for admitting TDZ head environments, but its
+  awaited-source row is historical. The current iterator-init boundary is the
+  one above.
+
+## Evidence
+
+- Issue:
+  `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7e33a72606`
+- PR: #3217
+- Delivery commit: `e9ab87b89 Harden iterator init async-kind eligibility gate`
+- Focused tests:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.IsSupportedIteratorInit"`
+  passed 6 tests.
+- Focused route-adjacent test:
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.Evaluate_ForOfPlan_AcceptsIteratorDriverOpcodes"`
+  passed 1 test.
+- Diff hygiene: `rtk git diff --check` passed.

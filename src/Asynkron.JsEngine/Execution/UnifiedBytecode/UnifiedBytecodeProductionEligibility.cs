@@ -1926,9 +1926,13 @@ internal static class UnifiedBytecodeProductionEligibility
                 // matching handler (kept 1:1 with this allowlist).
                 UnifiedBytecodeOpCode.DeleteDynamicIdentifier or
                 UnifiedBytecodeOpCode.CallInvocationBoundary or
+                // Class expressions inside resumable bodies materialize through the same class-definition
+                // program cache and private-name machinery as the sync VM. The resume state carries the live
+                // calling environment, so field initializers and private-brand checks close over the correct
+                // lexical scope after yield/await without adding an AST/IR fallback.
+                UnifiedBytecodeOpCode.LoadClassLiteral or
                 UnifiedBytecodeOpCode.LoadFunctionLiteral or
                 UnifiedBytecodeOpCode.EnsureHasName or
-                UnifiedBytecodeOpCode.LoadClassLiteral or
                 // Synchronous construct dispatch (non-optional `new C(args)`). Mirrors the admitted
                 // CallInvocationBoundary (#3108): the constructor value and its simple/spread arguments are
                 // lowered onto the operand stack by preceding ops in source order (a regular value load —
@@ -2099,6 +2103,13 @@ internal static class UnifiedBytecodeProductionEligibility
         var definition = classExpression.Definition;
         if (!definition.Fields.IsDefaultOrEmpty)
         {
+            if (IsB24ePrivateInstanceFieldClassLiteral(definition) &&
+                !ClassExtendsReadsUnifiedSlot(definition, program.SlotNames))
+            {
+                declineReason = string.Empty;
+                return true;
+            }
+
             declineReason =
                 "Class literal is outside B24a: class fields remain owned by later B24 field/private/computed-member slices.";
             return false;
@@ -2166,6 +2177,32 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         return false;
+    }
+
+    private static bool IsB24ePrivateInstanceFieldClassLiteral(ClassDefinition definition)
+    {
+        if (!definition.StaticBlocks.IsDefaultOrEmpty || !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (!field.IsPrivate || field.IsStatic || field.IsComputed)
+            {
+                return false;
+            }
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.IsStatic || member.IsComputed || member.IsPrivate)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool ClassExtendsReadsUnifiedSlot(

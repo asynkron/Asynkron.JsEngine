@@ -4220,6 +4220,31 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_ClassLiteralStaticBlockPlan_AcceptsAndCompilesClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function makeClass(seed) {
+                return class Box {
+                    static {
+                        Box.value = seed + 1;
+                    }
+                };
+            }
+            """,
+            "makeClass");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
     public void Evaluate_ClassLiteralWithComputedMemberAndFieldNames_AcceptsAndCompilesClassLiteralOpcode()
     {
         var plan = GetFunctionPlan("""
@@ -4245,6 +4270,41 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
         Assert.Contains(
             result.Program.Instructions,
             instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassExpressionPrivateFieldPlan_AcceptsClassLiteralOpcode()
+    {
+        var plan = GetFunctionPlan("""
+            function* makeBox() {
+                yield 0;
+                return class {
+                    #value = 42;
+
+                    read() {
+                        return this.#value;
+                    }
+
+                    has(receiver) {
+                        return #value in receiver;
+                    }
+                };
+            }
+            """,
+            "makeBox");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        Assert.Contains(
+            result.Program.Instructions,
+            instruction => instruction.OpCode == UnifiedBytecodeOpCode.Yield);
     }
 
     [Theory]

@@ -49,8 +49,8 @@ public static partial class TypedAstEvaluator
 
         // Each .next/.return/.throw call drives one async-generator step and wraps
         // the step result in a Promise. Admitted bodies are VM-owned through
-        // UnifiedBytecodeVirtualMachine.ExecuteResumable; unsupported bodies remain
-        // classified fallback and use ExecutionPlanRunner.ExecuteAsyncStep.
+        // UnifiedBytecodeVirtualMachine.ExecuteResumable; declined bodies remain on
+        // the classified runner fallback until their semantics are admitted.
         public void Initialize()
         {
             if (TryInitializeUnifiedBytecode())
@@ -241,6 +241,24 @@ public static partial class TypedAstEvaluator
             return false;
         }
 
+        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
+        {
+            return new ExecutionPlanRunner(
+                function,
+                closure,
+                arguments,
+                thisValue,
+                callable,
+                realmState,
+                isLexicallyStrict,
+                hasFunctionNameEnvironment,
+                homeObject,
+                privateNameScope,
+                capturedPrivateNameScopes,
+                planOverride: planSeed.Plan,
+                planFailureOverride: planSeed.Failure);
+        }
+
         private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(
             AsyncGeneratorResumeMode mode,
             JsValue argument)
@@ -327,24 +345,6 @@ public static partial class TypedAstEvaluator
             Next,
             Return,
             Throw
-        }
-
-        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()
-        {
-            return new ExecutionPlanRunner(
-                function,
-                closure,
-                arguments,
-                thisValue,
-                callable,
-                realmState,
-                isLexicallyStrict,
-                hasFunctionNameEnvironment,
-                homeObject,
-                privateNameScope,
-                capturedPrivateNameScopes,
-                planOverride: planSeed.Plan,
-                planFailureOverride: planSeed.Failure);
         }
 
         private static JsValue CreateAsyncIteratorResult(JsValue value, bool done)

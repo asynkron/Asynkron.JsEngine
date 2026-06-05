@@ -260,17 +260,20 @@ all-or-nothing until a separate routing issue proves production readiness.
      through that same `PendingAwait` bridge. Awaited delegated sources may route
      when the source expression lowers to `AwaitValue` before the existing
      `YieldStar` driver, so `yield* await ...` must use the same resumable
-     async-generator settlement path instead of the IR runner. Non-simple
-     parameter lists must stay on the IR runner until the VM owns their eager
-     parameter-initialization effects before iterator creation, and captured
-     hoisted helpers remain declined until the async-generator route owns the
-     materialized body-environment lifetime required by those closures. Future
-     widening must pair public route-hit tests with nearby public no-route
-     tests for declined neighbors and a source gate proving the accepted step
-     body and `UnifiedBytecodeVirtualMachine` do not delegate back to
+     async-generator settlement path instead of the IR runner. Declined
+     async-generator bodies still use the explicitly classified
+     `CreateClassifiedAsyncGeneratorDeclinedBodyRunner` fallback until the VM
+     owns their semantics; non-simple parameter lists, captured hoisted helpers,
+     and other route-ineligible bodies must continue settling through that path.
+     Future widening must pair public route-hit tests with nearby public
+     declined-neighbor settlement tests and source gates proving the accepted
+     step body and `UnifiedBytecodeVirtualMachine` do not delegate back to
      `ExecutionPlanRunner`, `ExpressionProgram`, or AST/expression evaluation
-     bridges. Do not treat direct-yield or delegated `yield*` admission as broad
-     async-generator support or add VM fallback into those existing evaluators.
+     bridges. Retained `ExecutionPlanRunner.AsyncGeneratorStepResult`
+     references are adapter types, and the classified declined-body helper is
+     the only async-generator runner construction surface. Do not treat
+     direct-yield or delegated `yield*` admission as broad async-generator
+     support or add VM fallback into those existing evaluators.
      WHY: issue
      #3135 / PR #3142 added the first async-generator resumable route and kept
      delegated async-generator `yield*` declined until a later slice owned
@@ -287,9 +290,22 @@ all-or-nothing until a separate routing issue proves production readiness.
      / PR #3288 added the public declined-neighbor pins for non-simple
      parameter initialization and captured hoisted helpers, plus a source gate
      that the accepted async-generator resumable step and VM stay off runner and
-     expression-evaluation bridges. Issue #gh3295 / PR #3298 restored the
-     classified declined-body fallback after PR #3291 retired it too early and
-     made valid route-ineligible async generators fail fast on red `main`.
+     expression-evaluation bridges.
+     Faktorial issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-b58bf72598`
+     / PR #3291 then retired the remaining `AsyncGeneratorInvoker` runner
+     fallback, changed those declined neighbors from settle-through-runner to
+     fail-fast behavior, added an invoker-wide fallback tombstone source gate,
+     and kept direct-yield, delegated `yield*`, awaited-source `yield* await`,
+     pending-await settlement, and try/finally cleanup on the VM-owned route.
+     The follow-up quality-gate repair for issue
+     `planitem-planitem-planmanual1780639098493226000-full-unified-bytecode-execution-b-0bc18131a8`
+     restored the classified declined-body runner after internal async-generator
+     semantic tests showed that broad fail-fast retirement was premature, while
+     keeping the accepted route source-gated away from runner/expression
+     delegation. Issue #gh3295 / PR #3298 restored the same classified
+     declined-body fallback on `main` after PR #3291 made valid
+     route-ineligible async generators fail fast during verification.
      Related ADR:
      `docs/adrs/0349-keep-declined-async-generator-bodies-on-classified-runner-fallback.md`.
 10e. When admitting resumable generator or async shapes that contain nested

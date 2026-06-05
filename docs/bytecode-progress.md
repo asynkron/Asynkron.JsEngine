@@ -92,20 +92,25 @@ states that the opcode inventory and VM switch are expected to stay in lockstep.
 The remaining work is mostly semantic admission: activation, calls, dynamic
 lookup, driver state, class-definition state, and fallback-route retirement.
 
-The current `ExecutionPlanRunner` reachability baseline for E5 is explicit:
-ordinary sync functions can still reach the runner after the production
-unified-bytecode selector, specialized simple routes, and `SyncIrCallTrampoline`
-decline; top-level scripts still use the classified
+The current `ExecutionPlanRunner` reachability baseline for E5 is explicit and
+classification-only. Ordinary sync functions no longer construct the runner
+inside `TryInvokeIrFast`; unsupported ordinary sync shapes decline there and
+then the outer invocation path remains the classified runner fallback after the
+production unified-bytecode selector, specialized simple routes,
+`SyncIrCallTrampoline`, and constructor/class invocation bridges decline.
+Top-level scripts still use the classified
 `RunScriptViaClassifiedIrFallback` helper, which delegates to
-`ExecutionPlanRunner.RunScript`, after the script production selector declines;
-async functions, sync generators, and
-async generators still materialize runner-backed fallbacks when
-`EvaluateResumable` declines; class static blocks still execute their cached
-static-block plan through `ExecutionPlanRunner.RunScript`; and standalone
-expression, binding-target, and profiling bridges still construct runners for
-their quarantined helper surfaces. Direct eval, live `with`, eval-injected
-bindings, and `Function(...)`-produced bodies remain dynamic residue rather
-than ordinary E5 retirement work.
+`ExecutionPlanRunner.RunScript`, after the script production selector declines.
+Async functions, sync generators, and async generators still construct
+runner-backed fallbacks when `EvaluateResumable` declines; the async-generator
+fallback is explicitly classified in
+`CreateClassifiedAsyncGeneratorDeclinedBodyRunner`, while the accepted
+async-generator step path remains VM-owned. Class static blocks still execute
+their cached static-block plan through `ExecutionPlanRunner.RunScript`, and
+standalone expression, binding-target, and profiling bridges still construct
+runners for their quarantined helper surfaces. Direct eval, live `with`,
+eval-injected bindings, and `Function(...)`-produced bodies remain dynamic
+residue rather than ordinary E5 retirement work.
 
 The remaining default-admission gaps are now inventoried directly. The sync
 prototype guard has 6 currently non-admitted resumable-only opcodes; the

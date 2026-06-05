@@ -9271,6 +9271,23 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             File.Exists(asyncGeneratorInvokerPath),
             $"Expected async-generator invoker source at '{asyncGeneratorInvokerPath}'.");
         var asyncGeneratorInvokerSource = File.ReadAllText(asyncGeneratorInvokerPath);
+        var asyncGeneratorFallbackSection = ExtractRequiredSourceSection(
+            asyncGeneratorInvokerSource,
+            "private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "classified async-generator declined-body fallback");
+        var asyncGeneratorStepDispatcher = ExtractRequiredSourceSection(
+            asyncGeneratorInvokerSource,
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
+            "private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteUnifiedBytecodeStep(",
+            "async-generator step dispatcher");
+
+        Assert.Contains("new ExecutionPlanRunner(", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planOverride: planSeed.Plan", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("planFailureOverride: planSeed.Failure", asyncGeneratorFallbackSection, StringComparison.Ordinal);
+        Assert.Contains("ExecuteUnifiedBytecodeStep(ToUnifiedResumeMode(mode), argument, unifiedState)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
+        Assert.Contains("_inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument)", asyncGeneratorStepDispatcher, StringComparison.Ordinal);
+
         var asyncGeneratorInvokerWithoutClassifiedFallback =
             RemoveClassifiedAsyncGeneratorFallbackMarkers(asyncGeneratorInvokerSource);
         AssertUnifiedBytecodeAcceptedSectionDoesNotDelegate(
@@ -9340,7 +9357,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var classifiedFallbackMarkers = new[]
         {
             "private ExecutionPlanRunner? _inner;",
-            "// classified fallback and use ExecutionPlanRunner.ExecuteAsyncStep.",
+            "// the classified runner fallback until their semantics are admitted.",
             "_inner = CreateClassifiedAsyncGeneratorDeclinedBodyRunner();",
             "_inner.Initialize();",
             "return _inner!.ExecuteAsyncStep(ToRunnerResumeMode(mode), argument);"
@@ -9362,7 +9379,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var classifiedRunnerFactorySection = ExtractRequiredSourceSection(
             source,
             "        private ExecutionPlanRunner CreateClassifiedAsyncGeneratorDeclinedBodyRunner()",
-            "        private static JsValue CreateAsyncIteratorResult(",
+            "        private ExecutionPlanRunner.AsyncGeneratorStepResult ExecuteStep(",
             "async-generator classified fallback runner factory");
         Assert.Contains("return new ExecutionPlanRunner(", classifiedRunnerFactorySection, StringComparison.Ordinal);
         source = source.Replace(classifiedRunnerFactorySection, string.Empty, StringComparison.Ordinal);
@@ -9391,6 +9408,8 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             "new ExecutionPlanRunner(",
             "ExecutionPlanRunner.RunScript(",
             "ExecutionPlanRunner.RunSync(",
+            ".RunScript(",
+            ".RunSync(",
             "ExpressionProgram",
             ".ExecuteAsyncStep(",
             ".RunScriptInternal(",

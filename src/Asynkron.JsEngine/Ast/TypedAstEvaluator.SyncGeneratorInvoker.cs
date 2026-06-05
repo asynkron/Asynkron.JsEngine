@@ -110,8 +110,15 @@ public static partial class TypedAstEvaluator
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
+            var callingEnvironment = _closure;
+            if (RequiresResumableSuperEnvironment(program))
+            {
+                callingEnvironment = CreateRunner(arguments, thisValue)
+                    .GetOrCreateExecutionEnvironmentForInternalUse();
+            }
+
             // A generator is never a constructor and never an arrow, so its own new.target is undefined.
-            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, _closure, isStrict, JsValue.Undefined)
+            var state = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, JsValue.Undefined)
             {
                 // Thread the private-name scopes lexically active where this generator method was defined
                 // (captured enclosing scopes plus the class's own brand scope, innermost last) onto the

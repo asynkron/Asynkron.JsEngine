@@ -73,13 +73,10 @@ public sealed class ExpressionProgramCoverageMapTests
         "DeclareDynamicLexical",
         "DeclareDynamicVar",
         "DeclareFunction",
-        "EnsureSuperReference",
         "EnterCatch",
         "EnterWith",
         "GetComputedPropertyForCompoundSet",
-        "GetComputedSuperProperty",
         "GetNamedPropertyForCompoundSet",
-        "GetNamedSuperProperty",
         "InitializeDynamicLexical",
         "JumpWithDriverCleanup",
         "LeaveWith",
@@ -88,13 +85,9 @@ public sealed class ExpressionProgramCoverageMapTests
         "PrepareComputedSuperCallTarget",
         "PrepareNamedSuperCallTarget",
         "PushEnvironment",
-        "SetComputedSuperProperty",
-        "SetNamedSuperProperty",
         "StoreDynamicIdentifier",
         "SuperConstructInvocationBoundary",
-        "ThrowReferenceError",
-        "UpdateComputedSuperProperty",
-        "UpdateNamedSuperProperty"
+        "ThrowReferenceError"
     ];
 
     private static readonly string[] UnifiedBytecodeResumableInstructionAllowListGapNames =

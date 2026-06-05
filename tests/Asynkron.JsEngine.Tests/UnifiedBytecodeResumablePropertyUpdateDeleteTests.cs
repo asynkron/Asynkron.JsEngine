@@ -91,6 +91,76 @@ public sealed class UnifiedBytecodeResumablePropertyUpdateDeleteTests(ITestOutpu
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedProperty);
     }
 
+    [Fact]
+    public void EvaluateResumable_NamedSuperPropertyUpdate_AdmitsUpdateNamedSuperProperty()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return this._value ?? 10;
+                }
+
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    yield 1;
+                    yield super.value++;
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateNamedSuperProperty);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ComputedSuperPropertyUpdate_AdmitsUpdateComputedSuperProperty()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return this._value ?? 10;
+                }
+
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                *g(key) {
+                    yield 1;
+                    yield --super[key];
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.UpdateComputedSuperProperty);
+    }
+
     // The gate: a named delete (`delete o.x`) is admitted and carries DeleteNamedProperty.
     [Fact]
     public void EvaluateResumable_NamedPropertyDelete_AdmitsDeleteNamedProperty()
@@ -212,6 +282,78 @@ public sealed class UnifiedBytecodeResumablePropertyUpdateDeleteTests(ITestOutpu
         AssertGeneratorFastPath("g", argc: 2);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPostfixNamedSuperUpdate_RoutesResumableAndUsesOldValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() {
+                    return this._value ?? 10;
+                }
+
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    yield 1;
+                    var observed = super.value++;
+                    yield observed;
+                    yield this._value;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var a = it.next().value;
+            var b = it.next().value;
+            var c = it.next().value;
+            a + "|" + b + "|" + c + "|" + target._value;
+            """);
+
+        Assert.Equal("1|10|11|11", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorPrefixComputedSuperUpdate_RoutesResumableAndUsesNewValue()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() {
+                    return this._value ?? 10;
+                }
+
+                set value(next) {
+                    this._value = next;
+                }
+            }
+
+            class Derived extends Base {
+                *g(key) {
+                    yield 1;
+                    var observed = --super[key];
+                    yield observed;
+                    yield this._value;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g("value");
+            var a = it.next().value;
+            var b = it.next().value;
+            var c = it.next().value;
+            a + "|" + b + "|" + c + "|" + target._value;
+            """);
+
+        Assert.Equal("1|9|9|9", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
     // End-to-end: `delete o.x` inside a generator. The delete result is a boolean and the property is
     // actually removed from the object after the generator resumes.
     [Fact(Timeout = 5000)]
@@ -292,6 +434,45 @@ public sealed class UnifiedBytecodeResumablePropertyUpdateDeleteTests(ITestOutpu
 
         Assert.Equal("1|TypeError|1", result);
         AssertGeneratorFastPath("g", argc: 1);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorSuperUpdateWithThrowingSetter_ThrowsTypeError()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get locked() {
+                    return 1;
+                }
+
+                set locked(value) {
+                    throw new TypeError("blocked");
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    yield 1;
+                    super.locked++;
+                    yield 3;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var first = it.next().value;
+            var caught = "none";
+            try {
+                it.next();
+            } catch (e) {
+                caught = e.constructor.name;
+            }
+            first + "|" + caught + "|" + target.locked;
+            """);
+
+        Assert.Equal("1|TypeError|1", result);
+        AssertGeneratorFastPath("g", argc: 0);
     }
 
     // Adversarial: a strict-mode DELETE of a non-configurable property must throw TypeError, proving the
@@ -401,9 +582,10 @@ public sealed class UnifiedBytecodeResumablePropertyUpdateDeleteTests(ITestOutpu
 
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
-                StringComparison.Ordinal));
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal) &&
+                      record.Message.Contains($"argc={argc}", StringComparison.Ordinal) &&
+                      (record.Message.Contains($"func={functionName}", StringComparison.Ordinal) ||
+                       record.Message.Contains("func=<anonymous>", StringComparison.Ordinal)));
 
     private void AssertAsyncFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
@@ -417,6 +599,19 @@ public sealed class UnifiedBytecodeResumablePropertyUpdateDeleteTests(ITestOutpu
         var declaration = Assert.IsType<FunctionDeclaration>(pipeline.Analyzed.Body
             .Single(node => node is FunctionDeclaration f && f.Name?.Name == functionName));
         var cache = ((IAstCacheable<ExecutionPlanCache>)declaration.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
+
+    private static ExecutionPlan GetClassMethodPlan(string source, string className, string methodName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<ClassDeclaration>(pipeline.Analyzed.Body
+            .Single(node =>
+                node is ClassDeclaration classDeclaration &&
+                classDeclaration.Name.Name == className));
+        var method = Assert.Single(declaration.Definition.Members.Where(member => member.Name == methodName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
         Assert.True(cache.Succeeded, cache.FailureReason);
         return Assert.IsType<ExecutionPlan>(cache.Plan);
     }

@@ -4138,6 +4138,120 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter++;
                     break;
 
+                case UnifiedBytecodeOpCode.EnsureSuperReference:
+                    // `super[...]` reference validation inside a resumable body. The live method
+                    // environment is threaded onto the resume state; validate it before any computed-key
+                    // side effects, matching the expression bytecode ordering rule and sync VM handler.
+                    if (!EnsureSuperReference(RequireDynamicEnvironment(state.CallingEnvironment), context))
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetNamedSuperProperty:
+                    PushResumableValue(GetNamedSuperPropertyValue(
+                        program.StringConstants[instruction.Operand],
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.GetComputedSuperProperty:
+                    var resumableComputedSuperKey = stack[--stackPointer];
+                    PushResumableValue(GetComputedSuperPropertyValue(
+                        resumableComputedSuperKey,
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetNamedSuperProperty:
+                    var resumableNamedSuperPropertyValue = stack[stackPointer - 1];
+                    ReplaceResumableTop(SetNamedSuperPropertyValue(
+                        program.StringConstants[DecodeDynamicStoreNameOperand(instruction.Operand)],
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        resumableNamedSuperPropertyValue,
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.SetComputedSuperProperty:
+                    var resumableComputedSuperPropertyValue = stack[--stackPointer];
+                    var resumableComputedSuperSetKey = stack[--stackPointer];
+                    PushResumableValue(SetComputedSuperPropertyValue(
+                        resumableComputedSuperSetKey,
+                        DecodeDynamicStoreAllowsNameInference(instruction.Operand),
+                        resumableComputedSuperPropertyValue,
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateNamedSuperProperty:
+                    PushResumableValue(UpdateNamedSuperPropertyValue(
+                        program.StringConstants[DecodeStringOperand(instruction.Operand)],
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
+                case UnifiedBytecodeOpCode.UpdateComputedSuperProperty:
+                    var resumableComputedSuperUpdateKey = stack[--stackPointer];
+                    PushResumableValue(UpdateComputedSuperPropertyValue(
+                        resumableComputedSuperUpdateKey,
+                        DecodeIsIncrement(instruction.Operand),
+                        DecodeIsPrefix(instruction.Operand),
+                        RequireDynamicEnvironment(state.CallingEnvironment),
+                        context,
+                        state.IsStrict));
+                    if (context.ShouldStopEvaluation)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter++;
+                    break;
+
                 case UnifiedBytecodeOpCode.UpdateNamedProperty:
                     // `o.x++` / `++o.x` (and the `--` forms) inside a resumable body. Stack layout mirrors
                     // the sync Execute path: the base sits on top, and is replaced in place by the

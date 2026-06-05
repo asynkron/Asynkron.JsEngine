@@ -139,6 +139,21 @@ all-or-nothing until a separate routing issue proves production readiness.
     `DisposeActiveFunctionEnvironmentResources` for pending return/throw
     completions. Related ADR:
     `docs/adrs/0342-keep-unified-bytecode-finally-completion-resource-disposal-owned.md`.
+9c. Keep dynamic `Function` / `new Function` produced bodies quarantined from
+    sync production unified bytecode until generated-body semantics are admitted
+    by an explicit future route-widening slice. Mark the produced
+    `FunctionExpression` at the constructor parse boundary and decline that
+    marked body before production route selection; do not replace this with
+    caller-local source-text checks, generic dynamic-shape predicates, or VM
+    fallback into `ExecutionPlanRunner`, `ExpressionProgram`, or AST
+    evaluation. Quarantine proof must pair the generated body's no-route signal
+    with an adjacent ordinary function route-hit so the guard cannot silently
+    become a broad call-site decline. WHY: Faktorial issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-11ca930244`
+    / PR #3262 closed D4 by adding an explicit produced-body origin marker and
+    declining only that body before the sync production unified-bytecode route.
+    Related ADR:
+    `docs/adrs/0343-keep-dynamic-function-produced-bodies-quarantined-from-production-bytecode.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

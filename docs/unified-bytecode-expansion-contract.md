@@ -777,14 +777,15 @@ predicates and proof tests.
     sync-generator route also admits helpers that capture root body locals after
     invocation setup materializes the resumable body environment and creates the
     helper against that environment, so the helper observes flat-slot mutations
-    across `yield`/resume. Async/async-generator captured helpers still remain
-    declined because those invokers do not yet prove the same materialized body
-    environment lifetime. Recursive/sibling helper graphs, dynamic/eval helpers,
-    descriptor-backed block/Annex B declarations, and class declarations are
-    separate B36 declaration-instantiation work. `DeclareFunction` remains OFF
-    the resumable opcode allowlist and `FunctionDeclarationInstruction` remains
-    conditionally guarded by the invoker-proof activation flag; the boundary is
-    pinned by `UnifiedBytecodeResumableNestedFunctionTests`.
+    across `yield`/resume. A43 now admits descriptor-backed block/Annex B
+    declarations through materialized block environments. Async/async-generator
+    captured helpers still remain declined because those invokers do not yet
+    prove the same materialized body environment lifetime. Recursive/sibling
+    helper graphs, dynamic/eval helpers, and class declarations are separate B36
+    declaration-instantiation work. `DeclareFunction` remains OFF the resumable
+    opcode allowlist and `FunctionDeclarationInstruction` remains conditionally
+    guarded by the invoker-proof activation flag; the boundary is pinned by
+    `UnifiedBytecodeResumableNestedFunctionTests`.
 - Captured function scopes outside the simple-return captured-closure route,
   unresolved non-with dynamic activation, arrow lexical `this` / `new.target`,
   and class-constructor activation outside the bounded constructor routes.

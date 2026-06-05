@@ -585,27 +585,12 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            // A43 (burn-down) — DECLINED, kept as the explicit gate. The DeclareFunction opcode and VM
-            // handler (UnifiedBytecodeVirtualMachine.DeclareFunction) already port the IR runner's
-            // sloppy-mode Annex B.3.3 dual-hoist, so this instruction gate is not the true blocker: a
-            // descriptor-backed block function ALSO declines at IsSupportedPushEnvironment because the
-            // block's lexical slot for the function name carries NO flat-slot mapping (the value is bound
-            // by Symbol via DeclareFunction and read through the Annex B var/dynamic path, never via the
-            // block flat slot). Relaxing IsSupportedPushEnvironment to tolerate unmapped lexical slots
-            // does admit the sloppy shapes correctly (return g() => 1, conditional, redeclaration), but it
-            // BREAKS strict-mode block scoping: the strict IIFE in StrictModeBlockFunctionScopingTests
-            // .StrictMode_BlockFunctionDeclaration_ShouldNotHoistToFunctionScope then leaks the block `f`
-            // into the function scope (typeof f === "function"/"undefined" outside the block instead of a
-            // ReferenceError), because the VM's flat-slot env model resolves the dropped block binding at
-            // the activation scope. Admitting A43 cleanly requires giving the block function binding a
-            // real flat-slot mapping AND strict-mode-correct VM env resolution — a block-environment
-            // change with blast radius across all lexical block bindings, well beyond an Annex-B-scoped
-            // edit. Correct decline > fragile admission: the IR runner keeps these shapes correct today.
-            if (instruction is FunctionDeclarationInstruction { Descriptor: not null })
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out var capturedName))
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "Descriptor-backed block-scoped function declarations require an admitted lexical environment shape before production unified bytecode routing.";
+                    $"Descriptor-backed block-scoped function declaration captures activation binding '{capturedName}' and is not eligible for production unified bytecode routing until the VM owns that materialized closure shape.";
                 return true;
             }
 

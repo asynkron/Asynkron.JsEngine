@@ -4073,7 +4073,6 @@ internal static class UnifiedBytecodeVirtualMachine
                     slots[instruction.Operand] = resumableStoredSlotValue;
                     ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, resumableStoredSlotValue);
-                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
                     break;
 
@@ -4137,7 +4136,6 @@ internal static class UnifiedBytecodeVirtualMachine
                     slots[instruction.Operand] = resumableInitializedSlotValue;
                     ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     SyncSlotEnvironment(slotEnvironments, instruction.Operand, resumableInitializedSlotValue);
-                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
                     break;
 
@@ -5351,7 +5349,6 @@ internal static class UnifiedBytecodeVirtualMachine
                                 slots[instruction.Operand] = payload;
                                 ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                                 SyncSlotEnvironment(slotEnvironments, instruction.Operand, payload);
-                                ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                             }
 
                             programCounter++;

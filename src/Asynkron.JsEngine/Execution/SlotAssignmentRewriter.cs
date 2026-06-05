@@ -550,6 +550,14 @@ internal sealed class SlotAssignmentRewriter : AstRewriter
                         : null
                 };
 
+            case FunctionDeclarationInstruction { Descriptor: { } descriptor }:
+                if (TryResolve(descriptor.Name, out var functionResolution))
+                {
+                    _ = GetOrCreateFlatSlotId(functionResolution.scopeId, functionResolution.slotIndex);
+                }
+
+                return instruction;
+
             case IteratorInitInstruction iterInit:
                 return iterInit with
                 {

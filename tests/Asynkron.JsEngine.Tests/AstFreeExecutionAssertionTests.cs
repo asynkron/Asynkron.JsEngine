@@ -3028,6 +3028,43 @@ public sealed class AstFreeExecutionAssertionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AssertNoAstEvaluation_Enabled_AllowsClassExpressionPublicAccessorExecution()
+    {
+        var originalValue = EvaluationContext.AssertNoAstEvaluation;
+
+        try
+        {
+            EvaluationContext.AssertNoAstEvaluation = true;
+
+            var program = _engine.ParseProgram("""
+                const Box = class {
+                    get value() {
+                        return this._value;
+                    }
+
+                    set value(next) {
+                        this._value = next + 1;
+                    }
+                };
+
+                const box = new Box();
+                box.value = 41;
+                const descriptor = Object.getOwnPropertyDescriptor(Box.prototype, "value");
+                box.value + (typeof descriptor.get === "function" ? 0 : 1000) +
+                    (typeof descriptor.set === "function" ? 0 : 1000);
+                """);
+
+            var result = await _engine.Evaluate(program);
+
+            Assert.Equal(42.0, result);
+        }
+        finally
+        {
+            EvaluationContext.AssertNoAstEvaluation = originalValue;
+        }
+    }
+
+    [Fact]
     public async Task AssertNoAstEvaluation_Enabled_AllowsClassComputedMethodNameScriptExecution()
     {
         var originalValue = EvaluationContext.AssertNoAstEvaluation;

@@ -10340,6 +10340,38 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
                 StringComparison.Ordinal));
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task ClassExpressionPublicAccessors_UseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function makeBox(offset) {
+                return class {
+                    get value() {
+                        return this._value;
+                    }
+
+                    set value(next) {
+                        this._value = next + offset;
+                    }
+                };
+            }
+
+            var Box = makeBox(1);
+            var box = new Box();
+            box.value = 41;
+            var descriptor = Object.getOwnPropertyDescriptor(Box.prototype, "value");
+            box.value + (typeof descriptor.get === "function" ? 0 : 1000) +
+                (typeof descriptor.set === "function" ? 0 : 1000);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=makeBox argc=1",
+                StringComparison.Ordinal));
+    }
+
     public static TheoryData<string, string, double, string, int> SupportedLoopControlFunctions =>
         new()
         {

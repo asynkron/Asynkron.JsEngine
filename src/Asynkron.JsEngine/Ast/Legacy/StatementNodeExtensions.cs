@@ -2545,10 +2545,21 @@ public static partial class TypedAstEvaluator
             return scriptBytecodeResult;
         }
 
+        return RunScriptViaClassifiedIrFallback(
+            scriptPlan,
+            executionEnvironment,
+            context);
+    }
+
+    private static JsValue RunScriptViaClassifiedIrFallback(
+        ExecutionPlan scriptPlan,
+        JsEnvironment executionEnvironment,
+        EvaluationContext context)
+    {
         // Script-level var declarations are marked with IsScriptLevel=true in the IR
         // so they correctly update the global object.
         context.RealmState.Logger?.LogInformation(
-            "Executing script via IR path ({InstructionCount} instructions)",
+            "classified-script-ir-fallback reason=production-unified-bytecode-declined instructions={InstructionCount}",
             scriptPlan.Instructions.Length);
         return ExecutionPlanRunner.RunScript(
             scriptPlan,

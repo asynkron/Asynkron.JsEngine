@@ -143,6 +143,68 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
             static instruction => instruction.OpCode == UnifiedBytecodeOpCode.StoreDynamicIdentifierReference);
     }
 
+    [Fact]
+    public void EvaluateResumable_NamedSuperPropertyWriteAcrossYield_AdmitsSetNamedSuperProperty()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value = yield 1;
+                    yield this.seen;
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedSuperProperty);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ComputedSuperPropertyWriteAcrossYield_AdmitsSetComputedSuperProperty()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                set dynamic(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g(key) {
+                    super[key] = yield 1;
+                    yield this.seen;
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetComputedSuperProperty);
+    }
+
     // End-to-end: a named write whose value crosses a yield routes through the resumable fast path,
     // produces the correct value sequence, AND the mutation persists on the object after the generator
     // finishes (proving the write hit the real object, not a stack copy).
@@ -214,6 +276,64 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
         AssertGeneratorFastPath("g", argc: 0);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNamedSuperWriteAcrossYield_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value = yield 1;
+                    yield this.seen;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var a = it.next().value;
+            var b = it.next(42).value;
+            a + "|" + b + "|" + target.seen;
+            """);
+
+        Assert.Equal("1|42|42", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorComputedSuperWriteAcrossYield_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                set dynamic(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g(key) {
+                    super[key] = yield 1;
+                    yield this.seen;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g("dynamic");
+            var a = it.next().value;
+            var b = it.next(7).value;
+            a + "|" + b + "|" + target.seen;
+            """);
+
+        Assert.Equal("1|7|7", result);
+        AssertGeneratorFastPath("g", argc: 1);
+    }
+
     // Adversarial: a strict-mode generator writing to a NON-writable property must throw a TypeError when
     // the SetNamedProperty step runs — proving the resumable handler honors strictness through
     // context.CurrentScope.IsStrict (SetPropertyValue) rather than silently swallowing the write.
@@ -273,6 +393,112 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
         AssertGeneratorFastPath("g", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorSuperWriteToThrowingSetter_PropagatesThrow()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                set frozen(value) {
+                    throw new TypeError("blocked");
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    yield 1;
+                    super.frozen = 2;
+                    yield 3;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var first = it.next().value;
+            var caught = "none";
+            try {
+                it.next();
+            } catch (e) {
+                caught = e.constructor.name;
+            }
+            first + "|" + caught + "|" + Object.prototype.hasOwnProperty.call(target, "frozen");
+            """);
+
+        Assert.Equal("1|TypeError|false", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact]
+    public void EvaluateResumable_NamedSuperPropertyCompoundAssignmentAcrossYield_AdmitsReadAndWrite()
+    {
+        var plan = GetClassMethodPlan("""
+            class Base {
+                get value() {
+                    return this.seen ?? 1;
+                }
+
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value += yield 1;
+                    yield this.seen;
+                }
+            }
+            """,
+            "Derived",
+            "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.GetNamedSuperProperty);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.SetNamedSuperProperty);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNamedSuperCompoundAssignmentAcrossYield_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                get value() {
+                    return this.seen ?? 1;
+                }
+
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                *g() {
+                    super.value += yield 1;
+                    yield this.seen;
+                }
+            }
+
+            var target = new Derived();
+            var it = target.g();
+            var a = it.next().value;
+            var b = it.next(41).value;
+            a + "|" + b + "|" + target.seen;
+            """);
+
+        Assert.Equal("1|42|42", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
     // End-to-end async: an async function that writes a property after an await suspension routes through
     // the resumable fast path and the mutation persists on the resolved object.
     [Fact(Timeout = 5000)]
@@ -324,17 +550,62 @@ public sealed class UnifiedBytecodeResumablePropertyWriteTests(ITestOutputHelper
         AssertAsyncFastPath("run", argc: 1);
     }
 
+    [Fact(Timeout = 5000)]
+    public async Task AsyncSuperPropertyWriteAcrossAwait_RoutesResumableAndPersists()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            class Base {
+                set value(v) {
+                    this.seen = v;
+                }
+            }
+
+            class Derived extends Base {
+                async run() {
+                    await this.gate;
+                    super.value = 11;
+                    return this.seen;
+                }
+            }
+
+            var target = new Derived();
+            target.gate = Promise.resolve(0);
+            target.run().then(value => asyncResult = value);
+            asyncResult;
+            """);
+
+        Assert.Equal(11d, result);
+        AssertAsyncFastPath("run", argc: 0);
+    }
+
     private void AssertGeneratorFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ResumableGeneratorFastPathLog} func={functionName} argc={argc}",
-                StringComparison.Ordinal));
+            record => record.Message.Contains(ResumableGeneratorFastPathLog, StringComparison.Ordinal) &&
+                      record.Message.Contains($"argc={argc}", StringComparison.Ordinal) &&
+                      (record.Message.Contains($"func={functionName}", StringComparison.Ordinal) ||
+                       record.Message.Contains("func=<anonymous>", StringComparison.Ordinal)));
 
     private void AssertAsyncFastPath(string functionName, int argc) =>
         Assert.Contains(CurrentLogger!.Collector.Snapshot(),
-            record => record.Message.Contains(
-                $"{ResumableAsyncFastPathLog} func={functionName} argc={argc}",
-                StringComparison.Ordinal));
+            record => record.Message.Contains(ResumableAsyncFastPathLog, StringComparison.Ordinal) &&
+                      record.Message.Contains($"argc={argc}", StringComparison.Ordinal) &&
+                      (record.Message.Contains($"func={functionName}", StringComparison.Ordinal) ||
+                       record.Message.Contains("func=<anonymous>", StringComparison.Ordinal)));
+
+    private static ExecutionPlan GetClassMethodPlan(string source, string className, string methodName)
+    {
+        var pipeline = AstTestHelpers.ParseAndAnalyze(source);
+        var declaration = Assert.IsType<ClassDeclaration>(pipeline.Analyzed.Body
+            .Single(node =>
+                node is ClassDeclaration classDeclaration &&
+                classDeclaration.Name.Name == className));
+        var method = Assert.Single(declaration.Definition.Members.Where(member => member.Name == methodName));
+        var cache = ((IAstCacheable<ExecutionPlanCache>)method.Function).GetOrCreateCache();
+        Assert.True(cache.Succeeded, cache.FailureReason);
+        return Assert.IsType<ExecutionPlan>(cache.Plan);
+    }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

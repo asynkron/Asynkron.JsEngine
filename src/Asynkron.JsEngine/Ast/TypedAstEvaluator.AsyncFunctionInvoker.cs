@@ -161,13 +161,27 @@ public static partial class TypedAstEvaluator
             var newTarget = function.IsArrow && closure.TryGetJsValue(Symbol.NewTarget, out var inheritedNewTarget)
                 ? inheritedNewTarget
                 : JsValue.Undefined;
-            _unifiedState = new UnifiedBytecodeResumeState(
-                program,
-                slots,
-                boundThis,
-                resumableEnvironment,
-                isStrict,
-                newTarget)
+            var callingEnvironment = resumableEnvironment;
+            if (RequiresResumableSuperEnvironment(program))
+            {
+                callingEnvironment = new ExecutionPlanRunner(
+                        function,
+                        closure,
+                        arguments,
+                        thisValue,
+                        callable,
+                        _realmState,
+                        isLexicallyStrict,
+                        hasFunctionNameEnvironment,
+                        homeObject,
+                        privateNameScope,
+                        capturedPrivateNameScopes,
+                        planOverride: _planSeed.Plan,
+                        planFailureOverride: _planSeed.Failure)
+                    .GetOrCreateExecutionEnvironmentForInternalUse();
+            }
+
+            _unifiedState = new UnifiedBytecodeResumeState(program, slots, boundThis, callingEnvironment, isStrict, newTarget)
             {
                 // Thread the private-name scopes lexically active where this async body was defined so the
                 // resumable VM can re-enter them on each per-step continuation and resolve `#name in obj`.

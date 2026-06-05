@@ -384,22 +384,16 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `EnterCatch`
 - `EnterWith`
 - `GetComputedPropertyForCompoundSet`
-- `GetComputedSuperProperty`
 - `GetNamedPropertyForCompoundSet`
-- `GetNamedSuperProperty`
 - `InitializeDynamicLexical`
 - `JumpWithDriverCleanup`
 - `LeaveWith`
 - `LoadClassLiteral`
 - `PopEnvironment`
 - `PushEnvironment`
-- `SetComputedSuperProperty`
-- `SetNamedSuperProperty`
 - `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
 - `ThrowReferenceError`
-- `UpdateComputedSuperProperty`
-- `UpdateNamedSuperProperty`
 
 ### Resumable Instruction Allowlist Gaps (current)
 
@@ -607,6 +601,7 @@ above in the same slice.
 - `Private named property deletes are not supported in the general expression loop.`
 - `Private named property reads are not supported.`
 - `Private named receiver properties are outside the call-target preparation boundary.`
+- `Private named super call target in complex call argument.`
 - `Private named super call targets are outside the call-target preparation boundary.`
 - `Private named super call targets are outside the general expression loop boundary.`
 - `Private names and name inference are not admitted in simple object literals.`
@@ -635,6 +630,7 @@ above in the same slice.
 - `Unsupported compound computed property binary operator '{binary.Operator}'.`
 - `Unsupported compound property binary operator '{binary.Operator}'.`
 - `Unsupported computed call target in complex call argument.`
+- `Unsupported computed super call target in complex call argument.`
 - `Unsupported computed property key op '{operation.Kind}'.`
 - `Unsupported computed property key span.`
 - `Unsupported computed property read in complex call argument.`
@@ -1707,10 +1703,12 @@ the final post-compile production subset check before VM entry.
   literals: `let f = function(){}` / object method/accessor literals co-emit
   `LoadFunctionLiteral`, and both opcodes are handled directly by `ExecuteResumable`.
   `ThrowReferenceError` is still not admitted: its only producer (`delete super[...]`)
-  co-emits the unsupported `EnsureSuperReference`, so it is not reachable by an admitted
-  resumable program. An uninitialized-binding TDZ read is already surfaced by the existing
-  resumable `LoadSlot` handler (no new opcode) (proof: `UnifiedBytecodeResumableTemplateToStringTests`,
-  plus `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
+  remains an unsupported delete-super shape even though ordinary super property
+  read/write/update opcodes are now handled by `ExecuteResumable`. An
+  uninitialized-binding TDZ read is already surfaced by the existing resumable
+  `LoadSlot` handler (no new opcode) (proof:
+  `UnifiedBytecodeResumableTemplateToStringTests`, plus
+  `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
 - Accepted resumable bodies may now read the `import.meta` meta-property between suspension
   points (burndown B20). The `LoadImportMeta` opcode is ported into the `ExecuteResumable`
   switch and added to the `TryFindUnsupportedResumableOpcode` allowlist. The resumable

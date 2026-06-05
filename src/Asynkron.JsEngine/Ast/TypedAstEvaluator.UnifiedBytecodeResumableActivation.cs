@@ -85,6 +85,26 @@ public static partial class TypedAstEvaluator
         return true;
     }
 
+    private static bool RequiresResumableSuperEnvironment(UnifiedBytecodeProgram program)
+    {
+        foreach (var instruction in program.Instructions)
+        {
+            if (instruction.OpCode is
+                UnifiedBytecodeOpCode.EnsureSuperReference or
+                UnifiedBytecodeOpCode.GetNamedSuperProperty or
+                UnifiedBytecodeOpCode.GetComputedSuperProperty or
+                UnifiedBytecodeOpCode.SetNamedSuperProperty or
+                UnifiedBytecodeOpCode.SetComputedSuperProperty or
+                UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
+                UnifiedBytecodeOpCode.UpdateComputedSuperProperty)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void InitializeResumableLexicalSlots(JsValue[] slots, UnifiedBytecodeProgram program)
     {
         var lexicalSlotIndices = program.LexicalSlotIndices;

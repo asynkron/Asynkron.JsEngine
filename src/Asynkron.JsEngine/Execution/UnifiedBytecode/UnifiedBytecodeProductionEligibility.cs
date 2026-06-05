@@ -1744,11 +1744,17 @@ internal static class UnifiedBytecodeProductionEligibility
                 // mechanism the admitted property READS already rely on. The resumable handlers reuse the
                 // sync VM's SetPropertyValue helper (which ORs context.CurrentScope.IsStrict for strict
                 // semantics) and translate a thrown set (e.g. a strict write to a read-only property) into
-                // the resumable Throw step. Super-property writes stay omitted: those opcodes have no
-                // resumable handler yet, so leaving them off this allowlist declines them back to the
-                // interpreter.
+                // the resumable Throw step. Super-property reads/writes/updates use the resume state's
+                // captured CallingEnvironment to resolve the live method `super` base after suspension.
                 UnifiedBytecodeOpCode.SetNamedProperty or
                 UnifiedBytecodeOpCode.SetComputedProperty or
+                UnifiedBytecodeOpCode.EnsureSuperReference or
+                UnifiedBytecodeOpCode.GetNamedSuperProperty or
+                UnifiedBytecodeOpCode.GetComputedSuperProperty or
+                UnifiedBytecodeOpCode.SetNamedSuperProperty or
+                UnifiedBytecodeOpCode.SetComputedSuperProperty or
+                UnifiedBytecodeOpCode.UpdateNamedSuperProperty or
+                UnifiedBytecodeOpCode.UpdateComputedSuperProperty or
                 // Property UPDATES (`o.x++`, `o[k]--`) and DELETES (`delete o.x`, `delete o[k]`) inside a
                 // resumable body. Like the property writes above, these opcodes operate purely on the
                 // operand stack — the base (and, for the computed form, the key) sit on
@@ -1758,7 +1764,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 // sync VM's UpdatePropertyValue / DeleteNamedProperty / DeleteComputedProperty helpers,
                 // threading the body's own strictness (state.IsStrict) so a strict update/delete of a
                 // read-only / non-configurable property throws and translates to the resumable Throw step.
-                // Super-property updates/deletes stay omitted (no resumable super handler yet).
                 UnifiedBytecodeOpCode.UpdateNamedProperty or
                 UnifiedBytecodeOpCode.UpdateComputedProperty or
                 UnifiedBytecodeOpCode.DeleteNamedProperty or
@@ -2372,7 +2377,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 case ExpressionOpKind.LoadNamedSuperCallTarget:
                 case ExpressionOpKind.LoadComputedSuperCallTarget:
                     if (isCallTargetPreparationCandidate ||
-                        isGeneralNamedMemberCallExpressionCandidate)
+                        isGeneralNamedMemberCallExpressionCandidate ||
+                        isComplexRhsPropertyWriteCandidate ||
+                        isComplexRhsCompoundPropertyWriteCandidate)
                     {
                         break;
                     }
@@ -7105,6 +7112,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 return depthBefore >= 1;
 
             case ExpressionOpKind.EnsureSuperReference:
+                // This-initialization check for computed super keys; no stack effect.
                 return true;
 
             case ExpressionOpKind.Binary:
@@ -7252,6 +7260,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
 
             case ExpressionOpKind.LoadNamedSuperCallTarget:
+                // Pushes <super receiver, callee>: net +2. Reject private names.
                 if (op.GetString(stringConstants).IsPrivateName())
                 {
                     return false;
@@ -7261,6 +7270,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
 
             case ExpressionOpKind.LoadComputedSuperCallTarget:
+                // pop key, push <super receiver, callee>: net +1.
                 if (depthBefore < 1)
                 {
                     return false;

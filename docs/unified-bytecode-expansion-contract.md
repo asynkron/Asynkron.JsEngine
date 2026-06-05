@@ -752,27 +752,28 @@ predicates and proof tests.
   - NESTED FUNCTION LITERALS (`var h = function(){...}`) inside generator/async
     bodies are now split by capture analysis. Non-capturing literals route through
     `ExecuteResumable` via `LoadFunctionLiteral` and `EnsureHasName`; object
-    method/accessor literals use the same path. Capturing literals still decline:
-    the nested function closes over the resumable activation's ENVIRONMENT, but
-    the body's own locals are realised as FLAT SLOTS on the resume state, so a
-    nested function that captures a generator/async local cannot see it through
-    its environment chain (a naive resumable route makes
-    `function* g(){ var n=1; var f=()=>n; yield f(); }` throw
-    `ReferenceError: n is not defined`) and a sync-on-create would go stale on a
-    post-capture mutation. Function declarations nested inside an otherwise
-    non-capturing function literal also stay declined until declaration
-    instantiation is represented by the resumable route. B23 remains partial until
-    the resume state owns a materialized body environment.
+    method/accessor literals use the same path. Generator nested function literals
+    that capture a root body local also route after invocation setup materializes
+    a body environment whose activation slots are mirrored from the resume-state
+    flat slots and kept synchronized on slot writes. This admits
+    `function* g(){ var n=1; var f=()=>n; yield f(); n=2; yield f(); }`, so the
+    closure observes `1` then `2` on the resumable generator route. Async and
+    async-generator captured-local literals, lexical-this/private-name dependent
+    literals, and function declarations nested inside an otherwise non-capturing
+    function literal still decline until their closure contexts or declaration
+    instantiation semantics are represented by the resumable route. B23 remains
+    partial.
   - HOISTED NESTED FUNCTION DECLARATIONS (`function helper(){...}`;
     `FunctionDeclarationInstruction` / `DeclareFunction`) inside a generator/async
     body are now partially admitted (B36): direct root function-scoped
     declarations route when the declared helper is non-capturing and the
     resumable invoker pre-populates the helper's compiled VM flat slot before
-    `ExecuteResumable` starts. Capturing helpers, recursive/sibling helper
+    `ExecuteResumable` starts. Capturing helpers still remain declined in this
+    slice even though generator function literals now have a materialized
+    body-environment route: declaration graph ordering, recursive/sibling helper
     dependencies, dynamic/eval helpers, descriptor-backed block/Annex B
-    declarations, and class declarations remain declined until resumable
-    activation owns a materialized body environment and block-declaration
-    semantics. `DeclareFunction` remains OFF the resumable opcode allowlist and
+    declarations, and class declarations are separate B36 declaration
+    instantiation work. `DeclareFunction` remains OFF the resumable opcode allowlist and
     `FunctionDeclarationInstruction` remains conditionally guarded by the
     invoker-proof activation flag; the boundary is pinned by
     `UnifiedBytecodeResumableNestedFunctionTests`.
@@ -1762,7 +1763,10 @@ the final post-compile production subset check before VM entry.
   non-capturing: the value lowers to `LoadFunctionLiteral`, name inference lowers to
   `EnsureHasName` when needed, and the `Define{Computed}ObjectMethod` /
   `Define{Computed}ObjectAccessor` handlers attach the callable to the fresh object.
-  Capturing method/accessor literals remain covered by the B23 capture decline.
+  Capturing generator method/accessor literals can route through the B23
+  materialized-body-environment slice when they capture root body locals; async
+  captured method/accessor literals and lexical/private-context captures remain
+  covered by the B23 capture decline.
   Separately,
   a `var x = <literal>` whose literal contains no suspension still declines at the
   resumable var-declaration lowering boundary (`SimpleVariableDeclarationInstruction`

@@ -1,6 +1,6 @@
 # Unified Bytecode Expansion Contract
 
-Date: 2026-06-02
+Date: 2026-06-05
 Scope: Shared contract for parallel unified-bytecode lane work.
 
 ## Source-Of-Truth Surfaces
@@ -53,6 +53,13 @@ statement interpretation.
   workloads without requiring the external profiler.
 
 ## Current Completion Audit
+- Current-main rebaseline: on `e2e0da918` (2026-06-05), the focused contract
+  drift gate
+  `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~ExpressionProgramCoverageMapTests&FullyQualifiedName~UnifiedBytecodeExpansionContract"`
+  passed. The checked inventories remain current: 6 sync prototype opcode guard
+  gaps, 29 resumable opcode allowlist gaps, 9 resumable instruction allowlist
+  gaps, A35 split into 5 object-literal member leaves, B24 split into 9
+  class-expression leaves, and no general expression lowering gaps.
 - Completing the decline-burndown plan did not make unified bytecode the only
   execution model. The result is a wider production route plus a checked decline
   ledger. Any shape that misses the sync pre-gates, production eligibility, or

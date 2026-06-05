@@ -219,18 +219,18 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | Phase | Items | Notes |
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
-| A — Sync admission | 69 | 44 complete / 25 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 35 complete / 22 open; class-expression decomposition added B24a-B24i |
+| A — Sync admission | 69 | 46 complete / 23 open; by decline code / promoted compiler leaf |
+| B — Resumable parity + suspension | 57 | 36 complete / 21 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 81 complete / 48 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 84 complete / 45 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
-2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 48 as a lower bound for effort.
+2. **Resumable suspension machinery** (B30–B33, B41, B3/B39) — inventory is complete, but per-item cost is unbounded (persisting driver/try/finally/iterator state across resume); these may subdivide during implementation. Treat the Phase B count of 57 as a lower bound for effort.
 
 ---
 

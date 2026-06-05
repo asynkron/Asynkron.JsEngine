@@ -86,9 +86,11 @@ statement interpretation.
   `### A35 Object Literal Member Leaves (current)` and
   `### B24 Class Expression Leaves (current)`. A35 is sync-admitted across its
   concrete object-member opcodes; B24 remains real work for full bytecode
-  execution because `LoadClassLiteral` is not resumable-admitted and the sync VM
-  handler still delegates class-definition evaluation to lower-level class
-  machinery that can run expression programs and static-block IR plans.
+  execution because only the constructor/default-constructor class-literal
+  subset is resumable-admitted; the VM handler still delegates class-definition
+  evaluation to lower-level class machinery, and B24b-B24i keep field,
+  static-block, private, accessor, computed-member, member-super, and
+  activation-slot `extends` shapes declined.
 - `UnifiedBytecodeCompiler` now has generated audit coverage for every declared
   IR instruction record. Function-scoped `FunctionDeclarationInstruction`
   entries compile as no-ops after fast activation hoisting installs the callable
@@ -388,7 +390,6 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `InitializeDynamicLexical`
 - `JumpWithDriverCleanup`
 - `LeaveWith`
-- `LoadClassLiteral`
 - `PopEnvironment`
 - `PushEnvironment`
 - `StoreDynamicIdentifier`
@@ -432,11 +433,14 @@ sync-admitted and pinned by `A35ComplexObjectLiteralTests`,
 ### B24 Class Expression Leaves (current)
 
 The former B24 class-expression coarse row is split by class-element semantics.
-`LoadClassLiteral` itself has sync VM and compiler coverage, but full bytecode
-execution is not done: resumable routing still declines `LoadClassLiteral`, and
-sync class-literal creation still calls class-definition machinery that resolves
-extends/computed names/field initializers through expression programs and static
-blocks through `ExecutionPlanRunner.RunScript`.
+`LoadClassLiteral` itself has sync VM and compiler coverage, and B24a admits the
+constructor/default-constructor subset on the resumable route. Full bytecode
+execution is not done: class-literal creation still calls class-definition
+machinery that resolves extends/computed names/field initializers through
+expression programs and static blocks through `ExecutionPlanRunner.RunScript`;
+`extends` expressions that read resumable activation slots also remain declined
+until class-definition evaluation owns that environment bridge. B24b-B24i remain
+declined by the resumable shape gate.
 
 - `B24a:ClassExpressionConstructor`
 - `B24b:ClassExpressionInstanceFields`

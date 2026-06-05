@@ -43,6 +43,149 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     private const string ResumableGeneratorFastPathLog = "unified-bytecode-resumable-generator-fast-path";
     private const string ResumableAsyncFastPathLog = "unified-bytecode-resumable-async-fast-path";
 
+    [Fact]
+    public void EvaluateResumable_ClassLiteralExplicitConstructor_AdmitsLoadClassLiteral()
+    {
+        var result = AssertClassLiteralEligible("""
+            function* g() {
+                yield class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                };
+            }
+            """);
+
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ClassLiteralDefaultConstructors_AdmitLoadClassLiteral()
+    {
+        _ = AssertClassLiteralEligible("""
+            function* g() {
+                yield class {};
+            }
+            """);
+
+        _ = AssertClassLiteralEligible("""
+            class Base {}
+            function* g() {
+                yield class Derived extends Base {};
+            }
+            """);
+    }
+
+    [Theory]
+    [MemberData(nameof(DeclinedB24ClassLiteralPrograms))]
+    public void EvaluateResumable_ClassLiteralOutsideB24a_DeclinesForLaterB24Leaves(string source)
+    {
+        var plan = GetFunctionPlan(source, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("outside B24a", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassLiteralExplicitConstructor_RoutesResumableAndConstructs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield class Box {
+                    constructor(value) {
+                        this.value = value;
+                    }
+                };
+            }
+
+            var it = g();
+            var Box = it.next().value;
+            var box = new Box(7);
+            Box.name + "|" + box.value + "|" + (box instanceof Box) + "|" + (Box.prototype.constructor === Box);
+            """);
+
+        Assert.Equal("Box|7|true|true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassLiteralDefaultBaseConstructor_RoutesResumableAndConstructs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function* g() {
+                yield class {};
+            }
+
+            var it = g();
+            var C = it.next().value;
+            var instance = new C();
+            (typeof C) + "|" + (instance instanceof C) + "|" + (C.prototype.constructor === C);
+            """);
+
+        Assert.Equal("function|true|true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorClassLiteralDefaultDerivedConstructor_RoutesResumableAndForwardsSuper()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            class Base {
+                constructor(value) {
+                    this.value = value;
+                }
+            }
+
+            function* g() {
+                yield class Derived extends Base {};
+            }
+
+            var it = g();
+            var Derived = it.next().value;
+            var instance = new Derived(11);
+            instance.value + "|" + (instance instanceof Derived) + "|" + (instance instanceof Base);
+            """);
+
+        Assert.Equal("11|true|true", result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AsyncClassLiteralAfterAwait_RoutesResumableAndConstructs()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.EvaluateAndAwait("""
+            var asyncResult = undefined;
+            async function run(gate) {
+                await gate;
+                return class AsyncBox {
+                    constructor() {
+                        this.value = 13;
+                    }
+                };
+            }
+
+            run(Promise.resolve(0)).then(C => {
+                var instance = new C();
+                asyncResult = C.name + "|" + instance.value + "|" + (instance instanceof C);
+            });
+            asyncResult;
+            """);
+
+        Assert.Equal("AsyncBox|13|true", result);
+        AssertAsyncFastPath("run", argc: 1);
+    }
+
     // The gate: a generator that yields an OBJECT literal whose value crosses a yield is now admitted, and
     // the admitted program actually carries CreateObject + DefineObjectProperty (proving the slice expanded
     // eligibility to the object-literal tier rather than admitting an unrelated shape).
@@ -475,6 +618,65 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
             record => record.Message.Contains(
                 $"{ResumableAsyncFastPathLog} func={functionName} argc={argc}",
                 StringComparison.Ordinal));
+
+    public static TheoryData<string> DeclinedB24ClassLiteralPrograms { get; } = new()
+    {
+        """
+        function* g() {
+            yield class { field = 1; };
+        }
+        """,
+        """
+        function* g() {
+            yield class { static field = 1; };
+        }
+        """,
+        """
+        function* g() {
+            yield class { static {} };
+        }
+        """,
+        """
+        function* g() {
+            yield class { #field; };
+        }
+        """,
+        """
+        function* g() {
+            yield class { get value() { return 1; } };
+        }
+        """,
+        """
+        function* g(name) {
+            yield class { [name]() { return 1; } };
+        }
+        """,
+        """
+        function* g(Base) {
+            yield class extends Base { method() { return super.toString(); } };
+        }
+        """,
+        """
+        function* g(Base) {
+            yield class Derived extends Base {};
+        }
+        """
+    };
+
+    private static UnifiedBytecodeProductionEligibilityResult AssertClassLiteralEligible(string source)
+    {
+        var plan = GetFunctionPlan(source, "g");
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
+        return result;
+    }
 
     private static ExecutionPlan GetFunctionPlan(string source, string functionName)
     {

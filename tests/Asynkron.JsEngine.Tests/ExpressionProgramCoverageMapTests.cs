@@ -80,7 +80,6 @@ public sealed class ExpressionProgramCoverageMapTests
         "InitializeDynamicLexical",
         "JumpWithDriverCleanup",
         "LeaveWith",
-        "LoadClassLiteral",
         "PopEnvironment",
         "PushEnvironment",
         "StoreDynamicIdentifier",

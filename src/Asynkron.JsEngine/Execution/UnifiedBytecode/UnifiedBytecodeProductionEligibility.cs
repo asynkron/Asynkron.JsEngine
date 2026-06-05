@@ -575,13 +575,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is BindingVariableDeclarationInstruction
-                {
-                    VarKind: VariableKind.Using or VariableKind.AwaitUsing
-                })
+            if (instruction is BindingVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                declineReason = "using declarations require scope-exit disposal and are not eligible for production unified bytecode routing.";
+                declineReason = "await using declarations require async-dispose settlement and are not eligible for production unified bytecode routing.";
                 return true;
             }
 
@@ -594,13 +591,10 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (instruction is SimpleVariableDeclarationInstruction
-                {
-                    VarKind: VariableKind.Using or VariableKind.AwaitUsing
-                })
+            if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.AwaitUsing })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                declineReason = "using declarations require scope-exit disposal and are not eligible for production unified bytecode routing.";
+                declineReason = "await using declarations require async-dispose settlement and are not eligible for production unified bytecode routing.";
                 return true;
             }
 
@@ -1233,6 +1227,14 @@ internal static class UnifiedBytecodeProductionEligibility
         UnifiedBytecodeProductionActivationDescriptor activation,
         out string declineReason)
     {
+        if (instruction is SimpleVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing } or
+            BindingVariableDeclarationInstruction { VarKind: VariableKind.Using or VariableKind.AwaitUsing })
+        {
+            declineReason =
+                "using declarations require sync production scope-exit disposal ownership and are not eligible for resumable unified bytecode routing.";
+            return false;
+        }
+
         switch (instruction)
         {
             // B36 narrow slice: function-scoped declarations lower as no-op IR records because the
@@ -11595,6 +11597,7 @@ internal static class UnifiedBytecodeProductionEligibility
                 case UnifiedBytecodeOpCode.StoreSlot:
                 case UnifiedBytecodeOpCode.UpdateSlot:
                 case UnifiedBytecodeOpCode.InitializeSlot:
+                case UnifiedBytecodeOpCode.RegisterDisposable:
                 case UnifiedBytecodeOpCode.DeclareDynamicVar:
                 case UnifiedBytecodeOpCode.DeclareDynamicLexical:
                 case UnifiedBytecodeOpCode.InitializeDynamicLexical:

@@ -107,9 +107,11 @@ statement interpretation.
   environment-backed lexical declaration installation and class-value creation
   handled inside the unified VM. Static synchronous
   `BindingVariableDeclarationInstruction` shapes are now VM-owned through
-  `ApplyDeclarationBindingTarget`, while binding defaults, computed binding
-  names, assignment targets, awaited declarations, and `using` declarations
-  still decline before VM execution.
+  `ApplyDeclarationBindingTarget`; sync `using` declarations add an owned
+  `RegisterDisposable` step before storage so resources are registered against
+  the active environment. Binding defaults, computed binding names, assignment
+  targets, awaited declarations, and `await using` declarations still decline
+  before VM execution.
 - Expression lowering is still the largest surface. `ExpressionOpKind` contains
   more shapes than the general unified lowering loop accepts. Several operations
   are admitted only through narrow shape helpers, while remaining optional-call
@@ -240,6 +242,7 @@ statement interpretation.
 - `StoreSlot`
 - `UpdateSlot`
 - `InitializeSlot`
+- `RegisterDisposable`
 - `DeclareDynamicVar`
 - `DeclareDynamicLexical`
 - `InitializeDynamicLexical`
@@ -395,6 +398,7 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `InitializeDynamicLexical`
 - `LeaveWith`
 - `PushEnvironment`
+- `RegisterDisposable`
 - `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
 - `ThrowReferenceError`
@@ -1096,13 +1100,14 @@ the final post-compile production subset check before VM entry.
   `JsValue.Uninitialized`; for copy-listed per-iteration slots it snapshots the
   previous value before rebinding and writes that value into the fresh scope
   environment instead of TDZ-wiping it. `PopEnvironment` is an owned VM cleanup
-  opcode for the admitted linear shape. Neither opcode uses name fallback or
+  opcode for the admitted linear shape and disposes registered sync `using`
+  resources before restoring the enclosing environment. Neither opcode uses name fallback or
   calls back into `ExpressionProgram`, `ExecutionPlanRunner`, or AST
   evaluation.
 - Unsupported binding declaration shapes, unsupported object/array destructuring
-  driver instructions, unsupported dynamic lookup, `using` / `await using`,
-  resumable `PushEnvironmentInstruction`, and scope-entry shapes without flat
-  mappings remain pre-VM declines.
+  driver instructions, unsupported dynamic lookup, `await using`, resumable
+  `using`, resumable `PushEnvironmentInstruction`, and scope-entry shapes
+  without flat mappings remain pre-VM declines.
 
 ## Production With-Backed Dynamic Name Boundary
 - Current production dynamic-name support is with-backed and compiler-gated.
@@ -1866,7 +1871,7 @@ support today.
   `TargetNameConstantIndex`. Static nested binding declarations with
   identifier/rest targets are admitted through `ApplyDeclarationBindingTarget`.
   Computed/dynamic-name keys, defaults, assignment targets, non-`var` script
-  targets, awaited binding values, and `using` declarations
+  targets, awaited binding values, and `await using` declarations
   still decline with `DestructuringDependency` or `UnsupportedPlanShape`. ADR
   [`0284`](adrs/0284-keep-unified-bytecode-object-destructuring-model-first-and-static-key-owned.md)
   records the model-first decision and admit/decline boundary.

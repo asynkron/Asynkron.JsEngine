@@ -42,6 +42,109 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task SyncUsingDeclaration_UsesUnifiedBytecodeProductionFastPathAndDisposes()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function disposeLater(resource) {
+                using value = resource;
+                log.push('body');
+                return 7;
+            }
+
+            var returned = disposeLater({ [Symbol.dispose]() { log.push('disposed'); } });
+            log.push('return:' + returned);
+            log.join(',');
+            """);
+
+        Assert.Equal("body,disposed,return:7", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=disposeLater argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SyncUsingDeclaration_NonObjectThrowsOnUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function disposeLater(value) {
+                using resource = value;
+                return 1;
+            }
+
+            try {
+                disposeLater(1);
+            } catch (e) {
+                log.push(e.name);
+            }
+
+            log.join(',');
+            """);
+
+        Assert.Equal("TypeError", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=disposeLater argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task SyncUsingDeclaration_DisposesWhenUnifiedBytecodeBodyThrows()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var log = [];
+            function disposeLater(resource, value) {
+                using registered = resource;
+                value.missing();
+            }
+
+            try {
+                disposeLater({ [Symbol.dispose]() { log.push('disposed'); } }, null);
+            } catch (e) {
+                log.push(e.name);
+            }
+
+            log.join(',');
+            """);
+
+        Assert.Equal("disposed,TypeError", result);
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=disposeLater argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task AwaitUsingDeclaration_DoesNotUseUnifiedBytecodeProductionFastPath()
+    {
+        await using var engine = CreateEngine();
+        await engine.Evaluate("""
+            var log = [];
+            async function disposeAsyncLater(resource) {
+                await using value = resource;
+                log.push('body');
+                return 7;
+            }
+
+            disposeAsyncLater({ async [Symbol.asyncDispose]() { log.push('disposed'); } })
+                .then(value => log.push('return:' + value));
+            """);
+
+        var result = await engine.Evaluate("log.join(',');");
+
+        Assert.Equal("body,disposed,return:7", result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=disposeAsyncLater",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task TopLevelObjectVarDestructuring_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

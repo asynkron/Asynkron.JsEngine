@@ -229,6 +229,7 @@ internal static class UnifiedBytecodeVirtualMachine
                 ref environmentStack,
                 ref environmentStackCount))
             {
+                DisposeEnvironmentResources(currentCallingEnvironment, context);
                 return false;
             }
 
@@ -845,6 +846,22 @@ internal static class UnifiedBytecodeVirtualMachine
                         var initializedValue = stack[--stackPointer];
                         slots[instruction.Operand] = initializedValue;
                         SyncSlotEnvironment(slotEnvironments, instruction.Operand, initializedValue);
+
+                        programCounter++;
+                        break;
+
+                    case UnifiedBytecodeOpCode.RegisterDisposable:
+                        var disposableValue = stack[--stackPointer];
+                        RegisterDisposableResource(disposableValue, currentCallingEnvironment, context);
+                        if (context.ShouldStopEvaluation)
+                        {
+                            if (TryHandleCurrentContextThrow(slots))
+                            {
+                                break;
+                            }
+
+                            return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                        }
 
                         programCounter++;
                         break;
@@ -2229,6 +2246,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         if (environmentStackCount > 0 && slotEnvironments is not null)
                         {
                             var scopeFrame = environmentStack![--environmentStackCount];
+                            if (!DisposeEnvironmentResources(scopeFrame.Environment, context))
+                            {
+                                return StopWithDriverCleanup(slots, slotEnvironments, context, context.IsThrow);
+                            }
+
                             RestoreSlotEnvironmentOwners(slotEnvironments, slots, scopeFrame);
                             currentCallingEnvironment = scopeFrame.Environment.Enclosing ?? currentCallingEnvironment;
                         }
@@ -2749,6 +2771,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         CleanupActiveDriverStates(slots, slotEnvironments, context, false);
+                        if (!DisposeEnvironmentResources(currentCallingEnvironment, context))
+                        {
+                            return JsValue.Undefined;
+                        }
+
                         return context.ShouldStopEvaluation ? JsValue.Undefined : result;
 
                     case UnifiedBytecodeOpCode.ReturnUndefined:
@@ -2770,6 +2797,11 @@ internal static class UnifiedBytecodeVirtualMachine
                         }
 
                         CleanupActiveDriverStates(slots, slotEnvironments, context, false);
+                        if (!DisposeEnvironmentResources(currentCallingEnvironment, context))
+                        {
+                            return JsValue.Undefined;
+                        }
+
                         return JsValue.Undefined;
 
                     case UnifiedBytecodeOpCode.Throw:
@@ -2793,6 +2825,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                         context.SetThrow(thrownValue);
                         CleanupActiveDriverStates(slots, slotEnvironments, context, true);
+                        DisposeEnvironmentResources(currentCallingEnvironment, context);
                         return JsValue.Undefined;
 
                     case UnifiedBytecodeOpCode.ThrowReferenceError:
@@ -9214,6 +9247,51 @@ internal static class UnifiedBytecodeVirtualMachine
     {
         CleanupActiveDriverStates(slots, slotEnvironments, context, preserveExistingThrow);
         return JsValue.Undefined;
+    }
+
+    private static void RegisterDisposableResource(
+        JsValue value,
+        JsEnvironment? environment,
+        EvaluationContext context)
+    {
+        if (!value.IsNullOrUndefined && !value.TryGetObject<IJsObjectLike>(out _))
+        {
+            context.SetThrow(StandardLibrary.CreateTypeError(
+                "using declarations require an object value",
+                context,
+                context.RealmState));
+            return;
+        }
+
+        if (environment is null)
+        {
+            context.SetThrow(StandardLibrary.CreateReferenceError(
+                "using declarations require an active lexical environment",
+                context,
+                context.RealmState));
+            return;
+        }
+
+        environment.RegisterDisposable(value, preferAsync: false, context.RealmState);
+    }
+
+    private static bool DisposeEnvironmentResources(JsEnvironment? environment, EvaluationContext context)
+    {
+        if (environment is null || !environment.HasDisposableResources)
+        {
+            return true;
+        }
+
+        var disposeError = context.IsThrow
+            ? environment.DisposeResources(new ThrowSignal(context.FlowValue))
+            : environment.DisposeResources();
+        if (disposeError is null)
+        {
+            return true;
+        }
+
+        context.SetThrow(disposeError.ThrownValue);
+        return false;
     }
 
     private static void CollectEnumerablePropertyKeys(JsValue value, List<JsValue> keys)

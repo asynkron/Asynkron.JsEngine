@@ -1036,6 +1036,12 @@ internal static class UnifiedBytecodeCompiler
                             unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.EnsureHasName, nameInferenceIndex));
                         }
 
+                        if (declaration.VarKind == VariableKind.Using)
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RegisterDisposable));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.InitializeSlot, storeSlot));
                         maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(initializerProgram));
                         if (TryAppendJumpToCompiledTarget(
@@ -1216,11 +1222,17 @@ internal static class UnifiedBytecodeCompiler
 
                         var declarationBindingTargetIndex = bindingTargetConstants.Count;
                         bindingTargetConstants.Add(declaration.TargetProgram);
+                        if (declaration.VarKind == VariableKind.Using)
+                        {
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.DuplicateTop));
+                            unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.RegisterDisposable));
+                        }
+
                         unified.Add(new UnifiedBytecodeInstruction(
                             UnifiedBytecodeOpCode.ApplyDeclarationBindingTarget,
                             EncodeDeclarationBindingTargetOperand(
                                 declarationBindingTargetIndex,
-                                declaration.VarKind,
+                                declaration.VarKind == VariableKind.Using ? VariableKind.Const : declaration.VarKind,
                                 hasBindingInitializer)));
 
                         if (TryAppendJumpToCompiledTarget(

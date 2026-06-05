@@ -46,6 +46,47 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_SyncUsingDeclaration_AcceptsWithDisposableRegistration()
+    {
+        var plan = GetFunctionPlan("""
+            function disposeLater(resource) {
+                using value = resource;
+                return 1;
+            }
+            """,
+            "disposeLater");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.RegisterDisposable);
+    }
+
+    [Fact]
+    public void Evaluate_AwaitUsingDeclaration_StaysDeclined()
+    {
+        var plan = GetFunctionPlan("""
+            async function disposeAsyncLater(resource) {
+                await using value = resource;
+                return 1;
+            }
+            """,
+            "disposeAsyncLater");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("await using", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Execute_LinearSlotLiteralReturnPlan_ReturnsSlotValueInProductionVm()
     {
         var plan = GetFunctionPlan("""

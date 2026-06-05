@@ -1947,11 +1947,23 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     class literals, lower `ExpressionOpKind.LoadClassLiteral` to a dedicated
     `UnifiedBytecodeOpCode.LoadClassLiteral`, execute it through
     `TypedAstEvaluator.CreateClassValueFromLiteral(...)`, and require the sync
-    bridge to provide a calling environment before VM execution. Do not duplicate
-    class-definition, `extends`, static-element, private-name, or name-inference
-    semantics inside the VM, and do not satisfy the route by falling back to
-    `ExpressionProgram`, `ExecutionPlanRunner`, or raw AST evaluation. Keep the
-    opcode allowlist, compiler lowering, VM handler, environment preflight,
+    bridge to provide a calling environment before VM execution. On the
+    resumable route, admit only the shape whose class-definition machinery is
+    already safe to run through the captured calling environment:
+    constructor-only class expressions, implicit base constructors, and implicit
+    derived constructors whose `extends` value is resolved from the surrounding
+    environment rather than from resumable activation slots. The resumable
+    handler must synchronize unified slots into that environment before class
+    creation, call `CreateClassValueFromLiteral(...)`, synchronize back after
+    creation, and translate class-creation throws into the resumable throw
+    step. Keep fields, static elements/blocks, private members, accessors,
+    computed members, member `super`, and `extends` expressions that read
+    resumable activation slots as pre-VM declines until the VM owns those
+    class-definition environment semantics. Do not duplicate class-definition,
+    `extends`, static-element, private-name, or name-inference semantics inside
+    the VM, and do not satisfy the route by falling back to `ExpressionProgram`,
+    `ExecutionPlanRunner`, or raw AST evaluation. Keep the opcode allowlist,
+    compiler lowering, VM handler, environment preflight,
     `docs/unified-bytecode-expansion-contract.md` opcode inventory, and focused
     eligibility/runtime proof in the same slice. WHY: issue
     `planitem-planmanual1780240661926543000-burn-down-unified-bytecode-production-decl-ad43f135ac`
@@ -1959,7 +1971,13 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     `ObjectLiteralOrSpreadDependency`. The quality-gate re-entry fix found the
     expansion contract still listed `LoadFunctionLiteral` twice and omitted
     `LoadClassLiteral`, confirming that every newly VM-executed opcode must
-    update the contract inventory as part of the delivery slice.
+    update the contract inventory as part of the delivery slice. Issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7698c2a64b`
+    / PR #3195 added the B24a resumable class-literal route and showed the
+    narrower resumable boundary: constructor/default-constructor class creation
+    is safe through the captured calling environment, but class elements and
+    activation-slot-dependent `extends` still require later class-definition
+    environment ownership.
 
 51. When widening production unified-bytecode construct routing beyond the
     identifier-only `new F(...)` lane, keep constructor-target recognition

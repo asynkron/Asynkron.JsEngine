@@ -1119,11 +1119,12 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var instruction = plan.Instructions[instructionIndex];
-            if (isAsyncGenerator && instruction is YieldStarInstruction)
+            if (isAsyncGenerator &&
+                instruction is YieldStarInstruction { AwaitedProgram: not null })
             {
                 declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
                 declineReason =
-                    "Async-generator yield* delegation is not eligible for resumable unified bytecode routing; it stays on the async-generator IR runner until the VM owns delegated async iterator settlement.";
+                    "Async-generator yield* await delegation is not eligible for resumable unified bytecode routing; it stays on the async-generator IR runner until the VM owns awaited delegated source settlement.";
                 return true;
             }
 

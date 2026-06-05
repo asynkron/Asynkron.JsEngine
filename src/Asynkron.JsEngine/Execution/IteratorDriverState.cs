@@ -37,6 +37,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     ///     a value.
     /// </summary>
     public bool YieldStarStarted { get; set; }
+    public YieldStarPendingAwaitKind YieldStarPendingAwaitKind { get; set; }
 
     /// <summary>
     /// Dynamic entry order for active driver cleanup. Higher values are more deeply nested
@@ -141,6 +142,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         IteratorClosed = false;
         HasEnteredLoop = false;
         YieldStarStarted = false;
+        YieldStarPendingAwaitKind = YieldStarPendingAwaitKind.None;
         ActiveDriverOrdinal = 0;
         PoolLeaseId = 0;
     }
@@ -215,6 +217,14 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
                 $"Iteration environment mismatch ({usage}). current.Enclosing != loopScope");
         }
     }
+}
+
+internal enum YieldStarPendingAwaitKind : byte
+{
+    None,
+    Next,
+    Return,
+    Throw
 }
 
 /// <summary>

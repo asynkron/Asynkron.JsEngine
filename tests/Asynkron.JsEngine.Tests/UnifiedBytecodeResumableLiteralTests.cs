@@ -165,6 +165,32 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorClassLiteralConstructorOnly_UsesCapturedCallingEnvironment()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function make(seed) {
+                var current = seed;
+                return function* g() {
+                    yield class Box {
+                        constructor() {
+                            this.value = current;
+                        }
+                    };
+                };
+            }
+
+            var it = make(17)();
+            var Box = it.next().value;
+            var box = new Box();
+            box.value;
+            """);
+
+        Assert.Equal(17d, result);
+        AssertGeneratorFastPath("g", argc: 0);
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task GeneratorClassLiteralDefaultBaseConstructor_RoutesResumableAndConstructs()
     {
         await using var engine = CreateEngine();
@@ -699,7 +725,7 @@ public sealed class UnifiedBytecodeResumableLiteralTests(ITestOutputHelper outpu
     {
         """
         function* g() {
-            yield class { static field = 1; };
+            yield class { static field = 1; field = 2; };
         }
         """,
         """

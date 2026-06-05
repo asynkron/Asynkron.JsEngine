@@ -3668,12 +3668,19 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.LoadClassLiteral:
                     {
-                        var classEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
-                        SyncUnifiedSlotsToEnvironment(program, slots, slotEnvironments: null, classEnvironment);
+                        var classExpression = program.ClassLiteralConstants[instruction.Operand];
+                        var callingEnvironment = RequireDynamicEnvironment(state.CallingEnvironment);
+                        var classEnvironment = RequiresResumableClassLiteralSlotEnvironment(classExpression)
+                            ? CreateResumableClassLiteralEnvironment(
+                                program,
+                                slots,
+                                callingEnvironment,
+                                state.IsStrict)
+                            : callingEnvironment;
                         try
                         {
                             PushResumableValue(TypedAstEvaluator.CreateClassValueFromLiteral(
-                                program.ClassLiteralConstants[instruction.Operand],
+                                classExpression,
                                 classEnvironment,
                                 context));
                         }
@@ -3682,7 +3689,11 @@ internal static class UnifiedBytecodeVirtualMachine
                             context.SetThrow(signal.ThrownValue);
                         }
 
-                        SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        if (!ReferenceEquals(classEnvironment, callingEnvironment))
+                        {
+                            SyncEnvironmentToUnifiedSlots(program, slots, slotEnvironments: null, classEnvironment);
+                        }
+
                         if (context.ShouldStopEvaluation)
                         {
                             state.IsCompleted = true;
@@ -6605,6 +6616,72 @@ internal static class UnifiedBytecodeVirtualMachine
             ref var slot = ref binding.Environment.GetSlotByIndex(binding.SlotIndex);
             slots[i] = slot.IsUninitialized ? JsValue.Uninitialized : slot.Value;
         }
+    }
+
+    private static JsEnvironment CreateResumableClassLiteralEnvironment(
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        JsEnvironment parentEnvironment,
+        bool isStrict)
+    {
+        var environment = JsEnvironment.CreateInstance(
+            parentEnvironment,
+            isFunctionScope: true,
+            isStrict,
+            description: "resumable class literal activation");
+        var slotNames = program.SlotNames;
+        var count = Math.Min(slots.Length, slotNames.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (slotNames[i] is not { } name)
+            {
+                continue;
+            }
+
+            environment.DefineJsValue(
+                Symbol.Intern(name),
+                slots[i],
+                isConst: IsConstSlotIndex(i, program.ConstSlotIndices));
+        }
+
+        return environment;
+    }
+
+    private static bool RequiresResumableClassLiteralSlotEnvironment(ClassExpression classExpression)
+    {
+        var definition = classExpression.Definition;
+        if (!definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return true;
+        }
+
+        foreach (var field in definition.Fields)
+        {
+            if (field.IsStatic)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsConstSlotIndex(int slotIndex, ImmutableArray<int> constSlotIndices)
+    {
+        if (constSlotIndices.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < constSlotIndices.Length; i++)
+        {
+            if (constSlotIndices[i] == slotIndex)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetSlotEnvironmentBinding(

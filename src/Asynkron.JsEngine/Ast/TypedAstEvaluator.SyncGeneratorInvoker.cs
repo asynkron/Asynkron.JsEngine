@@ -80,29 +80,37 @@ public static partial class TypedAstEvaluator
                 return false;
             }
 
+            var needsMaterializedBodyEnvironment =
+                UnifiedBytecodeProductionEligibility.PlanNeedsMaterializedResumableBodyEnvironment(plan);
             var activation = new UnifiedBytecodeProductionActivationDescriptor(
                 IsAsyncLike: false,
                 IsGenerator: true,
                 HasCapturedOrDynamicActivation: !AllowsIdentifierCaching(_function) || _closure.HasWithObjectInChain(),
                 HasArgumentsObjectDependency: NeedsArgumentsBinding(_function),
-                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty);
+                AllowsRootFunctionDeclarationInstructions: !hoistedFunctionDeclarations.IsEmpty,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: needsMaterializedBodyEnvironment);
             var eligibility = UnifiedBytecodeProductionEligibility.EvaluateResumable(plan, activation);
             if (!eligibility.IsEligible)
             {
                 return false;
             }
 
+            var program = eligibility.Program;
             var isStrict = _function.Body.IsStrict || _closure.IsStrict || _isLexicallyStrict;
             var boundThis = isStrict
                 ? thisValue
                 : SyncFunctionInvoker.CoerceThisValueForNonStrict(thisValue, RealmState);
+            if (needsMaterializedBodyEnvironment && RequiresResumableSuperEnvironment(program))
+            {
+                return false;
+            }
+
             var resumableEnvironment = CreateResumableInvocationEnvironment(
                 _closure,
                 boundThis,
                 isStrict,
                 _function.Source,
                 _homeObject);
-            var program = eligibility.Program;
             var context = RealmState.CreateContext();
             if (!TryInitializeResumableSlots(
                     plan,
@@ -117,6 +125,21 @@ public static partial class TypedAstEvaluator
             }
 
             var callingEnvironment = resumableEnvironment;
+            if (needsMaterializedBodyEnvironment)
+            {
+                if (!TryCreateMaterializedResumableBodyEnvironment(
+                        plan,
+                        program,
+                        slots,
+                        resumableEnvironment,
+                        isStrict,
+                        _function.Source,
+                        out callingEnvironment))
+                {
+                    return false;
+                }
+            }
+
             if (RequiresResumableSuperEnvironment(program))
             {
                 callingEnvironment = CreateRunner(arguments, thisValue)

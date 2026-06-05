@@ -8,18 +8,17 @@ namespace Asynkron.JsEngine.Tests;
 /// <summary>
 ///     Boundary pins for the resumable nested-function tier (B23 nested function LITERAL + B36 hoisted nested
 ///     FUNCTION DECLARATION inside a generator/async body). Non-capturing nested functions now route through
-///     the resumable VM. Capturing nested functions remain declined until the resume state owns a materialized
-///     body environment that can alias closure captures with flat slots. Direct root hoisted function
-///     declarations now route when the declared helper does not capture the resumable activation; capturing
-///     declarations remain declined until the resume state owns a materialized body environment.
+///     the resumable VM. Generator nested literals that capture root body locals now route through a
+///     materialized body environment that aliases closure captures with flat slots. Direct root hoisted
+///     function declarations now route when the declared helper does not capture the resumable activation;
+///     capturing declarations remain declined until B36 owns their declaration-instantiation boundary.
 ///
 ///     Why declined (architecture, not a missing handler):
 ///
 ///     B23 — a nested function literal that does not close over the resumable activation can be created with
-///     the captured outer environment and stored in a flat slot. A nested function that CAPTURES a body local is
-///     still unsafe: the generator/async body's own locals (`let`/`var`/params) are realised as FLAT SLOTS on
-///     the resume state, not as environment bindings. The eligibility layer now detects such captures and keeps
-///     them on the runner.
+///     the captured outer environment and stored in a flat slot. The first generator-only captured-local slice
+///     materializes a body environment that mirrors root activation slots so captured closures observe slot
+///     mutations across suspension. Async/async-generator captured-local literals remain declined.
 ///
 ///     B36 — direct root hoisted function declarations are materialised by the resumable invokers before
 ///     `ExecuteResumable` starts. This slice is intentionally narrow: the helper must not capture a body local,
@@ -50,10 +49,10 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorRouted();
     }
 
-    // B23 capturing variant: the nested arrow CAPTURES a generator local across yields. Correct on the runner
-    // (1 then 2); must NOT route (a naive resumable route throws `ReferenceError: n is not defined`).
+    // B23 captured-local generator slice: the nested arrow captures a generator local and observes the slot
+    // mutation after the first yield through the materialized resumable body environment.
     [Fact(Timeout = 5000)]
-    public async Task GeneratorNestedArrowCapturesLocalAcrossYields_CorrectButDeclinesToRunner()
+    public async Task GeneratorNestedArrowCapturesLocalAcrossYields_RoutesResumable()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -65,7 +64,7 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
             """);
 
         Assert.Equal("1|2", result);
-        AssertGeneratorNotRouted();
+        AssertGeneratorRouted();
     }
 
     // B36: a generator with a direct root hoisted function declaration routes once invocation setup
@@ -336,6 +335,25 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
 
         Assert.False(result.IsEligible);
         Assert.Contains("captures activation binding 'n'", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_NestedFunctionLiteralCapturingLocal_AdmitsWithMaterializedBodyEnvironmentProof()
+    {
+        var plan = TopLevelGeneratorPlan("""
+            function* g(){ var n=1; var f=()=>n; yield f(); n=2; yield f(); }
+            """, "g");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                IsGenerator: true,
+                AllowsMaterializedBodyEnvironmentFunctionLiterals: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadFunctionLiteral);
     }
 
     [Fact]

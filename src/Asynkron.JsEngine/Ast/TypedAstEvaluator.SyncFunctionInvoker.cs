@@ -4387,6 +4387,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            SetAnnexBBlockedNamesForFastActivation(functionEnvironment);
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             HoistFunctionDeclarationsForFastActivation(executionEnvironment, context);
@@ -4465,6 +4466,7 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            SetAnnexBBlockedNamesForFastActivation(functionEnvironment);
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             if (TryGetDefaultDerivedConstructorRestParameter(out var defaultDerivedRestName))
             {
@@ -4529,9 +4531,62 @@ isLexicalBinding: true, blocksFunctionScopeOverride: true);
                     isLexicalBinding: true, blocksFunctionScopeOverride: true);
             }
 
+            SetAnnexBBlockedNamesForFastActivation(functionEnvironment);
             HoistFunctionScopedVarsForFastActivation(executionEnvironment);
             BindSimpleIrActivationParameters(arguments, executionEnvironment, activationSlots);
             return executionEnvironment;
+        }
+
+        private void SetAnnexBBlockedNamesForFastActivation(JsEnvironment varEnvironment)
+        {
+            if (_isStrict || !_hasFunctionDeclarations)
+            {
+                return;
+            }
+
+            if (_bodyLexicalTemplate.Length == 0 &&
+                _parameterNames.Length == 0 &&
+                _catchParameterTemplate.Length == 0 &&
+                !_hasParameterExpressions &&
+                !_argumentsObjectNeeded)
+            {
+                return;
+            }
+
+            var blockedNames = _bodyLexicalTemplate.Length == 0
+                ? new HashSet<Symbol>(ReferenceEqualityComparer<Symbol>.Instance)
+                : new HashSet<Symbol>(_bodyLexicalTemplate, ReferenceEqualityComparer<Symbol>.Instance);
+
+            foreach (var parameterName in _parameterNames)
+            {
+                blockedNames.Add(parameterName);
+            }
+
+            foreach (var catchParameterName in _catchParameterTemplate)
+            {
+                if (!_simpleCatchParameterTemplate.Contains(catchParameterName))
+                {
+                    blockedNames.Add(catchParameterName);
+                }
+            }
+
+            if (_hasParameterExpressions)
+            {
+                foreach (var blockedName in CollectAnnexBBlockFunctionNames(_function.Body))
+                {
+                    blockedNames.Add(blockedName);
+                }
+            }
+
+            if (_argumentsObjectNeeded)
+            {
+                blockedNames.Add(Symbol.Arguments);
+            }
+
+            if (blockedNames.Count > 0)
+            {
+                varEnvironment.SetAnnexBBlockedNames(blockedNames);
+            }
         }
 
         private void HoistFunctionScopedVarsForFastActivation(JsEnvironment executionEnvironment)

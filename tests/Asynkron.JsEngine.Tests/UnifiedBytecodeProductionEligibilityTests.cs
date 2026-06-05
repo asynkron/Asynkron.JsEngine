@@ -835,6 +835,34 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public async Task Execute_BlockFunctionDeclarationBlockedByBodyLexicalName_DoesNotApplyAnnexBUpdate()
+    {
+        await using var engine = CreateEngine();
+
+        var result = await engine.Evaluate("""
+            var init, after;
+
+            function outer() {
+                let f = 123;
+                init = f;
+
+                {
+                    function f() {
+                    }
+                }
+
+                after = f;
+                return init * 10 + after;
+            }
+
+            outer();
+            """);
+
+        Assert.Equal(1353d, result);
+        AssertProductionRouted("outer");
+    }
+
+    [Fact]
     public async Task Execute_StrictBlockFunctionDeclaration_DoesNotLeakOutsideBlock()
     {
         await using var engine = CreateEngine();

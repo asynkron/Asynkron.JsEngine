@@ -2089,14 +2089,17 @@ avoids the build-back repair cycle that the sibling task (PR #2748) required.
     derived constructors whose `extends` value is resolved from the surrounding
     environment rather than from resumable activation slots, narrow private
     instance fields, and narrow private method/accessor class literals whose
-    constructor/private member bodies do not capture activation slots. The
-    resumable handler must synchronize unified slots into that environment
-    before class creation, call `CreateClassValueFromLiteral(...)`, synchronize
-    back after creation, and translate class-creation throws into the resumable
-    throw step. Keep unproven fields, static elements/blocks, public accessors,
-    computed members, member `super`, activation-capturing private members, and
-    `extends` expressions that read resumable activation slots as pre-VM
-    declines until the VM owns those class-definition environment semantics. Do
+    constructor/private member bodies do not capture activation slots, and
+    public non-computed instance accessors whose getter/setter bodies do not
+    capture activation slots or use `super`. The resumable handler must
+    synchronize unified slots into that environment before class creation, call
+    `CreateClassValueFromLiteral(...)`, synchronize back after creation, and
+    translate class-creation throws into the resumable throw step. Keep
+    unproven fields, static elements/blocks, static/computed/private or
+    activation-capturing public accessors, computed members, member `super`,
+    activation-capturing private members, and `extends` expressions that read
+    resumable activation slots as pre-VM declines until the VM owns those
+    class-definition environment semantics. Do
     not duplicate class-definition,
     `extends`, static-element, private-name, or name-inference semantics inside
     the VM, and do not satisfy the route by falling back to `ExpressionProgram`,

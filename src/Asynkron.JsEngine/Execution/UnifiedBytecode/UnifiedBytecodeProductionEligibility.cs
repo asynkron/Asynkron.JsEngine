@@ -2115,6 +2115,13 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         var isPrivateInstanceFieldClassLiteral = IsB24ePrivateInstanceFieldClassLiteral(definition);
+        if (isPrivateInstanceFieldClassLiteral && !definition.Members.IsDefaultOrEmpty)
+        {
+            declineReason =
+                "Class literal is outside B24e: private-field class literals with member bodies remain owned by later mixed class-member slices.";
+            return false;
+        }
+
         if (IsB24fPrivateInstanceMemberClassLiteral(definition))
         {
             if (definition.Extends is not null)
@@ -2145,6 +2152,29 @@ internal static class UnifiedBytecodeProductionEligibility
             return true;
         }
 
+        if (IsB24gPublicInstanceAccessorClassLiteral(definition))
+        {
+            foreach (var member in definition.Members)
+            {
+                if (FunctionCapturesActivationSlot(member.Function, activationSlots, out var capturedName))
+                {
+                    declineReason =
+                        $"Class literal is outside B24g: public accessor body captures activation binding '{capturedName}' and needs the materialized body environment route.";
+                    return false;
+                }
+
+                if (FunctionContainsSuper(member.Function))
+                {
+                    declineReason =
+                        "Class literal is outside B24g: public accessor bodies that use super remain owned by the B24i member-super slice.";
+                    return false;
+                }
+            }
+
+            declineReason = string.Empty;
+            return true;
+        }
+
         if (!AreResumableB24ClassMembersSupported(definition, isPrivateInstanceFieldClassLiteral))
         {
             declineReason =
@@ -2153,6 +2183,31 @@ internal static class UnifiedBytecodeProductionEligibility
         }
 
         declineReason = string.Empty;
+        return true;
+    }
+
+    private static bool IsB24gPublicInstanceAccessorClassLiteral(ClassDefinition definition)
+    {
+        if (!definition.Fields.IsDefaultOrEmpty ||
+            definition.Members.IsDefaultOrEmpty ||
+            definition.Members.Length == 0 ||
+            !definition.StaticBlocks.IsDefaultOrEmpty ||
+            !definition.StaticElements.IsDefaultOrEmpty)
+        {
+            return false;
+        }
+
+        foreach (var member in definition.Members)
+        {
+            if (member.Kind is not (ClassMemberKind.Getter or ClassMemberKind.Setter) ||
+                member.IsStatic ||
+                member.IsComputed ||
+                member.IsPrivate)
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

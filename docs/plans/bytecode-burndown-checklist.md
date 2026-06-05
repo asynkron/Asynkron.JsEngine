@@ -161,7 +161,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B24d** Class expression static blocks — sync ☑ / res ☐ — class expressions with static blocks have focused sync production route/runtime proof via `LoadClassLiteral`; static blocks still execute through the cached class-definition static-block plan (`ExecutionPlanRunner.RunScript`), and the resumable route declines this non-B24a class-literal shape before creation.
 - [x] **B24e** Class expression private fields / branding — sync ◐ / res ☑ ✅ (Codex): resumable routing now conditionally admits `LoadClassLiteral` for class literals with private instance fields plus constructor/default-constructor code, no extends that read resumable activation slots, and no static blocks/elements, static/computed fields, or private members. The route still uses class-definition creation for brand setup, but the admitted shape is now pinned by `UnifiedBytecodeResumableClassLiteralPrivateMemberTests`.
 - [x] **B24f** Class expression private methods / private accessors — sync ◐ / res ☑ ✅ (Codex): resumable routing now conditionally admits `LoadClassLiteral` for class literals with private instance methods/accessors and no extends, fields, static blocks/elements, static members, computed members, public members, or activation-slot captures in constructor/member bodies; neighboring B24b-B24d and B24g-B24i leaves remain declined by the class-literal shape predicate.
-- [ ] **B24g** Class expression public accessors — sync ◐ / res ☐ — sync production route is pinned by #3193 for class-expression getter/setter descriptor and receiver behavior (`makeBox` reaches `unified-bytecode-production-fast-path`); accessor callables are still created through class-definition member assignment, and resumable declines `LoadClassLiteral`.
+- [x] **B24g** Class expression public accessors — sync ◐ / res ☑ ✅ (Codex): resumable generator/async bodies now admit `LoadClassLiteral` for the public non-computed instance getter/setter class-expression subset whose accessor bodies do not capture activation slots or use `super`; descriptor and receiver behavior still reuse class-definition member assignment, while static/computed/private/capturing/super accessor neighbors and mixed field/accessor shapes remain declined for B24h/B24i or materialized-body-environment follow-ups.
 - [ ] **B24h** Class expression computed member names / computed field names — sync ◐ / res ☐ — computed name programs are evaluated during class creation; need bytecode-owned class-definition evaluation.
 - [ ] **B24i** Class expression `super` in members/field initializers — sync ◐ / res ☐ — super constructor/prototype threading is class-definition creation state today; resumable declines before creation.
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163
@@ -220,13 +220,13 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
 | A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
-| B — Resumable parity + suspension | 57 | 40 complete / 17 open; class-expression decomposition added B24a-B24i |
+| B — Resumable parity + suspension | 57 | 42 complete / 15 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 89 complete / 40 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 90 complete / 39 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

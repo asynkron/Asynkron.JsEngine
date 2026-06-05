@@ -3946,6 +3946,74 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void EvaluateResumable_WithDynamicIdentifierLoad_DeclinesD3Residue()
+    {
+        var plan = GetFunctionPlan("""
+            function* dynamic(box) {
+                with (box) {
+                    yield value;
+                }
+            }
+            """,
+            "dynamic");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("D3 dynamic residue: with statements in resumable bodies", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_AwaitedWithObject_DeclinesD3Residue()
+    {
+        var plan = GetFunctionPlan("""
+            async function dynamic(scopePromise) {
+                with (await scopePromise) {
+                    return value;
+                }
+            }
+            """,
+            "dynamic");
+
+        Assert.Contains(plan.Instructions, static instruction =>
+            instruction is EnterWithInstruction { AwaitedProgram: not null });
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape, result.Code);
+        Assert.Contains("including awaited with-object evaluation", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EvaluateResumable_UnreachableWithBody_DoesNotDeclineD3Residue()
+    {
+        var plan = GetFunctionPlan("""
+            function* dynamic(box) {
+                return 1;
+                with (box) {
+                    yield value;
+                }
+            }
+            """,
+            "dynamic");
+
+        Assert.Contains(plan.Instructions, static instruction => instruction is EnterWithInstruction);
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+    }
+
+    [Fact]
     public void Evaluate_SimpleSourceArraySpread_Accepts()
     {
         var plan = GetFunctionPlan("""

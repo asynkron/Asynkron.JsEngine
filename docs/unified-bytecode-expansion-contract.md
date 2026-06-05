@@ -380,13 +380,10 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `DeclareDynamicLexical`
 - `DeclareDynamicVar`
 - `DeclareFunction`
-- `EnsureSuperReference`
 - `EnterCatch`
 - `EnterWith`
 - `GetComputedPropertyForCompoundSet`
-- `GetComputedSuperProperty`
 - `GetNamedPropertyForCompoundSet`
-- `GetNamedSuperProperty`
 - `InitializeDynamicLexical`
 - `JumpWithDriverCleanup`
 - `LeaveWith`
@@ -395,13 +392,9 @@ the admitted subset stays 1:1 with `UnifiedBytecodeVirtualMachine.ExecuteResumab
 - `PrepareComputedSuperCallTarget`
 - `PrepareNamedSuperCallTarget`
 - `PushEnvironment`
-- `SetComputedSuperProperty`
-- `SetNamedSuperProperty`
 - `StoreDynamicIdentifier`
 - `SuperConstructInvocationBoundary`
 - `ThrowReferenceError`
-- `UpdateComputedSuperProperty`
-- `UpdateNamedSuperProperty`
 
 ### Resumable Instruction Allowlist Gaps (current)
 
@@ -1709,10 +1702,12 @@ the final post-compile production subset check before VM entry.
   literals: `let f = function(){}` / object method/accessor literals co-emit
   `LoadFunctionLiteral`, and both opcodes are handled directly by `ExecuteResumable`.
   `ThrowReferenceError` is still not admitted: its only producer (`delete super[...]`)
-  co-emits the unsupported `EnsureSuperReference`, so it is not reachable by an admitted
-  resumable program. An uninitialized-binding TDZ read is already surfaced by the existing
-  resumable `LoadSlot` handler (no new opcode) (proof: `UnifiedBytecodeResumableTemplateToStringTests`,
-  plus `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
+  remains an unsupported delete-super shape even though ordinary super property
+  read/write/update opcodes are now handled by `ExecuteResumable`. An
+  uninitialized-binding TDZ read is already surfaced by the existing resumable
+  `LoadSlot` handler (no new opcode) (proof:
+  `UnifiedBytecodeResumableTemplateToStringTests`, plus
+  `UnifiedBytecodeResumableNestedFunctionTests` for `EnsureHasName`).
 - Accepted resumable bodies may now read the `import.meta` meta-property between suspension
   points (burndown B20). The `LoadImportMeta` opcode is ported into the `ExecuteResumable`
   switch and added to the `TryFindUnsupportedResumableOpcode` allowlist. The resumable

@@ -94,6 +94,8 @@ before/after quickly:
 - `Baseline signal:` exact command and a short output excerpt captured before
   editing.
 - `Final signal:` the same command after editing with a short output excerpt.
+- `Signal delta:` the measured difference between the baseline and final
+  signals, including units and direction when applicable.
 - `Sibling check:` issue numbers and one-line note of which active sibling
   slices were intentionally avoided (or `none` when not applicable).
 - `Slice check:` `rtk git diff --check` result and changed file list for the slice.
@@ -105,10 +107,13 @@ Preferred issue update template for recurring child runs:
 ```md
 ## Build Update
 - Slice: <one bounded docs/tooling/test-fixture/workflow slice>
+- Baseline timestamp: <ISO-8601 UTC timestamp>
 - Baseline signal: `<command>`
   - Output: <short excerpt>
+- Final timestamp: <ISO-8601 UTC timestamp>
 - Final signal: `<same command>`
   - Output: <short excerpt>
+- Signal delta: <final - baseline, include units and direction>
 - Sibling check: <issue numbers reviewed + avoided slice note, or `none`>
 - Slice check: `rtk git diff --check` and changed files: <paths>
 - Scope note: No recurrence infrastructure or unrelated surfaces changed.

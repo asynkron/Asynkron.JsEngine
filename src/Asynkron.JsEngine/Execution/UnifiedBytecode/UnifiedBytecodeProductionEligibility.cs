@@ -6516,11 +6516,6 @@ internal static class UnifiedBytecodeProductionEligibility
 
     private static bool IsDirectEvalSingleArgumentCandidate(ExpressionProgram program, PackedExpressionOp operation)
     {
-        if (operation.Kind == ExpressionOpKind.LoadIdentifier)
-        {
-            return true;
-        }
-
         if (operation.Kind != ExpressionOpKind.LoadLiteral)
         {
             return false;

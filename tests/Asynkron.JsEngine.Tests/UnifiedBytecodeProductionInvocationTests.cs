@@ -3218,21 +3218,20 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectEvalIdentifierCall_SyncsMutatedCallerSlotsOnProductionFastPath()
+    public async Task DirectEvalIdentifierSourceWithRuntimeBinding_StaysOnIrPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
             function invokeEval(source) {
-                var local = 1;
                 eval(source);
-                return local;
+                return value;
             }
 
-            invokeEval("local = 42;");
+            invokeEval("var value = 42;");
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=invokeEval argc=1",
                 StringComparison.Ordinal));

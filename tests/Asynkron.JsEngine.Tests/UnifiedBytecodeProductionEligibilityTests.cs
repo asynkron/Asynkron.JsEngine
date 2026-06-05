@@ -4636,11 +4636,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_DirectEvalExpressionPlan_AcceptsExecutableInvocationBoundary()
+    public void Evaluate_DirectEvalLiteralExpressionPlan_AcceptsExecutableInvocationBoundary()
     {
         var plan = GetFunctionPlan("""
-            function invokeEval(source) {
-                return eval(source);
+            function invokeEval() {
+                return eval("'non-injecting direct eval'");
             }
             """,
             "invokeEval");
@@ -4655,6 +4655,26 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.PrepareDynamicIdentifierCallTarget);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
+    }
+
+    [Fact]
+    public void Evaluate_DirectEvalIdentifierSourceWithDynamicRead_DeclinesEvalInjectedRuntimeBinding()
+    {
+        var plan = GetFunctionPlan("""
+            function invokeEval(source) {
+                eval(source);
+                return value;
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(
+                AllowsOrdinaryDynamicIdentifierEnvironmentOperations: true));
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
     }
 
     [Fact]

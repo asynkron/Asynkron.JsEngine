@@ -168,11 +168,16 @@ all-or-nothing until a separate routing issue proves production readiness.
      (`.return()` / `.throw()`) until the VM owns that cleanup execution. Do not
      infer resumable safety from "no ordinary activation-slot capture" alone:
      lexical/private context and pending-finally cleanup are separate semantic
-     dependencies. WHY: issue #3172 / PR #3179 repaired red `main` after the
-     resumable route admitted generator shapes that were correct on ordinary
-     `.next()` completion but wrong for pending-finally early close or nested
-     arrow private-field access. Related ADR:
-     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`.
+     dependencies. Future widening must include adjacent no-route tests for
+     these hazards, not only accepted route tests. WHY: issue #3172 / PR #3179
+     repaired red `main` after the resumable route admitted generator shapes
+     that were correct on ordinary `.next()` completion but wrong for
+     pending-finally early close or nested arrow private-field access. Issue
+     `autrun-dj0vu3jrima8-13c399233d` / PR #3178 preserved the same boundary
+     for nearby resumable-generator widening. Related ADRs:
+     `docs/adrs/0323-keep-resumable-unified-bytecode-context-sensitive-cleanup-declined.md`
+     and
+     `docs/adrs/0324-keep-resumable-generator-context-cleanup-declines-explicit.md`.
 11. When updating docs, ADRs, roadmap text, or evidence reports for unified
     bytecode production routing, treat ADR 0253 as the current loop-control
     production widening layered on ADR 0210, and keep ADR 0204/#2227

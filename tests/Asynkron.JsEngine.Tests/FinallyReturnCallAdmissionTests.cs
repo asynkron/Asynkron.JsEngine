@@ -28,10 +28,8 @@ namespace Asynkron.JsEngine.Tests;
 public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : InternalTestBase(output)
 {
     // A8 headline (sloppy finally-return overrides the protected try-return). The FREE-identifier callee `g`
-    // sits inside a zero-with-depth finally region. A45 now propagates active with-depth into exception regions,
-    // but it intentionally does not let every ordinary catch/finally free name unlock the dynamic-name path for
-    // the whole function. That broader finally free-call gate stays out of scope here, so this exact shape still
-    // DECLINES — but it computes correctly via the IR runner.
+    // sits inside a zero-with-depth finally region. A45 must still visit that finally entry so the ordinary
+    // dynamic-name scan sees the free call target and admits the production VM route.
     [Fact]
     public async Task SloppyFinallyReturnFreeCall_OverridesTryReturnAndComputes()
     {
@@ -39,7 +37,7 @@ public sealed class FinallyReturnCallAdmissionTests(ITestOutputHelper output) : 
         var result = await engine.Evaluate(
             "function g(){ return 7; } function f(){ try { return 1; } finally { return g(); } } f();");
         Assert.Equal(7d, Convert.ToDouble(result));
-        AssertNotRouted("unified-bytecode-production-fast-path func=f");
+        AssertRouted("unified-bytecode-production-fast-path func=f");
     }
 
     // A8 routing-positive for a FREE-identifier finally callee: once the REACHABLE region carries a dynamic

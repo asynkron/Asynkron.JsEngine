@@ -73,15 +73,12 @@ internal static class UnifiedBytecodeWithDepthAnalysis
                         return false;
                     }
 
-                    if (successorWithDepth > 0)
+                    if ((enterTry.HandlerIndex >= 0 &&
+                         !TryPush(enterTry.HandlerIndex, successorWithDepth, instructions, pending, out reason)) ||
+                        (enterTry.FinallyIndex >= 0 &&
+                         !TryPush(enterTry.FinallyIndex, successorWithDepth, instructions, pending, out reason)))
                     {
-                        if ((enterTry.HandlerIndex >= 0 &&
-                             !TryPush(enterTry.HandlerIndex, successorWithDepth, instructions, pending, out reason)) ||
-                            (enterTry.FinallyIndex >= 0 &&
-                             !TryPush(enterTry.FinallyIndex, successorWithDepth, instructions, pending, out reason)))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
 
                     break;

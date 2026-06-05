@@ -11,6 +11,12 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
 {
     private const int ExpectedKnownOpenNonResidueCount = 2;
 
+    private static readonly string[] KnownOpenNonResidueDeclines =
+    [
+        "A32_ChainedOptionalComputedDelete_Declines",
+        "B23_B36_NestedFunctionDeclarationInResumable_Declines"
+    ];
+
     private static readonly RatchetRow[] Rows =
     [
         new(
@@ -111,8 +117,82 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
             SubjectKind.ResumableGenerator,
             "d5B26",
             IsDynamicResidue: false,
-            UnifiedBytecodeProductionDeclineCode.None)
+            UnifiedBytecodeProductionDeclineCode.None),
+        new(
+            "D5_Residue_DirectEvalCall_Admitted",
+            """
+            function d5DirectEval() {
+                return eval("1 + 2");
+            }
+            """,
+            SubjectKind.Function,
+            "d5DirectEval",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.None),
+        new(
+            "D5_Residue_DirectEvalMultiArg_Declines",
+            """
+            function d5DirectEvalMultiArg() {
+                return eval("1 + 2", "ignored");
+            }
+            """,
+            SubjectKind.Function,
+            "d5DirectEvalMultiArg",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.CallDependency),
+        new(
+            "D5_Residue_DirectEvalSpread_Declines",
+            """
+            function d5DirectEvalSpread(parts) {
+                return eval(...parts);
+            }
+            """,
+            SubjectKind.Function,
+            "d5DirectEvalSpread",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.CallDependency),
+        new(
+            "D5_Residue_EvalInjectedRuntimeBinding_Declines",
+            """
+            function d5EvalInjectedRuntimeBinding() {
+                eval("var injected = 1");
+                return injected;
+            }
+            """,
+            SubjectKind.Function,
+            "d5EvalInjectedRuntimeBinding",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency),
+        new(
+            "D5_Residue_ResumableWithDynamicScope_Declines",
+            """
+            function* d5ResumableWithDynamicScope(obj) {
+                with (obj) {
+                    yield value;
+                }
+            }
+            """,
+            SubjectKind.ResumableGenerator,
+            "d5ResumableWithDynamicScope",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape),
+        new(
+            "D5_Residue_AwaitedWithObject_Declines",
+            """
+            async function d5AwaitedWithObject(obj) {
+                with (await obj) {
+                    return value;
+                }
+            }
+            """,
+            SubjectKind.ResumableAsync,
+            "d5AwaitedWithObject",
+            IsDynamicResidue: true,
+            UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape)
     ];
+
+    // Function-constructor-produced bodies are runtime-created source and are not represented by the
+    // current ExecutionPlan-only eligibility helpers. The Function call boundary itself is not residue.
 
     public static TheoryData<string, string, SubjectKind, string, bool, int> CorpusRows
     {
@@ -144,8 +224,6 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
         bool isDynamicResidue,
         int expectedDeclineCodeValue)
     {
-        Assert.False(isDynamicResidue);
-
         var expectedDeclineCode = (UnifiedBytecodeProductionDeclineCode)expectedDeclineCodeValue;
         var result = Evaluate(source, subjectKind, functionName);
         if (expectedDeclineCode == UnifiedBytecodeProductionDeclineCode.None)
@@ -157,6 +235,13 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
 
         Assert.False(result.IsEligible, $"{name}: unexpectedly admitted.");
         Assert.Equal(expectedDeclineCode, result.Code);
+
+        if (isDynamicResidue)
+        {
+            return;
+        }
+
+        Assert.Contains(name, KnownOpenNonResidueDeclines);
     }
 
     [Fact]
@@ -167,6 +252,26 @@ public sealed class BytecodeNonResidueDeclineRatchetTests
                           row.ExpectedDeclineCode != UnifiedBytecodeProductionDeclineCode.None);
 
         Assert.Equal(ExpectedKnownOpenNonResidueCount, knownOpenCount);
+    }
+
+    [Fact]
+    public void NonResidueDeclines_AreOnlyKnownOpenRows()
+    {
+        var nonResidueDeclines = Rows
+            .Where(static row => !row.IsDynamicResidue &&
+                                 row.ExpectedDeclineCode != UnifiedBytecodeProductionDeclineCode.None)
+            .Select(static row => row.Name)
+            .ToArray();
+
+        Assert.Equal(KnownOpenNonResidueDeclines.Order(), nonResidueDeclines.Order());
+    }
+
+    [Fact]
+    public void DynamicResidueCorpus_IsExplicit()
+    {
+        var dynamicResidueCount = Rows.Count(static row => row.IsDynamicResidue);
+
+        Assert.Equal(6, dynamicResidueCount);
     }
 
     private static UnifiedBytecodeProductionEligibilityResult Evaluate(

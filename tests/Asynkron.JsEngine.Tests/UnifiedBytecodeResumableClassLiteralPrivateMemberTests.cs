@@ -80,7 +80,7 @@ public sealed class UnifiedBytecodeResumableClassLiteralPrivateMemberTests(ITest
     }
 
     [Fact]
-    public void EvaluateResumable_PrivateFieldClassLiteral_StillDeclines()
+    public void EvaluateResumable_PrivateFieldClassLiteral_AdmitsLoadClassLiteral()
     {
         var plan = GetFunctionPlan("""
             function* g() {
@@ -100,8 +100,11 @@ public sealed class UnifiedBytecodeResumableClassLiteralPrivateMemberTests(ITest
             plan,
             new UnifiedBytecodeProductionActivationDescriptor(IsGenerator: true));
 
-        Assert.False(result.IsEligible);
-        Assert.Contains("fields", result.Reason, StringComparison.Ordinal);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(
+            result.Program.Instructions,
+            static instruction => instruction.OpCode == UnifiedBytecodeOpCode.LoadClassLiteral);
     }
 
     [Fact]

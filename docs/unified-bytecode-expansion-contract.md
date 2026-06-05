@@ -343,6 +343,7 @@ statement interpretation.
 - `SuperConstructInvocationBoundary`
 - `DeclareClass`
 - `DeclareFunction`
+- `LoadClassLiteral`
 - `LoadFunctionLiteral`
 - `Yield`
 - `StoreResumeValue`

@@ -100,6 +100,25 @@ all-or-nothing until a separate routing issue proves production readiness.
    admitted the ordinary sync route, and pinned a generator switch body as an
    eligibility decline. Related ADR:
    `docs/adrs/0340-admit-sync-switch-breakable-wrappers-through-compiler-owned-targets.md`.
+9a. Keep active-with depth traversal separate from zero-depth dynamic-name
+    exception-region discovery. `UnifiedBytecodeWithDepthAnalysis` may follow
+    `EnterTryInstruction` handler/finally entries by default when successor
+    depth is greater than zero so active `with` boundaries are preserved across
+    catch/finally. Zero-depth handler/finally traversal must remain an explicit
+    opt-in for callers with a separate reachability question, and the ordinary
+    dynamic-name production gate may use that opt-in only to discover free call
+    targets. Do not let catch-only free reads, stores, catch binding access,
+    lexical dynamic declarations, or TDZ-head storage become evidence that the
+    whole body can route through the ordinary dynamic-name production path.
+    Future widening in this area needs both positive route proof for admitted
+    exception-region shapes and nearby no-route/regression proof for A51c-style
+    scope/environment gaps. WHY: Faktorial issue
+    `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-f2e74379de`
+    / PR #3253 first exposed the active-with try/catch/finally reachability gap,
+    then repaired a quality-gate regression by splitting the zero-depth
+    finally/catch free-callee scan from the main with-depth and plan-shape scan.
+    Related ADR:
+    `docs/adrs/0341-keep-with-depth-and-zero-depth-dynamic-name-scans-separate.md`.
 10. When invoking production unified bytecode from sync calls, keep the bridge
     slot-layout owned and fast-path ordered. Direct specialized simple-return
     binary/chain shortcuts stay ahead of unified bytecode. The production

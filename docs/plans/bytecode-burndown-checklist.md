@@ -219,14 +219,14 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | Phase | Items | Notes |
 |---|---:|---|
 | 0 — Make list finite | 5 | 5 complete / 0 open; Phase 0 inventory closure is complete |
-| A — Sync admission | 69 | 46 complete / 23 open; by decline code / promoted compiler leaf |
+| A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
 | B — Resumable parity + suspension | 57 | 39 complete / 18 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
 | D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 86 complete / 43 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (129 concrete A+B+C checklist items):** 88 complete / 41 open. **Resumable is the bulk of the remaining work; class-expression creation, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.
@@ -234,4 +234,4 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ---
 
-_Checklist status: 92 / 145 complete. The latest B36 partial slice admitted direct root non-capturing hoisted function declarations in resumable generator/async/async-generator bodies. B36 stays open for class declarations and materialized-body-environment cases; the resumable instruction gap inventory is now 9._
+_Checklist status: 96 / 145 complete. The latest B24b slice admitted public non-computed instance-field class expressions in resumable generator/async bodies. B24b keeps activation-capturing field initializers outside the admitted subset until the resume state owns a materialized body environment; the resumable opcode gap inventory is now 19 and the instruction gap inventory is now 9._

@@ -3093,6 +3093,76 @@ internal static class UnifiedBytecodeCompiler
                         instructionIndex = yieldStar.Next;
                         continue;
 
+                    case YieldStarInstruction { AwaitedProgram: { } awaitedProgram, IterableProgram: null } yieldStar:
+                        if (yieldStar.StateSlotSymbol is null)
+                        {
+                            reason = "yield* requires a state slot for resumable unified bytecode routing.";
+                            return false;
+                        }
+
+                        if (!TryResolveYieldStarStateSlot(
+                                yieldStar.StateSlotSymbol,
+                                awaitedProgram,
+                                slotLayout,
+                                activeScopes,
+                                out var awaitedYieldStarStateSlot))
+                        {
+                            reason = $"yield* state slot '{yieldStar.StateSlotSymbol.Name}' is not in the activation slot layout.";
+                            return false;
+                        }
+
+                        var awaitedYieldStarResultSlot = -1;
+                        if (yieldStar.ResultSlotSymbol is { } awaitedResultSymbol &&
+                            !TryResolveVisibleSymbolSlot(
+                                awaitedResultSymbol,
+                                slotLayout,
+                                activeScopes,
+                                out awaitedYieldStarResultSlot))
+                        {
+                            awaitedYieldStarResultSlot = awaitedYieldStarStateSlot;
+                        }
+
+                        if (!TryAppendExpressionProgramOps(
+                                awaitedProgram,
+                                slotLayout,
+                                allowsDynamicIdentifiers,
+                                unified,
+                                literalConstants,
+                                stringConstants,
+                                callTargetConstants,
+                                functionLiteralConstants,
+                                classLiteralConstants,
+                                templateObjectConstants,
+                                out reason,
+                                bindingTargetConstants))
+                        {
+                            return false;
+                        }
+
+                        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.AwaitValue));
+                        var awaitedYieldStarDescriptorIndex = driverDescriptors.Count;
+                        driverDescriptors.Add(new UnifiedBytecodeDriverDescriptor(
+                            StateSlot: awaitedYieldStarStateSlot,
+                            ValueSlot: awaitedYieldStarResultSlot));
+                        unified.Add(new UnifiedBytecodeInstruction(
+                            UnifiedBytecodeOpCode.YieldStar,
+                            awaitedYieldStarDescriptorIndex));
+                        maxStackDepth = Math.Max(maxStackDepth, GetCompiledExpressionMaxStackDepth(awaitedProgram));
+                        if (TryAppendJumpToCompiledTarget(
+                                instructionIndex,
+                                yieldStar.Next,
+                                instructions,
+                                instructionPcMap,
+                                activeInstructions,
+                                unified,
+                                out reason))
+                        {
+                            return true;
+                        }
+
+                        instructionIndex = yieldStar.Next;
+                        continue;
+
                     case StoreResumeValueInstruction storeResume:
                         var resumeSlot = -1;
                         if (storeResume.TargetSymbol is { } resumeSymbol &&

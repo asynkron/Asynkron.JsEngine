@@ -1590,14 +1590,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ReturnDelegatesThroughResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStarAwait_ReturnDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
 
             async function* outer(delegated) {
-                return yield* delegated;
+                return yield* await delegated;
             }
 
             var calls = [];
@@ -1617,7 +1617,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             };
 
             async function run() {
-                var iterator = outer(delegated);
+                var iterator = outer(Promise.resolve(delegated));
                 var first = await iterator.next();
                 var second = await iterator.return("stop");
                 return [first.value, first.done, second.value, second.done, calls.join(",")];
@@ -1640,14 +1640,14 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task AsyncGeneratorYieldStar_ThrowDelegatesThroughResumableUnifiedBytecode()
+    public async Task AsyncGeneratorYieldStarAwait_ThrowDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();
         var result = await engine.EvaluateAndAwait("""
             var asyncResult = undefined;
 
             async function* outer(delegated) {
-                return yield* delegated;
+                return yield* await delegated;
             }
 
             var calls = [];
@@ -1667,7 +1667,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             };
 
             async function run() {
-                var iterator = outer(delegated);
+                var iterator = outer(Promise.resolve(delegated));
                 var first = await iterator.next();
                 var second = await iterator.throw("boom");
                 return [first.value, first.done, second.value, second.done, calls.join(",")];

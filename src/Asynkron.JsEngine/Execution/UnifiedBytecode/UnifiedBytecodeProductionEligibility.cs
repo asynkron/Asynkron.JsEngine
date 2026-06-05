@@ -1128,15 +1128,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            if (isAsyncGenerator &&
-                instruction is YieldStarInstruction { AwaitedProgram: not null })
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.UnsupportedPlanShape;
-                declineReason =
-                    "Async-generator yield* await delegation is not eligible for resumable unified bytecode routing; it stays on the async-generator IR runner until the VM owns awaited delegated source settlement.";
-                return true;
-            }
-
             // Ordinary free/dynamic identifier resolution (a free variable READ or a free function
             // CALL target that escapes this activation's slots, e.g. `yield outerVar` /
             // `yield helper(x)`) is admitted into the resumable route. Resolution runs against the
@@ -1324,6 +1315,11 @@ internal static class UnifiedBytecodeProductionEligibility
             case ThrowInstruction { AwaitedProgram: null, ThrowProgram: { } }:
             case YieldInstruction { AwaitedProgram: null, YieldProgram: { } or null }:
             case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } }:
+            // `yield* await source` in an async generator lowers to an awaited source payload followed by
+            // YieldStar. AwaitValue owns the source suspension and leaves the settled iterable on the
+            // operand stack; YieldStar then consumes that iterable and reuses the existing async-generator
+            // delegated-next/return/throw pending-await state.
+            case YieldStarInstruction { AwaitedProgram: not null, IterableProgram: null }:
             case AwaitAndDiscardInstruction:
             case ReturnInstruction { AwaitedProgram: not null }:
             case StoreResumeValueInstruction:
@@ -1789,6 +1785,9 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             case YieldStarInstruction { AwaitedProgram: null, IterableProgram: { } iterableProgram }:
                 program = iterableProgram;
+                return true;
+            case YieldStarInstruction { AwaitedProgram: { } awaitedProgram, IterableProgram: null }:
+                program = awaitedProgram;
                 return true;
             default:
                 return TryGetExpressionProgram(instruction, out program);

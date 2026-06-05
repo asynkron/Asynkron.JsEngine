@@ -573,7 +573,7 @@ Async invariants:
 - Resumable state (program counter, operand stack, slots, pending-await, resume-payload, completion) is owned by `UnifiedBytecodeVirtualMachine.ExecuteResumable` (ADR 0277). This is the Tier 0 resumable path.
 - Async generator continuation state is fully owned by the Concurrency Runtime; the Execution Engine does not peek at generator internal state.
 - Host callbacks always enter through the Microtask Queue boundary; they never directly re-enter the Execution Engine.
-- Sync-generator `yield*` now has a VM-owned resumable route for delegated `.next()`, `.return()`, and `.throw()`; async-generator `yield*` and awaited delegated sources remain pre-VM declines (ADR 0277 narrowed by PR #2948).
+- Sync-generator and async-generator `yield*` now have VM-owned resumable routes for delegated `.next()`, `.return()`, and `.throw()` on admitted source payloads; async-generator `yield* await ...` keeps source-await settlement explicit as `AwaitValue` before the `YieldStar` driver (ADR 0277 narrowed by PR #2948 and the later B39 follow-up).
 - The shared `ExecuteAsyncStep` bridge is a structural seam (Milestone C). The target state is a dedicated async-generator IR executor in Tier 0.
 
 ## Module and host platform model
@@ -1391,7 +1391,7 @@ Packet-selection rules:
 - **gh2954 residual mapset gap:** Performance work starts from the documented identity-guarded fast path and must keep method identity and receiver-family guards intact. Any claim stronger than "one measured gap reduced" requires before/after profile or benchmark evidence.
 
 Landed adjacent evidence:
-- **gh3175 B39 async-generator yield* delegated resume:** The roadmap records non-awaited async-generator `yield*` delegated resume through `ExecuteResumable` as landed. Awaited delegated-source `yield* await ...` remains a pre-VM decline and should inform, not replace, the still-open gh2955 lane.
+- **gh3175 B39 async-generator yield* delegated resume:** The roadmap records async-generator `yield*` delegated resume through `ExecuteResumable` as landed for both direct delegated sources and awaited delegated sources. `yield* await ...` routes as `<awaited source> -> AwaitValue -> YieldStar`, while the still-open gh2955 lane remains scoped to broader adjacent async-generator delegation gaps.
 - **gh3176 B47a resumable-only yield* layout:** The roadmap records the resumable-only state-slot and synthetic resume-target layout as landed. It is evidence for the delegated resume boundary, not a selectable layout packet.
 
 The selector deliberately preserves gh2934 as the active concrete packet example below. Future Dreamer revisions may replace the concrete example only when the roadmap has a newer open packet with clearer owner, receiving contract, and proof obligations.

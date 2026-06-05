@@ -32,6 +32,13 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public bool HasEnteredLoop { get; set; }
 
     /// <summary>
+    ///     Tracks the first delegated next() call for yield* drivers. The initial delegated
+    ///     next must receive undefined, even when the outer generator's first next() carried
+    ///     a value.
+    /// </summary>
+    public bool YieldStarStarted { get; set; }
+
+    /// <summary>
     /// Dynamic entry order for active driver cleanup. Higher values are more deeply nested
     /// and must be closed first when unified bytecode exits abruptly.
     /// </summary>
@@ -133,6 +140,7 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         LoopScopeEnvironment = null;
         IteratorClosed = false;
         HasEnteredLoop = false;
+        YieldStarStarted = false;
         ActiveDriverOrdinal = 0;
         PoolLeaseId = 0;
     }

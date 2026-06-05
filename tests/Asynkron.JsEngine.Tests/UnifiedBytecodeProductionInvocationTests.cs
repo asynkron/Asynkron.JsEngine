@@ -1267,6 +1267,90 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task GeneratorYieldStar_FreeIterableUsesResumableUnifiedBytecodeFastPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var values = [4, 5];
+            function* relay() {
+                yield* values;
+            }
+
+            var iterator = relay();
+            var first = iterator.next();
+            var second = iterator.next();
+            var third = iterator.next();
+            [first.value, first.done, second.value, second.done, third.value, third.done];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.Equal(4d, steps.Items[0].AsDouble());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal(5d, steps.Items[2].AsDouble());
+        Assert.False(steps.Items[3].AsBoolean());
+        Assert.Equal(Symbol.Undefined, steps.Items[4]);
+        Assert.True(steps.Items[5].AsBoolean());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=relay",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorYieldStar_FreeCallPreservesInitialNextAndIteratorResult()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var calls = [];
+            var firstResult = { value: "first" };
+            var delegated = {
+                [Symbol.iterator]() {
+                    return {
+                        next(value) {
+                            calls.push(arguments.length + ":" + String(value));
+                            return calls.length === 1
+                                ? firstResult
+                                : { value: "done", done: true };
+                        }
+                    };
+                }
+            };
+
+            function makeIterator() {
+                return delegated;
+            }
+
+            function* relay() {
+                return yield* makeIterator();
+            }
+
+            var iterator = relay();
+            var first = iterator.next(9876);
+            var second = iterator.next("resume");
+            [
+                first === firstResult,
+                "done" in first,
+                first.value,
+                second.value,
+                second.done,
+                calls.join(",")
+            ];
+            """);
+
+        var steps = Assert.IsType<JsTypes.JsArray>(result);
+        Assert.True(steps.Items[0].AsBoolean());
+        Assert.False(steps.Items[1].AsBoolean());
+        Assert.Equal("first", steps.Items[2].AsString());
+        Assert.Equal("done", steps.Items[3].AsString());
+        Assert.True(steps.Items[4].AsBoolean());
+        Assert.Equal("1:undefined,1:resume", steps.Items[5].AsString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-resumable-generator-fast-path func=relay",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task SimpleGeneratorYieldStar_ReturnDelegatesThroughResumableUnifiedBytecode()
     {
         await using var engine = CreateEngine();

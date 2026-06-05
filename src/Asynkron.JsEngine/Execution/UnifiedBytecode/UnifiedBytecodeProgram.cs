@@ -244,19 +244,23 @@ internal readonly record struct UnifiedBytecodeStepResult(
     UnifiedBytecodeStepKind Kind,
     JsTypes.JsValue Value,
     bool Done,
-    JsTypes.JsValue PendingPromise)
+    JsTypes.JsValue PendingPromise,
+    JsTypes.JsValue IteratorResult)
 {
     public static UnifiedBytecodeStepResult Completed(JsTypes.JsValue value) =>
-        new(UnifiedBytecodeStepKind.Completed, value, true, JsTypes.JsValue.Undefined);
+        new(UnifiedBytecodeStepKind.Completed, value, true, JsTypes.JsValue.Undefined, JsTypes.JsValue.Undefined);
 
     public static UnifiedBytecodeStepResult Yield(JsTypes.JsValue value) =>
-        new(UnifiedBytecodeStepKind.Yield, value, false, JsTypes.JsValue.Undefined);
+        new(UnifiedBytecodeStepKind.Yield, value, false, JsTypes.JsValue.Undefined, JsTypes.JsValue.Undefined);
+
+    public static UnifiedBytecodeStepResult YieldIteratorResult(JsTypes.JsValue iteratorResult) =>
+        new(UnifiedBytecodeStepKind.Yield, JsTypes.JsValue.Undefined, false, JsTypes.JsValue.Undefined, iteratorResult);
 
     public static UnifiedBytecodeStepResult PendingAwait(JsTypes.JsValue promise) =>
-        new(UnifiedBytecodeStepKind.PendingAwait, JsTypes.JsValue.Undefined, false, promise);
+        new(UnifiedBytecodeStepKind.PendingAwait, JsTypes.JsValue.Undefined, false, promise, JsTypes.JsValue.Undefined);
 
     public static UnifiedBytecodeStepResult Throw(JsTypes.JsValue value) =>
-        new(UnifiedBytecodeStepKind.Throw, value, true, JsTypes.JsValue.Undefined);
+        new(UnifiedBytecodeStepKind.Throw, value, true, JsTypes.JsValue.Undefined, JsTypes.JsValue.Undefined);
 }
 
 internal sealed class UnifiedBytecodeResumeState

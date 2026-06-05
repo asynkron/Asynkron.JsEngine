@@ -401,7 +401,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             context);
 
         Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
-        Assert.Equal(9d, first.Value.AsDouble());
+        Assert.Equal(9d, GetYieldedValue(first).AsDouble());
         Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
         Assert.True(second.Value.IsUndefined);
     }
@@ -452,7 +452,7 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
             context);
 
         Assert.Equal(UnifiedBytecodeStepKind.Yield, first.Kind);
-        Assert.Equal(9d, first.Value.AsDouble());
+        Assert.Equal(9d, GetYieldedValue(first).AsDouble());
         Assert.Equal(UnifiedBytecodeStepKind.Completed, second.Kind);
         Assert.Equal(42d, second.Value.AsDouble());
         Assert.Equal(42d, slots[2].AsDouble());
@@ -1902,6 +1902,18 @@ public sealed class UnifiedBytecodePrototypeTests(ITestOutputHelper output) : In
                 LeaveTryTarget: -1)),
             CatchDescriptors: ImmutableArray<UnifiedBytecodeCatchDescriptor>.Empty,
             DriverDescriptors: ImmutableArray<UnifiedBytecodeDriverDescriptor>.Empty);
+    }
+
+    private static JsValue GetYieldedValue(UnifiedBytecodeStepResult step)
+    {
+        if (step.IteratorResult.IsUndefined)
+        {
+            return step.Value;
+        }
+
+        Assert.True(step.IteratorResult.TryGetObject<IJsPropertyAccessor>(out var result));
+        Assert.True(result.TryGetProperty("value", out var value));
+        return value;
     }
 
     private static JsObject CreateSingleValueIterable(JsValue value, Action onReturn)

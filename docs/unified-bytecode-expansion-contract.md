@@ -1546,16 +1546,17 @@ the final post-compile production subset check before VM entry.
   closure mutates while the frame is suspended, a global reassigned between
   yields, and a free callee rebound between yields all resolve to the new value,
   and an uninitialized free binding still throws ReferenceError (proof:
-  `UnifiedBytecodeResumableDynamicIdentifierTests`). ARCHITECTURAL CARVE-OUT: a
-  `yield* <iterable>` whose iterable resolves through a free/dynamic identifier
-  (`yield* spyIterable`, `yield* makeIterator()`) is kept on the IR runner by a
-  targeted `TryFindResumablePlanDecline` guard
-  (`YieldStarIterableHasFreeIdentifierDependency`); the resumable `yield*`
-  delegation protocol was only validated against slot-resolved iterables, so
-  admitting a dynamic iterable would regress delegation semantics (8
-  `Generator_YieldStar*` tests regressed without the guard and re-green with it).
-  A binding captured from an *enclosing function* scope (resolves to that
-  activation's slot, `ScopeId>=0`) is a distinct tier that remains declined.
+  `UnifiedBytecodeResumableDynamicIdentifierTests`). Sync generator
+  `yield* <iterable>` now also routes when the iterable resolves through a
+  free/dynamic identifier or free call target (`yield* spyIterable`,
+  `yield* makeIterator()`). The VM-owned `YieldStar` path now matches the IR
+  runner for delegated first-entry `next(undefined)`, original iterator-result
+  preservation, and promise-like delegated `throw`/`return` results, so the old
+  targeted free/dynamic-yield-star decline guard has been removed (proof:
+  `UnifiedBytecodeProductionInvocationTests` yield-star B38 coverage and the
+  generator yield-star pack). A binding captured from an *enclosing function*
+  scope (resolves to that activation's slot, `ScopeId>=0`) is a distinct tier
+  that remains declined.
 - Accepted resumable bodies may now perform PROPERTY WRITES between suspension
   points: `o.x = v`, `o[k] = v`, and `this.x = v`. The `SetNamedProperty` and
   `SetComputedProperty` opcodes are ported into the `ExecuteResumable` switch and

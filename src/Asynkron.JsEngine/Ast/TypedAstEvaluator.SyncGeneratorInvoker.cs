@@ -162,7 +162,9 @@ public static partial class TypedAstEvaluator
             return step.Kind switch
             {
                 UnifiedBytecodeStepKind.Yield =>
-                    UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false),
+                    !step.IteratorResult.IsUndefined
+                        ? step.IteratorResult
+                        : UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: false),
                 UnifiedBytecodeStepKind.Completed =>
                     UnifiedBytecodeVirtualMachine.CreateIteratorResult(step.Value, done: true),
                 UnifiedBytecodeStepKind.Throw => throw new ThrowSignal(step.Value),

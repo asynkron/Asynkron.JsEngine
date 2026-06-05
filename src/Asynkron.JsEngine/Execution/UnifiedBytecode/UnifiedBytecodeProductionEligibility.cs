@@ -1197,21 +1197,6 @@ internal static class UnifiedBytecodeProductionEligibility
                 return true;
             }
 
-            // `yield* <iterable>` keeps its prior verified routing when the iterable resolves through a
-            // free/dynamic identifier (`yield* spyIterable`). The resumable YieldStar delegation protocol
-            // was only validated against slot-resolved iterables; admitting a dynamic-identifier iterable
-            // here would newly route those `yield*` bodies through the resumable VM and regress the
-            // delegation semantics (next/return/throw forwarding, iterator-result shape). Declining keeps
-            // them on the IR runner. Free reads/calls in non-`yield*` positions remain admitted.
-            if (instruction is YieldStarInstruction { IterableProgram: { } yieldStarIterable } &&
-                YieldStarIterableHasFreeIdentifierDependency(yieldStarIterable, activationSlots))
-            {
-                declineCode = UnifiedBytecodeProductionDeclineCode.DynamicLookupDependency;
-                declineReason =
-                    "yield* over a free/dynamic-identifier iterable keeps its IR-runner routing and is not eligible for resumable unified bytecode routing.";
-                return true;
-            }
-
             if (instruction is EnterTryInstruction enterTry &&
                 TryFindTryFinallyRegionResumableSuspension(
                     plan.Instructions,
@@ -3205,38 +3190,6 @@ internal static class UnifiedBytecodeProductionEligibility
                     }
 
                     break;
-            }
-        }
-
-        return false;
-    }
-
-    // Detects a free/dynamic identifier used anywhere inside a yield* iterable program, including a free
-    // CALL target (`yield* makeIterator()`). Broader than HasOrdinaryDynamicExpressionDependency, which
-    // intentionally omits LoadIdentifierCallTarget; here a free callee also disqualifies resumable
-    // routing so the yield* delegation keeps its verified IR-runner path.
-    private static bool YieldStarIterableHasFreeIdentifierDependency(
-        ExpressionProgram program,
-        ActivationSlotShape activationSlots)
-    {
-        if (HasOrdinaryDynamicExpressionDependency(program, activationSlots))
-        {
-            return true;
-        }
-
-        var identifierConstants = program.IdentifierConstants.AsSpan();
-        for (var operationIndex = 0; operationIndex < program.OperationCount; operationIndex++)
-        {
-            var operation = program.GetOperation(operationIndex);
-            if (operation.Kind != ExpressionOpKind.LoadIdentifierCallTarget || operation.IsArguments)
-            {
-                continue;
-            }
-
-            var callIdentifier = operation.GetIdentifier(identifierConstants);
-            if (IsOrdinaryDynamicIdentifier(callIdentifier, activationSlots))
-            {
-                return true;
             }
         }
 

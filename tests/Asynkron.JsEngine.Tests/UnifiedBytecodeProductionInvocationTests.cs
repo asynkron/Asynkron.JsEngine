@@ -2351,7 +2351,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
-    public async Task DirectEvalDeclarationDynamicLookup_UsesUnifiedBytecodeProductionFastPath()
+    public async Task DirectEvalDeclarationDynamicLookup_StaysOnIrPath()
     {
         await using var engine = CreateEngine();
         var result = await engine.Evaluate("""
@@ -2364,7 +2364,7 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             """);
 
         Assert.Equal(42d, result);
-        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
             static record => record.Message.Contains(
                 "unified-bytecode-production-fast-path func=run argc=0",
                 StringComparison.Ordinal));

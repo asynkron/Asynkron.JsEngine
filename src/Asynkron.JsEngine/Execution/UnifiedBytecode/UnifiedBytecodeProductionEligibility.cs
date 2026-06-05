@@ -6511,11 +6511,64 @@ internal static class UnifiedBytecodeProductionEligibility
 
         var identifier = callTarget.GetIdentifier(identifierConstants);
         return string.Equals(identifier.Name.Name, "eval", StringComparison.Ordinal) &&
-               IsDirectEvalSingleArgumentCandidate(program.GetOperation(1));
+               IsDirectEvalSingleArgumentCandidate(program, program.GetOperation(1));
     }
 
-    private static bool IsDirectEvalSingleArgumentCandidate(PackedExpressionOp operation) =>
-        operation.Kind is ExpressionOpKind.LoadIdentifier or ExpressionOpKind.LoadLiteral;
+    private static bool IsDirectEvalSingleArgumentCandidate(ExpressionProgram program, PackedExpressionOp operation)
+    {
+        if (operation.Kind == ExpressionOpKind.LoadIdentifier)
+        {
+            return true;
+        }
+
+        if (operation.Kind != ExpressionOpKind.LoadLiteral)
+        {
+            return false;
+        }
+
+        var literal = operation.GetLiteral(program.LiteralConstants.AsSpan());
+        return !literal.IsString ||
+               !ContainsEvalDeclarationKeyword(literal.AsString());
+    }
+
+    private static bool ContainsEvalDeclarationKeyword(string source)
+    {
+        return ContainsKeyword(source, "var") ||
+               ContainsKeyword(source, "let") ||
+               ContainsKeyword(source, "const") ||
+               ContainsKeyword(source, "function") ||
+               ContainsKeyword(source, "class");
+    }
+
+    private static bool ContainsKeyword(string source, string keyword)
+    {
+        var index = 0;
+        while (index < source.Length)
+        {
+            index = source.IndexOf(keyword, index, StringComparison.Ordinal);
+            if (index < 0)
+            {
+                return false;
+            }
+
+            var before = index == 0 ? '\0' : source[index - 1];
+            var afterIndex = index + keyword.Length;
+            var after = afterIndex >= source.Length ? '\0' : source[afterIndex];
+            if (!IsIdentifierPart(before) && !IsIdentifierPart(after))
+            {
+                return true;
+            }
+
+            index = afterIndex;
+        }
+
+        return false;
+    }
+
+    private static bool IsIdentifierPart(char value) =>
+        value == '_' ||
+        value == '$' ||
+        char.IsAsciiLetterOrDigit(value);
 
     // Case 0: fn?.(args) — callee-optional identifier call
     // Expression program: [LoadIdentifierCallTarget, JumpIfNullish, args..., Call, Jump, SwapTopTwo, Pop]

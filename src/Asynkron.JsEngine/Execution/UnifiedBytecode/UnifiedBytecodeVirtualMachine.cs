@@ -4030,6 +4030,7 @@ internal static class UnifiedBytecodeVirtualMachine
                     }
 
                     slots[instruction.Operand] = stack[--stackPointer];
+                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
                     break;
 
@@ -4089,6 +4090,7 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.InitializeSlot:
                     slots[instruction.Operand] = stack[--stackPointer];
+                    ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                     programCounter++;
                     break;
 
@@ -5181,7 +5183,8 @@ internal static class UnifiedBytecodeVirtualMachine
 
                 case UnifiedBytecodeOpCode.PopEnvironment:
                     if (resumableTryFrames is { Count: > 0 } &&
-                        resumableTryFrames.Peek().ActiveCatchDescriptor is { } activeCatchDescriptor)
+                        resumableTryFrames.Peek().ActiveCatchDescriptor is { } activeCatchDescriptor &&
+                        activeCatchDescriptor.ScopeId == instruction.Operand)
                     {
                         MarkCatchBindingSlots(
                             ref resumableInactiveCatchBindingSlots,
@@ -5297,6 +5300,7 @@ internal static class UnifiedBytecodeVirtualMachine
                             if (instruction.Operand >= 0)
                             {
                                 slots[instruction.Operand] = payload;
+                                ClearInactiveCatchBindingSlot(resumableInactiveCatchBindingSlots, instruction.Operand);
                             }
 
                             programCounter++;
@@ -5452,6 +5456,18 @@ internal static class UnifiedBytecodeVirtualMachine
                                     out var asyncNextProgramCounter,
                                     out var asyncIteratorStep))
                             {
+                                if (asyncIteratorStep.Kind == UnifiedBytecodeStepKind.Throw &&
+                                    TryHandleResumableAbruptCompletion(
+                                        UnifiedBytecodeAbruptCompletionKind.Throw,
+                                        asyncIteratorStep.Value,
+                                        -1,
+                                        hasControlTarget: false))
+                                {
+                                    state.IsCompleted = false;
+                                    context.Clear();
+                                    break;
+                                }
+
                                 return asyncIteratorStep;
                             }
 
@@ -5468,6 +5484,16 @@ internal static class UnifiedBytecodeVirtualMachine
                                 ref state.NextActiveDriverOrdinal,
                                 out var nextProgramCounter))
                         {
+                            if (TryHandleResumableAbruptCompletion(
+                                    UnifiedBytecodeAbruptCompletionKind.Throw,
+                                    context.FlowValue,
+                                    -1,
+                                    hasControlTarget: false))
+                            {
+                                context.Clear();
+                                break;
+                            }
+
                             state.IsCompleted = true;
                             return UnifiedBytecodeStepResult.Throw(context.FlowValue);
                         }
@@ -6597,6 +6623,15 @@ internal static class UnifiedBytecodeVirtualMachine
         inactiveCatchBindingSlots is not null &&
         (uint)slotIndex < (uint)inactiveCatchBindingSlots.Length &&
         inactiveCatchBindingSlots[slotIndex];
+
+    private static void ClearInactiveCatchBindingSlot(bool[]? inactiveCatchBindingSlots, int slotIndex)
+    {
+        if (inactiveCatchBindingSlots is not null &&
+            (uint)slotIndex < (uint)inactiveCatchBindingSlots.Length)
+        {
+            inactiveCatchBindingSlots[slotIndex] = false;
+        }
+    }
 
     private static JsEnvironment CreateCatchEnvironment(
         UnifiedBytecodeProgram program,

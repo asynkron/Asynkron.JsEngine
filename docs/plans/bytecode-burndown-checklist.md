@@ -197,7 +197,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 
 ## Phase D — Dynamic quarantine gates (5 items)
 
-- [ ] **D1** Direct-eval quarantine gate (multi-arg/spread + Call-op IsDirectEval → interpreter)
+- [x] **D1** Direct-eval quarantine gate (multi-arg/spread + Call-op IsDirectEval → interpreter) — ☑/n/a ✅ (Codex): focused eligibility coverage now pins multi-argument direct eval, spread direct eval, and a synthetic non-admitted `Call` op with `IsDirectEval` as pre-VM `CallDependency` declines, while runtime route/no-route coverage proves those residue shapes evaluate correctly without `unified-bytecode-production-fast-path` and the admitted one-argument non-spread non-injecting direct eval route remains green.
 - [ ] **D2** eval-injected runtime binding quarantine
 - [ ] **D3** `with` quarantine for resumable bodies + awaited with-object
 - [ ] **D4** `Function(...)` produced-body quarantine (body recurses into gate)
@@ -222,11 +222,11 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 | A — Sync admission | 69 | 47 complete / 22 open; by decline code / promoted compiler leaf |
 | B — Resumable parity + suspension | 57 | 42 complete / 15 open; class-expression decomposition added B24a-B24i |
 | C — Script route | 3 | 2 complete / 1 open; closes mostly via A/B |
-| D — Dynamic quarantine | 5 | 0 complete / 5 open; build the residue boundary |
+| D — Dynamic quarantine | 5 | 1 complete / 4 open; build the residue boundary |
 | E — Retire tiers | 6 | 3 complete / 3 open; E2/E3 = P0.2/P0.3 |
 | **Total** | **145** | finite current burn-down list after Phase 0 decomposition; future source drift must update audited inventories |
 
-**Status (129 concrete A+B+C checklist items):** 91 complete / 38 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
+**Status (134 concrete A+B+C+D checklist items):** 92 complete / 42 open. **Resumable is the bulk of the remaining work; class-expression static blocks, computed/super class members, async-generator delegation, driver state, and fallback-tier retirement remain significant gaps.**
 
 ## Known soft spots
 1. **Named compiler-decline leaves** (A51a-A51m/B47a) are now source-inventoried in the expansion contract; future `TryCompile` reason drift must update that contract and the focused source gate.

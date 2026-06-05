@@ -4865,6 +4865,71 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
+    public void Evaluate_DirectEvalMultipleArguments_DeclinesProductionRoute()
+    {
+        var plan = GetFunctionPlan("""
+            function invokeEval(extra) {
+                return eval("'non-injecting direct eval'", extra);
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("Direct eval invocation semantics", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_DirectEvalSpreadArguments_DeclinesProductionRoute()
+    {
+        var plan = GetFunctionPlan("""
+            function invokeEval(args) {
+                return eval(...args);
+            }
+            """,
+            "invokeEval");
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("Direct eval invocation semantics", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Evaluate_DirectEvalIdentifierCallOpOutsideAdmittedShape_DeclinesAsCallDependency()
+    {
+        var expressionProgram = new ExpressionProgram(
+            ImmutableArray.Create(
+                PackedExpressionOp.LoadIdentifierCallTarget(0),
+                PackedExpressionOp.LoadLiteralConstant(0),
+                PackedExpressionOp.LoadLiteralConstant(1),
+                PackedExpressionOp.Call(ArgumentCount: 2, HasExplicitThis: false, IsDirectEval: true)),
+            literalConstants: ImmutableArray.Create(JsValue.FromString("'non-injecting direct eval'"), JsValue.FromDouble(0)),
+            identifierConstants: ImmutableArray.Create(new IdentifierOperand(Symbol.Eval)));
+        var seedPlan = GetFunctionPlan("function invokeEval() { return 0; }", "invokeEval");
+        var plan = seedPlan with
+        {
+            Instructions = ImmutableArray.Create<ExecutionInstruction>(new ReturnInstruction(-1, expressionProgram)),
+            EntryPoint = 0
+        };
+
+        var result = UnifiedBytecodeProductionEligibility.Evaluate(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor());
+
+        Assert.False(result.IsEligible);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.CallDependency, result.Code);
+        Assert.Contains("Direct eval invocation semantics", result.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Evaluate_DirectEvalIdentifierSourceWithDynamicRead_DeclinesEvalInjectedRuntimeBinding()
     {
         var plan = GetFunctionPlan("""

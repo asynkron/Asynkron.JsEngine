@@ -3321,6 +3321,46 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task DirectEvalMultipleArguments_StaysOnIrPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval(extra) {
+                var local = 41;
+                return eval("local + 1", extra);
+            }
+
+            invokeEval(99);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task DirectEvalSpreadArguments_StaysOnIrPath()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invokeEval(args) {
+                var local = 41;
+                return eval(...args);
+            }
+
+            invokeEval(["local + 1"]);
+            """);
+
+        Assert.Equal(42d, result);
+        Assert.DoesNotContain(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invokeEval argc=1",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task DirectEvalIdentifierSourceWithRuntimeBinding_StaysOnIrPath()
     {
         await using var engine = CreateEngine();

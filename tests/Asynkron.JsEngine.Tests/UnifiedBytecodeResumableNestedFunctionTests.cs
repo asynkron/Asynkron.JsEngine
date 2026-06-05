@@ -123,6 +123,64 @@ public sealed class UnifiedBytecodeResumableNestedFunctionTests(ITestOutputHelpe
         AssertGeneratorNotRouted();
     }
 
+    // B32 boundary: external .return()/.throw() while suspended in a protected try must run the pending
+    // finally. The resumable VM does not yet drive captured/free plain writes in that early-close cleanup,
+    // so this shape stays on the IR runner.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorTryFinallyMutatesOuterBindingAfterYield_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            let cleanupCalled = false;
+            function* g(){
+                try {
+                    yield 1;
+                } finally {
+                    cleanupCalled = true;
+                }
+            }
+
+            var it = g();
+            it.next();
+            var closed = it.return(99);
+            cleanupCalled + "|" + closed.value + "|" + closed.done;
+            """);
+
+        Assert.Equal("true|99|true", result);
+        AssertGeneratorNotRouted();
+    }
+
+    // B23 boundary: a nested arrow that reads lexical this/private names needs a materialized generator
+    // body context. Keep it on the IR runner until the resumable route owns that closure context.
+    [Fact(Timeout = 5000)]
+    public async Task GeneratorNestedArrowUsesPrivateThis_CorrectButDeclinesToRunner()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            (function() {
+                class Counter {
+                    #count = 0;
+
+                    *counter() {
+                        const inc = () => ++this.#count;
+                        yield inc();
+                        yield inc();
+                        yield inc();
+                    }
+                }
+
+                const iterator = new Counter().counter();
+                const r1 = iterator.next().value;
+                const r2 = iterator.next().value;
+                const r3 = iterator.next().value;
+                return r1 === 1 && r2 === 2 && r3 === 3;
+            })();
+            """);
+
+        Assert.True((bool)result!);
+        AssertGeneratorNotRouted();
+    }
+
     [Fact(Timeout = 5000)]
     public async Task AsyncHoistedFunctionDeclaration_RoutesResumable()
     {

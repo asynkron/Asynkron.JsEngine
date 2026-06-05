@@ -161,7 +161,7 @@ these allowlists — mechanical extensions against existing sync VM handlers.
 - [ ] **B24d** Class expression static blocks — sync ◐ / res ☐ — static blocks explicitly execute via `ExecutionPlanRunner.RunScript`; must become bytecode-owned before fallback-tier retirement.
 - [ ] **B24e** Class expression private fields / branding — sync ◐ / res ☐ — private scope/brand setup is owned by class-definition creation, not resumable bytecode.
 - [ ] **B24f** Class expression private methods / private accessors — sync ◐ / res ☐ — private member definition is class-definition machinery; resumable declines `LoadClassLiteral`.
-- [ ] **B24g** Class expression public accessors — sync ◐ / res ☐ — accessor callables are created through class-definition member assignment; resumable declines `LoadClassLiteral`.
+- [ ] **B24g** Class expression public accessors — sync ◐ / res ☐ — sync production route is pinned by #3193 for class-expression getter/setter descriptor and receiver behavior (`makeBox` reaches `unified-bytecode-production-fast-path`); accessor callables are still created through class-definition member assignment, and resumable declines `LoadClassLiteral`.
 - [ ] **B24h** Class expression computed member names / computed field names — sync ◐ / res ☐ — computed name programs are evaluated during class creation; need bytecode-owned class-definition evaluation.
 - [ ] **B24i** Class expression `super` in members/field initializers — sync ◐ / res ☐ — super constructor/prototype threading is class-definition creation state today; resumable declines before creation.
 - [x] **B25** `typeof unresolvedFreeVar` — ☑/☑ ✅ #3163

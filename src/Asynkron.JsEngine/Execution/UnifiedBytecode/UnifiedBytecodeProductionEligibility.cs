@@ -873,8 +873,8 @@ internal static class UnifiedBytecodeProductionEligibility
         // try) does not re-drive a user finally body — a PRE-EXISTING limitation shared by every non-empty
         // finally (property-write finallies included; those keep routing exactly as on main, so the B32
         // normal-completion pin stays green). This guard does NOT widen that limitation. It only declines
-        // admitted dynamic mutations (`n++`, `n += rhs`, `n &&= rhs`) inside finally bodies when `n` escapes
-        // the activation's slots, keeping early-close cleanup on the IR runner until B32 owns it.
+        // admitted dynamic mutations (`n = rhs`, `n++`, `n += rhs`, `n &&= rhs`) inside finally bodies when
+        // `n` escapes the activation's slots, keeping early-close cleanup on the IR runner until B32 owns it.
         if (enterTry.FinallyIndex >= 0 &&
             FinallyRegionContainsFreeOrCapturedMutation(instructions, enterTry, activationSlots))
         {
@@ -954,6 +954,8 @@ internal static class UnifiedBytecodeProductionEligibility
     {
         return instruction switch
         {
+            AssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
+                !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
             IncrementSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
                 !TryResolveActivationSymbolSlot(targetSymbol, flatSlotId, activationSlots),
             CompoundAssignmentSlotInstruction { TargetSymbol: { } targetSymbol, FlatSlotId: var flatSlotId } =>
@@ -1372,9 +1374,97 @@ internal static class UnifiedBytecodeProductionEligibility
             }
 
             var descriptor = operation.GetObject<FunctionLiteralDescriptor>(objectConstants);
+            if (FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out capturedName))
+            {
+                return true;
+            }
+
             if (FunctionCapturesActivationSlot(descriptor.Function, activationSlots, out capturedName))
             {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool FunctionLiteralNeedsLexicalThisOrPrivateNameContext(
+        FunctionExpression function,
+        out string capturedName)
+    {
+        capturedName = string.Empty;
+        var cache = ((IAstCacheable<ExecutionPlanCache>)function).GetOrCreateCache();
+        if (!cache.Succeeded || cache.Plan is not { } plan)
+        {
+            capturedName = "<unknown>";
+            return true;
+        }
+
+        foreach (var instruction in plan.Instructions)
+        {
+            if (TryGetExpressionProgram(instruction, out var program) &&
+                ExpressionProgramNeedsLexicalThisOrPrivateNameContext(program, function.IsArrow))
+            {
+                capturedName = function.IsArrow
+                    ? "<lexical this/private name>"
+                    : "<private name>";
+                return true;
+            }
+
+            if (instruction is FunctionDeclarationInstruction { Descriptor: { } descriptor } &&
+                FunctionLiteralNeedsLexicalThisOrPrivateNameContext(descriptor.Function, out capturedName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ExpressionProgramNeedsLexicalThisOrPrivateNameContext(
+        ExpressionProgram program,
+        bool isArrowFunction)
+    {
+        if (program.IsEmpty)
+        {
+            return false;
+        }
+
+        var stringConstants = program.StringConstants.AsSpan();
+        foreach (var operation in program.EnumerateOperations())
+        {
+            switch (operation.Kind)
+            {
+                case ExpressionOpKind.LoadThis:
+                case ExpressionOpKind.LoadNewTarget:
+                case ExpressionOpKind.LoadNamedSuperCallTarget:
+                case ExpressionOpKind.LoadComputedSuperCallTarget:
+                case ExpressionOpKind.EnsureSuperReference:
+                case ExpressionOpKind.GetNamedSuperProperty:
+                case ExpressionOpKind.GetComputedSuperProperty:
+                case ExpressionOpKind.SetNamedSuperProperty:
+                case ExpressionOpKind.SetComputedSuperProperty:
+                case ExpressionOpKind.UpdateNamedSuperProperty:
+                case ExpressionOpKind.UpdateComputedSuperProperty:
+                case ExpressionOpKind.SuperConstruct:
+                    if (isArrowFunction)
+                    {
+                        return true;
+                    }
+
+                    break;
+                case ExpressionOpKind.PrivateFieldIn:
+                    return true;
+                case ExpressionOpKind.GetNamedProperty:
+                case ExpressionOpKind.SetNamedProperty:
+                case ExpressionOpKind.UpdateNamedProperty:
+                case ExpressionOpKind.DeleteNamedProperty:
+                    if (operation.GetString(stringConstants).IsPrivateName())
+                    {
+                        return true;
+                    }
+
+                    break;
             }
         }
 

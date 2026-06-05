@@ -6,7 +6,9 @@ Accepted
 
 ## Context
 
-Issue
+Issues
+`planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-5219b4f05e`
+/ PR #3187 and
 `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-a28e4dff02`
 / PR #3188 widened the resumable unified-bytecode route for class methods that
 read, write, or update `super` properties across `yield` / `await`
@@ -17,9 +19,12 @@ opcode families, but resumable execution had a separate safety boundary:
 `TryFindUnsupportedResumableOpcode` omitted the super-property opcodes, and
 `ExecuteResumable` had no handlers for them. At the same time, resumable class
 methods cannot reconstruct their home-object/super binding per step from a
-normal sync invocation frame. The route is only correct if the class-method
-activation metadata is captured on `UnifiedBytecodeResumeState` and reused for
-every resumed VM step.
+normal sync invocation frame. PR #3187 exposed the async-generator variant of
+that boundary: slot initialization can use the synthetic resumable environment,
+but `super` lookup needs the method environment normally materialized by
+`ExecutionPlanRunner.GetOrCreateExecutionEnvironmentForInternalUse()`. The
+route is only correct if the class-method activation metadata is captured on
+`UnifiedBytecodeResumeState` and reused for every resumed VM step.
 
 The final proof pass also exposed a test-log wrinkle: class method invocations
 may log as `func=<anonymous>` because the method AST does not always carry the
@@ -35,6 +40,10 @@ resumable VM owns the full activation and opcode contract.
 - Capture the method home-object/super activation metadata on
   `UnifiedBytecodeResumeState`, alongside the existing long-lived resumable
   state such as slots, operand stack, and program counter.
+- For async generators, create the runner-owned method environment only when
+  the accepted program requires resumable super lookup, and pass that
+  environment as `UnifiedBytecodeResumeState.CallingEnvironment` while keeping
+  ordinary slot storage on the resumable route.
 - Add the super-property opcode families to the resumable opcode allowlist only
   together with matching `ExecuteResumable` handlers:
   `EnsureSuperReference`, `GetNamedSuperProperty`,
@@ -62,7 +71,16 @@ resumable VM owns the full activation and opcode contract.
 
 ## Evidence
 
+- Delivery PR #3187 merged as commit `892e1e602`.
 - Delivery PR #3188 merged as commit `054be1c9f`.
+- PR #3187 added the read-focused async-generator repair in
+  `TypedAstEvaluator.AsyncGeneratorInvoker`, using the runner-owned method
+  environment as `UnifiedBytecodeResumeState.CallingEnvironment` only when
+  `RequiresResumableSuperEnvironment(program)` is true.
+- PR #3187 added
+  `UnifiedBytecodeResumableSuperPropertyReadTests`, covering generator, async,
+  and async-generator named/computed `super` reads after suspension with
+  resumable fast-path route assertions.
 - The final focused proof commit `49bfd4169` added B14 coverage for resumable
   super property write/update parity.
 - Build-stage verification recorded:

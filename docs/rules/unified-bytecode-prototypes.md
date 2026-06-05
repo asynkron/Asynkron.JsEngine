@@ -946,6 +946,11 @@ all-or-nothing until a separate routing issue proves production readiness.
      activation facts must be captured on `UnifiedBytecodeResumeState` and
      reused on each `ExecuteResumable` step; do not reconstruct them through a
      per-step sync-invocation shortcut and do not add a resumable VM fallback.
+     For async generators, distinguish slot storage from the method
+     environment used by `super` lookup: simple slots may remain on the
+     synthetic resumable environment, but `UnifiedBytecodeResumeState.CallingEnvironment`
+     must point at the runner-owned method environment when the accepted
+     program contains resumable super operations.
      Add or remove the super-property opcode family as a coupled set:
      `EnsureSuperReference`, `GetNamedSuperProperty`,
      `GetComputedSuperProperty`, `SetNamedSuperProperty`,
@@ -958,6 +963,12 @@ all-or-nothing until a separate routing issue proves production readiness.
      tests, assert the resumable route marker and activation shape without
      relying on the JavaScript method name; class methods may log as
      `func=<anonymous>`. WHY: issue
+     `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-5219b4f05e`
+     / PR #3187 found that async-generator resumable super reads needed the
+     runner-owned method environment threaded into
+     `UnifiedBytecodeResumeState.CallingEnvironment`; the resumable slot
+     environment alone was not the right home-object/super binding source.
+     Issue
      `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-a28e4dff02`
      / PR #3188 admitted resumable super property reads/writes/updates by
      wiring the activation state, opcode allowlist, and VM handlers together,

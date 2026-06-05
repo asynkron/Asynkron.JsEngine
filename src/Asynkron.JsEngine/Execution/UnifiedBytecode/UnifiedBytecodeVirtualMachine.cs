@@ -4869,6 +4869,30 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter = instruction.Operand;
                     break;
 
+                case UnifiedBytecodeOpCode.JumpWithDriverCleanup:
+                    if (!TryCleanupDriverStatesForControlTargetResumable(
+                            instruction.Operand,
+                            isBreak: true,
+                            program,
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            out var jumpCleanupStep))
+                    {
+                        return jumpCleanupStep;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter = instruction.Operand;
+                    break;
+
                 case UnifiedBytecodeOpCode.JumpIfFalse:
                     programCounter = stack[--stackPointer].IsTruthy
                         ? programCounter + 1
@@ -4891,6 +4915,54 @@ internal static class UnifiedBytecodeVirtualMachine
                     programCounter = !stack[stackPointer - 1].IsNullish
                         ? instruction.Operand
                         : programCounter + 1;
+                    break;
+
+                case UnifiedBytecodeOpCode.Break:
+                    if (!TryCleanupDriverStatesForControlTargetResumable(
+                            instruction.Operand,
+                            isBreak: true,
+                            program,
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            out var breakCleanupStep))
+                    {
+                        return breakCleanupStep;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter = instruction.Operand;
+                    break;
+
+                case UnifiedBytecodeOpCode.Continue:
+                    if (!TryCleanupDriverStatesForControlTargetResumable(
+                            instruction.Operand,
+                            isBreak: false,
+                            program,
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            out var continueCleanupStep))
+                    {
+                        return continueCleanupStep;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
+                    programCounter = instruction.Operand;
                     break;
 
                 case UnifiedBytecodeOpCode.EnterTry:
@@ -5089,6 +5161,25 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.IteratorMoveNext:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
+                        if (descriptor.IteratorKind == IteratorDriverKind.Await)
+                        {
+                            if (!TryMoveAsyncIteratorNext(
+                                    descriptor,
+                                    slots,
+                                    context,
+                                    state,
+                                    programCounter,
+                                    stackPointer,
+                                    out var asyncNextProgramCounter,
+                                    out var asyncIteratorStep))
+                            {
+                                return asyncIteratorStep;
+                            }
+
+                            programCounter = asyncNextProgramCounter;
+                            break;
+                        }
+
                         if (!TryMoveIteratorNext(
                                 descriptor,
                                 slots,
@@ -5109,12 +5200,19 @@ internal static class UnifiedBytecodeVirtualMachine
                 case UnifiedBytecodeOpCode.IteratorClose:
                     {
                         var descriptor = program.DriverDescriptors[instruction.Operand];
-                        CloseIteratorDriverState(
-                            descriptor.StateSlot,
-                            slots,
-                            slotEnvironments: null,
-                            context,
-                            preserveExistingThrow: context.IsThrow);
+                        if (!TryCloseIteratorDriverStateResumable(
+                                descriptor.StateSlot,
+                                slots,
+                                context,
+                                state,
+                                programCounter,
+                                stackPointer,
+                                preserveExistingThrow: context.IsThrow,
+                                out var closeStepResult))
+                        {
+                            return closeStepResult;
+                        }
+
                         if (context.IsThrow)
                         {
                             state.IsCompleted = true;
@@ -5649,6 +5747,24 @@ internal static class UnifiedBytecodeVirtualMachine
                         : UnifiedBytecodeStepResult.YieldIteratorResult(delegatedIteratorResult);
 
                 case UnifiedBytecodeOpCode.Return:
+                    if (!TryCleanupActiveDriverStatesResumable(
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            preserveExistingThrow: false,
+                            out var returnCleanupStep))
+                    {
+                        return returnCleanupStep;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
                     state.IsCompleted = true;
                     var returnValue = stack[--stackPointer];
                     state.ProgramCounter = programCounter + 1;
@@ -5656,14 +5772,45 @@ internal static class UnifiedBytecodeVirtualMachine
                     return UnifiedBytecodeStepResult.Completed(returnValue);
 
                 case UnifiedBytecodeOpCode.ReturnUndefined:
+                    if (!TryCleanupActiveDriverStatesResumable(
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer,
+                            preserveExistingThrow: false,
+                            out var returnUndefinedCleanupStep))
+                    {
+                        return returnUndefinedCleanupStep;
+                    }
+
+                    if (context.IsThrow)
+                    {
+                        state.IsCompleted = true;
+                        return UnifiedBytecodeStepResult.Throw(context.FlowValue);
+                    }
+
                     state.IsCompleted = true;
                     state.ProgramCounter = programCounter + 1;
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Completed(JsValue.Undefined);
 
                 case UnifiedBytecodeOpCode.Throw:
-                    state.IsCompleted = true;
                     var throwValue = stack[--stackPointer];
+                    context.SetThrow(throwValue);
+                    if (!TryCleanupActiveDriverStatesResumable(
+                            slots,
+                            context,
+                            state,
+                            programCounter,
+                            stackPointer + 1,
+                            preserveExistingThrow: true,
+                            out var throwCleanupStep))
+                    {
+                        return throwCleanupStep;
+                    }
+
+                    state.IsCompleted = true;
                     state.ProgramCounter = programCounter + 1;
                     state.StackPointer = stackPointer;
                     return UnifiedBytecodeStepResult.Throw(throwValue);
@@ -7107,6 +7254,230 @@ internal static class UnifiedBytecodeVirtualMachine
         }
     }
 
+    private static bool TryMoveAsyncIteratorNext(
+        UnifiedBytecodeDriverDescriptor descriptor,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        out int programCounter,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        stepResult = default;
+        if (!TryGetDriverState<IteratorDriverState>(slots, descriptor.StateSlot, out var state))
+        {
+            programCounter = descriptor.BreakTarget;
+            return true;
+        }
+
+        var awaitedNextResult = JsValue.Undefined;
+        var hasAwaitedNextResult = false;
+        var value = JsValue.Undefined;
+        var hasValue = false;
+
+        if (state.AwaitingNextResult || state.AwaitingValue)
+        {
+            var wasAwaitingValue = state.AwaitingValue;
+            state.AwaitingNextResult = false;
+            state.AwaitingValue = false;
+            if (!TryConsumePendingAwaitResume(resumeState, out var resumedValue, out var resumedThrow))
+            {
+                programCounter = currentProgramCounter;
+                return true;
+            }
+
+            if (resumedThrow)
+            {
+                resumeState.IsCompleted = true;
+                programCounter = descriptor.BreakTarget;
+                stepResult = UnifiedBytecodeStepResult.Throw(resumedValue);
+                return false;
+            }
+
+            if (wasAwaitingValue)
+            {
+                value = resumedValue;
+                hasValue = true;
+            }
+            else
+            {
+                awaitedNextResult = resumedValue;
+                hasAwaitedNextResult = true;
+            }
+        }
+
+        try
+        {
+            if (!hasValue)
+            {
+                if (state.IteratorObject is { } iterator)
+                {
+                    if (!hasAwaitedNextResult)
+                    {
+                        state.NextMethod ??= iterator.GetIteratorNextCallable(context);
+                        var nextResult = iterator.InvokeIteratorNext(
+                            state.NextMethod,
+                            JsValue.Undefined,
+                            hasSendValue: false,
+                            context: context,
+                            callingEnvironment: resumeState.CallingEnvironment);
+                        if (!TryAwaitAsyncIteratorValue(
+                                nextResult,
+                                context,
+                                resumeState,
+                                currentProgramCounter,
+                                stackPointer,
+                                markAwaitingNextResult: true,
+                                state,
+                                out awaitedNextResult,
+                                out stepResult))
+                        {
+                            programCounter = currentProgramCounter;
+                            return false;
+                        }
+                    }
+
+                    if (!awaitedNextResult.TryGetObject<IJsPropertyAccessor>(out var resultObject))
+                    {
+                        resumeState.IsCompleted = true;
+                        programCounter = descriptor.BreakTarget;
+                        stepResult = UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                            "Iterator result is not an object",
+                            context,
+                            context.RealmState));
+                        return false;
+                    }
+
+                    var done = resultObject.TryGetProperty("done", out var doneValue) &&
+                               JsOps.ToBoolean(doneValue);
+                    if (done)
+                    {
+                        if (resultObject is IteratorResultObject poolableResult)
+                        {
+                            IteratorResultObjectPool.Return(poolableResult);
+                        }
+
+                        CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                        programCounter = descriptor.BreakTarget;
+                        return true;
+                    }
+
+                    var rawValue = resultObject.TryGetProperty("value", out var yielded)
+                        ? yielded
+                        : JsValue.Undefined;
+                    if (resultObject is IteratorResultObject poolableResult2)
+                    {
+                        IteratorResultObjectPool.Return(poolableResult2);
+                    }
+
+                    if (!TryAwaitAsyncIteratorValue(
+                            rawValue,
+                            context,
+                            resumeState,
+                            currentProgramCounter,
+                            stackPointer,
+                            markAwaitingNextResult: false,
+                            state,
+                            out value,
+                            out stepResult))
+                    {
+                        programCounter = currentProgramCounter;
+                        return false;
+                    }
+                }
+                else if (state.Enumerator is { } enumerator)
+                {
+                    if (!enumerator.MoveNext())
+                    {
+                        CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                        programCounter = descriptor.BreakTarget;
+                        return true;
+                    }
+
+                    if (!TryAwaitAsyncIteratorValue(
+                            enumerator.Current,
+                            context,
+                            resumeState,
+                            currentProgramCounter,
+                            stackPointer,
+                            markAwaitingNextResult: false,
+                            state,
+                            out value,
+                            out stepResult))
+                    {
+                        programCounter = currentProgramCounter;
+                        return false;
+                    }
+                }
+                else
+                {
+                    CompleteIteratorDriverState(descriptor.StateSlot, slots, null, state);
+                    programCounter = descriptor.BreakTarget;
+                    return true;
+                }
+            }
+
+            if (!state.HasEnteredLoop)
+            {
+                state.ActiveDriverOrdinal = ++resumeState.NextActiveDriverOrdinal;
+                state.HasEnteredLoop = true;
+            }
+
+            slots[descriptor.ValueSlot] = value;
+            programCounter = descriptor.NextTarget;
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            resumeState.IsCompleted = true;
+            programCounter = descriptor.BreakTarget;
+            stepResult = UnifiedBytecodeStepResult.Throw(signal.ThrownValue);
+            return false;
+        }
+    }
+
+    private static bool TryAwaitAsyncIteratorValue(
+        JsValue candidate,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        bool markAwaitingNextResult,
+        IteratorDriverState iteratorState,
+        out JsValue value,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        var pendingPromise = resumeState.PendingAwaitPromise;
+        if (!AwaitScheduler.TryResolvePromiseOrYield(
+                candidate,
+                asyncStepMode: true,
+                ref pendingPromise,
+                context,
+                out value))
+        {
+            iteratorState.AwaitingNextResult = markAwaitingNextResult;
+            iteratorState.AwaitingValue = !markAwaitingNextResult;
+            resumeState.PendingAwaitPromise = pendingPromise;
+            resumeState.ProgramCounter = currentProgramCounter;
+            resumeState.StackPointer = stackPointer;
+            resumeState.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+            resumeState.ResumePayload = JsValue.Undefined;
+            stepResult = UnifiedBytecodeStepResult.PendingAwait(resumeState.PendingAwaitPromise);
+            return false;
+        }
+
+        if (context.IsThrow)
+        {
+            resumeState.IsCompleted = true;
+            stepResult = UnifiedBytecodeStepResult.Throw(context.FlowValue);
+            return false;
+        }
+
+        stepResult = default;
+        return true;
+    }
+
     private static bool TryReadIteratorNextValue(
         IteratorDriverState state,
         EvaluationContext context,
@@ -7600,6 +7971,278 @@ internal static class UnifiedBytecodeVirtualMachine
         CompleteIteratorDriverState(slotIndex, slots, slotEnvironments, state);
     }
 
+    private static bool TryCloseIteratorDriverStateResumable(
+        int slotIndex,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        bool preserveExistingThrow,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        stepResult = default;
+        if (!TryGetDriverState<IteratorDriverState>(slots, slotIndex, out var state))
+        {
+            return true;
+        }
+
+        if (!state.IteratorClosed &&
+            state.IteratorObject is { } iterator &&
+            state.HasEnteredLoop)
+        {
+            if (state.AwaitingCloseReturnResult)
+            {
+                state.AwaitingCloseReturnResult = false;
+                if (!TryConsumePendingAwaitResume(resumeState, out var resumedCloseResult, out var resumedCloseThrow))
+                {
+                    return true;
+                }
+
+                if (resumedCloseThrow)
+                {
+                    return CompleteResumableIteratorCloseAfterThrow(
+                        slotIndex,
+                        slots,
+                        state,
+                        context,
+                        resumeState,
+                        resumedCloseResult,
+                        out stepResult);
+                }
+
+                if (!TryValidateResumableIteratorCloseResult(
+                        resumedCloseResult,
+                        slotIndex,
+                        slots,
+                        state,
+                        context,
+                        resumeState,
+                        out stepResult))
+                {
+                    return false;
+                }
+
+                return true;
+            }
+
+            if (!TryStartResumableIteratorClose(
+                    iterator,
+                    slotIndex,
+                    slots,
+                    state,
+                    context,
+                    resumeState,
+                    currentProgramCounter,
+                    stackPointer,
+                    preserveExistingThrow,
+                    out stepResult))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+        return true;
+    }
+
+    private static bool TryStartResumableIteratorClose(
+        IJsObjectLike iterator,
+        int slotIndex,
+        Span<JsValue> slots,
+        IteratorDriverState state,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        bool preserveExistingThrow,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        stepResult = default;
+        state.PreserveCloseCompletion = preserveExistingThrow;
+        state.SavedCloseCompletion = preserveExistingThrow
+            ? context.SaveCompletionState()
+            : default;
+
+        if (preserveExistingThrow && context.IsThrow)
+        {
+            context.Clear();
+        }
+
+        if (!TryInvokeIteratorReturn(iterator, context, out var closeResult, out var methodMissing))
+        {
+            if (preserveExistingThrow)
+            {
+                context.RestoreCompletionState(state.SavedCloseCompletion);
+                CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+                return true;
+            }
+
+            resumeState.IsCompleted = true;
+            stepResult = UnifiedBytecodeStepResult.Throw(context.FlowValue);
+            return false;
+        }
+
+        if (methodMissing)
+        {
+            RestorePreservedCloseCompletion(state, context);
+            CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+            return true;
+        }
+
+        var pendingPromise = resumeState.PendingAwaitPromise;
+        if (!AwaitScheduler.TryResolvePromiseOrYield(
+                closeResult,
+                asyncStepMode: true,
+                ref pendingPromise,
+                context,
+                out var resolvedCloseResult))
+        {
+            state.AwaitingCloseReturnResult = true;
+            resumeState.PendingAwaitPromise = pendingPromise;
+            resumeState.ProgramCounter = currentProgramCounter;
+            resumeState.StackPointer = stackPointer;
+            resumeState.ResumePayloadKind = UnifiedBytecodeResumePayloadKind.None;
+            resumeState.ResumePayload = JsValue.Undefined;
+            stepResult = UnifiedBytecodeStepResult.PendingAwait(resumeState.PendingAwaitPromise);
+            return false;
+        }
+
+        if (context.IsThrow)
+        {
+            return CompleteResumableIteratorCloseAfterThrow(
+                slotIndex,
+                slots,
+                state,
+                context,
+                resumeState,
+                context.FlowValue,
+                out stepResult);
+        }
+
+        return TryValidateResumableIteratorCloseResult(
+            resolvedCloseResult,
+            slotIndex,
+            slots,
+            state,
+            context,
+            resumeState,
+            out stepResult);
+    }
+
+    private static bool TryInvokeIteratorReturn(
+        IJsObjectLike iterator,
+        EvaluationContext context,
+        out JsValue result,
+        out bool methodMissing)
+    {
+        result = JsValue.Undefined;
+        methodMissing = false;
+
+        try
+        {
+            if (!iterator.TryGetProperty("return", out var methodValue) ||
+                methodValue.IsNullish)
+            {
+                methodMissing = true;
+                return true;
+            }
+
+            if (!methodValue.TryGetObject<IJsCallable>(out var callable))
+            {
+                context.SetThrow(StandardLibrary.CreateTypeError(
+                    "Iterator.return() must be callable",
+                    context,
+                    context.RealmState));
+                return false;
+            }
+
+            result = TypedAstEvaluator.InvokeCallableJsValue(
+                callable,
+                [],
+                JsValue.FromObjectUnsafe(iterator),
+                context);
+            if (context.IsThrow)
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch (ThrowSignal signal)
+        {
+            context.SetThrow(signal.ThrownValue);
+            return false;
+        }
+    }
+
+    private static bool TryValidateResumableIteratorCloseResult(
+        JsValue closeResult,
+        int slotIndex,
+        Span<JsValue> slots,
+        IteratorDriverState state,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        stepResult = default;
+        if (!closeResult.TryGetObject<IJsObjectLike>(out _))
+        {
+            if (state.PreserveCloseCompletion)
+            {
+                context.RestoreCompletionState(state.SavedCloseCompletion);
+                CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+                return true;
+            }
+
+            resumeState.IsCompleted = true;
+            stepResult = UnifiedBytecodeStepResult.Throw(StandardLibrary.CreateTypeError(
+                "Iterator.return() must return an object",
+                context,
+                context.RealmState));
+            return false;
+        }
+
+        RestorePreservedCloseCompletion(state, context);
+        CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+        return true;
+    }
+
+    private static bool CompleteResumableIteratorCloseAfterThrow(
+        int slotIndex,
+        Span<JsValue> slots,
+        IteratorDriverState state,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        JsValue thrownValue,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        if (state.PreserveCloseCompletion)
+        {
+            context.RestoreCompletionState(state.SavedCloseCompletion);
+            CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+            stepResult = default;
+            return true;
+        }
+
+        resumeState.IsCompleted = true;
+        CompleteIteratorDriverState(slotIndex, slots, slotEnvironments: null, state);
+        stepResult = UnifiedBytecodeStepResult.Throw(thrownValue);
+        return false;
+    }
+
+    private static void RestorePreservedCloseCompletion(
+        IteratorDriverState state,
+        EvaluationContext context)
+    {
+        if (state.PreserveCloseCompletion)
+        {
+            context.RestoreCompletionState(state.SavedCloseCompletion);
+        }
+    }
+
     private static void CompleteForInDriverState(
         int slotIndex,
         Span<JsValue> slots,
@@ -7623,6 +8266,219 @@ internal static class UnifiedBytecodeVirtualMachine
 
         slots[slotIndex] = JsValue.Undefined;
         SyncSlotEnvironment(slotEnvironments, slotIndex, JsValue.Undefined);
+    }
+
+    private static bool TryCleanupActiveDriverStatesResumable(
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        bool preserveExistingThrow,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        var preserveCloseThrow = preserveExistingThrow;
+        List<ActiveDriverSlot>? activeDriverSlots = null;
+        for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+        {
+            var slotValue = slots[slotIndex];
+            if (slotValue.TryGetObject<IteratorDriverState>(out var iteratorState) &&
+                iteratorState.ActiveDriverOrdinal > 0)
+            {
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, iteratorState.ActiveDriverOrdinal));
+                continue;
+            }
+
+            if (slotValue.TryGetObject<ForInDriverState>(out var forInState) &&
+                forInState.ActiveDriverOrdinal > 0)
+            {
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, forInState.ActiveDriverOrdinal));
+                continue;
+            }
+
+            if (slotValue.TryGetObject<UnifiedArrayDestructuringState>(out var arrayState) &&
+                arrayState.ActiveDriverOrdinal > 0)
+            {
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, arrayState.ActiveDriverOrdinal));
+                continue;
+            }
+
+            if (slotValue.TryGetObject<UnifiedObjectDestructuringState>(out var objectState) &&
+                objectState.ActiveDriverOrdinal > 0)
+            {
+                activeDriverSlots ??= new List<ActiveDriverSlot>();
+                activeDriverSlots.Add(new ActiveDriverSlot(slotIndex, objectState.ActiveDriverOrdinal));
+            }
+        }
+
+        if (activeDriverSlots is not null)
+        {
+            activeDriverSlots.Sort(static (left, right) => right.Ordinal.CompareTo(left.Ordinal));
+            foreach (var activeDriverSlot in activeDriverSlots)
+            {
+                if (!TryCleanupDriverStateSlotResumable(
+                        activeDriverSlot.SlotIndex,
+                        slots,
+                        context,
+                        resumeState,
+                        currentProgramCounter,
+                        stackPointer,
+                        ref preserveCloseThrow,
+                        out stepResult))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+        {
+            if (!TryCleanupDriverStateSlotResumable(
+                    slotIndex,
+                    slots,
+                    context,
+                    resumeState,
+                    currentProgramCounter,
+                    stackPointer,
+                    ref preserveCloseThrow,
+                    out stepResult))
+            {
+                return false;
+            }
+        }
+
+        stepResult = default;
+        return true;
+    }
+
+    private static bool TryCleanupDriverStatesForControlTargetResumable(
+        int controlTarget,
+        bool isBreak,
+        UnifiedBytecodeProgram program,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        var effectiveTarget = ResolveBytecodeCleanupChainTarget(program.Instructions, controlTarget);
+        List<ActiveDriverSlot>? activeDriverSlots = null;
+        var targetDriverOrdinal = isBreak ? int.MaxValue : 0;
+        foreach (var descriptor in program.DriverDescriptors)
+        {
+            if (descriptor.StateSlot < 0 ||
+                !ShouldCleanupDriverForControlTarget(descriptor, controlTarget, effectiveTarget, program.Instructions) ||
+                !TryGetActiveDriverOrdinal(slots, descriptor.StateSlot, out var ordinal))
+            {
+                continue;
+            }
+
+            activeDriverSlots ??= new List<ActiveDriverSlot>();
+            activeDriverSlots.Add(new ActiveDriverSlot(descriptor.StateSlot, ordinal));
+
+            if (isBreak && IsDriverBreakTarget(program, controlTarget, descriptor))
+            {
+                targetDriverOrdinal = Math.Min(targetDriverOrdinal, ordinal);
+            }
+            else if (!isBreak && IsDriverContinueTarget(program, controlTarget, descriptor))
+            {
+                targetDriverOrdinal = Math.Max(targetDriverOrdinal, ordinal);
+            }
+        }
+
+        if (activeDriverSlots is null)
+        {
+            stepResult = default;
+            return true;
+        }
+
+        activeDriverSlots.Sort(static (left, right) => right.Ordinal.CompareTo(left.Ordinal));
+        var preserveCloseThrow = context.IsThrow;
+        foreach (var activeDriverSlot in activeDriverSlots)
+        {
+            if (!ShouldCleanupActiveDriverForControlTarget(
+                    activeDriverSlot,
+                    targetDriverOrdinal,
+                    controlTarget,
+                    isBreak,
+                    program))
+            {
+                continue;
+            }
+
+            if (!TryCleanupDriverStateSlotResumable(
+                    activeDriverSlot.SlotIndex,
+                    slots,
+                    context,
+                    resumeState,
+                    currentProgramCounter,
+                    stackPointer,
+                    ref preserveCloseThrow,
+                    out stepResult))
+            {
+                return false;
+            }
+        }
+
+        stepResult = default;
+        return true;
+    }
+
+    private static bool TryCleanupDriverStateSlotResumable(
+        int slotIndex,
+        Span<JsValue> slots,
+        EvaluationContext context,
+        UnifiedBytecodeResumeState resumeState,
+        int currentProgramCounter,
+        int stackPointer,
+        ref bool preserveCloseThrow,
+        out UnifiedBytecodeStepResult stepResult)
+    {
+        if (slots[slotIndex].TryGetObject<IteratorDriverState>(out _))
+        {
+            if (!TryCloseIteratorDriverStateResumable(
+                    slotIndex,
+                    slots,
+                    context,
+                    resumeState,
+                    currentProgramCounter,
+                    stackPointer,
+                    preserveCloseThrow,
+                    out stepResult))
+            {
+                return false;
+            }
+
+            preserveCloseThrow |= context.IsThrow;
+            return true;
+        }
+
+        if (slots[slotIndex].TryGetObject<ForInDriverState>(out var forInState))
+        {
+            CompleteForInDriverState(slotIndex, slots, slotEnvironments: null, forInState);
+            stepResult = default;
+            return true;
+        }
+
+        if (slots[slotIndex].TryGetObject<UnifiedArrayDestructuringState>(out _))
+        {
+            CloseArrayDestructuringState(slotIndex, slots, slotEnvironments: null, context, preserveCloseThrow);
+            preserveCloseThrow |= context.IsThrow;
+            stepResult = default;
+            return true;
+        }
+
+        if (slots[slotIndex].TryGetObject<UnifiedObjectDestructuringState>(out _))
+        {
+            CloseObjectDestructuringState(slotIndex, slots, slotEnvironments: null);
+        }
+
+        stepResult = default;
+        return true;
     }
 
     private static void CleanupActiveDriverStates(

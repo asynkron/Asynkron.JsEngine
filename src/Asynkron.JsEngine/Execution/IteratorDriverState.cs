@@ -15,6 +15,9 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
     public bool IsAsyncIterator { get; set; }
     public bool AwaitingNextResult { get; set; }
     public bool AwaitingValue { get; set; }
+    public bool AwaitingCloseReturnResult { get; set; }
+    public bool PreserveCloseCompletion { get; set; }
+    public CompletionState SavedCloseCompletion { get; set; }
     public IJsCallable? NextMethod { get; set; }
 
     /// <summary>
@@ -134,6 +137,9 @@ internal sealed class IteratorDriverState : IRentable, IActiveIteratorState, IAs
         IsAsyncIterator = false;
         AwaitingNextResult = false;
         AwaitingValue = false;
+        AwaitingCloseReturnResult = false;
+        PreserveCloseCompletion = false;
+        SavedCloseCompletion = default;
         NextMethod = null;
         IteratorVariable = default;
         ValueVariable = default;

@@ -6691,8 +6691,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
     }
 
-    // A48 direct gate proof: async drivers live inside async functions that decline before
-    // plan inspection, so these helpers exercise the iterator-kind boundary directly.
+    // Payload proof (#2678/B41): sync TDZ heads, awaited sources, and async iterator
+    // drivers are admitted, while invalid source payload shapes still decline before compilation.
 
     [Fact]
     public void IsSupportedIteratorInit_SyncIterableSource_Accepts()
@@ -6708,7 +6708,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void IsSupportedIteratorInit_AsyncKind_Declines()
+    public void IsSupportedIteratorInit_AsyncKind_Accepts()
     {
         var instruction = new IteratorInitInstruction(
             IteratorDriverKind.Await,
@@ -6717,12 +6717,11 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             Next: -1,
             IterableProgram: ExpressionProgram.Empty);
 
-        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
-        Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
     }
 
     [Fact]
-    public void IsSupportedIteratorInit_AsyncKindWithAwaitedSource_DeclinesWithAsyncReason()
+    public void IsSupportedIteratorInit_AsyncKindWithAwaitedSource_Accepts()
     {
         var instruction = new IteratorInitInstruction(
             IteratorDriverKind.Await,
@@ -6732,8 +6731,7 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             IterableProgram: null,
             AwaitedProgram: ExpressionProgram.Empty);
 
-        Assert.False(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason));
-        Assert.Contains("Async iterator driver state", reason, StringComparison.Ordinal);
+        Assert.True(UnifiedBytecodeProductionEligibility.IsSupportedIteratorInit(instruction, out var reason), reason);
     }
 
     [Fact]
@@ -6867,6 +6865,35 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.IteratorClose);
+    }
+
+    [Fact]
+    public void EvaluateResumable_ForAwaitOfDriver_AdmitsAsyncIteratorDriver()
+    {
+        var plan = GetFunctionPlan("""
+            async function collect(values) {
+                var last = 0;
+                for await (var value of values) {
+                    last = value;
+                }
+
+                return last;
+            }
+            """,
+            "collect");
+
+        var result = UnifiedBytecodeProductionEligibility.EvaluateResumable(
+            plan,
+            new UnifiedBytecodeProductionActivationDescriptor(IsAsyncLike: true));
+
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorInit);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.IteratorMoveNext);
+        Assert.Contains(result.Program.DriverDescriptors, descriptor =>
+            descriptor.IteratorKind == IteratorDriverKind.Await);
     }
 
     [Fact]

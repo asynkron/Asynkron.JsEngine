@@ -1,4 +1,4 @@
-# ADR 0330: Keep iterator init async-kind and awaited-source gates separate
+# ADR 0330: Keep iterator init async-kind and awaited-source concepts separate
 
 - Status: Accepted
 - Date: 2026-06-05
@@ -27,25 +27,26 @@ production eligibility helper had to keep three cases separate:
 ## Decision
 
 `IteratorInitInstruction` production eligibility treats source payload shape and
-iterator driver kind as separate gates.
+iterator driver kind as separate concepts.
 
 - The instruction must carry exactly one source payload: either `IterableProgram`
   or `AwaitedProgram`, never neither and never both.
 - `IteratorDriverKind.Sync` may pass that payload gate. An `AwaitedProgram` on a
   sync driver is not an async iterator driver; it represents an awaited source
   followed by synchronous iterator initialization in the owned resumable path.
-- `IteratorDriverKind.Await` declines before payload inspection with the stable
-  async-driver reason until `for await...of` protocol state, async iterator
-  settlement, and close behavior are VM-owned.
+- `IteratorDriverKind.Await` remains the async iterator protocol boundary. B41
+  admits the simple resumable VM subset once protocol state, next-result/value
+  settlement, and close behavior are VM-owned by unified bytecode.
 
-The helper tests assert all four boundary points directly: sync iterable source
-accepted, sync awaited source accepted, missing/dual source declined, and async
-kind declined with both iterable and awaited source shapes.
+The helper tests assert the boundary points directly: sync iterable source
+accepted, sync awaited source accepted, async-kind sources accepted for the B41
+subset, and missing/dual source payloads declined before compilation.
 
 ## Consequences
 
 - Future widening must not use `AwaitedProgram` as shorthand for async iterator
-  driver state. The driver kind is the protocol-state boundary.
+  driver state. The driver kind is the protocol-state boundary, while
+  `AwaitedProgram` only describes source-expression evaluation.
 - Async-kind tests should exercise `IsSupportedIteratorInit` directly where
   async-like activation pre-gates would otherwise hide the iterator-kind
   decision.
@@ -59,7 +60,7 @@ kind declined with both iterable and awaited source shapes.
   `planitem-planmanual1780639098493226000-full-unified-bytecode-execution-burndown-b-7e33a72606`
 - PR: #3217
 - Delivery commit: `e9ab87b89 Harden iterator init async-kind eligibility gate`
-- Focused tests:
+- Original focused tests:
   `rtk dotnet test tests/Asynkron.JsEngine.Tests --filter "FullyQualifiedName~UnifiedBytecodeProductionEligibilityTests.IsSupportedIteratorInit"`
   passed 6 tests.
 - Focused route-adjacent test:

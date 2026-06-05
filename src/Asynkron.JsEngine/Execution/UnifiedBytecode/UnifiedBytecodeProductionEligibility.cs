@@ -1854,10 +1854,15 @@ internal static class UnifiedBytecodeProductionEligibility
                 UnifiedBytecodeOpCode.SwapTopTwo or
                 UnifiedBytecodeOpCode.RotateTopThreeRight or
                 UnifiedBytecodeOpCode.Jump or
+                // Resumable control-flow opcodes are admitted only because ExecuteResumable owns the
+                // same driver-cleanup topology as the sync VM for the currently compiled B41 loop shapes.
+                UnifiedBytecodeOpCode.JumpWithDriverCleanup or
                 UnifiedBytecodeOpCode.JumpIfFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitFalse or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitTrue or
                 UnifiedBytecodeOpCode.JumpIfShortCircuitNotNullish or
+                UnifiedBytecodeOpCode.Break or
+                UnifiedBytecodeOpCode.Continue or
                 UnifiedBytecodeOpCode.EnterTry or
                 UnifiedBytecodeOpCode.LeaveTry or
                 UnifiedBytecodeOpCode.EndFinally or
@@ -4134,17 +4139,11 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    // Exposed to the test assembly (A48 gate coverage): sync iterator drivers must have
-    // exactly one source payload, while async-kind drivers stay explicitly declined until
-    // for-await-of settlement is VM-owned.
+    // Exposed to the test assembly: sync and async-kind iterator drivers must have
+    // exactly one source payload. Awaited source payloads are source evaluation;
+    // IteratorDriverKind.Await is the async iterator protocol boundary admitted by B41.
     internal static bool IsSupportedIteratorInit(IteratorInitInstruction instruction, out string reason)
     {
-        if (instruction.IteratorKind != IteratorDriverKind.Sync)
-        {
-            reason = "Async iterator driver state is not eligible for production unified bytecode routing.";
-            return false;
-        }
-
         var hasIterableProgram = instruction.IterableProgram is not null;
         var hasAwaitedProgram = instruction.AwaitedProgram is not null;
         if (hasIterableProgram == hasAwaitedProgram)
@@ -4157,7 +4156,8 @@ internal static class UnifiedBytecodeProductionEligibility
         // (for example `for (const x of ...)`) are now admitted. Awaited sync-kind
         // sources in async functions are admitted through the resumable VM by
         // compiling the source expression followed by AwaitValue and IteratorInit.
-        // Async-kind drivers remain declined pending later slices.
+        // B41: async-kind drivers are admitted for the simple resumable VM subset. The VM owns
+        // next-result and yielded-value awaits before storing the current iteration value.
         reason = string.Empty;
         return true;
     }

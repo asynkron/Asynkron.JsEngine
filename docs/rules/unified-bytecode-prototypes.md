@@ -177,8 +177,10 @@ all-or-nothing until a separate routing issue proves production readiness.
     binary/chain shortcuts stay ahead of unified bytecode. The production
     unified route intentionally runs ahead of the broader `SyncIrCallTrampoline`
     so accepted branch, join, and canonical-loop shapes are not swallowed by
-    the trampoline, then the generic simple IR activation runner remains behind
-    both. Populate an invocation-local slot span from `ActivationSlotShape` by
+    the trampoline, then any generic simple IR activation shape that is not
+    owned by the expression-program bridge must explicitly decline to the
+    outer invocation fallback. Populate an invocation-local slot span from
+    `ActivationSlotShape` by
     filling `undefined` and writing parameters through `ParameterSlotIndices`;
     do not create a `JsEnvironment`, call `ExecutionPlanRunner`, or add VM
     fallback for accepted programs. Prove selected routing, faster-route
@@ -186,7 +188,8 @@ all-or-nothing until a separate routing issue proves production readiness.
     activation proof pack. Also keep the ordinary-sync route order itself
     source-gated inside `TryInvokeIrFast<TArgs>(...)`: specialized binary
     routes first, accepted production unified bytecode before
-    `SyncIrCallTrampoline`, and generic `ExecutionPlanRunner` last. WHY: issue
+    `SyncIrCallTrampoline`, and generic runner-owned activation shapes as an
+    explicit no-route decline. WHY: issue
     `planitem-planmanual1779965179415360000-batch-1-receiver-aware-call-execution-boun-8f4d6fd0f4`
     / PR #2623 found the production code already had the intended order, but
     route logs alone did not guard the whole fallback chain from drifting back

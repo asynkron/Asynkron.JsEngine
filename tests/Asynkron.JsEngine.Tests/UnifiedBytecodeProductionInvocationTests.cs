@@ -9027,6 +9027,9 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
         var syncIrTrampolineIndex = routeSource.IndexOf(
             "SyncIrCallTrampoline.TryInvoke(",
             StringComparison.Ordinal);
+        var runnerDeclineIndex = routeSource.IndexOf(
+            "simple-ir-activation-runner-declined",
+            StringComparison.Ordinal);
         var genericRunnerIndex = routeSource.IndexOf("new ExecutionPlanRunner(", StringComparison.Ordinal);
 
         Assert.True(
@@ -9042,8 +9045,11 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
             syncIrTrampolineIndex > binaryChainFastPathIndex,
             "SyncIrCallTrampoline should stay behind production unified bytecode and simple binary fallbacks.");
         Assert.True(
-            genericRunnerIndex > syncIrTrampolineIndex,
-            "Generic ExecutionPlanRunner fallback should stay after production unified bytecode and SyncIrCallTrampoline.");
+            runnerDeclineIndex > syncIrTrampolineIndex,
+            "Generic simple-IR activation runner decline should stay after production unified bytecode and SyncIrCallTrampoline.");
+        Assert.True(
+            genericRunnerIndex < 0,
+            "TryInvokeIrFast must not construct ExecutionPlanRunner for the generic simple-IR activation fallback.");
     }
 
     [Fact]

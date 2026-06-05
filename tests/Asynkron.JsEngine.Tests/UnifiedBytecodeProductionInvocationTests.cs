@@ -322,6 +322,68 @@ public sealed class UnifiedBytecodeProductionInvocationTests(ITestOutputHelper o
     }
 
     [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithChainedOptionalNamedReadArgument_ShortCircuitsAtEachHop()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            function invoke(fn, box) {
+                return fn(box?.child?.value);
+            }
+
+            function stringify(v) {
+                return "" + v;
+            }
+
+            var whenBaseNull = invoke(stringify, null);
+            var whenBaseUndefined = invoke(stringify, undefined);
+            var whenFirstMissing = invoke(stringify, {});
+            var whenFirstNull = invoke(stringify, { child: null });
+            var whenPresent = invoke(stringify, { child: { value: 7 } });
+            whenBaseNull + ":" + whenBaseUndefined + ":" + whenFirstMissing +
+                ":" + whenFirstNull + ":" + whenPresent;
+            """);
+
+        Assert.Equal("undefined:undefined:undefined:undefined:7", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
+    public async Task IdentifierCallWithChainedOptionalNamedReadArgument_DoesNotReadTrailingHopAfterShortCircuit()
+    {
+        await using var engine = CreateEngine();
+        var result = await engine.Evaluate("""
+            var hits = 0;
+            var child = {
+                get value() {
+                    hits++;
+                    return 7;
+                }
+            };
+
+            function invoke(fn, box) {
+                return fn(box?.child?.value);
+            }
+
+            function stringify(v) {
+                return "" + v;
+            }
+
+            var shorted = invoke(stringify, { child: null });
+            var read = invoke(stringify, { child: child });
+            shorted + ":" + read + ":" + hits;
+            """);
+
+        Assert.Equal("undefined:7:1", result?.ToString());
+        Assert.Contains(CurrentLogger!.Collector.Snapshot(),
+            static record => record.Message.Contains(
+                "unified-bytecode-production-fast-path func=invoke argc=2",
+                StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 5000)]
     public async Task IdentifierCallWithOptionalComputedPropertyReadArgument_UsesUnifiedBytecodeProductionFastPath()
     {
         await using var engine = CreateEngine();

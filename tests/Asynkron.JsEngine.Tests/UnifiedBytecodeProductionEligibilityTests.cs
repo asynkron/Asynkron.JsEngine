@@ -1113,11 +1113,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_IdentifierCallWithChainedOptionalNamedPropertyReadArgument_DeclinesWithOptionalChainDependency()
+    public void Evaluate_IdentifierCallWithChainedOptionalNamedPropertyReadArgument_AcceptsGetNamedPropertyChain()
     {
-        // The baseline single-hop `box?.value` optional argument is admitted, but a
-        // chained `box?.value?.nested` carries a ShortCircuitOnNullishTarget
-        // continuation hop that stays outside the admitted call-argument boundary.
         var plan = GetFunctionPlan("""
             function invoke(fn, box) {
                 return fn(box?.value?.nested);
@@ -1129,8 +1126,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]
@@ -1173,8 +1176,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
 
         Assert.True(result.IsEligible, result.Reason);
         Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
-        Assert.Contains(result.Program.Instructions, instruction =>
-            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined);
+        Assert.Equal(1, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
         Assert.Contains(result.Program.Instructions, instruction =>
             instruction.OpCode == UnifiedBytecodeOpCode.PrepareNamedCallTarget);
         Assert.Contains(result.Program.Instructions, instruction =>
@@ -1182,10 +1185,8 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
     }
 
     [Fact]
-    public void Evaluate_IdentifierCallWithOptionalThenOptionalNamedReadChainArgument_DeclinesWithOptionalChainDependency()
+    public void Evaluate_IdentifierCallWithOptionalThenOptionalNamedReadChainArgument_AcceptsGetNamedPropertyChain()
     {
-        // `box?.child?.value` carries a SECOND optional hop (IsOptional + short-circuit)
-        // and stays outside the optional-start-then-plain chain boundary.
         var plan = GetFunctionPlan("""
             function invoke(fn, box) {
                 return fn(box?.child?.value);
@@ -1197,8 +1198,14 @@ public sealed class UnifiedBytecodeProductionEligibilityTests(ITestOutputHelper 
             plan,
             new UnifiedBytecodeProductionActivationDescriptor());
 
-        Assert.False(result.IsEligible, result.Reason);
-        Assert.Equal(UnifiedBytecodeProductionDeclineCode.OptionalChainDependency, result.Code);
+        Assert.True(result.IsEligible, result.Reason);
+        Assert.Equal(UnifiedBytecodeProductionDeclineCode.None, result.Code);
+        Assert.Equal(2, result.Program.Instructions.Count(instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined));
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.GetNamedProperty);
+        Assert.Contains(result.Program.Instructions, instruction =>
+            instruction.OpCode == UnifiedBytecodeOpCode.CallInvocationBoundary);
     }
 
     [Fact]

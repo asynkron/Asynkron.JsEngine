@@ -5057,12 +5057,10 @@ internal static class UnifiedBytecodeProductionEligibility
         return false;
     }
 
-    // Recognizes a plain continuation read (IsOptional:false, ShortCircuit:true) that
-    // belongs to an optional-start-then-plain named read chain (`box?.child.value`)
-    // used as a call argument. The span is [simple base, GetNamedProperty(IsOptional,
-    // !SC), GetNamedProperty(!IsOptional, SC)+] and the enclosing program ends in a
-    // Call. A continuation hop that is itself optional (`box?.child?.value`) is not
-    // matched, so that shape still declines as OptionalChainDependency.
+    // Recognizes a continuation read that belongs to an optional-start named read
+    // chain (`box?.child.value`, `box?.child?.value`) used as a call argument.
+    // The span is measured by the same helper used by call-argument admission so
+    // embedded dependency scanning and selector eligibility stay in lockstep.
     private static bool TryIsEmbeddedOptionalNamedReadChainCallArgumentContinuation(
         ExpressionProgram program,
         int operationIndex,
@@ -5083,49 +5081,29 @@ internal static class UnifiedBytecodeProductionEligibility
         var stringConstants = program.StringConstants.AsSpan();
         var op = program.GetOperation(operationIndex);
         if (op.Kind != ExpressionOpKind.GetNamedProperty ||
-            op.IsOptional ||
             !op.ShortCircuitOnNullishTarget ||
             op.GetString(stringConstants).IsPrivateName())
         {
             return false;
         }
 
-        // Walk back over preceding plain continuation reads to the optional hop.
-        var hopIndex = operationIndex - 1;
-        while (hopIndex >= 0)
+        for (var spanStart = 0; spanStart < operationIndex; spanStart++)
         {
-            var prev = program.GetOperation(hopIndex);
-            if (prev.Kind == ExpressionOpKind.GetNamedProperty &&
-                !prev.IsOptional &&
-                prev.ShortCircuitOnNullishTarget &&
-                !prev.GetString(stringConstants).IsPrivateName())
+            if (TryMeasureSimpleOptionalNamedReadChainOperandSpan(
+                    program,
+                    spanStart,
+                    identifierConstants,
+                    activationSlots,
+                    out var spanLength,
+                    allowsDynamicIdentifiers) &&
+                operationIndex >= spanStart + 2 &&
+                operationIndex < spanStart + spanLength)
             {
-                hopIndex--;
-                continue;
+                return true;
             }
-
-            break;
         }
 
-        if (hopIndex < 1)
-        {
-            return false;
-        }
-
-        var hop = program.GetOperation(hopIndex);
-        if (hop.Kind != ExpressionOpKind.GetNamedProperty ||
-            !hop.IsOptional ||
-            hop.ShortCircuitOnNullishTarget ||
-            hop.GetString(stringConstants).IsPrivateName())
-        {
-            return false;
-        }
-
-        return IsSimpleOperand(
-            program.GetOperation(hopIndex - 1),
-            identifierConstants,
-            activationSlots,
-            allowsDynamicIdentifiers);
+        return false;
     }
 
     // Recognizes a plain continuation read (IsOptional:false, ShortCircuit:true) that
@@ -7785,13 +7763,13 @@ internal static class UnifiedBytecodeProductionEligibility
         return true;
     }
 
-    // Measures an optional-start-then-plain named property-read operand span
-    // (`box?.child.value`, `box?.child.nested.deep`): a simple base operand, one
-    // optional GetNamedProperty hop (IsOptional, !ShortCircuit), and at least one
-    // plain continuation read carrying the chain short-circuit flag
-    // (!IsOptional, ShortCircuitOnNullishTarget). A nullish base short-circuits the
-    // whole chain to undefined. A continuation hop that is itself optional
-    // (`box?.child?.value`) is NOT part of this span and leaves the call to decline.
+    // Measures an optional-start named property-read operand span
+    // (`box?.child.value`, `box?.child.nested.deep`, `box?.child?.value`): a simple
+    // base operand, one optional GetNamedProperty hop (IsOptional, !ShortCircuit),
+    // and at least one continuation read carrying the chain short-circuit flag. A continuation can be
+    // either a plain read (`box?.child.value`) or another optional hop
+    // (`box?.child?.value`); the compiler emits one boundary jump per optional hop.
+    // A nullish base/intermediate short-circuits the whole chain to undefined.
     private static bool TryMeasureSimpleOptionalNamedReadChainOperandSpan(
         ExpressionProgram program,
         int startIndex,
@@ -7826,7 +7804,6 @@ internal static class UnifiedBytecodeProductionEligibility
         {
             var continuation = program.GetOperation(index);
             if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
-                continuation.IsOptional ||
                 !continuation.ShortCircuitOnNullishTarget ||
                 continuation.GetString(stringConstants).IsPrivateName())
             {

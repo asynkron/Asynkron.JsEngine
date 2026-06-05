@@ -9375,10 +9375,10 @@ internal static class UnifiedBytecodeCompiler
         return false;
     }
 
-    // Emits an optional-start-then-plain named property-read operand span
-    // (`box?.child.value`): a simple base load, a JumpIfNullishReplaceUndefined that
-    // short-circuits the whole chain to undefined when the base is nullish, the
-    // optional hop read, and the plain continuation reads. Mirrors the proven
+    // Emits an optional-start named property-read operand span
+    // (`box?.child.value`, `box?.child?.value`): a simple base load, one
+    // JumpIfNullishReplaceUndefined per optional hop, the named reads, and any
+    // plain continuation reads. Mirrors the proven
     // standalone optional-named-chain emission (TryAppendFirstBoundaryOptionalNamedPropertyReadChain).
     private static bool TryAppendSimpleOptionalNamedReadChainOperandSpan(
         ExpressionProgram expressionProgram,
@@ -9419,7 +9419,6 @@ internal static class UnifiedBytecodeCompiler
         {
             var continuation = expressionProgram.GetOperation(index);
             if (continuation.Kind != ExpressionOpKind.GetNamedProperty ||
-                continuation.IsOptional ||
                 !continuation.ShortCircuitOnNullishTarget ||
                 continuation.GetString(expressionStringConstants).IsPrivateName())
             {
@@ -9450,15 +9449,17 @@ internal static class UnifiedBytecodeCompiler
             return false;
         }
 
-        // The optional hop short-circuits the remaining chain to undefined when the
-        // base is nullish, so the boundary jump targets the instruction after the
-        // last continuation read.
-        var boundaryJumpIndex = unified.Count;
-        unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
-
+        List<int>? boundaryJumpIndices = null;
         for (var readIndex = startIndex + 1; readIndex < index; readIndex++)
         {
             var read = expressionProgram.GetOperation(readIndex);
+            if (read.IsOptional)
+            {
+                boundaryJumpIndices ??= [];
+                boundaryJumpIndices.Add(unified.Count);
+                unified.Add(new UnifiedBytecodeInstruction(UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined, 0));
+            }
+
             var propertyNameIndex = stringConstants.Count;
             stringConstants.Add(read.GetString(expressionStringConstants));
             unified.Add(new UnifiedBytecodeInstruction(
@@ -9467,9 +9468,15 @@ internal static class UnifiedBytecodeCompiler
         }
 
         var chainEnd = unified.Count;
-        unified[boundaryJumpIndex] = new UnifiedBytecodeInstruction(
-            UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
-            chainEnd);
+        if (boundaryJumpIndices is not null)
+        {
+            foreach (var jumpIndex in boundaryJumpIndices)
+            {
+                unified[jumpIndex] = new UnifiedBytecodeInstruction(
+                    UnifiedBytecodeOpCode.JumpIfNullishReplaceUndefined,
+                    chainEnd);
+            }
+        }
 
         if (unified.Count > unifiedCount)
         {
